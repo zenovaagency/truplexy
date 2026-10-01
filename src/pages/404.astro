@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/chrome/Nav.astro';
+import Footer from '../components/chrome/Footer.astro';
+import Button from '../components/ui/Button.astro';
+---
+
+<Base title="Page not found — Truplexy" noindex>
+  <Nav />
+  <main id="main" class="relative overflow-hidden">
+    <div class="aurora" aria-hidden="true"></div>
+    <section class="container-t relative flex min-h-[70vh] flex-col items-center justify-center pt-[var(--nav-h)] text-center">
+      <p class="eyebrow justify-center">404</p>
+      <h1 class="display mt-5 text-[clamp(2.4rem,1.6rem+3vw,4rem)]">This thread doesn’t lead anywhere.</h1>
+      <p class="lede mt-5 max-w-[520px]">The page you’re looking for has moved or never existed. The conversation continues on the home page.</p>
+      <div class="mt-9">
+        <Button href="/">Back to Truplexy</Button>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>

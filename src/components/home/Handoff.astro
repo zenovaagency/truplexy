@@ -1,0 +1,128 @@
+---
+import { getImage } from 'astro:assets';
+import { CircleCheck, Headset, UserRound } from 'lucide-react';
+import mark from '../../assets/brand/mark.png';
+import { INBOX } from '../../data/demo';
+import { channel } from '../../data/channels';
+
+const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
+
+const daniel = INBOX.find((t) => t.id === 'daniel')!;
+const goodReply = daniel.messages.find((m) => m.from === 'agent')!;
+
+const flows = [
+  {
+    label: 'Most conversations',
+    steps: ['customer', 'truplexy', 'resolution'],
+  },
+  {
+    label: 'When a person adds value',
+    steps: ['customer', 'truplexy', 'human', 'resolution'],
+  },
+] as const;
+
+const NODE = {
+  customer: { label: 'Customer', icon: UserRound, tone: 'bg-surface-2 text-ink' },
+  truplexy: { label: 'Truplexy', icon: null, tone: 'bg-accent-soft' },
+  human: { label: 'Human specialist', icon: Headset, tone: 'bg-human-soft text-human' },
+  resolution: { label: 'Resolution', icon: CircleCheck, tone: 'bg-live-soft text-live' },
+} as const;
+
+const telegram = channel('telegram').name;
+---
+
+<section id="handoff" class="section scroll-mt-[var(--nav-h)] border-t border-line bg-surface" aria-labelledby="handoff-title">
+  <div class="container-t">
+    <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-end">
+      <div>
+        <p class="eyebrow" data-reveal>Human + AI</p>
+        <h2 id="handoff-title" class="h2 mt-5" data-split>Always AI-assisted. Never AI-trapped.</h2>
+      </div>
+      <p class="lede lg:pb-2" data-reveal>
+        Truplexy isn’t about replacing your support team. It’s the first layer of continuous support —
+        and it brings people into the conversation when their involvement adds value. The context follows
+        automatically.
+      </p>
+    </div>
+
+    <!-- Flows -->
+    <div class="mt-14 grid gap-4 lg:grid-cols-[1fr_1.35fr]">
+      {flows.map((f, fi) => (
+        <div class="card p-6 sm:p-7" data-reveal data-reveal-delay={String(fi * 0.08)}>
+          <p class="mono text-ink-faint">{f.label}</p>
+          <ol class="mt-6 flex flex-col items-stretch gap-0 sm:flex-row sm:items-start">
+            {f.steps.map((s, i) => {
+              const n = NODE[s];
+              const handoffLink = s === 'human';
+              return (
+                <>
+                  {i > 0 && (
+                    <li class="relative flex h-10 items-center justify-center sm:h-12 sm:flex-1 sm:px-1" aria-hidden="true">
+                      <span class="thread h-full sm:hidden"></span>
+                      <span class="thread-h hidden w-full sm:block"></span>
+                      {handoffLink && (
+                        <span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-human/30 bg-surface px-2 py-0.5 text-[0.66rem] font-semibold text-human shadow-sm sm:-top-1 sm:translate-y-[-100%]">
+                          + full context
+                        </span>
+                      )}
+                    </li>
+                  )}
+                  <li class="flex items-center gap-3 sm:flex-col sm:gap-2 sm:text-center">
+                    <span class:list={['grid h-12 w-12 flex-none place-items-center rounded-2xl', n.tone]}>
+                      {s === 'truplexy'
+                        ? <img src={markSmall.src} alt="" width="26" height="26" class="h-[26px] w-[26px]" />
+                        : n.icon && <n.icon size={20} strokeWidth={1.9} aria-hidden="true" />}
+                    </span>
+                    <span class="text-[0.85rem] font-semibold sm:max-w-[92px] sm:leading-tight">{n.label}</span>
+                  </li>
+                </>
+              );
+            })}
+          </ol>
+        </div>
+      ))}
+    </div>
+
+    <!-- The difference context makes -->
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div class="card border-dashed !bg-paper p-6 sm:p-7" data-reveal>
+        <p class="flex items-center gap-2 text-[0.85rem] font-semibold text-ink-muted">
+          <span class="grid h-6 w-6 place-items-center rounded-full bg-surface-3 text-ink-muted" aria-hidden="true">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </span>
+          A handoff without context
+        </p>
+        <div class="mt-5 flex flex-col gap-2.5 opacity-75">
+          <div class="bubble bubble-agent !bg-surface-2 !border-line">
+            <span class="mb-0.5 block text-[0.72rem] font-semibold text-ink-faint">Support agent</span>
+            Can you explain the problem again?
+          </div>
+          <div class="bubble bubble-customer !bg-ink-faint">…I already did. Twice.</div>
+        </div>
+      </div>
+
+      <div class="card p-6 sm:p-7 !shadow-[var(--shadow-md)]" data-reveal data-reveal-delay="0.08">
+        <p class="flex items-center gap-2 text-[0.85rem] font-semibold text-live">
+          <span class="grid h-6 w-6 place-items-center rounded-full bg-live-soft" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </span>
+          A handoff with Truplexy
+        </p>
+        <div class="mt-5 flex flex-col gap-2.5">
+          <div class="bubble bubble-agent">
+            <span class="mb-0.5 block text-[0.72rem] font-semibold text-ink-faint">{goodReply.author}</span>
+            {goodReply.text}
+          </div>
+        </div>
+        <p class="mt-4 text-[0.85rem] text-ink-muted">
+          Priya joined with the customer, the history, the intent and the next step already in front of her.
+        </p>
+      </div>
+    </div>
+
+    <p class="mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.6rem,1.1rem+2vw,2.6rem)] font-bold tracking-tight" data-reveal>
+      Start on web. Continue on {telegram}.
+      <span class="gradient-text block">Finish with your team.</span>
+    </p>
+  </div>
+</section>

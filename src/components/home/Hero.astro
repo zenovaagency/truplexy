@@ -1,0 +1,98 @@
+---
+import { getImage } from 'astro:assets';
+import Button from '../ui/Button.astro';
+import ChannelIcon from '../ui/ChannelIcon';
+import HeroOrbit from './HeroOrbit.astro';
+import HeroStack from '../../islands/HeroStack';
+import mark from '../../assets/brand/mark.png';
+import { channel, channelsIn } from '../../data/channels';
+
+const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
+
+// Live customer-messaging channels are named as-is; any flagship messaging
+// app not yet live is shown faded with an explicit "Coming soon" label.
+// Both read the registry.
+const heroLive = channelsIn('messaging').filter((c) => c.status === 'live');
+const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).filter((c) => c.status === 'soon');
+---
+
+<section class="relative isolate overflow-hidden border-b border-line bg-surface">
+  <div class="container-t relative pt-[calc(var(--nav-h)+clamp(36px,6vw,76px))]">
+    <!-- Copy block. The orbit centres itself on this block. -->
+    <div class="relative mx-auto flex max-w-[980px] flex-col items-center text-center">
+      <HeroOrbit />
+
+      <p class="flex flex-col items-center gap-2.5 text-[0.875rem] text-ink-muted sm:flex-row sm:gap-3" data-reveal>
+        <span class="flex items-center" aria-hidden="true">
+          {heroLive.map((c, i) => (
+            <span class:list={['grid h-8 w-8 place-items-center rounded-full border border-line bg-surface shadow-[var(--shadow-sm)] ring-2 ring-surface', i > 0 && '-ml-2']}>
+              <ChannelIcon id={c.id} size={16} strokeWidth={2.25} />
+            </span>
+          ))}
+        </span>
+        <span>One AI support team. Every customer channel.</span>
+      </p>
+
+      <h1
+        class="display mt-6 text-[clamp(2.4rem,1.5rem+3.1vw,3.75rem)] !font-semibold"
+        data-reveal
+        data-reveal-delay="0.05"
+      >
+        Human conversations.
+        <span class="block">Wherever your customers are.</span>
+      </h1>
+
+      <p class="lede mt-6 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)]" data-reveal data-reveal-delay="0.1">
+        Truplexy gives businesses a human-like AI support layer across your website, Telegram,
+        Discord and your own apps — with context that continues from one conversation to the next.
+      </p>
+
+      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center" data-reveal data-reveal-delay="0.15">
+        <Button href="#journey" arrow={false}>See Truplexy in action</Button>
+        <Button href="#channels" variant="ghost" arrow={false}>Explore channels</Button>
+      </div>
+
+      <p class="mono mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.68rem] text-ink-faint" data-reveal data-reveal-delay="0.2">
+        <span>Multi-platform</span><span aria-hidden="true" class="text-line-strong">·</span>
+        <span>Continuous support</span><span aria-hidden="true" class="text-line-strong">·</span>
+        <span>Human handoff</span>
+      </p>
+    </div>
+
+    <!-- The conversation, as a notification stack, on a soft glow. -->
+    <div class="relative mx-auto mt-12 max-w-[440px] sm:mt-14" data-reveal data-reveal-delay="0.15">
+      <div
+        class="absolute -z-10 -inset-y-10 inset-x-0 rounded-[48px] opacity-90 blur-3xl sm:-inset-x-20"
+        style="background: radial-gradient(50% 50% at 50% 45%, color-mix(in oklab, var(--color-blue) 30%, transparent), transparent 75%), radial-gradient(40% 45% at 30% 70%, var(--glow-a), transparent 70%), radial-gradient(40% 45% at 75% 70%, var(--glow-b), transparent 70%);"
+        aria-hidden="true"
+      ></div>
+      <HeroStack client:visible markSrc={markSmall.src} store="Loom & Lane" />
+    </div>
+
+    <!-- Where Truplexy runs today. Stands in for a customer-logo strip. -->
+    <div class="mt-14 border-t border-line py-8 sm:mt-16 sm:py-10" data-reveal>
+      <p class="text-center text-[0.875rem] text-ink-faint">Live today on the channels your customers already use</p>
+      <div class="mt-5 flex flex-col items-center gap-x-10 gap-y-4 xl:flex-row xl:justify-center">
+        <ul class="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:gap-x-10">
+          {heroLive.map((c) => (
+            <li class="flex items-center gap-2 text-[1.0625rem] font-semibold tracking-tight text-ink-muted">
+              <ChannelIcon id={c.id} size={20} />
+              {c.name}
+            </li>
+          ))}
+        </ul>
+        {upcoming.length > 0 && (
+          <p class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 xl:border-l xl:border-line xl:pl-10">
+            {upcoming.map((c) => (
+              <span class="flex items-center gap-2 text-[1.0625rem] font-semibold tracking-tight text-ink-faint opacity-60">
+                <ChannelIcon id={c.id} size={18} />
+                {c.name}
+              </span>
+            ))}
+            <span class="soon-tag">Coming soon</span>
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+</section>

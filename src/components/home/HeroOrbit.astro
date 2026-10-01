@@ -1,0 +1,110 @@
+---
+/**
+ * The hero's backdrop: concentric rings around the headline, a few slowly
+ * travelling gradient arcs, and channel tiles resting on the rings.
+ *
+ * Purely decorative (aria-hidden) — the channel strip under the hero says
+ * the same thing in text, with statuses. Tile styling comes from the
+ * registry: a live channel is drawn in colour, anything else is greyed and
+ * tagged "Soon", so a channel going live recolours here automatically.
+ *
+ * Positioned against the centre of the hero copy (its parent), so the rings
+ * stay centred on the headline whatever the type size does.
+ */
+import ChannelIcon from '../ui/ChannelIcon';
+import { channel, type ChannelId } from '../../data/channels';
+
+/** Ring radii in viewBox units (the box is 1600 across). */
+const RINGS = [250, 360, 480, 610, 750];
+
+/** Highlighted arcs: ring index, start angle, spin duration (s), direction. */
+const ARCS = [
+  { ring: 0, from: 120, dur: 60, dir: 1 },
+  { ring: 1, from: 190, dur: 70, dir: 1 },
+  { ring: 2, from: 330, dur: 90, dir: -1 },
+  { ring: 3, from: 150, dur: 110, dir: 1 },
+  { ring: 3, from: 345, dur: 120, dir: 1 },
+  { ring: 4, from: 20, dur: 130, dir: -1 },
+];
+
+/**
+ * Tiles: ring index and angle (degrees clockwise from 3 o'clock). Angles sit
+ * on the flanks, clear of the copy column. Inner rings show from lg, the
+ * outer ring only from xl where there is room for it.
+ */
+const TILES: { id: ChannelId; ring: number; deg: number }[] = [
+  { id: 'web', ring: 2, deg: 205 },
+  { id: 'telegram', ring: 1, deg: 168 },
+  { id: 'api', ring: 2, deg: 150 },
+  { id: 'discord', ring: 2, deg: 335 },
+  { id: 'custom', ring: 1, deg: 12 },
+  { id: 'messenger', ring: 2, deg: 30 },
+  { id: 'whatsapp', ring: 3, deg: 190 },
+  { id: 'shopify', ring: 3, deg: 142 },
+  { id: 'instagram', ring: 3, deg: 350 },
+  { id: 'hubspot', ring: 3, deg: 38 },
+];
+
+const tiles = TILES.map((t, i) => {
+  const r = RINGS[t.ring];
+  const a = (t.deg * Math.PI) / 180;
+  const c = channel(t.id);
+  return {
+    ...t,
+    live: c.status === 'live',
+    left: 50 + ((r * Math.cos(a)) / 1600) * 100,
+    top: 50 + ((r * Math.sin(a)) / 1600) * 100,
+    delay: (i * -0.83).toFixed(2),
+  };
+});
+---
+
+<div class="hero-orbit pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2" aria-hidden="true">
+  <svg viewBox="-800 -800 1600 1600" class="hero-orbit-rings absolute inset-0 h-full w-full overflow-visible" fill="none">
+    <defs>
+      <linearGradient id="orbit-arc" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="var(--color-cyan)" stop-opacity="0" />
+        <stop offset="0.45" stop-color="var(--color-blue)" />
+        <stop offset="1" stop-color="var(--color-violet)" />
+      </linearGradient>
+    </defs>
+
+    {RINGS.map((r) => (
+      <circle r={r} stroke="var(--color-line)" stroke-width="1" vector-effect="non-scaling-stroke" />
+    ))}
+
+    {ARCS.map((arc) => (
+      <g class="orbit-spin" style={`--from: ${arc.from}deg; --dur: ${arc.dur}s; --dir: ${arc.dir};`}>
+        <circle
+          r={RINGS[arc.ring]}
+          pathLength="100"
+          stroke="url(#orbit-arc)"
+          stroke-width="2"
+          stroke-dasharray="7 93"
+          stroke-linecap="round"
+          vector-effect="non-scaling-stroke"
+        />
+      </g>
+    ))}
+  </svg>
+
+  {tiles.map((t) => (
+    <div
+      class:list={['absolute', t.ring >= 3 ? 'hidden xl:block' : 'hidden lg:block']}
+      style={`left: ${t.left.toFixed(3)}%; top: ${t.top.toFixed(3)}%;`}
+    >
+      <div class="tile-float -translate-x-1/2 -translate-y-1/2" style={`animation-delay: ${t.delay}s;`}>
+        {t.live ? (
+          <span class="grid h-14 w-14 place-items-center rounded-full border border-line bg-surface shadow-[var(--shadow-md)]">
+            <ChannelIcon id={t.id} size={26} />
+          </span>
+        ) : (
+          <span class="relative grid h-[50px] w-[50px] place-items-center rounded-full border border-dashed border-line-strong bg-surface">
+            <ChannelIcon id={t.id} size={22} />
+            <span class="mono absolute left-1/2 top-full mt-1.5 -translate-x-1/2 rounded-full bg-surface-2 px-1.5 py-px text-[0.55rem] text-ink-faint">Soon</span>
+          </span>
+        )}
+      </div>
+    </div>
+  ))}
+</div>

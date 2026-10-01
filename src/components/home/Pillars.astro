@@ -1,0 +1,214 @@
+---
+import { Image } from 'astro:assets';
+import { Check, Headset } from 'lucide-react';
+import FeatureCard from './FeatureCard.astro';
+import ChannelIcon from '../ui/ChannelIcon';
+import mark from '../../assets/brand/mark.png';
+import { BUSINESS_HOURS, DAY, HERO } from '../../data/demo';
+import type { ChannelId } from '../../data/channels';
+
+// The five things Truplexy combines, as a bento: three tiles, then two wide
+// ones. Every illustration reuses the page's sample cast from demo.ts, so the
+// stories match the hero, the timeline and the handoff sections.
+
+const [webAsk, webReply] = HERO.first.messages;
+
+// Continuous: an evening message, outside the team's hours.
+const evening = DAY.find((e) => e.state === 'offline')!;
+const pct = (hour: number) => `${((hour / 24) * 100).toFixed(2)}%`;
+
+// Handoff: two of the fields that travel with the conversation.
+const packet = DAY.find((e) => e.state === 'handoff')!.packet!;
+const tagFor = (label: string) => packet.find((p) => p.label === label)!.label;
+
+const CHANNEL_ROW: { id: ChannelId; edge: boolean }[][] = [
+  [{ id: 'whatsapp', edge: true }, { id: 'telegram', edge: false }],
+  [{ id: 'discord', edge: false }, { id: 'instagram', edge: true }],
+];
+
+const check = 'grid h-4 w-4 flex-none place-items-center rounded-full bg-btn text-white';
+const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
+---
+
+<section class="section !pt-[clamp(56px,6vw,88px)]" aria-labelledby="pillars-title">
+  <div class="container-t">
+    <div class="mx-auto max-w-[800px] text-center">
+      <p class="inline-flex rounded-full border border-line bg-surface px-3.5 py-1 text-[0.8rem] font-medium text-ink-muted shadow-[var(--shadow-sm)]" data-reveal>
+        Features
+      </p>
+      <h2 id="pillars-title" class="mt-5 text-[clamp(1.85rem,1.3rem+1.6vw,2.5rem)] font-semibold leading-[1.15] tracking-[-0.025em]" data-reveal>
+        The intelligent conversation layer between your business and its customers.
+      </h2>
+      <p class="lede mx-auto mt-5 max-w-[560px] text-[1.0625rem]" data-reveal data-reveal-delay="0.05">
+        Human-like AI on every channel, one continuous memory — and your team, the moment a person is needed.
+      </p>
+    </div>
+
+    <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+      <!-- 1. Human-like conversations -->
+      <FeatureCard
+        class="lg:col-span-2"
+        title="Human-like conversations"
+        body="Replies that feel considered, not generated — the right tone, the right length, and no canned loops."
+      >
+        <div class="flex w-[272px] flex-col gap-2.5">
+          <p class:list={['max-w-[220px] self-end rounded-2xl rounded-br-md bg-btn px-3.5 py-2 text-[0.8rem] leading-snug text-white', 'shadow-[var(--shadow-md)]']}>
+            {webAsk.text}
+          </p>
+          <div class="flex items-end gap-2">
+            <span class="grid h-8 w-8 flex-none place-items-center rounded-full border border-line bg-surface shadow-[var(--shadow-sm)]">
+              <Image src={mark} alt="" width={18} height={19} densities={[1, 2]} class="h-[19px] w-auto" />
+            </span>
+            <p class:list={['rounded-2xl rounded-bl-md px-3.5 py-2 text-[0.8rem] leading-snug text-ink', float]}>
+              {webReply.text}
+            </p>
+          </div>
+          <span class="chip ml-10 self-start bg-accent-soft text-[0.72rem] text-accent">
+            <Check size={12} strokeWidth={3} aria-hidden="true" /> Sounds like your team
+          </span>
+        </div>
+      </FeatureCard>
+
+      <!-- 2. Continuous support -->
+      <FeatureCard
+        class="lg:col-span-2"
+        delay={0.06}
+        title="Continuous support"
+        body="Answers before work, after work and at weekends — including the hours your team is offline."
+      >
+        <div class="flex flex-col items-center">
+          <div class:list={['w-[252px] rounded-2xl px-4 pb-3 pt-3.5', float]}>
+            <div class="flex items-center justify-between">
+              <span class="text-[1.45rem] font-bold tracking-tight">{evening.time}</span>
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2 py-0.5 text-[0.68rem] font-medium text-ink-muted">
+                <span class="h-1.5 w-1.5 rounded-full bg-ink-faint"></span>Team offline
+              </span>
+            </div>
+            <div class="relative mt-4 h-1.5 rounded-full bg-surface-3">
+              <span
+                class="absolute inset-y-0 rounded-full bg-live/30"
+                style={`left: ${pct(BUSINESS_HOURS.start)}; width: ${pct(BUSINESS_HOURS.end - BUSINESS_HOURS.start)};`}
+              ></span>
+              <span
+                class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-btn bg-surface shadow-[var(--shadow-sm)]"
+                style={`left: ${pct(evening.hour)};`}
+              ></span>
+            </div>
+            <div class="relative mt-2 h-3">
+              <span class="mono absolute -translate-x-1/2 text-[0.56rem] text-ink-faint" style={`left: ${pct((BUSINESS_HOURS.start + BUSINESS_HOURS.end) / 2)};`}>
+                Team hours
+              </span>
+            </div>
+          </div>
+          <span class="h-6 w-px bg-line-strong"></span>
+          <span class:list={['chip text-[0.72rem] text-ink', float, '!shadow-[var(--shadow-sm)]']}>
+            <span class={check}><Check size={10} strokeWidth={3.5} aria-hidden="true" /></span>
+            Truplexy is online
+          </span>
+        </div>
+      </FeatureCard>
+
+      <!-- 3. Smart human handoff -->
+      <FeatureCard
+        class="sm:col-span-2 lg:col-span-2"
+        delay={0.12}
+        title="Smart human handoff"
+        body="Escalates when a person adds value, and hands over the whole conversation when it does."
+      >
+        <div class="relative h-[190px] w-[290px]">
+          <span class="absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-line"></span>
+          <span class="absolute left-1/2 top-1/2 h-[104px] w-[104px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-line bg-accent-soft/50"></span>
+
+          <svg class="absolute inset-0" width="290" height="190" viewBox="0 0 290 190" fill="none">
+            <path d="M80 43 C102 43 96 95 115 95" stroke="var(--color-accent)" stroke-opacity="0.55" stroke-width="1.25" />
+            <path d="M175 95 C194 95 188 147 210 147" stroke="var(--color-accent)" stroke-opacity="0.55" stroke-width="1.25" />
+            <circle cx="80" cy="43" r="2.5" fill="var(--color-accent)" />
+            <circle cx="210" cy="147" r="2.5" fill="var(--color-accent)" />
+          </svg>
+
+          <span class="absolute left-1/2 top-1/2 grid h-[60px] w-[60px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-btn text-white shadow-[0_10px_24px_rgb(35_56_230/0.32)]">
+            <Headset size={26} strokeWidth={2} aria-hidden="true" />
+          </span>
+
+          {[
+            { tag: tagFor('History'), pos: 'left-0 top-2' },
+            { tag: tagFor('Intent'), pos: 'right-0 bottom-2' },
+          ].map((d) => (
+            <span class:list={['absolute w-[78px] rounded-xl p-2.5', float, d.pos]}>
+              <span class="block h-1.5 w-full rounded-full bg-surface-3"></span>
+              <span class="mt-1.5 block h-1.5 w-4/5 rounded-full bg-surface-3"></span>
+              <span class="mt-1.5 block h-1.5 w-3/5 rounded-full bg-surface-3"></span>
+              <span class="mt-3 inline-flex rounded-md bg-btn px-1.5 py-0.5 text-[0.6rem] font-semibold leading-none text-white">{d.tag}</span>
+            </span>
+          ))}
+        </div>
+      </FeatureCard>
+
+      <!-- 4. Persistent context -->
+      <FeatureCard
+        class="sm:col-span-2 lg:col-span-3"
+        delay={0.06}
+        title="Persistent context"
+        body="What a customer told you on your website is still remembered on Telegram — nobody has to repeat themselves."
+      >
+        <div class="relative h-[124px] w-[404px] max-sm:scale-[0.85]">
+          <span class:list={['chip absolute left-0 top-0 h-8 text-[0.75rem] text-ink', float, '!shadow-[var(--shadow-sm)]']}>
+            <ChannelIcon id={HERO.first.channel} size={15} /> {HERO.first.label}
+          </span>
+          <!-- L-shaped connector: down from the first channel, across into the remembered context. -->
+          <span class="absolute left-[24px] top-[32px] h-[42px] w-[116px] rounded-bl-xl border-b border-l border-accent/50"></span>
+          <span class="absolute left-[21.5px] top-[30px] h-[5px] w-[5px] rounded-full bg-accent"></span>
+
+          <ul class="absolute left-[140px] top-[24px] flex w-[136px] flex-col gap-2">
+            {HERO.memory.map((m, i) => (
+              <li
+                class:list={[
+                  'flex h-7 items-center gap-1.5 rounded-full border bg-surface px-2.5 text-[0.72rem] font-medium',
+                  i === 1 ? 'border-accent text-ink ring-2 ring-accent/15' : 'border-line text-ink-muted shadow-[var(--shadow-sm)]',
+                ]}
+              >
+                <span class={check}><Check size={10} strokeWidth={3.5} aria-hidden="true" /></span>
+                {m}
+              </li>
+            ))}
+          </ul>
+
+          <!-- From the highlighted context to the next channel. -->
+          <span class="absolute left-[276px] top-[74px] h-px w-[26px] bg-accent/50"></span>
+          <span class="absolute left-[299.5px] top-[71.5px] h-[5px] w-[5px] rounded-full bg-accent"></span>
+          <span class:list={['chip absolute left-[302px] top-[58px] h-8 text-[0.75rem] text-ink', float, '!shadow-[var(--shadow-sm)]']}>
+            <ChannelIcon id={HERO.second.channel} size={15} /> {HERO.second.label}
+          </span>
+        </div>
+      </FeatureCard>
+
+      <!-- 5. Every channel -->
+      <FeatureCard
+        class="sm:col-span-2 lg:col-span-3"
+        delay={0.12}
+        title="Every channel"
+        body="Website, WhatsApp, Messenger, Instagram, Telegram, Discord and your own apps — one support experience."
+      >
+        <div class="relative flex items-center gap-4 sm:gap-5">
+          <span class="thread-h absolute inset-x-4 top-1/2 -translate-y-1/2 opacity-35"></span>
+          {CHANNEL_ROW[0].map((t) => (
+            <span class:list={['relative h-14 w-14 place-items-center rounded-2xl', float, t.edge ? 'hidden sm:grid' : 'grid']}>
+              <ChannelIcon id={t.id} size={28} />
+            </span>
+          ))}
+          <span class="relative">
+            <span class="absolute -inset-3 rounded-[30px] opacity-45 blur-xl" style="background: var(--gradient-brand);"></span>
+            <span class="relative grid h-[76px] w-[76px] place-items-center rounded-[22px] border border-line bg-surface shadow-[var(--shadow-lg)]">
+              <Image src={mark} alt="" width={40} height={42} densities={[1, 2]} class="h-[42px] w-auto" />
+            </span>
+          </span>
+          {CHANNEL_ROW[1].map((t) => (
+            <span class:list={['relative h-14 w-14 place-items-center rounded-2xl', float, t.edge ? 'hidden sm:grid' : 'grid']}>
+              <ChannelIcon id={t.id} size={28} />
+            </span>
+          ))}
+        </div>
+      </FeatureCard>
+    </div>
+  </div>
+</section>

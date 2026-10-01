@@ -1,0 +1,492 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------ *
+ * Design tokens. The site has a single light theme.
+ *
+ * The gradient ramp is sampled from the Truplexy mark: cyan at the top
+ * corner, blue across the upper band, indigo on the left fold, violet and
+ * lilac on the lower band.
+ *
+ * Accessibility rules:
+ *   --color-accent  carries text and links (7.5:1 on white)
+ *   --color-btn     is a button surface with white text (≥ 4.5:1)
+ *   cyan, blue, lilac are DECORATIVE: gradient stops and glyphs only.
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-paper: #f7f8fc;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f3fa;
+  --color-surface-3: #e9ecf6;
+
+  --color-ink: #0e1222;
+  --color-ink-muted: #4a5068;
+  --color-ink-faint: #61688a;
+
+  --color-line: #e3e6f0;
+  --color-line-strong: #cbd0e0;
+
+  --color-accent: #2338e6;
+  --color-accent-soft: #eef0ff;
+  --color-btn: #2338e6;
+  --color-btn-hover: #1a2bc4;
+
+  --color-cyan: #45d4ff;
+  --color-blue: #1f7bff;
+  --color-indigo: #2338e6;
+  --color-violet: #6a2bff;
+  --color-lilac: #d9b8ff;
+
+  /* Status pairs: text on tint. Each text colour clears 4.5:1 on its tint. */
+  --color-live: #15803d;
+  --color-live-soft: #e6f6eb;
+  --color-ai: #2338e6;
+  --color-ai-soft: #eef0ff;
+  --color-qualified: #0b6e86;
+  --color-qualified-soft: #e2f6fb;
+  --color-resolved: #15803d;
+  --color-resolved-soft: #e6f6eb;
+  --color-human: #9a4b00;
+  --color-human-soft: #fff1dd;
+
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  --gutter: clamp(16px, 4vw, 32px);
+  --section-y: clamp(72px, 9vw, 136px);
+  --container: 1240px;
+  --nav-h: 84px;
+
+  --gradient-brand: linear-gradient(100deg, var(--color-cyan) 0%, var(--color-blue) 38%, var(--color-indigo) 62%, var(--color-violet) 100%);
+  /* Text-safe gradient: no cyan, so the palest stop still clears 3:1 for large type. */
+  --gradient-text: linear-gradient(95deg, var(--color-blue) 0%, var(--color-indigo) 45%, var(--color-violet) 100%);
+
+  --shadow-sm: 0 1px 2px rgb(14 18 34 / 0.04), 0 2px 8px rgb(14 18 34 / 0.04);
+  --shadow-md: 0 2px 4px rgb(14 18 34 / 0.04), 0 12px 32px rgb(35 56 230 / 0.07);
+  --shadow-lg: 0 4px 10px rgb(14 18 34 / 0.05), 0 28px 64px rgb(35 56 230 / 0.1);
+
+  --glow-a: rgb(69 212 255 / 0.22);
+  --glow-b: rgb(106 43 255 / 0.14);
+
+  color-scheme: light;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --radius-lg: 18px;
+    --radius-xl: 22px;
+  }
+}
+
+@layer base {
+  * {
+    min-width: 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: auto; /* Lenis owns scrolling; see lib/scroll.ts */
+    scroll-padding-top: calc(var(--nav-h) + 8px);
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: clip;
+    transition: background-color 240ms var(--ease-out-expo), color 240ms var(--ease-out-expo);
+  }
+
+  ::selection {
+    background: var(--color-lilac);
+    color: #0e1222;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+    letter-spacing: -0.025em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  img, svg, video, canvas {
+    display: block;
+    max-width: 100%;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  /* Every interactive target clears 44x44 on touch. */
+  @media (pointer: coarse) {
+    a[href], button, [role='button'], [role='tab'] {
+      min-height: 44px;
+    }
+
+    li > a[href],
+    nav a[href] {
+      display: inline-flex;
+      align-items: center;
+    }
+  }
+}
+
+/* Frosted surface. A utility (not a component class) so it takes variants,
+   e.g. data-[scrolled]:glass on the nav. */
+@utility glass {
+  background: color-mix(in oklab, var(--color-surface) 80%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+@layer components {
+  .container-t {
+    width: 100%;
+    max-width: calc(var(--container) + var(--gutter) * 2);
+    margin-inline: auto;
+    padding-inline: var(--gutter);
+  }
+
+  .section {
+    padding-block: var(--section-y);
+    position: relative;
+  }
+
+  /* Small uppercase label. Mono gives the hierarchy, not low contrast. */
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+
+  .eyebrow::before {
+    content: '';
+    width: 22px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--gradient-brand);
+  }
+
+  .display {
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.04;
+  }
+
+  .h2 {
+    font-size: clamp(2rem, 1.35rem + 2.6vw, 3.4rem);
+    font-weight: 700;
+    letter-spacing: -0.032em;
+    line-height: 1.07;
+  }
+
+  .lede {
+    font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  .gradient-text {
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* Descenders (y, g) sit outside the line box; keep the clip from cutting them. */
+    padding-bottom: 0.08em;
+  }
+
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* The thread: one continuous gradient line — the page's motif for
+     "the conversation continues". Vertical by default. */
+  .thread {
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--color-cyan), var(--color-blue) 35%, var(--color-indigo) 65%, var(--color-violet));
+  }
+
+  .thread-h {
+    height: 2px;
+    border-radius: 2px;
+    background: var(--gradient-brand);
+  }
+
+  /* Soft colour field behind hero/CTA. Pure CSS, no canvas. */
+  .aurora {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(46% 52% at 14% 8%, var(--glow-a), transparent 70%),
+      radial-gradient(40% 50% at 92% 18%, var(--glow-b), transparent 70%),
+      radial-gradient(50% 40% at 60% 100%, color-mix(in oklab, var(--color-blue) 10%, transparent), transparent 70%);
+  }
+
+  .grid-fade {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--color-line) 70%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--color-line) 70%, transparent) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(70% 60% at 50% 30%, #000 20%, transparent 75%);
+    -webkit-mask-image: radial-gradient(70% 60% at 50% 30%, #000 20%, transparent 75%);
+    opacity: 0.55;
+  }
+
+  /* Chat bubbles shared by Astro markup and the React islands. */
+  .bubble {
+    max-width: 86%;
+    padding: 0.62rem 0.9rem;
+    border-radius: 18px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    position: relative;
+  }
+
+  .bubble-customer {
+    align-self: flex-end;
+    background: var(--color-btn);
+    color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+
+  .bubble-ai {
+    align-self: flex-start;
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line);
+    border-bottom-left-radius: 6px;
+  }
+
+  .bubble-agent {
+    align-self: flex-start;
+    background: var(--color-human-soft);
+    color: var(--color-ink);
+    border: 1px solid color-mix(in oklab, var(--color-human) 25%, transparent);
+    border-bottom-left-radius: 6px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    padding: 0.28rem 0.7rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .soon-tag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.12rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+    background: var(--color-surface-2);
+    border: 1px dashed var(--color-line-strong);
+    white-space: nowrap;
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-live);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-live) 22%, transparent);
+    flex: none;
+  }
+
+  .typing {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .typing span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-ink-faint);
+    animation: typing 1.1s infinite ease-in-out;
+  }
+
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+}
+
+@keyframes typing {
+  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.msg-in {
+  animation: msg-in 420ms var(--ease-out-expo) both;
+}
+
+/* Flowing pulse along live connectors in the ecosystem diagram. */
+@keyframes flow {
+  to { stroke-dashoffset: -240; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Reveal system. Only hidden once JS has marked the document, so a
+ * failed script never leaves a blank page.
+ * ------------------------------------------------------------------ */
+.js [data-reveal] {
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.split-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+
+.split-inner {
+  display: block;
+  will-change: transform;
+}
+
+.js [data-split]:not([data-split-ready]) {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .js [data-reveal],
+  .js [data-split]:not([data-split-ready]) {
+    opacity: 1;
+  }
+}
+
+/* Hero card stack: hide the server-rendered (finished) stack between first
+   paint and hydration, so it never flashes complete and then rewinds.
+   Without JS (no .js class) or with reduced motion it stays visible. */
+.js [data-hero-stack]:not([data-ready]) .hs-card {
+  visibility: hidden;
+}
+
+/* A new card drops onto the top of the stack, then settles into its slot. */
+@keyframes hs-enter {
+  from { opacity: 0; transform: translateY(-22px) scale(1.03); }
+}
+
+.hs-enter {
+  animation: hs-enter 700ms var(--ease-out-expo) backwards;
+}
+
+/* Hero orbit: rings sized to the viewport band, centred on the copy. */
+.hero-orbit {
+  --orbit: 900px;
+  width: var(--orbit);
+  height: var(--orbit);
+}
+
+/* Only the rings fade out; the tiles stay fully opaque. */
+.hero-orbit-rings {
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 94%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 94%);
+}
+
+@media (min-width: 640px) {
+  .hero-orbit { --orbit: 1240px; }
+}
+
+@media (min-width: 1024px) {
+  .hero-orbit { --orbit: 1560px; }
+}
+
+/* Highlighted arcs travel slowly round their ring. */
+@keyframes orbit-spin {
+  from { transform: rotate(var(--from)); }
+  to { transform: rotate(calc(var(--from) + 360deg * var(--dir))); }
+}
+
+.orbit-spin {
+  transform-origin: 0 0; /* the viewBox centre */
+  transform: rotate(var(--from));
+  animation: orbit-spin var(--dur) linear infinite;
+}
+
+/* Tiles bob gently on their rings. */
+@keyframes tile-float {
+  0%, 100% { transform: translateY(-4px); }
+  50% { transform: translateY(5px); }
+}
+
+.tile-float {
+  animation: tile-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js [data-hero-stack]:not([data-ready]) .hs-card {
+    visibility: visible;
+  }
+
+  .orbit-spin,
+  .tile-float,
+  .hs-enter {
+    animation: none !important;
+  }
+}

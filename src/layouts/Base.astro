@@ -1,0 +1,120 @@
+---
+import '@fontsource-variable/plus-jakarta-sans/wght.css';
+import '@fontsource-variable/geist-mono/wght.css';
+import '../styles/global.css';
+import { SITE } from '../data/site';
+import { LIVE_CHANNELS } from '../data/channels';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Pages that should stay out of search (404). */
+  noindex?: boolean;
+}
+const { title = SITE.title, description = SITE.description, noindex = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url).href;
+const ogImage = new URL('/og-card.png', Astro.site ?? SITE.url).href;
+
+// Organization + SoftwareApplication only. No offers, ratings or reviews:
+// none exist yet, and schema must describe what is visibly true on the page.
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE.url}/#org`,
+      name: SITE.name,
+      url: SITE.url,
+      logo: `${SITE.url}/icon-512.png`,
+      slogan: SITE.tagline,
+      email: SITE.email,
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: SITE.name,
+      applicationCategory: 'BusinessApplication',
+      applicationSubCategory: 'AI customer support',
+      operatingSystem: 'Web',
+      description: SITE.description,
+      url: SITE.url,
+      publisher: { '@id': `${SITE.url}/#org` },
+      featureList: [
+        'Human-like AI customer conversations',
+        `Live channels: ${LIVE_CHANNELS.map((c) => c.name).join(', ')}`,
+        'Persistent conversation context across channels',
+        'Continuous support outside business hours',
+        'Human handoff with full conversation context',
+        'Unified inbox with AI summary and intent',
+      ],
+    },
+  ],
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+
+    <!-- Flag script support before first paint, so JS-only styles (e.g. the
+         hero stack's pre-hydration guard) apply without a flash. -->
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#f7f8fc" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Truplexy — One conversation. Everywhere." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  </head>
+
+  <body>
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[10px] focus:bg-surface focus:px-5 focus:py-3 focus:text-ink focus:shadow-lg"
+    >
+      Skip to content
+    </a>
+
+    <slot />
+
+    <script>
+      import { motion } from '../lib/scroll';
+      import { initReveals } from '../lib/reveal';
+
+      // Boot after first paint so GSAP never blocks the initial render.
+      const boot = async () => {
+        await motion();
+        await initReveals();
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => boot(), { timeout: 900 });
+      } else {
+        setTimeout(boot, 1);
+      }
+    </script>
+  </body>
+</html>

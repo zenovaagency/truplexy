@@ -1,0 +1,258 @@
+---
+import { Image } from 'astro:assets';
+import { BookOpen, Headset, UserRound, Workflow } from 'lucide-react';
+import ChannelIcon from '../ui/ChannelIcon';
+import mark from '../../assets/brand/mark.png';
+import { GROUP_LABEL, channelsIn, LIVE_CHANNELS, SOON_CHANNELS, type ChannelGroup } from '../../data/channels';
+
+// Conversations arrive on the left; the systems Truplexy works with sit on
+// the right, beneath the capabilities that make up the layer itself.
+const left: ChannelGroup[] = ['messaging', 'developer'];
+const right: ChannelGroup[] = ['business', 'internal'];
+
+const core = [
+  { icon: BookOpen, name: 'Knowledge', note: 'Your docs, policies and product info' },
+  { icon: UserRound, name: 'Customer context', note: 'One identity and history across channels' },
+  { icon: Workflow, name: 'Automations', note: 'Repeatable actions and workflows' },
+  { icon: Headset, name: 'Human team', note: 'Handoff with the full conversation' },
+];
+---
+
+<section id="channels" class="section scroll-mt-[var(--nav-h)] overflow-hidden border-y border-line bg-surface" aria-labelledby="channels-title">
+  <div class="aurora opacity-60" aria-hidden="true"></div>
+
+  <div class="container-t relative">
+    <div class="grid gap-8 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="eyebrow" data-reveal>Channels & platforms</p>
+        <h2 id="channels-title" class="h2 mt-5" data-split>Meet customers where they already are.</h2>
+      </div>
+      <div class="lg:pb-2" data-reveal>
+        <p class="lede">
+          Don’t force customers into a new support experience. Bring Truplexy into the platforms they already use.
+        </p>
+        <p class="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.85rem] text-ink-muted" aria-label="Legend">
+          <span class="inline-flex items-center gap-2"><span class="live-dot" aria-hidden="true"></span>Live now ({LIVE_CHANNELS.length})</span>
+          {SOON_CHANNELS.length > 0 && (
+            <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full border border-dashed border-ink-faint" aria-hidden="true"></span>Coming soon ({SOON_CHANNELS.length})</span>
+          )}
+        </p>
+      </div>
+    </div>
+
+    <!-- Ecosystem -->
+    <div class="relative mt-16" data-eco>
+      <svg class="pointer-events-none absolute inset-0 hidden h-full w-full lg:block" aria-hidden="true" data-eco-svg data-reveal data-reveal-delay="0.15"></svg>
+
+      <div class="relative grid gap-6 lg:grid-cols-[minmax(0,290px)_minmax(0,1fr)_minmax(0,290px)] lg:gap-0">
+        <!-- Left: where conversations arrive -->
+        <div class="flex flex-col gap-6" data-reveal>
+          {left.map((g) => (
+            <div>
+              <h3 class="mono mb-2.5 text-[0.66rem] text-ink-faint">{GROUP_LABEL[g]}</h3>
+              <ul class="flex flex-col gap-1.5">
+                {channelsIn(g).map((c) => (
+                  <li
+                    data-eco-node="left"
+                    data-status={c.status}
+                    class:list={[
+                      'relative flex items-center gap-2.5 rounded-xl border bg-surface px-3 py-2 text-[0.88rem] font-medium',
+                      c.status === 'live' ? 'border-line text-ink shadow-sm' : 'border-dashed border-line-strong text-ink-muted',
+                    ]}
+                  >
+                    <ChannelIcon id={c.id} size={15} />
+                    <span class="min-w-0 flex-1 truncate">
+                      {c.name}
+                      {c.note && <span class="block truncate text-[0.72rem] font-normal text-ink-faint">{c.note}</span>}
+                    </span>
+                    {c.status === 'live' ? <span class="live-dot" title="Live" aria-label="Live"></span> : <span class="soon-tag">Coming soon</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <!-- Center: the layer -->
+        <div class="flex items-center justify-center py-4 lg:px-10 lg:py-0" data-reveal>
+          <div class="relative w-full max-w-[300px]" data-eco-hub>
+            <div class="eco-halo absolute -inset-6 rounded-[44px]" aria-hidden="true"></div>
+            <div class="card relative !rounded-[30px] px-6 py-7 text-center !shadow-[var(--shadow-lg)]">
+              <Image src={mark} alt="" width={72} height={76} densities={[1, 2]} class="mx-auto h-[76px] w-auto" />
+              <p class="mt-4 text-xl font-bold tracking-tight">Truplexy</p>
+              <p class="mt-1 text-[0.85rem] text-ink-muted">One conversation layer</p>
+              <ul class="mt-5 flex flex-col gap-1.5 text-left text-[0.8rem]">
+                {['One customer identity', 'One shared history', 'One context, every channel'].map((t) => (
+                  <li class="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 text-ink-muted">
+                    <span class="h-1.5 w-1.5 rounded-full" style="background: var(--gradient-brand)" aria-hidden="true"></span>{t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: what the layer is made of, and what it works with -->
+        <div class="flex flex-col gap-6" data-reveal>
+          <div>
+            <h3 class="mono mb-2.5 text-[0.66rem] text-ink-faint">Inside the layer</h3>
+            <ul class="flex flex-col gap-1.5">
+              {core.map((c) => (
+                <li data-eco-node="right" data-status="core" class="flex items-center gap-3 rounded-xl border border-accent/25 bg-accent-soft px-3 py-2">
+                  <span class="grid h-7 w-7 flex-none place-items-center rounded-lg bg-surface text-accent"><c.icon size={15} strokeWidth={1.9} aria-hidden="true" /></span>
+                  <span class="min-w-0">
+                    <span class="block text-[0.88rem] font-semibold text-ink">{c.name}</span>
+                    <span class="block truncate text-[0.72rem] text-ink-muted">{c.note}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {right.map((g) => (
+            <div>
+              <h3 class="mono mb-2.5 text-[0.66rem] text-ink-faint">{GROUP_LABEL[g]}</h3>
+              <ul class="flex flex-col gap-1.5">
+                {channelsIn(g).map((c) => (
+                  <li
+                    data-eco-node="right"
+                    data-status={c.status}
+                    class:list={[
+                      'flex items-center gap-2.5 rounded-xl border bg-surface px-3 py-2 text-[0.88rem] font-medium',
+                      c.status === 'live' ? 'border-line text-ink shadow-sm' : 'border-dashed border-line-strong text-ink-muted',
+                    ]}
+                  >
+                    <ChannelIcon id={c.id} size={15} />
+                    <span class="min-w-0 flex-1 truncate">{c.name}</span>
+                    {c.status === 'live' ? <span class="live-dot" title="Live" aria-label="Live"></span> : <span class="soon-tag">Coming soon</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <p class="display mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.9rem,1.2rem+2.6vw,3.3rem)]" data-reveal>
+      Many channels.
+      <span class="gradient-text block">One intelligence layer.</span>
+    </p>
+  </div>
+</section>
+
+<style>
+  .eco-halo {
+    background: conic-gradient(from 0deg, var(--color-cyan), var(--color-blue), var(--color-indigo), var(--color-violet), var(--color-lilac), var(--color-cyan));
+    filter: blur(28px);
+    opacity: 0.35;
+    animation: halo 16s linear infinite;
+  }
+
+  @keyframes halo {
+    to { transform: rotate(360deg); }
+  }
+
+  :global([data-eco-svg] .flow) {
+    stroke-dasharray: 10 230;
+    animation: flow 3.2s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .eco-halo { animation: none; }
+    :global([data-eco-svg] .flow) { display: none; }
+  }
+</style>
+
+<script>
+  /*
+   * Draws the connectors between every node and the hub. Positions are
+   * measured from the live layout, so the lines stay correct at any width or
+   * font size; a ResizeObserver redraws them. Below 1024px the diagram is a
+   * stacked list and no lines are drawn.
+   */
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const wrap = document.querySelector<HTMLElement>('[data-eco]');
+  const svg = wrap?.querySelector<SVGSVGElement>('[data-eco-svg]');
+  const hub = wrap?.querySelector<HTMLElement>('[data-eco-hub]');
+
+  if (wrap && svg && hub) {
+    const nodes = [...wrap.querySelectorAll<HTMLElement>('[data-eco-node]')];
+
+    const el = (name: string, attrs: Record<string, string | number>) => {
+      const n = document.createElementNS(SVG_NS, name);
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+      return n;
+    };
+
+    /**
+     * Layout position relative to the wrapper. offsetTop/offsetLeft ignore
+     * transforms, so the lines land in the right place even while the reveal
+     * animation is still sliding nodes in.
+     */
+    const rect = (n: HTMLElement) => {
+      let x = 0;
+      let y = 0;
+      let e: HTMLElement | null = n;
+      while (e && e !== wrap) {
+        x += e.offsetLeft;
+        y += e.offsetTop;
+        e = e.offsetParent as HTMLElement | null;
+      }
+      return { left: x, top: y, right: x + n.offsetWidth, width: n.offsetWidth, height: n.offsetHeight };
+    };
+
+    const draw = () => {
+      svg.replaceChildren();
+      if (window.innerWidth < 1024) return;
+
+      const box = { width: wrap.offsetWidth, height: wrap.offsetHeight };
+      const h = rect(hub);
+      svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+
+      const defs = el('defs', {});
+      const grad = el('linearGradient', { id: 'eco-grad', gradientUnits: 'userSpaceOnUse', x1: 0, y1: 0, x2: box.width, y2: 0 });
+      [['0', '#45d4ff'], ['0.4', '#1f7bff'], ['0.6', '#2338e6'], ['1', '#6a2bff']].forEach(([o, c]) =>
+        grad.appendChild(el('stop', { offset: o, 'stop-color': c })),
+      );
+      defs.appendChild(grad);
+      svg.appendChild(defs);
+
+      (['left', 'right'] as const).forEach((side) => {
+        const list = nodes.filter((n) => n.dataset.ecoNode === side);
+        list.forEach((n, i) => {
+          const r = rect(n);
+          const sy = r.top + r.height / 2;
+          const sx = side === 'left' ? r.right : r.left;
+          // Fan the endpoints across the hub's middle band instead of a single point.
+          const t = list.length > 1 ? i / (list.length - 1) : 0.5;
+          const ey = h.top + h.height * (0.22 + 0.56 * t);
+          const ex = side === 'left' ? h.left + 2 : h.right - 2;
+          const dx = (ex - sx) * 0.55;
+          const d = `M${sx},${sy} C${sx + dx},${sy} ${ex - dx},${ey} ${ex},${ey}`;
+
+          const status = n.dataset.status;
+          const active = status === 'live' || status === 'core';
+          svg.appendChild(
+            el('path', active
+              ? { d, fill: 'none', stroke: 'url(#eco-grad)', 'stroke-width': 1.4, opacity: 0.55 }
+              : { d, fill: 'none', stroke: 'var(--color-line-strong)', 'stroke-width': 1.2, 'stroke-dasharray': '3 5' }),
+          );
+          if (active) {
+            const pulse = el('path', { d, fill: 'none', stroke: 'url(#eco-grad)', 'stroke-width': 2.4, 'stroke-linecap': 'round', class: 'flow' });
+            (pulse as SVGElement).style.animationDelay = `${(-i * 0.45).toFixed(2)}s`;
+            svg.appendChild(pulse);
+          }
+        });
+      });
+    };
+
+    let raf = 0;
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(draw);
+    };
+    new ResizeObserver(schedule).observe(wrap);
+    document.fonts?.ready.then(schedule);
+    schedule();
+  }
+</script>

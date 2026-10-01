@@ -1,0 +1,22 @@
+---
+import UnifiedInbox from '../../islands/UnifiedInbox';
+---
+
+<section id="inbox" class="section scroll-mt-[var(--nav-h)]" aria-labelledby="inbox-title">
+  <div class="container-t">
+    <div class="mx-auto max-w-[780px] text-center">
+      <p class="eyebrow justify-center" data-reveal>Unified inbox</p>
+      <h2 id="inbox-title" class="h2 mt-5" data-split>One Inbox. Every Conversation.</h2>
+      <p class="lede mx-auto mt-6 max-w-[640px]" data-reveal>
+        Website, Telegram, Discord and in-app conversations arrive side by side — each with its full
+        cross-channel history, an AI summary, the customer’s current intent and where the handoff stands.
+      </p>
+    </div>
+
+    <div class="relative mt-14" data-reveal>
+      <div class="absolute inset-x-0 -inset-y-10 -z-10 rounded-[56px] opacity-80 blur-3xl sm:-inset-x-6" style="background: radial-gradient(45% 55% at 15% 30%, var(--glow-a), transparent 70%), radial-gradient(45% 55% at 85% 70%, var(--glow-b), transparent 70%);" aria-hidden="true"></div>
+      <UnifiedInbox client:visible />
+      <p class="mt-4 text-center text-[0.85rem] text-ink-faint">Select a conversation to see everything your team would see.</p>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,229 @@
+---
+import { BUSINESS_HOURS, DAY, TEAM_STATES } from '../../data/demo';
+
+const pct = (h: number) => `${(h / 24) * 100}%`;
+
+const STATE = {
+  ai: { label: 'AI handling', cls: 'bg-ai-soft text-ai', dot: 'bg-ai' },
+  team: { label: 'Team online', cls: 'bg-live-soft text-live', dot: 'bg-live' },
+  handoff: { label: 'Human handoff', cls: 'bg-human-soft text-human', dot: 'bg-human' },
+  offline: { label: 'Team offline', cls: 'bg-surface-2 text-ink-muted', dot: 'bg-ink-faint' },
+} as const;
+
+const ticks = [
+  { h: 0, label: '12 AM' },
+  { h: 6, label: '6 AM' },
+  { h: 12, label: '12 PM' },
+  { h: 18, label: '6 PM' },
+  { h: 24, label: '12 AM' },
+];
+
+// Distinct marker positions on the rail; the 1:18 / 1:19 pair shares one.
+const markers = DAY.filter((e, i, all) => all.findIndex((x) => Math.abs(x.hour - e.hour) < 0.2) === i);
+---
+
+<section id="continuous" class="section scroll-mt-[var(--nav-h)] border-y border-line bg-surface" aria-labelledby="continuous-title">
+  <div class="container-t">
+    <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-end">
+      <div>
+        <p class="eyebrow" data-reveal>Continuous support</p>
+        <h2 id="continuous-title" class="h2 mt-5" data-split>Support doesn’t clock out.</h2>
+      </div>
+      <p class="lede lg:pb-2" data-reveal>
+        Customers need answers before work, after work, during weekends and across time zones.
+        Truplexy stays available — while knowing when a real person should step in.
+      </p>
+    </div>
+
+    <!-- 24-hour rail -->
+    <figure class="card mt-14 px-5 pb-6 pt-6 sm:px-8" data-reveal aria-labelledby="rail-caption">
+      <figcaption id="rail-caption" class="flex flex-wrap items-center justify-between gap-3">
+        <span class="mono text-ink-faint">One day of support</span>
+        <span class="flex flex-wrap items-center gap-4 text-[0.8rem] text-ink-muted">
+          <span class="inline-flex items-center gap-2"><span class="h-2.5 w-5 rounded-sm bg-live-soft ring-1 ring-live/30" aria-hidden="true"></span>Your team online ({BUSINESS_HOURS.start} AM – {BUSINESS_HOURS.end - 12} PM)</span>
+          <span class="inline-flex items-center gap-2"><span class="thread-h w-5" aria-hidden="true"></span>Truplexy</span>
+        </span>
+      </figcaption>
+
+      <div class="relative mt-10 h-[92px]" aria-hidden="true">
+        <!-- team band -->
+        <div
+          class="absolute top-0 h-[58px] rounded-xl bg-live-soft ring-1 ring-live/25"
+          style={`left:${pct(BUSINESS_HOURS.start)};width:${pct(BUSINESS_HOURS.end - BUSINESS_HOURS.start)}`}
+        >
+          <span class="mono absolute left-3 top-2 hidden text-[0.62rem] text-live sm:block">Team</span>
+        </div>
+
+        <!-- Truplexy line: unbroken across all 24 hours -->
+        <div class="thread-h absolute inset-x-0 top-[40px] !h-[3px]"></div>
+        <div class="rail-sweep absolute top-[34px] h-[15px] w-[15px] rounded-full bg-surface ring-[3px] ring-accent"></div>
+
+        {markers.map((e) => (
+          <div class="absolute top-[34px] -translate-x-1/2" style={`left:${pct(e.hour)}`}>
+            <span class:list={['block h-[15px] w-[15px] rounded-full ring-4 ring-surface', STATE[e.state].dot]}></span>
+          </div>
+        ))}
+
+        <!-- ticks -->
+        {ticks.map((t) => (
+          <span
+            class:list={['mono absolute bottom-0 whitespace-nowrap text-[0.62rem] text-ink-faint', t.h === 0 ? '' : t.h === 24 ? '-translate-x-full' : '-translate-x-1/2', t.h === 6 || t.h === 18 ? 'hidden sm:block' : '']}
+            style={`left:${pct(t.h)}`}
+          >{t.label}</span>
+        ))}
+      </div>
+      <p class="sr-only">
+        Your team is online from {BUSINESS_HOURS.start} AM to {BUSINESS_HOURS.end - 12} PM. Truplexy is available across all 24 hours.
+      </p>
+    </figure>
+
+    <div class="mt-14 grid gap-12 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-16">
+      <!-- Timeline -->
+      <ol class="relative flex flex-col gap-6">
+        <span class="thread absolute bottom-6 left-[7px] top-3 opacity-60" aria-hidden="true"></span>
+        {DAY.map((e) => (
+          <li class="relative pl-10" data-reveal>
+            <span class:list={['absolute left-0 top-2 h-4 w-4 rounded-full ring-4 ring-surface', STATE[e.state].dot]} aria-hidden="true"></span>
+            <div class="flex flex-wrap items-center gap-3">
+              <time class="mono font-semibold text-ink">{e.time}</time>
+              <span class:list={['chip !py-1 text-[0.72rem]', STATE[e.state].cls]}>{STATE[e.state].label}</span>
+            </div>
+            <h3 class="mt-2 text-lg font-bold">{e.title}</h3>
+            <p class="mt-1.5 text-[0.95rem] leading-relaxed text-ink-muted">{e.body}</p>
+            {e.packet && (
+              <dl class="mt-4 overflow-hidden rounded-2xl border border-human/25 bg-paper">
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line bg-human-soft px-4 py-2.5">
+                  <span class="text-[0.82rem] font-semibold text-human">Handoff packet</span>
+                  <span class="mono text-[0.62rem] text-human">Sent with the conversation</span>
+                </div>
+                {e.packet.map((p) => (
+                  <div class="grid gap-1 border-b border-line px-4 py-2.5 last:border-b-0 sm:grid-cols-[150px_1fr] sm:gap-3">
+                    <dt class="mono pt-0.5 text-[0.66rem] text-ink-faint">{p.label}</dt>
+                    <dd class="text-[0.9rem] font-medium">{p.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </li>
+        ))}
+      </ol>
+
+      <!-- Team status switcher -->
+      <div class="lg:sticky lg:top-[calc(var(--nav-h)+28px)] lg:self-start" data-reveal>
+        <div class="card overflow-hidden !rounded-[28px] !shadow-[var(--shadow-md)]" data-team-status>
+          <div class="border-b border-line px-6 pb-5 pt-6">
+            <p class="mono text-ink-faint">Whatever your team is doing</p>
+            <div class="mt-4 flex flex-wrap gap-1.5" role="tablist" aria-label="Team status">
+              {TEAM_STATES.map((s, i) => (
+                <button
+                  type="button"
+                  role="tab"
+                  id={`team-tab-${s.id}`}
+                  aria-controls={`team-panel-${s.id}`}
+                  aria-selected={i === 0 ? 'true' : 'false'}
+                  tabindex={i === 0 ? 0 : -1}
+                  class="rounded-full border border-line px-3.5 py-2 text-[0.84rem] font-medium text-ink-muted transition-colors hover:text-ink aria-selected:border-accent/40 aria-selected:bg-accent-soft aria-selected:text-accent"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div class="px-6 py-6">
+            {TEAM_STATES.map((s, i) => (
+              <div role="tabpanel" id={`team-panel-${s.id}`} aria-labelledby={`team-tab-${s.id}`} data-team-panel class:list={[i > 0 && 'js-hide']}>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="rounded-2xl border border-line bg-paper p-4">
+                    <p class="mono text-[0.62rem] text-ink-faint">Your team</p>
+                    <p class="mt-2 flex items-center gap-2 font-semibold">
+                      <span class:list={['h-2.5 w-2.5 rounded-full', s.id === 'online' ? 'bg-live' : s.id === 'offline' || s.id === 'after' ? 'bg-ink-faint' : 'bg-human']} aria-hidden="true"></span>
+                      {s.label}
+                    </p>
+                  </div>
+                  <div class="rounded-2xl border border-accent/25 bg-accent-soft p-4">
+                    <p class="mono text-[0.62rem] text-accent">Truplexy</p>
+                    <p class="mt-2 flex items-center gap-2 font-semibold text-accent">
+                      <span class="live-dot" aria-hidden="true"></span>
+                      Supporting customers
+                    </p>
+                  </div>
+                </div>
+                <p class="mt-5 text-[1rem] leading-relaxed text-ink">{s.body}</p>
+              </div>
+            ))}
+
+            <ul class="mt-6 space-y-3 border-t border-line pt-5 text-[0.92rem] text-ink-muted">
+              <li class="flex gap-3">
+                <span class="mt-1 grid h-5 w-5 flex-none place-items-center rounded-full bg-ai-soft text-ai" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <span><strong class="font-semibold text-ink">When it can,</strong> Truplexy resolves the request directly.</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="mt-1 grid h-5 w-5 flex-none place-items-center rounded-full bg-human-soft text-human" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+                <span><strong class="font-semibold text-ink">When a person is needed,</strong> it hands over with the full conversation context.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="display mx-auto mt-[clamp(64px,8vw,112px)] max-w-[900px] text-center text-[clamp(1.9rem,1.2rem+2.6vw,3.3rem)]" data-reveal>
+      AI when it can. Humans when they matter.
+      <span class="gradient-text block">Support without interruption.</span>
+    </p>
+  </div>
+</section>
+
+<style>
+  /* Panels are all visible without JS; the script hides the inactive ones. */
+  :global(.js) .js-hide {
+    display: none;
+  }
+
+  /* A marker that keeps travelling the Truplexy line — it never stops at 6 PM. */
+  .rail-sweep {
+    left: 0;
+    animation: sweep 14s linear infinite;
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-accent) 18%, transparent);
+  }
+
+  @keyframes sweep {
+    from { left: 0; }
+    to { left: calc(100% - 15px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rail-sweep {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-team-status]');
+  if (root) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const panels = [...root.querySelectorAll<HTMLElement>('[data-team-panel]')];
+
+    const select = (i: number, focus = false) => {
+      tabs.forEach((t, j) => {
+        t.setAttribute('aria-selected', String(i === j));
+        t.tabIndex = i === j ? 0 : -1;
+      });
+      panels.forEach((p, j) => p.classList.toggle('js-hide', i !== j));
+      if (focus) tabs[i].focus();
+    };
+
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(i));
+      t.addEventListener('keydown', (e) => {
+        const n = tabs.length;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); select((i + 1) % n, true); }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); select((i - 1 + n) % n, true); }
+        if (e.key === 'Home') { e.preventDefault(); select(0, true); }
+        if (e.key === 'End') { e.preventDefault(); select(n - 1, true); }
+      });
+    });
+  }
+</script>

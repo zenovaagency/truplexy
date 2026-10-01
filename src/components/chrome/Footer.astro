@@ -1,0 +1,66 @@
+---
+import Logo from './Logo.astro';
+import ChannelIcon from '../ui/ChannelIcon';
+import { NAV, SITE } from '../../data/site';
+import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-line bg-surface">
+  <div class="container-t pb-10 pt-16">
+    <div class="grid gap-12 lg:grid-cols-[1.3fr_0.8fr_1.7fr_1fr]">
+      <div>
+        <Logo height={28} />
+        <p class="mt-6 max-w-[320px] text-[clamp(1.5rem,1.2rem+1vw,2rem)] font-bold leading-tight tracking-tight">
+          One conversation.
+          <span class="gradient-text block">Everywhere.</span>
+        </p>
+      </div>
+
+      <nav aria-label="Footer">
+        <h2 class="mono text-ink-faint">Product</h2>
+        <ul class="mt-4 space-y-2.5 text-[0.95rem]">
+          {NAV.map((item) => (
+            <li><a href={item.href} class="text-ink-muted transition-colors hover:text-ink">{item.label}</a></li>
+          ))}
+        </ul>
+      </nav>
+
+      <div>
+        <h2 class="mono text-ink-faint">Channels</h2>
+        <ul class:list={['mt-4 text-[0.95rem]', SOON_CHANNELS.length > 0 ? 'space-y-2.5' : 'grid grid-cols-2 gap-x-5 gap-y-2.5 !text-[0.875rem]']}>
+          {LIVE_CHANNELS.map((c) => (
+            <li class="flex items-center gap-2 text-ink-muted">
+              <ChannelIcon id={c.id} size={14} className="flex-none" />
+              {c.name}
+              {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" title="Live" aria-label="Live"></span>}
+            </li>
+          ))}
+        </ul>
+        {SOON_CHANNELS.length > 0 && (
+          <div class="mt-5">
+            <span class="soon-tag">Coming soon</span>
+            <ul class="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.82rem] text-ink-faint">
+              {SOON_CHANNELS.map((c) => <li>{c.name}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 class="mono text-ink-faint">Talk to us</h2>
+        <ul class="mt-4 space-y-2.5 text-[0.95rem]">
+          <li><a href={`mailto:${SITE.email}`} class="text-ink-muted transition-colors hover:text-ink">{SITE.email}</a></li>
+          <li><a href={SITE.demoUrl} class="text-ink-muted transition-colors hover:text-ink">Book a demo</a></li>
+          <li><a href={SITE.signupUrl} class="font-semibold text-accent transition-colors hover:text-ink">Get started →</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-14 flex flex-col gap-3 border-t border-line pt-6 text-[0.82rem] text-ink-faint sm:flex-row sm:items-center sm:justify-between">
+      <p>© {year} {SITE.name}. All rights reserved.</p>
+      <p>Conversations shown on this page are illustrative samples.</p>
+    </div>
+  </div>
+</footer>

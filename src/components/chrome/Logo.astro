@@ -1,0 +1,22 @@
+---
+/**
+ * The Truplexy wordmark: the dark-text master, drawn for the site's light
+ * grounds.
+ */
+import { Image } from 'astro:assets';
+import wordDark from '../../assets/brand/wordmark-dark.png';
+
+interface Props {
+  /** Rendered height in px. */
+  height?: number;
+  class?: string;
+  /** Set when the logo is not itself a link (e.g. inside one). */
+  alt?: string;
+}
+const { height = 30, class: className = '', alt = 'Truplexy' } = Astro.props;
+const width = Math.round((wordDark.width / wordDark.height) * height);
+---
+
+<span class:list={['inline-flex items-center', className]}>
+  <Image src={wordDark} alt={alt} width={width} height={height} densities={[1, 2]} loading="eager" />
+</span>

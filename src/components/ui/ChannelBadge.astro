@@ -1,0 +1,31 @@
+---
+/**
+ * Channel name + glyph. A channel that is not live always carries its
+ * "Coming soon" tag — this component is the only way channels are named in
+ * badges, so that rule cannot be skipped by accident.
+ */
+import ChannelIcon from './ChannelIcon';
+import { channel, type ChannelId } from '../../data/channels';
+
+interface Props {
+  id: ChannelId;
+  size?: 'sm' | 'md';
+  class?: string;
+}
+const { id, size = 'md', class: className = '' } = Astro.props;
+const c = channel(id);
+const live = c.status === 'live';
+---
+
+<span
+  class:list={[
+    'inline-flex items-center gap-1.5 rounded-full border bg-surface font-medium leading-none',
+    size === 'sm' ? 'px-2.5 py-1.5 text-[0.8125rem]' : 'px-3 py-2 text-sm',
+    live ? 'border-line text-ink' : 'border-dashed border-line-strong text-ink-muted',
+    className,
+  ]}
+>
+  <ChannelIcon id={id} size={size === 'sm' ? 13 : 15} />
+  {c.name}
+  {!live && <span class="soon-tag ml-0.5">Coming soon</span>}
+</span>

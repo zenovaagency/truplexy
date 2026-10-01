@@ -1,0 +1,59 @@
+---
+import { Image } from 'astro:assets';
+import Button from '../ui/Button.astro';
+import mark from '../../assets/brand/mark.png';
+import { SITE } from '../../data/site';
+
+// Threads converging on the mark: every channel, one conversation.
+// The SVG spans from the panel's top edge to the centre of the mark (top
+// padding + half the 80px tile), so every thread ends behind the mark and
+// none of them cross the copy below it.
+const threads = [
+  'M-10 10 C 260 20, 440 200, 600 220',
+  'M-10 90 C 270 90, 440 210, 600 220',
+  'M-10 170 C 280 175, 450 216, 600 220',
+  'M1210 10 C 940 20, 760 200, 600 220',
+  'M1210 90 C 930 90, 760 210, 600 220',
+  'M1210 170 C 920 175, 750 216, 600 220',
+];
+---
+
+<section class="section !pb-[clamp(56px,7vw,96px)]" aria-labelledby="cta-title">
+  <div class="container-t">
+    <div
+      class="relative isolate overflow-hidden rounded-[var(--radius-xl)] px-6 py-[clamp(64px,9vw,120px)] text-center text-white sm:px-12"
+      style="background: radial-gradient(80% 120% at 0% 0%, #3a4cff 0%, transparent 60%), radial-gradient(80% 120% at 100% 100%, #6a2bff 0%, transparent 60%), linear-gradient(120deg, #1d2fd0, #4a25d9);"
+      data-reveal
+    >
+      <svg class="absolute inset-x-0 top-0 -z-10 h-[calc(clamp(64px,9vw,120px)+40px)] w-full opacity-50" viewBox="0 0 1200 220" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="cta-thread" x1="0" x2="1">
+            <stop offset="0" stop-color="#45d4ff" />
+            <stop offset="0.5" stop-color="#ffffff" />
+            <stop offset="1" stop-color="#d9b8ff" />
+          </linearGradient>
+        </defs>
+        {threads.map((d) => <path d={d} fill="none" stroke="url(#cta-thread)" stroke-width="1.4" vector-effect="non-scaling-stroke" />)}
+      </svg>
+
+      <div class="relative mx-auto mb-9 grid h-20 w-20 place-items-center rounded-[26px] bg-white shadow-[0_20px_50px_rgb(10_10_60/0.35)]">
+        <Image src={mark} alt="" width={48} height={51} densities={[1, 2]} class="h-[51px] w-auto" />
+      </div>
+
+      <h2 id="cta-title" class="display mx-auto max-w-[860px] text-[clamp(2.3rem,1.3rem+4vw,4.4rem)]">
+        Wherever they message, Truplexy is there.
+      </h2>
+      <p class="mx-auto mt-6 max-w-[640px] text-[clamp(1.05rem,1rem+0.35vw,1.25rem)] leading-relaxed text-white/85">
+        Give customers one continuous support experience across every channel you connect — without making
+        every conversation feel like it came from a bot.
+      </p>
+
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
+        <Button href={SITE.signupUrl} variant="light">Get started</Button>
+        <Button href={SITE.demoUrl} variant="onDark" arrow={false}>Book a demo</Button>
+      </div>
+
+      <p class="mono mt-8 text-white/75">Multi-platform. Continuous. Human when it matters.</p>
+    </div>
+  </div>
+</section>
