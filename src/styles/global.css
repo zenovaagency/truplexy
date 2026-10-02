@@ -182,24 +182,18 @@
     text-transform: uppercase;
   }
 
+  /* Section label: a small pill above each section heading. */
   .eyebrow {
     display: inline-flex;
     align-items: center;
-    gap: 0.6rem;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
+    border: 1px solid var(--color-line);
+    border-radius: 9999px;
+    background: var(--color-surface);
+    padding: 0.25rem 0.875rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-  }
-
-  .eyebrow::before {
-    content: '';
-    width: 22px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--gradient-brand);
+    color: var(--color-ink-muted);
+    box-shadow: var(--shadow-sm);
   }
 
   .display {
@@ -209,10 +203,10 @@
   }
 
   .h2 {
-    font-size: clamp(2rem, 1.35rem + 2.6vw, 3.4rem);
-    font-weight: 700;
-    letter-spacing: -0.032em;
-    line-height: 1.07;
+    font-size: clamp(1.85rem, 1.3rem + 1.6vw, 2.5rem);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
   }
 
   .lede {
