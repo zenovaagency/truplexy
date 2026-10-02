@@ -11,10 +11,13 @@ const heroLive = channelsIn('messaging').filter((c) => c.status === 'live');
 const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).filter((c) => c.status === 'soon');
 ---
 
-<section class="relative isolate overflow-hidden border-b border-line bg-surface">
-  <div class="container-t relative pt-[calc(var(--nav-h)+clamp(36px,6vw,76px))]">
-    <!-- Copy block. The orbit centres itself on this block. -->
-    <div class="relative mx-auto flex max-w-[980px] flex-col items-center text-center">
+<!-- Fills the first screen (capped on tall monitors): the copy centres in the
+     space between the nav and the channel strip, which sits at the bottom. -->
+<section class="relative isolate flex min-h-[min(100svh,1000px)] flex-col overflow-hidden border-b border-line bg-surface">
+  <div class="container-t relative flex flex-1 flex-col pt-[var(--nav-h)]">
+    <!-- Copy block. The orbit centres itself on this block, so its padding
+         stays symmetric. -->
+    <div class="relative mx-auto my-auto flex w-full max-w-[980px] flex-col items-center py-[clamp(40px,5vh,64px)] text-center">
       <HeroOrbit />
 
       <p class="flex flex-col items-center gap-2.5 text-[0.875rem] text-ink-muted sm:flex-row sm:gap-3" data-reveal>
@@ -37,12 +40,12 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
         <span class="block">Wherever your customers are.</span>
       </h1>
 
-      <p class="lede mt-6 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)]" data-reveal data-reveal-delay="0.1">
+      <p class="lede mt-5 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] sm:mt-6" data-reveal data-reveal-delay="0.1">
         Truplexy gives businesses a human-like AI support layer across your website, Telegram,
         Discord and your own apps — with context that continues from one conversation to the next.
       </p>
 
-      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center" data-reveal data-reveal-delay="0.15">
+      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:mt-10 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center" data-reveal data-reveal-delay="0.15">
         <Button href="#try" arrow={false}>See Truplexy in action</Button>
         <Button href="#channels" variant="ghost" arrow={false}>Explore channels</Button>
       </div>
@@ -55,7 +58,7 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
     </div>
 
     <!-- Where Truplexy runs today. Stands in for a customer-logo strip. -->
-    <div class="mt-14 border-t border-line py-8 sm:mt-16 sm:py-10" data-reveal>
+    <div class="border-t border-line py-8 sm:py-10" data-reveal>
       <p class="text-center text-[0.875rem] text-ink-faint">Live today on the channels your customers already use</p>
       <div class="mt-5 flex flex-col items-center gap-x-10 gap-y-4 xl:flex-row xl:justify-center">
         <ul class="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:gap-x-10">

@@ -428,8 +428,9 @@
 }
 
 /* Only the rings fade out; the tiles stay fully opaque. The rings are gone
-   before the channel strip under the copy (about 88% down the orbit on
-   phones, 67-70% from sm up). */
+   by the channel strip under the copy: the copy block's padding keeps the
+   strip at least ~85% down the orbit on phones and ~65% from sm up, and
+   the hero's extra height on tall screens only pushes it lower. */
 .hero-orbit-rings {
   --fade: #000 62%, transparent 86%;
   mask-image: linear-gradient(to bottom, var(--fade));
