@@ -1,0 +1,31 @@
+---
+import { getImage } from 'astro:assets';
+import TryChat from '../../islands/TryChat';
+import mark from '../../assets/brand/mark.png';
+import { STORE_CHAT } from '../../data/demo';
+
+const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
+---
+
+<section id="try" class="section scroll-mt-[var(--nav-h)]" aria-labelledby="try-title">
+  <div class="container-t">
+    <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-end">
+      <div>
+        <p class="eyebrow" data-reveal>Try it</p>
+        <h2 id="try-title" class="h2 mt-5" data-split>Be the customer.</h2>
+      </div>
+      <div class="lg:pb-2" data-reveal>
+        <p class="lede">
+          Tap a question and see how Truplexy answers your customers — checking orders, making changes, and
+          bringing in a person when one is needed.
+        </p>
+        <p class="mono mt-4 text-[0.66rem] text-ink-faint">{STORE_CHAT.store} is a sample store · scripted demo</p>
+      </div>
+    </div>
+
+    <div class="relative mt-14" data-reveal>
+      <div class="absolute inset-x-0 -inset-y-10 -z-10 rounded-[56px] opacity-80 blur-3xl sm:-inset-x-6" style="background: radial-gradient(45% 55% at 20% 40%, var(--glow-a), transparent 70%), radial-gradient(40% 50% at 85% 60%, var(--glow-b), transparent 70%);" aria-hidden="true"></div>
+      <TryChat client:visible={{ rootMargin: '400px' }} markSrc={markSmall.src} />
+    </div>
+  </div>
+</section>

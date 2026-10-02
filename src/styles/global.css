@@ -420,22 +420,6 @@
   }
 }
 
-/* Hero card stack: hide the server-rendered (finished) stack between first
-   paint and hydration, so it never flashes complete and then rewinds.
-   Without JS (no .js class) or with reduced motion it stays visible. */
-.js [data-hero-stack]:not([data-ready]) .hs-card {
-  visibility: hidden;
-}
-
-/* A new card drops onto the top of the stack, then settles into its slot. */
-@keyframes hs-enter {
-  from { opacity: 0; transform: translateY(-22px) scale(1.03); }
-}
-
-.hs-enter {
-  animation: hs-enter 700ms var(--ease-out-expo) backwards;
-}
-
 /* Hero orbit: rings sized to the viewport band, centred on the copy. */
 .hero-orbit {
   --orbit: 900px;
@@ -443,14 +427,18 @@
   height: var(--orbit);
 }
 
-/* Only the rings fade out; the tiles stay fully opaque. */
+/* Only the rings fade out; the tiles stay fully opaque. The rings are gone
+   before the channel strip under the copy (about 88% down the orbit on
+   phones, 67-70% from sm up). */
 .hero-orbit-rings {
-  mask-image: linear-gradient(to bottom, #000 62%, transparent 94%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 94%);
+  --fade: #000 62%, transparent 86%;
+  mask-image: linear-gradient(to bottom, var(--fade));
+  -webkit-mask-image: linear-gradient(to bottom, var(--fade));
 }
 
 @media (min-width: 640px) {
   .hero-orbit { --orbit: 1240px; }
+  .hero-orbit-rings { --fade: #000 45%, transparent 65%; }
 }
 
 @media (min-width: 1024px) {
@@ -480,13 +468,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .js [data-hero-stack]:not([data-ready]) .hs-card {
-    visibility: visible;
-  }
-
   .orbit-spin,
-  .tile-float,
-  .hs-enter {
+  .tile-float {
     animation: none !important;
   }
 }

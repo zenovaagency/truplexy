@@ -14,11 +14,11 @@ import type { ChannelId } from '../../data/channels';
 const [webAsk, webReply] = HERO.first.messages;
 
 // Continuous: an evening message, outside the team's hours.
-const evening = DAY.find((e) => e.state === 'offline')!;
+const evening = DAY.find((e) => e.id === 'evening')!;
 const pct = (hour: number) => `${((hour / 24) * 100).toFixed(2)}%`;
 
 // Handoff: two of the fields that travel with the conversation.
-const packet = DAY.find((e) => e.state === 'handoff')!.packet!;
+const packet = DAY.find((e) => e.id === 'handoff')!.packet!;
 const tagFor = (label: string) => packet.find((p) => p.label === label)!.label;
 
 const CHANNEL_ROW: { id: ChannelId; edge: boolean }[][] = [
@@ -30,7 +30,7 @@ const check = 'grid h-4 w-4 flex-none place-items-center rounded-full bg-btn tex
 const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
 ---
 
-<section class="section !pt-[clamp(56px,6vw,88px)]" aria-labelledby="pillars-title">
+<section id="features" class="section scroll-mt-[var(--nav-h)] !pt-[clamp(56px,6vw,88px)]" aria-labelledby="pillars-title">
   <div class="container-t">
     <div class="mx-auto max-w-[800px] text-center">
       <p class="inline-flex rounded-full border border-line bg-surface px-3.5 py-1 text-[0.8rem] font-medium text-ink-muted shadow-[var(--shadow-sm)]" data-reveal>

@@ -62,7 +62,7 @@ const jsonLd = {
     {noindex && <meta name="robots" content="noindex" />}
 
     <!-- Flag script support before first paint, so JS-only styles (e.g. the
-         hero stack's pre-hydration guard) apply without a flash. -->
+         reveal and split-text start states) apply without a flash. -->
     <script is:inline>
       document.documentElement.classList.add('js');
     </script>

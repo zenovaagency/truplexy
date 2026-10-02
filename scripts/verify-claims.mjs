@@ -49,7 +49,7 @@ for (const name of NOT_LIVE) {
   console.log(`  ${name.padEnd(16)} ${count} visible mention(s)`);
 }
 
-// Demo text: chat bubbles, plus any element marked data-demo (the hero stack's transcript).
+// Demo text: chat bubbles, plus any element marked data-demo (the day-cycle's transcript).
 const bubbles = [...html.matchAll(/class="[^"]*\bbubble\b[^"]*"[^>]*>([\s\S]*?)<\/div>/g)].map((m) => m[1]);
 const marked = [...html.matchAll(/<(\w+)\b[^>]*\bdata-demo\b[^>]*>([\s\S]*?)<\/\1>/g)].map((m) => m[2]);
 for (const b of [...bubbles, ...marked]) {

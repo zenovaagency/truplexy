@@ -1,13 +1,8 @@
 ---
-import { getImage } from 'astro:assets';
 import Button from '../ui/Button.astro';
 import ChannelIcon from '../ui/ChannelIcon';
 import HeroOrbit from './HeroOrbit.astro';
-import HeroStack from '../../islands/HeroStack';
-import mark from '../../assets/brand/mark.png';
 import { channel, channelsIn } from '../../data/channels';
-
-const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
 
 // Live customer-messaging channels are named as-is; any flagship messaging
 // app not yet live is shown faded with an explicit "Coming soon" label.
@@ -48,7 +43,7 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
       </p>
 
       <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center" data-reveal data-reveal-delay="0.15">
-        <Button href="#journey" arrow={false}>See Truplexy in action</Button>
+        <Button href="#try" arrow={false}>See Truplexy in action</Button>
         <Button href="#channels" variant="ghost" arrow={false}>Explore channels</Button>
       </div>
 
@@ -57,16 +52,6 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
         <span>Continuous support</span><span aria-hidden="true" class="text-line-strong">·</span>
         <span>Human handoff</span>
       </p>
-    </div>
-
-    <!-- The conversation, as a notification stack, on a soft glow. -->
-    <div class="relative mx-auto mt-12 max-w-[440px] sm:mt-14" data-reveal data-reveal-delay="0.15">
-      <div
-        class="absolute -z-10 -inset-y-10 inset-x-0 rounded-[48px] opacity-90 blur-3xl sm:-inset-x-20"
-        style="background: radial-gradient(50% 50% at 50% 45%, color-mix(in oklab, var(--color-blue) 30%, transparent), transparent 75%), radial-gradient(40% 45% at 30% 70%, var(--glow-a), transparent 70%), radial-gradient(40% 45% at 75% 70%, var(--glow-b), transparent 70%);"
-        aria-hidden="true"
-      ></div>
-      <HeroStack client:visible markSrc={markSmall.src} store="Loom & Lane" />
     </div>
 
     <!-- Where Truplexy runs today. Stands in for a customer-logo strip. -->

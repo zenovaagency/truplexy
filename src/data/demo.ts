@@ -3,8 +3,8 @@ import { isLive, type ChannelId } from './channels';
 /**
  * Every sample conversation on the page, from one fictional cast, so the
  * stories link up across sections: Sarah's address change in the hero is her
- * row in the inbox, Daniel's billing issue in the timeline is the handoff
- * example, Nabila's jacket in the journey is her inbox thread.
+ * row in the inbox, Daniel's billing issue in the day-cycle is the handoff
+ * example, and Nabila's jacket is her inbox thread.
  *
  * All people, orders and businesses here are fictional. Mock UIs that render
  * this data label it as sample data.
@@ -49,7 +49,7 @@ export const HERO = {
 };
 
 /* ------------------------------------------------------------------ *
- * Journey — Website → Discord → Telegram → a person.
+ * Journey — Website → Discord → Telegram → a person. Nabila's inbox thread.
  * ------------------------------------------------------------------ */
 export interface JourneyStep {
   time: string;
@@ -116,41 +116,66 @@ export const JOURNEY: JourneyStep[] = [
 ];
 
 /* ------------------------------------------------------------------ *
- * Continuous support — one day, team online and offline.
+ * Continuous support — one day, played as a loop. The day runs from
+ * 6 AM to 6 AM, so the moments are in playback order and the overnight
+ * one comes last.
  * ------------------------------------------------------------------ */
-export interface TimelineEvent {
+export type TeamState = 'online' | 'busy' | 'offline';
+
+export interface DayMoment {
+  id: 'morning' | 'handoff' | 'busy' | 'evening' | 'overnight';
   time: string;
-  /** Position on the 24h rail, in hours from midnight. */
+  /** Hour of the day it happens, 0–24. */
   hour: number;
-  state: 'ai' | 'team' | 'handoff' | 'offline';
+  team: TeamState;
+  /** What Truplexy did with the conversation. */
+  state: 'resolved' | 'handoff' | 'queued';
+  channel: ChannelId;
+  customer: string;
   title: string;
-  body: string;
+  outcome: string;
+  messages: Msg[];
+  /** What travels with the conversation when a person takes over. */
   packet?: { label: string; value: string }[];
+  /** A closing line under the conversation, e.g. a follow-up waiting for the team. */
+  note?: string;
 }
 
 export const BUSINESS_HOURS = { start: 9, end: 18 } as const;
 
-export const DAY: TimelineEvent[] = [
+export const DAY: DayMoment[] = [
   {
+    id: 'morning',
     time: '9:42 AM',
     hour: 9.7,
-    state: 'ai',
-    title: 'AI handling conversation',
-    body: 'A customer asks whether the Atlas Jacket is back in Medium. Truplexy checks and answers in one reply. Resolved without anyone on the team stopping what they’re doing.',
+    team: 'online',
+    state: 'resolved',
+    channel: 'instagram',
+    customer: 'Rumana Akter',
+    title: 'A routine question, answered at once',
+    outcome: 'Resolved by Truplexy. Nobody on the team had to stop what they were doing.',
+    messages: [
+      { from: 'customer', channel: 'instagram', text: 'Is the Atlas Jacket back in Medium?' },
+      { from: 'ai', channel: 'instagram', text: 'It is — Medium came back in this morning, in Black and Olive. Want me to hold one for you?' },
+      { from: 'customer', channel: 'instagram', text: 'Black, please!' },
+      { from: 'ai', channel: 'instagram', text: 'Done. A Black Medium is on hold for you until tomorrow evening.' },
+    ],
   },
   {
+    id: 'handoff',
     time: '1:18 PM',
     hour: 13.3,
-    state: 'team',
-    title: 'Support team online',
-    body: 'Daniel reports a duplicate charge on his September invoice. Truplexy recognises a billing dispute that needs a person’s judgement.',
-  },
-  {
-    time: '1:19 PM',
-    hour: 13.32,
+    team: 'online',
     state: 'handoff',
-    title: 'Human handoff',
-    body: 'Priya on billing picks it up. Everything she needs arrives with the conversation:',
+    channel: 'web',
+    customer: 'Daniel Park',
+    title: 'A billing dispute needs a person',
+    outcome: 'Handed to Priya on billing, with everything she needs attached.',
+    messages: [
+      { from: 'customer', channel: 'web', time: '1:16 PM', text: 'I was charged twice for September.' },
+      { from: 'ai', channel: 'web', time: '1:16 PM', text: 'Sorry about that — I can see both charges. I’m bringing in billing to review the refund.' },
+      { from: 'agent', channel: 'web', time: '1:19 PM', author: 'Priya · Billing', text: 'Hi Daniel — I can see the duplicate charge. I’ve started your refund.' },
+    ],
     packet: [
       { label: 'Customer', value: 'Daniel Park · Pro subscription' },
       { label: 'History', value: 'Website → Telegram, 6 messages' },
@@ -160,44 +185,196 @@ export const DAY: TimelineEvent[] = [
     ],
   },
   {
+    id: 'busy',
+    time: '3:50 PM',
+    hour: 15.83,
+    team: 'busy',
+    state: 'resolved',
+    channel: 'telegram',
+    customer: 'Farhan Ali',
+    title: 'Every agent busy, no queue',
+    outcome: 'Handled while the whole team was with other customers.',
+    messages: [
+      { from: 'customer', channel: 'telegram', text: 'Can I swap my shirt for a Large?' },
+      { from: 'ai', channel: 'telegram', text: 'Yes. I’ve set up the exchange — the courier brings the Large on Friday and collects the Medium.' },
+      { from: 'customer', channel: 'telegram', text: 'Perfect, thanks.' },
+    ],
+  },
+  {
+    id: 'evening',
     time: '7:45 PM',
     hour: 19.75,
-    state: 'offline',
-    title: 'Team offline',
-    body: 'A new customer asks if you deliver to Chattogram. Truplexy answers right away. Anything that needs a person waits in the inbox with a summary, ready for the morning.',
+    team: 'offline',
+    state: 'queued',
+    channel: 'whatsapp',
+    customer: 'Imran Kabir',
+    title: 'Team offline, customer still answered',
+    outcome: 'Answered straight away. The bulk quote waits for the team, with a summary.',
+    messages: [
+      { from: 'customer', channel: 'whatsapp', time: '7:45 PM', text: 'Do you deliver to Chattogram? And is there a discount on 20 jackets?' },
+      { from: 'ai', channel: 'whatsapp', time: '7:45 PM', text: 'Yes — Chattogram takes 2–3 days. Bulk pricing is our team’s call, so I’ve passed it on for 9 AM.' },
+    ],
+    note: 'Waiting for the team at 9 AM · summary attached',
+  },
+  {
+    id: 'overnight',
+    time: '2:30 AM',
+    hour: 2.5,
+    team: 'offline',
+    state: 'resolved',
+    channel: 'messenger',
+    customer: 'Leo Fischer',
+    title: 'Overnight, from another time zone',
+    outcome: 'Resolved by Truplexy while your team was asleep.',
+    messages: [
+      { from: 'customer', channel: 'messenger', text: 'Hi from Berlin — do you ship to Germany?' },
+      { from: 'ai', channel: 'messenger', text: 'We do. International orders arrive in 7–10 business days, tracked all the way.' },
+      { from: 'customer', channel: 'messenger', text: 'Great, ordering now.' },
+    ],
   },
 ];
 
-export const TEAM_STATES = [
-  {
-    id: 'online',
-    label: 'Online',
-    body: 'Truplexy takes the routine questions and routes anything sensitive to whoever is available — with the whole thread attached.',
+/* ------------------------------------------------------------------ *
+ * Try it — a scripted chat with the sample store. The visitor taps a
+ * question; each answer can light up what Truplexy now knows.
+ * ------------------------------------------------------------------ */
+export type ChatLine =
+  | { from: 'ai' | 'agent'; text: string; author?: string }
+  | { from: 'event'; text: string };
+
+export interface ChatNode {
+  /** The button label, and what the customer says. */
+  ask: string;
+  replies: ChatLine[];
+  learns: { key: string; value: string }[];
+  /** Follow-up questions offered after this one. */
+  next: string[];
+  /** A person joins; the scripted conversation ends here. */
+  handoff?: boolean;
+}
+
+export interface StoreChat {
+  store: string;
+  channel: ChannelId;
+  greeting: string;
+  starters: string[];
+  /** Offered at every step until someone from the team has joined. */
+  person: string;
+  nodes: Record<string, ChatNode>;
+}
+
+export const STORE_CHAT: StoreChat = {
+  store: 'Loom & Lane',
+  channel: 'web',
+  greeting: 'Hi! I’m the Loom & Lane assistant. Ask me about an order, a product or a return — and I can bring in our team at any point.',
+  starters: ['order', 'jacket', 'returns', 'charged'],
+  person: 'person',
+  nodes: {
+    order: {
+      ask: 'Where’s my order?',
+      replies: [{ from: 'ai', text: 'Order #5107 — two linen shirts — is packed and leaves our warehouse this afternoon. It should reach you on Thursday.' }],
+      learns: [
+        { key: 'Order', value: '#5107 · packed, not dispatched' },
+        { key: 'Intent', value: 'Track an order' },
+      ],
+      next: ['address', 'updates'],
+    },
+    address: {
+      ask: 'Can I change the delivery address?',
+      replies: [{ from: 'ai', text: 'Good timing — #5107 hasn’t left yet, so I can still change it. What’s the new address?' }],
+      learns: [{ key: 'Intent', value: 'Change delivery address' }],
+      next: ['newAddress'],
+    },
+    newAddress: {
+      ask: 'House 12, Road 5, Dhanmondi.',
+      replies: [{ from: 'ai', text: 'Done. #5107 will go to House 12, Road 5, Dhanmondi, and it’s still on track for Thursday.' }],
+      learns: [
+        { key: 'Address', value: 'Updated · Dhanmondi' },
+        { key: 'Order', value: '#5107 · address changed before dispatch' },
+      ],
+      next: ['updates'],
+    },
+    updates: {
+      ask: 'Can you message me when it ships?',
+      replies: [{ from: 'ai', text: 'Of course. I’ll message you right here when it ships, and again on delivery day.' }],
+      learns: [{ key: 'Updates', value: 'On · this chat' }],
+      next: [],
+    },
+    jacket: {
+      ask: 'Do you have the Atlas Jacket in black?',
+      replies: [{ from: 'ai', text: 'We do — the Atlas Jacket comes in Black, sizes S to XL. Want help picking a size?' }],
+      learns: [
+        { key: 'Product', value: 'Atlas Jacket · Black' },
+        { key: 'Intent', value: 'Purchase' },
+      ],
+      next: ['fit', 'sleeves'],
+    },
+    fit: {
+      ask: 'Does Medium fit true to size?',
+      replies: [{ from: 'ai', text: 'Medium fits true to size. If you like layering underneath, most people go one size up.' }],
+      learns: [{ key: 'Preference', value: 'Size Medium' }],
+      next: ['sleeves'],
+    },
+    sleeves: {
+      ask: 'Could the sleeves be shortened?',
+      replies: [
+        { from: 'ai', text: 'That’s one for our tailoring team. I’ve passed them everything we’ve discussed, so you won’t need to repeat it.' },
+        { from: 'event', text: 'Maya · Tailoring joined · full thread attached' },
+        { from: 'agent', author: 'Maya · Tailoring', text: 'Hi! Atlas Jacket in Black — got it. How much shorter would you like the sleeves?' },
+      ],
+      learns: [
+        { key: 'Intent', value: 'Purchase · alteration' },
+        { key: 'Handoff', value: 'Maya · Tailoring' },
+      ],
+      next: [],
+      handoff: true,
+    },
+    returns: {
+      ask: 'What’s your return policy?',
+      replies: [{ from: 'ai', text: 'You have 30 days from delivery to return anything unworn with the tags on. Returns are free within Dhaka.' }],
+      learns: [{ key: 'Intent', value: 'Return an item' }],
+      next: ['startReturn'],
+    },
+    startReturn: {
+      ask: 'I’d like to return my last order.',
+      replies: [{ from: 'ai', text: 'No problem. That’s order #4977, the Harbor Tee in M. I’ve emailed you a free return label — drop it at any courier point.' }],
+      learns: [
+        { key: 'Order', value: '#4977 · return started' },
+        { key: 'Return', value: 'Label sent by email' },
+      ],
+      next: [],
+    },
+    charged: {
+      ask: 'I was charged twice.',
+      replies: [
+        { from: 'ai', text: 'Sorry about that. I can see two identical charges on your last order. Refunds need a quick review, so I’m bringing in billing now.' },
+        { from: 'event', text: 'Priya · Billing joined · full thread attached' },
+        { from: 'agent', author: 'Priya · Billing', text: 'Hi! I can see the duplicate charge. I’ve started the refund — it’ll be back on your card in 3–5 business days.' },
+      ],
+      learns: [
+        { key: 'Intent', value: 'Refund a duplicate charge' },
+        { key: 'Handoff', value: 'Priya · Billing' },
+      ],
+      next: [],
+      handoff: true,
+    },
+    person: {
+      ask: 'Can I talk to a person?',
+      replies: [
+        { from: 'ai', text: 'Of course. I’m bringing in someone from our team now. They’ll see this whole conversation, so you won’t need to repeat anything.' },
+        { from: 'event', text: 'Arif · Support joined · full thread attached' },
+        { from: 'agent', author: 'Arif · Support', text: 'Hi, I’m Arif. I’ve read through everything so far — how can I help?' },
+      ],
+      learns: [{ key: 'Handoff', value: 'Arif · Support' }],
+      next: [],
+      handoff: true,
+    },
   },
-  {
-    id: 'offline',
-    label: 'Offline',
-    body: 'The whole team is away. Truplexy keeps helping customers and is honest about when a person will follow up.',
-  },
-  {
-    id: 'busy',
-    label: 'Busy',
-    body: 'Every agent is occupied. Instead of a silent queue, customers keep getting answers, and the cases that need a person are lined up next.',
-  },
-  {
-    id: 'another',
-    label: 'With another customer',
-    body: 'Your agent stays focused. Truplexy picks up new conversations and only hands over when a person adds something.',
-  },
-  {
-    id: 'after',
-    label: 'Outside business hours',
-    body: 'Customers still get real answers at 11 PM. Whatever needs your team is summarised and waiting when they log in.',
-  },
-] as const;
+};
 
 /* ------------------------------------------------------------------ *
- * Persistent context — a plan comparison, picked up a day later.
+ * Persistent context — a plan comparison, picked up a day later. James's
+ * inbox thread.
  * ------------------------------------------------------------------ */
 export const CONTEXT = {
   before: {
@@ -384,6 +561,8 @@ const used: ChannelId[] = [
   ...INBOX.flatMap((t) => [...t.channels, ...t.messages.map((m) => m.channel), ...t.previous.map((p) => p.channel)]),
   ...CONTEXT.before.messages.map((m) => m.channel),
   ...CONTEXT.after.messages.map((m) => m.channel),
+  ...DAY.flatMap((d) => [d.channel, ...d.messages.map((m) => m.channel)]),
+  STORE_CHAT.channel,
 ];
 for (const id of used) {
   if (!isLive(id)) throw new Error(`Demo data uses "${id}", which is not live. Use a live channel or mark it live in channels.ts.`);

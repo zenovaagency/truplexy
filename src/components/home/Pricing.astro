@@ -1,0 +1,70 @@
+---
+import { Check } from 'lucide-react';
+import Button from '../ui/Button.astro';
+import { PLANS } from '../../data/pricing';
+import { SITE } from '../../data/site';
+---
+
+<section id="pricing" class="section scroll-mt-[var(--nav-h)] border-y border-line bg-surface" aria-labelledby="pricing-title">
+  <div class="container-t">
+    <div class="mx-auto max-w-[760px] text-center">
+      <p class="eyebrow justify-center" data-reveal>Pricing</p>
+      <h2 id="pricing-title" class="h2 mt-5" data-split>Plans that grow with your support.</h2>
+      <p class="lede mx-auto mt-6 max-w-[600px]" data-reveal>
+        Every plan includes the whole conversation layer — memory across channels, the unified inbox and
+        handoff to your team. Pick the volume and integrations you need.
+      </p>
+    </div>
+
+    <ul class="mt-14 grid items-stretch gap-4 lg:grid-cols-3">
+      {PLANS.map((plan, i) => (
+        <li
+          class:list={[
+            'card relative flex flex-col p-6 sm:p-8',
+            plan.featured ? '!border-accent/40 !shadow-[var(--shadow-lg)] ring-4 ring-accent/10' : '!bg-paper',
+          ]}
+          data-reveal
+          data-reveal-delay={String(i * 0.06)}
+        >
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-xl font-bold tracking-tight">{plan.name}</h3>
+            {plan.featured && <span class="chip bg-accent-soft !py-1 text-[0.72rem] text-accent">Most popular</span>}
+          </div>
+          <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-muted">{plan.blurb}</p>
+
+          <p class="mt-6 flex items-baseline gap-2">
+            <span class="text-[2.6rem] font-bold leading-none tracking-[-0.03em]">{plan.price}</span>
+            {plan.period && <span class="text-[0.9rem] text-ink-faint">{plan.period}</span>}
+          </p>
+          <ul class="mt-4 space-y-1">
+            {plan.limits.map((l) => <li class="mono text-[0.66rem] text-ink-muted">{l}</li>)}
+          </ul>
+
+          <div class="mt-7">
+            <Button href={plan.cta.href} variant={plan.featured ? 'primary' : 'ghost'} arrow={false} class="w-full">
+              {plan.cta.label}
+            </Button>
+          </div>
+
+          <div class="mt-7 border-t border-line pt-6">
+            <p class="text-[0.85rem] font-semibold text-ink">{plan.includes}</p>
+            <ul class="mt-4 space-y-3 text-[0.92rem] text-ink-muted">
+              {plan.features.map((f) => (
+                <li class="flex gap-3">
+                  <span class="mt-[3px] grid h-[18px] w-[18px] flex-none place-items-center rounded-full bg-accent-soft text-accent" aria-hidden="true">
+                    <Check size={11} strokeWidth={3} />
+                  </span>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </li>
+      ))}
+    </ul>
+
+    <p class="mt-8 text-center text-[0.9rem] text-ink-faint" data-reveal>
+      Not sure which plan fits? <a href={SITE.demoUrl} class="font-semibold text-accent hover:underline">Book a demo</a> and we’ll walk you through it.
+    </p>
+  </div>
+</section>

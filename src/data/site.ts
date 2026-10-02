@@ -22,9 +22,9 @@ export const SITE = {
 
 /** In-page sections, in page order. */
 export const NAV = [
-  { label: 'How it works', href: '#journey' },
-  { label: 'Continuity', href: '#continuous' },
+  { label: 'Features', href: '#features' },
+  { label: 'Try it', href: '#try' },
   { label: 'Channels', href: '#channels' },
-  { label: 'Inbox', href: '#inbox' },
-  { label: 'Handoff', href: '#handoff' },
+  { label: 'Continuity', href: '#continuous' },
+  { label: 'Pricing', href: '#pricing' },
 ] as const;

@@ -46,7 +46,7 @@ export function motion(): Promise<Motion> {
         // Touch devices keep their native scroll physics. Smoothing them
         // fights the platform and breaks momentum on iOS.
         syncTouch: false,
-        // In-page anchors (#journey, #channels, …) glide instead of jumping,
+        // In-page anchors (#try, #channels, …) glide instead of jumping,
         // and land below the floating nav.
         anchors: { offset: NAV_OFFSET },
       });
