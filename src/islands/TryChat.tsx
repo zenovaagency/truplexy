@@ -160,7 +160,7 @@ export default function TryChat({ markSrc }: { markSrc: string }) {
             type="button"
             onClick={restart}
             aria-label="Start the conversation over"
-            className="grid h-9 w-9 flex-none place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink pointer-coarse:w-11"
+            className="btn btn-quiet btn-icon h-9 w-9 flex-none rounded-lg pointer-coarse:w-11"
           >
             <RotateCcw size={16} strokeWidth={2} aria-hidden="true" />
           </button>
@@ -211,7 +211,7 @@ export default function TryChat({ markSrc }: { markSrc: string }) {
               <button
                 type="button"
                 onClick={restart}
-                className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-2 text-[0.85rem] font-medium text-ink transition-colors hover:border-line-strong"
+                className="btn btn-ghost btn-sm rounded-full"
               >
                 <RotateCcw size={14} strokeWidth={2.2} aria-hidden="true" />
                 Start over
@@ -227,7 +227,7 @@ export default function TryChat({ markSrc }: { markSrc: string }) {
                     type="button"
                     disabled={busy}
                     onClick={() => ask(id)}
-                    className="rounded-full border border-accent/30 bg-accent-soft px-3.5 py-2 text-left text-[0.85rem] font-medium leading-snug text-accent transition-colors hover:bg-btn hover:text-white disabled:pointer-events-none disabled:opacity-50"
+                    className="btn rounded-full border-accent/30 bg-accent-soft px-3.5 py-2 text-left text-[0.85rem] font-medium leading-snug text-accent [--btn-glow:0_6px_16px_-6px_rgb(35_56_230/0.35)] hover:border-btn hover:bg-btn hover:text-white"
                   >
                     {STORE_CHAT.nodes[id].ask}
                   </button>
@@ -236,7 +236,7 @@ export default function TryChat({ markSrc }: { markSrc: string }) {
                   type="button"
                   disabled={busy}
                   onClick={() => ask(STORE_CHAT.person)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-human/30 bg-human-soft px-3.5 py-2 text-[0.85rem] font-medium leading-snug text-human transition-colors hover:border-human/60 disabled:pointer-events-none disabled:opacity-50"
+                  className="btn gap-1.5 rounded-full border-human/30 bg-human-soft px-3.5 py-2 text-[0.85rem] font-medium leading-snug text-human [--btn-glow:0_6px_16px_-6px_rgb(154_75_0/0.28)] hover:border-human/60"
                 >
                   <Headset size={14} strokeWidth={2.2} aria-hidden="true" />
                   Talk to a person

@@ -3,6 +3,9 @@
  * Buttons are ink-on-paper rectangles, so the primary is always the
  * highest-contrast element on the page. The decorative blues of the
  * gradient never carry text.
+ *
+ * Styling lives in the `.btn` classes in global.css, which the React
+ * islands share. This component adds the label roll and the arrow.
  */
 interface Props {
   href: string;
@@ -13,35 +16,19 @@ interface Props {
 }
 const { href, variant = 'primary', size = 'md', arrow = true, class: className = '' } = Astro.props;
 
-const base =
-  'group relative inline-flex items-center justify-center gap-2 font-semibold leading-none whitespace-nowrap transition-[transform,background-color,border-color,box-shadow,color] duration-[180ms] ease-[var(--ease-out-expo)] hover:-translate-y-px active:translate-y-0';
-
-const sizes = {
-  md: 'rounded-[10px] px-5 py-[14px] text-[0.9375rem]',
-  sm: 'rounded-lg px-3.5 py-[9px] text-[0.875rem]',
-};
-
 const variants = {
-  primary:
-    'bg-ink text-paper shadow-[0_1px_2px_rgb(14_18_34/0.12),0_6px_16px_rgb(14_18_34/0.12)] hover:bg-ink/85',
-  ghost:
-    'border border-line bg-surface text-ink shadow-[var(--shadow-sm)] hover:border-line-strong',
-  soft:
-    'bg-surface-2 text-ink hover:bg-surface-3',
-  light:
-    'bg-white text-[#2338e6] shadow-[0_8px_24px_rgb(14_18_34/0.16)] hover:bg-white',
-  onDark:
-    'border border-white/45 text-white hover:border-white hover:bg-white/10',
+  primary: 'btn-primary',
+  ghost: 'btn-ghost',
+  soft: 'btn-soft',
+  light: 'btn-light',
+  onDark: 'btn-on-dark',
 };
 ---
 
-<a href={href} class:list={[base, sizes[size], variants[variant], className]}>
-  <span><slot /></span>
+<a href={href} class:list={['btn', `btn-${size}`, variants[variant], className]}>
+  <span class="btn-roll"><span class="btn-text"><slot /></span></span>
   {arrow && (
-    <svg
-      width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"
-      class="transition-transform duration-[180ms] ease-[var(--ease-out-expo)] group-hover:translate-x-[3px]"
-    >
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="btn-arrow">
       <path d="M5 12h13m0 0-5.5-5.5M18 12l-5.5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   )}

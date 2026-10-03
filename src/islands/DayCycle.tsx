@@ -181,7 +181,7 @@ export default function DayCycle() {
                 type="button"
                 onClick={() => setPaused((p) => !p)}
                 aria-label={paused ? 'Play the day' : 'Pause the day'}
-                className="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface text-ink-muted transition-colors hover:border-line-strong hover:text-ink pointer-coarse:w-11"
+                className="btn btn-ghost btn-icon h-9 w-9 rounded-full text-ink-muted hover:text-ink pointer-coarse:w-11"
               >
                 {paused ? <Play size={14} strokeWidth={2.4} aria-hidden="true" /> : <Pause size={14} strokeWidth={2.4} aria-hidden="true" />}
               </button>
@@ -214,10 +214,12 @@ export default function DayCycle() {
               type="button"
               tabIndex={-1}
               onClick={() => select(i)}
-              className="absolute top-[25.5px] grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center"
+              className="group absolute top-[25.5px] grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center"
               style={{ left: `${pos(d.hour)}%` }}
             >
-              <span className={`block h-3 w-3 rounded-full ring-[3px] ring-surface ${OUTCOME[d.state].dot}`} />
+              <span
+                className={`block h-3 w-3 rounded-full ring-[3px] ring-surface transition-transform duration-300 ease-spring group-hover:scale-125 ${OUTCOME[d.state].dot}`}
+              />
             </button>
           ))}
 
@@ -363,7 +365,7 @@ export default function DayCycle() {
                     type="button"
                     aria-pressed={on}
                     onClick={() => select(i)}
-                    className={`relative w-full overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-colors ${
+                    className={`relative w-full overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-[background-color,border-color,box-shadow] duration-300 ease-[var(--ease-out-expo)] ${
                       on ? 'border-accent/30 bg-surface shadow-[var(--shadow-sm)]' : 'border-transparent hover:bg-surface-2'
                     }`}
                   >

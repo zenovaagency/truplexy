@@ -152,7 +152,7 @@ export default function UnifiedInbox() {
                   type="button"
                   aria-pressed={on}
                   onClick={() => setFilter(f.id)}
-                  className={`flex-none rounded-full px-2.5 py-1.5 text-[0.76rem] font-medium transition-colors ${
+                  className={`btn flex-none rounded-full border-0 px-2.5 py-1.5 text-[0.76rem] font-medium [--btn-lift:0px] ${
                     on ? 'bg-ink text-paper' : 'text-ink-muted hover:bg-surface-2 hover:text-ink'
                   }`}
                 >
@@ -212,7 +212,7 @@ export default function UnifiedInbox() {
             <button
               type="button"
               onClick={() => setMobileDetail(false)}
-              className="grid h-9 w-9 place-items-center rounded-full border border-line text-ink-muted md:hidden"
+              className="btn btn-ghost btn-icon h-9 w-9 rounded-full text-ink-muted md:hidden"
               aria-label="Back to conversations"
             >
               <ArrowLeft size={16} aria-hidden="true" />
