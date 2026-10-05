@@ -3,6 +3,7 @@ import Button from '../ui/Button.astro';
 import ChannelIcon from '../ui/ChannelIcon';
 import HeroOrbit from './HeroOrbit.astro';
 import { channel, channelsIn } from '../../data/channels';
+import { SITE } from '../../data/site';
 
 // Live customer-messaging channels are named as-is; any flagship messaging
 // app not yet live is shown faded with an explicit "Coming soon" label.
@@ -46,8 +47,8 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
       </p>
 
       <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:mt-10 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center" data-reveal data-reveal-delay="0.15">
-        <Button href="#try" arrow={false}>See Truplexy in action</Button>
-        <Button href="#channels" variant="ghost" arrow={false}>Explore channels</Button>
+        <Button href={SITE.signupUrl}>Start for free</Button>
+        <Button href="#try" variant="ghost" arrow={false}>See it in action</Button>
       </div>
 
       <p class="mono mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.68rem] text-ink-faint" data-reveal data-reveal-delay="0.2">
