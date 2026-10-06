@@ -1,0 +1,7 @@
+# Env templates are committed; real .env.local files are not (root .gitignore).
+!.env.example
+!.env.mock
+
+node_modules/
+dist/
+*.tsbuildinfo

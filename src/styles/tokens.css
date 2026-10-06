@@ -1,0 +1,90 @@
+/* Shared by the marketing site and the dashboard (dashboard/src/styles/app.css). */
+
+/* ------------------------------------------------------------------ *
+ * Design tokens. The site has a single light theme.
+ *
+ * The gradient ramp is sampled from the Truplexy mark: cyan at the top
+ * corner, blue across the upper band, indigo on the left fold, violet and
+ * lilac on the lower band.
+ *
+ * Accessibility rules:
+ *   --color-accent  carries text and links (7.5:1 on white)
+ *   --color-btn     is a button surface with white text (≥ 4.5:1)
+ *   cyan, blue, lilac are DECORATIVE: gradient stops and glyphs only.
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-paper: #f7f8fc;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f3fa;
+  --color-surface-3: #e9ecf6;
+
+  --color-ink: #0e1222;
+  --color-ink-muted: #4a5068;
+  --color-ink-faint: #61688a;
+
+  --color-line: #e3e6f0;
+  --color-line-strong: #cbd0e0;
+
+  --color-accent: #2338e6;
+  --color-accent-soft: #eef0ff;
+  --color-btn: #2338e6;
+  --color-btn-hover: #1a2bc4;
+
+  --color-cyan: #45d4ff;
+  --color-blue: #1f7bff;
+  --color-indigo: #2338e6;
+  --color-violet: #6a2bff;
+  --color-lilac: #d9b8ff;
+
+  /* Status pairs: text on tint. Each text colour clears 4.5:1 on its tint. */
+  --color-live: #15803d;
+  --color-live-soft: #e6f6eb;
+  --color-ai: #2338e6;
+  --color-ai-soft: #eef0ff;
+  --color-qualified: #0b6e86;
+  --color-qualified-soft: #e2f6fb;
+  --color-resolved: #15803d;
+  --color-resolved-soft: #e6f6eb;
+  --color-human: #9a4b00;
+  --color-human-soft: #fff1dd;
+
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Slight overshoot. Only for transforms on buttons: lift and press release. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root {
+  --gutter: clamp(16px, 4vw, 32px);
+  --section-y: clamp(72px, 9vw, 136px);
+  --container: 1240px;
+  --nav-h: 84px;
+
+  --gradient-brand: linear-gradient(100deg, var(--color-cyan) 0%, var(--color-blue) 38%, var(--color-indigo) 62%, var(--color-violet) 100%);
+  /* Text-safe gradient: no cyan, so the palest stop still clears 3:1 for large type. */
+  --gradient-text: linear-gradient(95deg, var(--color-blue) 0%, var(--color-indigo) 45%, var(--color-violet) 100%);
+
+  --shadow-sm: 0 1px 2px rgb(14 18 34 / 0.04), 0 2px 8px rgb(14 18 34 / 0.04);
+  --shadow-md: 0 2px 4px rgb(14 18 34 / 0.04), 0 12px 32px rgb(35 56 230 / 0.07);
+  --shadow-lg: 0 4px 10px rgb(14 18 34 / 0.05), 0 28px 64px rgb(35 56 230 / 0.1);
+
+  --glow-a: rgb(69 212 255 / 0.22);
+  --glow-b: rgb(106 43 255 / 0.14);
+
+  color-scheme: light;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --radius-lg: 18px;
+    --radius-xl: 22px;
+  }
+}
