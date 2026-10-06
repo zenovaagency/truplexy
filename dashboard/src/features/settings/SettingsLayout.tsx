@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Outlet, useNavigate, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
@@ -13,16 +13,20 @@ import {
   Lock,
   Plus,
   Upload,
+  Wallet,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, hasCode } from '@/lib/api/client';
 import { useBusinessTypes, usePlans } from '@/lib/api/endpoints/account';
 import { useBots, useCreateBot, useLeaveTenant, useTenant, useUpdateTenant } from '@/lib/api/endpoints/business';
+import { useAddonQuote, useBilling, useBillingLedger, useBuyTokens } from '@/lib/api/endpoints/billing';
 import { useWorkspace } from '@/lib/api/endpoints/bot';
 import { useDocuments } from '@/lib/api/endpoints/knowledge';
-import type { BotConfig, BusinessTypeId, DocumentList, KnowledgeDocument } from '@/lib/api/types';
+import type { Billing, BotConfig, BusinessTypeId, DocumentList, KnowledgeDocument, LedgerEntry } from '@/lib/api/types';
+import { formatMonth, LEDGER_KIND, ordinal, quoteTokens } from '@/lib/billing';
 import { cn } from '@/lib/cn';
-import { formatCompact, formatDate, formatNumber, isoDay } from '@/lib/format';
+import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber, formatPerM, isoDay } from '@/lib/format';
+import { useDebounce } from '@/hooks';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
 import { scopePath, useScopeCtx } from '@/lib/session/scope-context';
@@ -31,7 +35,9 @@ import {
   Button,
   Callout,
   Card,
+  DataTable,
   Dialog,
+  EmptyState,
   ErrorState,
   Field,
   Input,
@@ -46,14 +52,15 @@ import {
 } from '@/components/ui';
 
 export default function SettingsLayout() {
-  const { href, businessName } = useScopeCtx();
+  const { href, businessName, can } = useScopeCtx();
   return (
     <Page>
-      <PageHeader title="Settings" description={`Business details, plan, bots and backups for ${businessName}.`} />
+      <PageHeader title="Settings" description={`Business details, plan, billing, bots and backups for ${businessName}.`} />
       <SubNav
         items={[
           { to: href('settings/business'), label: 'Business', icon: <Building2 /> },
           { to: href('settings/plan'), label: 'Plan & usage', icon: <CreditCard /> },
+          { to: href('settings/billing'), label: 'Billing', icon: <Wallet />, hidden: !can('usage.read') },
           { to: href('settings/bots'), label: 'Bots', icon: <Bot /> },
           { to: href('settings/backup'), label: 'Backup', icon: <DatabaseBackup /> },
           { to: href('settings/danger'), label: 'Danger zone', icon: <AlertTriangle /> },
@@ -158,13 +165,20 @@ export function BusinessTab() {
 /* ------------------------------------------------------------------ */
 
 export function PlanTab() {
+  const { can, href } = useScopeCtx();
   const t = useTenant();
   const plans = usePlans();
+  const billing = useBilling(can('usage.read')).data;
   const docs = useDocuments({}).data;
   if (t.isPending) return <Card><SkeletonRows rows={4} /></Card>;
   if (t.isError) return <Card><ErrorState error={t.error} onRetry={() => t.refetch()} /></Card>;
   const b = t.data;
   const overrides = Object.keys(b.limit_overrides ?? {}).length;
+  // Extra tokens bought this month raise the allowance above the plan's.
+  const tokenAllowance = billing ? (billing.tokens.unlimited ? 0 : billing.tokens.allowance) : b.limits.tokens_per_month;
+  const repliesOut = b.limits.replies_per_month > 0 && b.usage.replies_this_month >= b.limits.replies_per_month;
+  const tokensOut = tokenAllowance > 0 && b.usage.tokens_this_month >= tokenAllowance && b.balance <= 0;
+  const currentPlan = plans.data?.find((p) => p.id === b.plan);
 
   return (
     <div className="grid gap-5">
@@ -178,13 +192,26 @@ export function PlanTab() {
       >
         <div className="grid gap-6 md:grid-cols-2">
           <LimitBar label="AI replies this month" used={b.usage.replies_this_month} limit={b.limits.replies_per_month} format={formatCompact} />
+          <LimitBar
+            label={billing?.tokens.addons ? `Tokens this month (incl. ${formatCompact(billing.tokens.addons)} extra)` : 'Tokens this month'}
+            used={b.usage.tokens_this_month}
+            limit={tokenAllowance}
+            format={formatCompact}
+          />
           <LimitBar label="Team members" used={b.usage.members} limit={b.limits.members} />
           <LimitBar label="Bots" used={b.usage.bots} limit={b.limits.bots} />
           <LimitBar label="Documents in this bot" used={docs?.pages[0]?.total ?? 0} limit={b.limits.documents_per_bot} />
         </div>
-        {b.limits.replies_per_month > 0 && b.usage.replies_this_month >= b.limits.replies_per_month && (
+        {(repliesOut || tokensOut) && (
           <Callout tone="danger" icon={<AlertTriangle />} title="Your assistant has stopped replying" className="mt-5">
-            This month's replies are used up. Customers get no AI answer until the 1st, or until your plan changes.
+            {repliesOut
+              ? "This month's replies are used up. Customers get no AI answer until the 1st, or until your plan changes."
+              : "This month's tokens are used up and the balance is empty. Customers get no AI answer until the 1st, until you buy extra tokens, or until the balance is topped up."}
+            {tokensOut && can('usage.read') && (
+              <Button asChild size="xs" className="mt-2">
+                <Link to={href('settings/billing')}>Go to billing</Link>
+              </Button>
+            )}
           </Callout>
         )}
       </Card>
@@ -196,14 +223,16 @@ export function PlanTab() {
           <ErrorState error={plans.error} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="table min-w-[560px]">
+            <table className="table min-w-[760px]">
               <thead>
                 <tr>
                   <th>Plan</th>
                   <th className="text-right">AI replies / month</th>
+                  <th className="text-right">Tokens / month</th>
                   <th className="text-right">Bots</th>
                   <th className="text-right">Documents / bot</th>
                   <th className="text-right">Members</th>
+                  <th className="text-right">Extra tokens</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,9 +245,13 @@ export function PlanTab() {
                       </span>
                     </td>
                     <td className="text-right tabular-nums">{limitText(p.limits.replies_per_month)}</td>
+                    <td className="text-right tabular-nums">{p.limits.tokens_per_month > 0 ? formatCompact(p.limits.tokens_per_month) : 'Unlimited'}</td>
                     <td className="text-right tabular-nums">{limitText(p.limits.bots)}</td>
                     <td className="text-right tabular-nums">{limitText(p.limits.documents_per_bot)}</td>
                     <td className="text-right tabular-nums">{limitText(p.limits.members)}</td>
+                    <td className="text-right tabular-nums text-ink-muted">
+                      {p.token_addon ? `${formatPerM(p.token_addon.price_per_million)} / M, up to ${formatNumber(p.token_addon.max_millions)}M` : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -227,11 +260,18 @@ export function PlanTab() {
         )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-4">
           <p className="text-[0.8125rem] text-ink-muted">Need more replies, bots or seats?</p>
-          <Button asChild variant="accent" size="xs">
-            <a href="mailto:hello@truplexy.com?subject=Plan%20change">
-              Contact us <ArrowRight />
-            </a>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {currentPlan?.token_addon && can('usage.read') && (
+              <Button asChild variant="soft" size="xs">
+                <Link to={href('settings/billing')}>Extra tokens</Link>
+              </Button>
+            )}
+            <Button asChild variant="accent" size="xs">
+              <a href="mailto:hello@truplexy.com?subject=Plan%20change">
+                Contact us <ArrowRight />
+              </a>
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
@@ -242,6 +282,254 @@ export function PlanTab() {
 
 /** 0 means unlimited. */
 const limitText = (n: number) => (n > 0 ? formatNumber(n) : 'Unlimited');
+
+/* ------------------------------------------------------------------ */
+
+const TOP_UP_MAIL = 'mailto:hello@truplexy.com?subject=Balance%20top-up';
+
+export function BillingTab() {
+  const q = useBilling();
+  if (q.isPending) return <Card><SkeletonRows rows={4} /></Card>;
+  if (q.isError) return <Card><ErrorState error={q.error} onRetry={() => q.refetch()} /></Card>;
+  const bl = q.data;
+  const t = bl.tokens;
+  const tokensOut = !t.unlimited && t.remaining === 0;
+
+  return (
+    <div className="grid gap-5">
+      {tokensOut &&
+        (bl.balance > 0 ? (
+          <Callout tone="warn" icon={<AlertTriangle />} title="This month's tokens are used up">
+            Each further reply is paid from the balance at its model's price, until the 1st or until you buy extra tokens.
+          </Callout>
+        ) : (
+          <Callout tone="danger" icon={<AlertTriangle />} title="Your assistant has stopped replying">
+            This month's tokens are used up and the balance is empty. Buy extra tokens, or ask Truplexy for a top-up.
+          </Callout>
+        ))}
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <Card
+          title={
+            <span className="flex items-center gap-2">
+              <Wallet className="size-4 text-accent" /> Balance
+            </span>
+          }
+          description="Pays for extra tokens and, once the month's tokens are used up, for each further reply."
+        >
+          <div className="grid gap-2">
+            <p className="font-mono text-3xl font-semibold tabular-nums text-ink">{formatCurrency(bl.balance)}</p>
+            <p className="text-xs text-ink-faint">
+              The Truplexy team tops up balances.{' '}
+              <a className="font-medium text-accent hover:underline" href={TOP_UP_MAIL}>
+                Request a top-up
+              </a>
+            </p>
+          </div>
+        </Card>
+        <Card title="Tokens this month" description={`${bl.plan.name} plan · ${formatMonth(bl.month)} · resets on the 1st (UTC)`}>
+          {t.unlimited ? (
+            <p className="text-[0.8125rem] text-ink-muted">
+              Unlimited. <span className="font-mono tabular-nums text-ink">{formatCompact(t.used)}</span> used so far.
+            </p>
+          ) : (
+            <div className="grid gap-2">
+              <LimitBar label="Used" used={t.used} limit={t.allowance} format={formatCompact} />
+              <p className="text-xs text-ink-faint">
+                {formatCompact(t.plan_allowance)} from the plan{t.addons > 0 && ` + ${formatCompact(t.addons)} extra`} · {formatCompact(t.remaining)} left
+              </p>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {bl.token_addon ? (
+        <ExtraTokens billing={bl} />
+      ) : (
+        <Card title="Extra tokens">
+          <p className="text-[0.8125rem] text-ink-muted">This business's tokens are unlimited, so it needs no extra tokens.</p>
+        </Card>
+      )}
+
+      <LedgerCard />
+    </div>
+  );
+}
+
+function ExtraTokens({ billing: bl }: { billing: Billing }) {
+  const a = bl.token_addon!;
+  const { can } = useScopeCtx();
+  const confirm = useConfirm();
+  const buy = useBuyTokens();
+  const [millions, setMillions] = useState(a.min_millions);
+  const quote = useAddonQuote(useDebounce(millions, 250));
+  // The API's quote is authoritative; the tiers price the slider while it moves.
+  const estimate = useMemo(() => quoteTokens(a, millions), [a, millions]);
+  const priced = quote.data?.millions === millions ? quote.data : estimate;
+  const short = priced.price > bl.balance;
+  const clamp = (n: number) => {
+    const stepped = a.min_millions + Math.round((n - a.min_millions) / a.step_millions) * a.step_millions;
+    return Math.max(a.min_millions, Math.min(a.max_millions, stepped));
+  };
+
+  const purchase = () =>
+    confirm({
+      title: `Buy ${formatNumber(millions)}M extra tokens?`,
+      description: `${formatCurrency(priced.price)} comes out of the balance now. The tokens are for ${formatMonth(bl.month)} only and don't carry over.`,
+      confirmLabel: `Buy for ${formatCurrency(priced.price)}`,
+      onConfirm: () => buy.mutateAsync(millions),
+    });
+
+  return (
+    <Card title="Extra tokens" description={`More tokens for ${formatMonth(bl.month)}, paid from the balance. Larger purchases cost less per million.`}>
+      <div className="grid gap-5">
+        <div className="flex flex-wrap gap-1.5">
+          {a.tiers.map((tier, i) => {
+            const next = a.tiers[i + 1]?.from_millions;
+            const on = millions >= tier.from_millions;
+            return (
+              <Badge key={tier.from_millions} tone={on ? 'accent' : 'outline'}>
+                {ordinal(tier.from_millions)}
+                {next ? `–${ordinal(Math.min(next - 1, a.max_millions))}` : ' on'} million: {formatPerM(tier.price_per_million)}
+              </Badge>
+            );
+          })}
+        </div>
+
+        <Field label="How many million tokens" aside={`${formatNumber(a.min_millions)}–${formatNumber(a.max_millions)}M`}>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={a.min_millions}
+              max={a.max_millions}
+              step={a.step_millions}
+              value={millions}
+              onChange={(e) => setMillions(clamp(Number(e.target.value)))}
+              className="w-full accent-[var(--color-btn)]"
+              aria-label="Million tokens"
+            />
+            <Input
+              type="number"
+              min={a.min_millions}
+              max={a.max_millions}
+              step={a.step_millions}
+              value={millions}
+              onChange={(e) => setMillions(clamp(Number(e.target.value) || a.min_millions))}
+              className="w-24 font-mono"
+              aria-label="Million tokens"
+            />
+          </div>
+        </Field>
+
+        <div className="grid gap-3 rounded-[12px] bg-surface-2 p-4 sm:grid-cols-[1fr_auto] sm:items-end">
+          <div className="grid gap-1.5">
+            <p className="text-xs text-ink-faint">
+              {formatNumber(priced.tokens)} tokens · {formatPerM(priced.average_per_million)} per million on average
+            </p>
+            <p className="font-mono text-2xl font-semibold tabular-nums text-ink">{formatCurrency(priced.price)}</p>
+            <ul className="grid gap-0.5 text-xs text-ink-muted">
+              {priced.breakdown.map((x) => (
+                <li key={x.from_millions} className="font-mono tabular-nums">
+                  {formatNumber(x.millions)}M × {formatPerM(x.price_per_million)} = {formatCurrency(x.amount)}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {can('billing.write') ? (
+            <div className="grid justify-items-end gap-1.5">
+              <Button variant="accent" disabled={short} loading={buy.isPending} onClick={() => void purchase()}>
+                Buy for {formatCurrency(priced.price)}
+              </Button>
+              {short && (
+                <p className="max-w-[260px] text-right text-xs text-danger">
+                  More than the balance of {formatCurrency(bl.balance)}. Buy fewer tokens, or{' '}
+                  <a className="underline" href={TOP_UP_MAIL}>
+                    ask for a top-up
+                  </a>
+                  .
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="max-w-[260px] text-xs text-ink-faint">Admins and owners can buy extra tokens.</p>
+          )}
+        </div>
+
+        {bl.addons.length > 0 && (
+          <div className="grid gap-2">
+            <p className="mono text-ink-faint">Bought in {formatMonth(bl.month)}</p>
+            <ul className="grid gap-1.5 text-[0.8125rem]">
+              {bl.addons.map((x) => (
+                <li key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <span className="font-medium text-ink">{formatCompact(x.tokens)} tokens</span>
+                  <span className="font-mono tabular-nums text-ink-muted">{formatCurrency(x.price)}</span>
+                  <span className="text-xs text-ink-faint">
+                    {x.actor} · {formatDateTime(x.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function LedgerCard() {
+  const q = useBillingLedger();
+  const rows = useMemo(() => q.data?.pages.flatMap((p) => p.data) ?? [], [q.data]);
+  return (
+    <Card title="Balance history" description="Every change to the balance, newest first." flush>
+      {q.isPending ? (
+        <SkeletonRows rows={4} className="p-4" />
+      ) : q.isError ? (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : (
+        <>
+          <DataTable<LedgerEntry>
+            rows={rows}
+            getKey={(e) => e.id}
+            empty={<EmptyState compact icon={<Wallet />} title="No balance changes yet" />}
+            columns={[
+              { key: 'when', header: 'Date', cell: (e) => <span className="whitespace-nowrap text-ink-muted">{formatDateTime(e.created_at)}</span> },
+              {
+                key: 'what',
+                header: 'What',
+                cell: (e) => (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Badge tone={LEDGER_KIND[e.kind].tone}>{LEDGER_KIND[e.kind].label}</Badge>
+                    {e.note && <span className="truncate text-ink-muted">{e.note}</span>}
+                  </span>
+                ),
+              },
+              { key: 'by', header: 'By', hideBelowLg: true, cell: (e) => <span className="text-ink-muted">{e.actor || '—'}</span> },
+              {
+                key: 'amount',
+                header: 'Amount',
+                align: 'right',
+                cell: (e) => (
+                  <span className={cn('font-mono tabular-nums font-semibold', e.amount > 0 ? 'text-live' : 'text-ink')}>
+                    {e.amount > 0 ? '+' : '−'}
+                    {formatCurrency(Math.abs(e.amount))}
+                  </span>
+                ),
+              },
+              { key: 'after', header: 'Balance', align: 'right', cell: (e) => <span className="font-mono tabular-nums text-ink-muted">{formatCurrency(e.balance_after)}</span> },
+            ]}
+          />
+          {q.hasNextPage && (
+            <div className="border-t border-line p-3 text-center">
+              <Button size="xs" variant="ghost" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
 
 const ID_RULE = /^[a-z0-9][a-z0-9_-]{0,30}$/;
 
@@ -333,7 +621,7 @@ export function BotsTab() {
           className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            create.mutate({ bot_id: id, name: name.trim() }, { onSuccess: (b) => nav(scopePath({ tenant: scope.tenant, bot: b.id }, 'llm/prompt')) });
+            create.mutate({ bot_id: id, name: name.trim() }, { onSuccess: (b) => nav(scopePath({ tenant: scope.tenant, bot: b.id }, 'llm/model')) });
           }}
         >
           <Field label="Name" aside={`${name.length}/80`}>
@@ -438,9 +726,8 @@ export function BackupTab() {
     try {
       if (can('bot.write')) {
         setProgress({ label: 'Restoring configuration', done: 0, total: 1 });
-        const cur = await api<{ revision: number; bot: BotConfig }>('/workspace', { scope });
-        // A legacy prompt can't be written; keep whatever the bot has now.
-        await api('/workspace', { method: 'PUT', scope, body: { name: data.workspace.name, bot: { ...data.workspace.bot, prompt: cur.bot.prompt ?? '' }, revision: cur.revision } });
+        const cur = await api<{ revision: number }>('/workspace', { scope });
+        await api('/workspace', { method: 'PUT', scope, body: { name: data.workspace.name, bot: data.workspace.bot, revision: cur.revision } });
         r.workspace = true;
       }
       if (can('knowledge.write')) {

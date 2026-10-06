@@ -1,11 +1,11 @@
 import { Outlet } from 'react-router';
-import { BarChart3, Cpu, History, Lock, MessageSquareText, RotateCcw } from 'lucide-react';
+import { BarChart3, Cpu, History, Lock, RotateCcw } from 'lucide-react';
 import { formatDateTime } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Callout, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Page, PageHeader, SubNav, useConfirm } from '@/components/ui';
 import { useBotDraft } from './draft';
 
-/** The bot's instructions, model and model usage. Tools and the playground have their own pages. */
+/** The bot's identity, model and model usage. Tools and the playground have their own pages. */
 export default function LlmPage() {
   const { href, can, bot } = useScopeCtx();
   const { ws, setDraft, canWrite } = useBotDraft();
@@ -16,7 +16,7 @@ export default function LlmPage() {
       title: `Restore ${label}?`,
       description: 'This fills the form with that version. Nothing changes for customers until you save.',
       confirmLabel: 'Restore',
-      onConfirm: () => setDraft((d) => ({ ...d, bot: { ...botCfg, prompt: d.bot.prompt && !botCfg.promptTemplateId ? d.bot.prompt : botCfg.prompt } })),
+      onConfirm: () => setDraft((d) => ({ ...d, bot: botCfg })),
     });
 
   return (
@@ -24,7 +24,7 @@ export default function LlmPage() {
       <PageHeader
         eyebrow={ws.revision ? `Revision ${ws.revision} · saved ${formatDateTime(ws.updated_at)}` : 'Starting configuration'}
         title="LLM"
-        description={`${bot.name}'s instructions, model and reply settings, and what the model costs.`}
+        description={`${bot.name}'s name, model and reply settings, and what the model costs.`}
         actions={
           canWrite && (
             <>
@@ -59,7 +59,6 @@ export default function LlmPage() {
       />
       <SubNav
         items={[
-          { to: href('llm/prompt'), label: 'System prompt', icon: <MessageSquareText /> },
           { to: href('llm/model'), label: 'Model', icon: <Cpu /> },
           { to: href('llm/usage'), label: 'Usage & costs', icon: <BarChart3 />, hidden: !can('usage.read') },
         ]}

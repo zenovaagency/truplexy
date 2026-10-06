@@ -45,12 +45,12 @@ const businessRoutes: RouteObject[] = [
           path: 'llm',
           ...lazyRoute(pages.llm, (m) => m.default),
           children: [
-            { index: true, element: <Navigate to="prompt" replace /> },
-            { path: 'prompt', lazy: async () => ({ Component: (await import('@/features/llm/PromptTab')).default }) },
+            { index: true, element: <Navigate to="model" replace /> },
             { path: 'model', lazy: async () => ({ Component: (await import('@/features/llm/ModelTab')).default }) },
             gated('usage.read', 'model usage', [{ path: 'usage', lazy: async () => ({ Component: (await import('@/features/llm/UsageTab')).default }) }]),
             // Earlier addresses of these pages.
-            { path: 'configuration', element: <Navigate to="../prompt" replace /> },
+            { path: 'prompt', element: <Navigate to="../model" replace /> },
+            { path: 'configuration', element: <Navigate to="../model" replace /> },
             { path: 'tools', element: <Navigate to="../../tools" replace /> },
             { path: 'playground', element: <Navigate to="../../playground" replace /> },
           ],
@@ -89,6 +89,7 @@ const businessRoutes: RouteObject[] = [
         { index: true, element: <Navigate to="business" replace /> },
         { path: 'business', ...lazyRoute(pages.settings, (m) => m.BusinessTab) },
         { path: 'plan', ...lazyRoute(pages.settings, (m) => m.PlanTab) },
+        gated('usage.read', 'billing', [{ path: 'billing', ...lazyRoute(pages.settings, (m) => m.BillingTab) }]),
         { path: 'bots', ...lazyRoute(pages.settings, (m) => m.BotsTab) },
         { path: 'backup', ...lazyRoute(pages.settings, (m) => m.BackupTab) },
         { path: 'danger', ...lazyRoute(pages.settings, (m) => m.DangerTab) },

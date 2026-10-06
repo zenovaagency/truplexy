@@ -1,8 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   ApiKey,
+  Billing,
+  BillingAddon,
+  BotConfig,
   Business,
   BusinessTypeId,
+  LedgerEntry,
   Limits,
   Permission,
   PlaygroundMessage,
@@ -19,10 +23,10 @@ import type {
   UsageDay,
   UsageSummary,
 } from '@/lib/api/types';
+import { quoteTokens } from '@/lib/billing';
 import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
-import { renderTemplate } from '@/lib/template';
 import { emit, topicFor } from './bus';
-import { hex, newId, nowIso, saveDb, wsKey, type MockDb, type MockDoc, type MockTenant, type MockTicket, type MockUser } from './db';
+import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 
 /* ------------------------------------------------------------------ */
@@ -106,8 +110,71 @@ function businessOf(db: MockDb, t: MockTenant): Business {
         db.memberships.filter((m) => m.tenant_id === t.id).length +
         db.invites.filter((i) => i.tenant_id === t.id && i.status === 'pending').length,
       replies_this_month: t.replies_this_month,
+      tokens_this_month: t.tokens_this_month,
     },
+    balance: t.balance,
   };
+}
+
+/* Pricing -------------------------------------------------------------- */
+
+/** The platform defaults (PRICE_FEE_PERCENT, PRICE_COMMISSION_PERCENT). */
+const PRICE_FEE_PERCENT = 5.5;
+const PRICE_COMMISSION_PERCENT = 20;
+
+/** The mock's usage costs are OpenRouter's; businesses were billed this much more, at the default markup. */
+const MOCK_MARKUP = 1 + (PRICE_FEE_PERCENT + PRICE_COMMISSION_PERCENT) / 100;
+
+const round = (n: number, digits: number) => +n.toFixed(digits);
+
+/** A catalog model's markup and what businesses pay per million tokens. */
+function pricing(m: MockModel) {
+  const fee = m.fee_percent ?? PRICE_FEE_PERCENT;
+  const commission = m.commission_percent ?? PRICE_COMMISSION_PERCENT;
+  const k = 1 + (fee + commission) / 100;
+  return {
+    effective_fee_percent: fee,
+    effective_commission_percent: commission,
+    billed_input_price_per_mtok: round(m.input_price_per_mtok * k, 6),
+    billed_output_price_per_mtok: round(m.output_price_per_mtok * k, 6),
+  };
+}
+
+const thisMonth = () => new Date().toISOString().slice(0, 7);
+
+function billingOf(t: MockTenant): Billing {
+  const plan = PLANS.find((p) => p.id === t.plan) ?? PLANS[0]!;
+  const planAllowance = limitsOf(t).tokens_per_month;
+  const unlimited = planAllowance === 0;
+  const addons = t.addons.filter((a) => a.month === thisMonth());
+  const extra = addons.reduce((n, a) => n + a.tokens, 0);
+  const allowance = unlimited ? 0 : planAllowance + extra;
+  return {
+    currency: 'USD',
+    balance: t.balance,
+    month: thisMonth(),
+    plan: { id: plan.id, name: plan.name },
+    tokens: { unlimited, plan_allowance: planAllowance, addons: extra, allowance, used: t.tokens_this_month, remaining: unlimited ? null : Math.max(0, allowance - t.tokens_this_month) },
+    token_addon: unlimited ? null : plan.token_addon,
+    addons,
+  };
+}
+
+function addonMillions(t: MockTenant, raw: unknown) {
+  const a = billingOf(t).token_addon;
+  if (!a) throw err(400, 'ADDON_NOT_AVAILABLE', "This business's tokens are unlimited, so it needs no extra tokens.");
+  const m = Number(raw);
+  if (raw === undefined || raw === null || raw === '' || !Number.isInteger(m) || m < a.min_millions || m > a.max_millions || (m - a.min_millions) % a.step_millions) {
+    throw invalid(`millions must be ${a.min_millions}–${a.max_millions}.`);
+  }
+  return { addon: a, millions: m };
+}
+
+function ledgerEntry(t: MockTenant, e: Omit<LedgerEntry, 'id' | 'balance_after' | 'created_at'>): LedgerEntry {
+  t.balance = round(t.balance + e.amount, 6);
+  const entry: LedgerEntry = { id: newId('led'), ...e, balance_after: t.balance, created_at: nowIso() };
+  t.ledger.unshift(entry);
+  return entry;
 }
 
 function audit(c: Ctx, action: string, target: string, details: Record<string, unknown> | null = null, tenantId = c.tenant?.id) {
@@ -310,7 +377,7 @@ route('POST', '/tenants', 'account', (c) => {
   const base = id;
   while (c.db.tenants.some((t) => t.id === id)) id = `${base}-${n++}`;
   const now = nowIso();
-  const t: MockTenant = { id, name, business_type: type.id, plan: 'free', status: 'active', created_at: now, reply_target_hours: 24, limit_overrides: {}, replies_this_month: 0 };
+  const t: MockTenant = { id, name, business_type: type.id, plan: 'free', status: 'active', created_at: now, reply_target_hours: 24, limit_overrides: {}, replies_this_month: 0, tokens_this_month: 0, balance: 0, addons: [], ledger: [] };
   c.db.tenants.push(t);
   c.db.memberships.push({ tenant_id: id, user_id: c.user.id, role: 'owner', joined_at: now });
   c.db.bots.push({ tenant_id: id, id: 'support', name: type.assistant_name, kb_version: 0, created_at: now });
@@ -365,7 +432,14 @@ route('PATCH', '/tenant', 'business.write', (c) => {
   if (b.name !== undefined) c.tenant.name = str(b.name, 'name', 1, 80)!;
   if (b.business_type !== undefined) {
     if (!BUSINESS_TYPES.some((t) => t.id === b.business_type)) throw invalid('Unknown business_type.');
-    c.tenant.business_type = b.business_type;
+    if (b.business_type !== c.tenant.business_type) {
+      c.tenant.business_type = b.business_type;
+      // The system prompt follows the business type.
+      for (const ws of c.db.workspaces.filter((w) => w.tenant_id === c.tenant.id)) {
+        const { promptTemplateId, promptVariables } = defaultBot(c.db, b.business_type, ws.bot.name);
+        ws.bot = { ...ws.bot, promptTemplateId, promptVariables, prompt: '' };
+      }
+    }
   }
   if (b.reply_target_hours !== undefined) {
     if (!Number.isInteger(b.reply_target_hours) || b.reply_target_hours < 1 || b.reply_target_hours > 720) throw invalid('reply_target_hours must be 1–720.');
@@ -523,16 +597,19 @@ function workspaceOf(c: Ctx) {
   return ws;
 }
 
+/** The system prompt is the platform's: businesses never see it. */
+const publicBot = ({ promptTemplateId: _t, promptVariables: _v, prompt: _p, ...bot }: MockBotConfig): BotConfig => bot;
+
 function workspaceOut(c: Ctx) {
   const ws = workspaceOf(c);
   const type = BUSINESS_TYPES.find((t) => t.id === c.tenant.business_type)!;
   return {
     name: ws.name,
-    bot: ws.bot,
+    bot: publicBot(ws.bot),
     revision: ws.revision,
     updated_at: ws.updated_at,
-    history: ws.history.slice(0, 30),
-    defaults: { name: type.assistant_name, bot: defaultBot(c.db, c.tenant.business_type, type.assistant_name) },
+    history: ws.history.slice(0, 30).map((v) => ({ ...v, bot: publicBot(v.bot) })),
+    defaults: { name: type.assistant_name, bot: publicBot(defaultBot(c.db, c.tenant.business_type, type.assistant_name)) },
   };
 }
 
@@ -545,7 +622,6 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   str(name, 'name', 1, 80);
   if (!bot || typeof bot !== 'object') throw invalid('bot is required.');
   str(bot.name, 'bot.name', 1, 80);
-  if ((bot.prompt ?? '') !== (ws.bot.prompt ?? '') && bot.prompt) throw err(400, 'PROMPT_NOT_EDITABLE', 'The legacy prompt is read-only.');
   if (bot.temperature !== undefined && (bot.temperature < 0 || bot.temperature > 2)) throw invalid('temperature must be 0–2.');
   if (bot.topK !== undefined && (bot.topK < 1 || bot.topK > 20)) throw invalid('topK must be 1–20.');
   const model = bot.model ? c.db.models.find((m) => m.id === bot.model) : c.db.models.find((m) => m.is_default);
@@ -553,19 +629,9 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   if (bot.maxTokens !== undefined && (bot.maxTokens < 1 || bot.maxTokens > 32768)) throw invalid('maxTokens must be 1–32768.');
   if (bot.toolsEnabled && model && !model.supports_tools) throw err(400, 'MODEL_NOT_ALLOWED', `${model.label} can't call tools. Turn tools off or pick another model.`);
   if ((bot.tools ?? []).length > 20) throw invalid('At most 20 tools.');
-  const next = { ...bot };
-  if (bot.promptTemplateId) {
-    const tpl = c.db.templates.find((t) => t.id === bot.promptTemplateId);
-    if (!tpl || (tpl.status !== 'active' && bot.promptTemplateId !== ws.bot.promptTemplateId)) throw err(400, 'PROMPT_TEMPLATE_NOT_ALLOWED', "That template isn't offered.");
-    const vars: Record<string, string> = {};
-    for (const v of tpl.variables) {
-      const value = String(bot.promptVariables?.[v.key] ?? '').replace(/\s*\n\s*/g, ' ').slice(0, v.max_length);
-      if (v.required && !value.trim()) throw err(400, 'INVALID_PROMPT_VARIABLES', `"${v.label}" is required.`);
-      vars[v.key] = value;
-    }
-    next.promptVariables = vars;
-    next.prompt = '';
-  }
+  // Prompt fields in the request are ignored: the bot keeps its business type's prompt.
+  const { promptTemplateId, promptVariables, prompt } = ws.bot;
+  const next: MockBotConfig = { ...publicBot(bot), promptTemplateId, promptVariables, prompt };
   const changed = JSON.stringify(next) !== JSON.stringify(ws.bot);
   ws.name = name;
   ws.bot = next;
@@ -587,29 +653,16 @@ route('GET', '/models', 'bot.read', (c) => {
         id: m.id,
         label: m.label,
         description: m.description,
-        tier: m.input_price_per_mtok >= 2 ? 'premium' : m.input_price_per_mtok >= 0.25 ? 'standard' : 'economy',
+        // By OpenRouter's output price.
+        tier: m.output_price_per_mtok >= 10 ? 'premium' : m.output_price_per_mtok >= 1 ? 'standard' : 'economy',
+        input_price_per_mtok: pricing(m).billed_input_price_per_mtok,
+        output_price_per_mtok: pricing(m).billed_output_price_per_mtok,
+        currency: 'USD',
         context_tokens: m.context_tokens,
         max_output_tokens: m.max_output_tokens,
         supports_tools: m.supports_tools,
         is_default: m.is_default,
         offered: m.status === 'active',
-      })),
-  };
-});
-
-route('GET', '/prompt-templates', 'bot.read', (c) => {
-  const current = workspaceOf(c).bot.promptTemplateId;
-  return {
-    templates: c.db.templates
-      .filter((t) => (t.status === 'active' && (t.business_types.length === 0 || t.business_types.includes(c.tenant.business_type))) || t.id === current)
-      .map((t) => ({
-        id: t.id,
-        name: t.name,
-        description: t.description,
-        body: t.body,
-        variables: t.variables,
-        is_default: t.is_default,
-        offered: t.status === 'active' && (t.business_types.length === 0 || t.business_types.includes(c.tenant.business_type)),
       })),
   };
 });
@@ -1296,6 +1349,33 @@ route('GET', '/stats/support', 'usage.read', (c): SupportStats => {
 
 const pgKey = (c: Ctx) => wsKey(c.tenant.id, c.botId);
 
+/* Billing ------------------------------------------------------------ */
+
+route('GET', '/billing', 'usage.read', (c) => billingOf(c.tenant));
+
+route('GET', '/billing/ledger', 'usage.read', (c) => {
+  const before = c.query.get('before');
+  const start = before ? Number(before) : 0;
+  const page = c.tenant.ledger.slice(start, start + 50);
+  return { data: page, next_before: start + 50 < c.tenant.ledger.length ? String(start + 50) : undefined };
+});
+
+route('GET', '/billing/token-addons/quote', 'usage.read', (c) => {
+  const { addon, millions } = addonMillions(c.tenant, c.query.get('millions'));
+  return quoteTokens(addon, millions);
+});
+
+route('POST', '/billing/token-addons', 'billing.write', (c) => {
+  const { addon, millions } = addonMillions(c.tenant, c.body?.millions);
+  const q = quoteTokens(addon, millions);
+  if (c.tenant.balance < q.price) throw err(402, 'INSUFFICIENT_BALANCE', `The balance is ${c.tenant.balance.toFixed(2)} USD; ${millions}M tokens cost ${q.price.toFixed(2)} USD.`);
+  const a: BillingAddon = { id: newId('add'), tokens: q.tokens, price: q.price, month: thisMonth(), actor: c.user.email, created_at: nowIso() };
+  c.tenant.addons.unshift(a);
+  ledgerEntry(c.tenant, { amount: -q.price, kind: 'token_addon', note: `${millions}M extra tokens`, actor: c.user.email, addon_id: a.id });
+  audit(c, 'billing.token_addon', c.tenant.id, { millions, price: q.price });
+  return created({ addon: a, billing: billingOf(c.tenant) });
+});
+
 route('GET', '/playground/conversations/current', 'playground.run', (c) => ({ conversation: c.db.playground[pgKey(c)] ?? null }));
 
 route('POST', '/playground/conversations', 'playground.run', (c) => {
@@ -1308,19 +1388,11 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   const b = c.body ?? {};
   if (!b.max_output_tokens || b.max_output_tokens < 1 || b.max_output_tokens > 32768) throw invalid('max_output_tokens is required (1–32768).');
   const ws = workspaceOf(c);
-  if (b.system_prompt && b.system_prompt !== ws.bot.prompt) throw err(400, 'PROMPT_NOT_EDITABLE', 'Only the bot’s own pre-template prompt can be sent.');
   if (b.tools_enabled && !(b.tools ?? []).length) throw invalid('tools is required with tools_enabled.');
   const modelId = b.model || c.db.models.find((m) => m.is_default)!.id;
   const model = c.db.models.find((m) => m.id === modelId);
   if (!model) throw err(400, 'MODEL_NOT_ALLOWED', `${modelId} isn't offered.`);
   if (b.tools_enabled && !model.supports_tools) throw err(400, 'MODEL_NOT_ALLOWED', `${model.label} can't call tools.`);
-  if (b.prompt_template_id) {
-    const tpl = c.db.templates.find((t) => t.id === b.prompt_template_id);
-    if (!tpl) throw err(400, 'PROMPT_TEMPLATE_NOT_ALLOWED', "That template isn't offered.");
-    for (const v of tpl.variables) {
-      if (v.required && !String(b.prompt_variables?.[v.key] ?? '').trim()) throw err(400, 'INVALID_PROMPT_VARIABLES', `"${v.label}" is required.`);
-    }
-  }
 
   let conv = b.conversation_id ? c.db.playground[pgKey(c)] : undefined;
   if (b.conversation_id && conv?.id !== b.conversation_id) throw notFound('CONVERSATION_NOT_FOUND', 'Conversation');
@@ -1353,8 +1425,7 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   const rag = b.rag_enabled !== false;
   const { selected } = rag ? retrieve(c.db, c.tenant.id, c.botId, message, b.rag_top_k ?? 4) : { selected: [] };
   const sources: Source[] | null = rag ? selected.map((x) => ({ document_id: x.s.doc.id, title: x.s.doc.title, section: x.s.heading, url: x.s.doc.source_url, score: +(0.5 + x.score / 2).toFixed(2) })) : null;
-  const name = b.assistant_name || ws.bot.name;
-  const tone = String(b.prompt_variables?.tone ?? '');
+  const tone = String(ws.bot.promptVariables?.tone ?? '');
   const warm = /warm|friendly/i.test(tone);
 
   let status: PlaygroundRunResult['status'] = 'answered';
@@ -1383,7 +1454,8 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
 
   const usage = { input_tokens: 1400 + Math.floor(r() * 900) + selected.length * 220, output_tokens: Math.ceil(output.length / 4), total_tokens: 0, cost: 0 };
   usage.total_tokens = usage.input_tokens + usage.output_tokens;
-  usage.cost = +((usage.input_tokens * model.input_price_per_mtok + usage.output_tokens * model.output_price_per_mtok) / 1e6).toFixed(6);
+  const billed = pricing(model);
+  usage.cost = +((usage.input_tokens * billed.billed_input_price_per_mtok + usage.output_tokens * billed.billed_output_price_per_mtok) / 1e6).toFixed(6);
   const latency = Math.round(700 + r() * 900 + tool_calls.length * 350);
   const now = nowIso();
   const result: PlaygroundRunResult = {
@@ -1399,9 +1471,6 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   };
   if (b.debug) {
     result.debug = {
-      system_prompt_preview: b.prompt_template_id
-        ? renderTemplate(c.db.templates.find((t) => t.id === b.prompt_template_id)!.body, { ...(b.prompt_variables ?? {}), assistant_name: name, business_name: c.tenant.name }).slice(0, 600)
-        : (ws.bot.prompt ?? '').slice(0, 600),
       retrieval: { query: message, rewrite: tokens(message).join(' '), selected: selected.map((x) => ({ title: x.s.doc.title, section: x.s.heading, score: +x.score.toFixed(2) })) },
       temperature: b.temperature ?? null,
     };
@@ -1449,6 +1518,7 @@ route('GET', '/platform/overview', 'platform', ({ db }) => {
     needs_reply: unresolved.filter((t) => t.flags.needs_reply).length,
     replies_this_month: db.tenants.reduce((n, t) => n + t.replies_this_month, 0),
     cost_this_month: +thisMonth.reduce((n, d) => n + d.estimated_cost, 0).toFixed(2),
+    billed_this_month: +thisMonth.reduce((n, d) => n + d.estimated_cost * MOCK_MARKUP, 0).toFixed(2),
     by_day,
   };
 });
@@ -1479,8 +1549,9 @@ route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
   if (b.limits !== undefined) {
     const out: Partial<Limits> = {};
     for (const [k, v] of Object.entries(b.limits)) {
-      if (!['bots', 'documents_per_bot', 'members', 'replies_per_month'].includes(k)) throw invalid(`Unknown limit ${k}.`);
-      if (typeof v !== 'number' || v < 0 || v > 10_000_000) throw invalid(`${k} must be 0–10,000,000.`);
+      if (!['bots', 'documents_per_bot', 'members', 'replies_per_month', 'tokens_per_month'].includes(k)) throw invalid(`Unknown limit ${k}.`);
+      const max = k === 'tokens_per_month' ? 100_000_000_000 : 10_000_000;
+      if (typeof v !== 'number' || v < 0 || v > max) throw invalid(`${k} must be 0–${max.toLocaleString('en-US')}.`);
       (out as any)[k] = v;
     }
     t.limit_overrides = out;
@@ -1516,11 +1587,25 @@ route('GET', '/platform/tenants/:id/detail', 'platform', ({ db, params }) => {
           documents: db.documents.filter((d) => d.tenant_id === t.id && d.bot_id === b.id).length,
           replies_this_month: usage.reduce((n, d) => n + d.requests, 0),
           cost_this_month: +usage.reduce((n, d) => n + d.estimated_cost, 0).toFixed(4),
+          billed_this_month: +usage.reduce((n, d) => n + d.estimated_cost * MOCK_MARKUP, 0).toFixed(4),
         };
       }),
     open_tickets: db.tickets.filter((x) => x.tenant_id === t.id && UNRESOLVED.includes(x.status)).length,
+    balance: t.balance,
     audit: db.audit.filter((a) => a.tenant_id === t.id).slice(0, 20).map(({ id, actor, action, target, created_at }) => ({ id, actor, action, target, created_at })),
   };
+});
+
+route('POST', '/platform/tenants/:id/balance', 'platform', (c) => {
+  const t = c.db.tenants.find((x) => x.id === c.params.id);
+  if (!t) throw notFound('TENANT_NOT_FOUND', 'Business');
+  const amount = c.body?.amount;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1_000_000) throw invalid('amount must be a non-zero number, up to 1,000,000 either way.');
+  const note = str(c.body?.note, 'note', 1, 200)!;
+  if (t.balance + amount < 0) throw invalid(`A debit can't take the balance below zero; it is ${t.balance.toFixed(2)} USD.`);
+  const entry = ledgerEntry(t, { amount: round(amount, 6), kind: amount > 0 ? 'credit' : 'debit', note, actor: c.user.email });
+  audit({ ...c, tenant: t }, amount > 0 ? 'billing.credit' : 'billing.debit', t.id, { amount, note });
+  return { entry, balance: t.balance };
 });
 
 route('GET', '/platform/users', 'platform', ({ db, query }) => {
@@ -1631,25 +1716,63 @@ route('GET', '/platform/usage', 'platform', ({ db, query }) => {
       cached_tokens: Math.round(s('input_tokens') * 0.22),
       total_tokens: s('total_tokens'),
       estimated_cost: +s('estimated_cost').toFixed(4),
+      billed_cost: +(s('estimated_cost') * MOCK_MARKUP).toFixed(4),
       avg_latency_ms: 1100 + (hashString(key) % 500),
     };
   });
-  data.sort((a, b) => (group === 'day' ? a.key.localeCompare(b.key) : b.requests - a.requests));
+  data.sort((a, b) => (group === 'day' ? a.key.localeCompare(b.key) : b.estimated_cost - a.estimated_cost));
   return { from, to, group, data };
 });
 
 const modelBots = (db: MockDb, id: string) => db.workspaces.filter((w) => (w.bot.model || db.models.find((m) => m.is_default)?.id) === id).length;
 
+const modelOut = (db: MockDb, m: MockModel) => ({ ...m, ...pricing(m), bots: modelBots(db, m.id) });
+
 route('GET', '/platform/models', 'platform', ({ db }) => ({
-  models: [...db.models].sort((a, b) => a.sort_order - b.sort_order).map((m) => ({ ...m, bots: modelBots(db, m.id) })),
+  models: [...db.models].sort((a, b) => a.sort_order - b.sort_order).map((m) => modelOut(db, m)),
 }));
 
-function modelFields(b: any, existing?: MockDb['models'][number]) {
-  const m = { ...(existing ?? {}), ...b } as MockDb['models'][number];
+/**
+ * Stands in for https://openrouter.ai/api/v1/model/{id}. The mock can't call
+ * OpenRouter synchronously, so it makes up stable prices from the ID.
+ */
+const OPENROUTER_LIST: Record<string, { label: string; input_price_per_mtok: number; output_price_per_mtok: number }> = {
+  'google/gemini-3.1-flash-lite': { label: 'Gemini 3.1 Flash Lite', input_price_per_mtok: 0.1, output_price_per_mtok: 0.4 },
+  'openai/gpt-5-mini': { label: 'GPT-5 mini', input_price_per_mtok: 0.25, output_price_per_mtok: 2 },
+  'openai/gpt-4o': { label: 'GPT-4o', input_price_per_mtok: 2.5, output_price_per_mtok: 10 },
+  'anthropic/claude-haiku-4.5': { label: 'Claude Haiku 4.5', input_price_per_mtok: 1, output_price_per_mtok: 5 },
+  'anthropic/claude-sonnet-4.5': { label: 'Claude Sonnet 4.5', input_price_per_mtok: 3, output_price_per_mtok: 15 },
+  'meta-llama/llama-4-maverick': { label: 'Llama 4 Maverick', input_price_per_mtok: 0.15, output_price_per_mtok: 0.6 },
+  'deepseek/deepseek-v3.2': { label: 'DeepSeek V3.2', input_price_per_mtok: 0.27, output_price_per_mtok: 1.1 },
+};
+
+function openRouterModel(id: string) {
+  if (/does-not-exist|unknown/i.test(id)) throw invalid(`OpenRouter has no model ${id}.`);
+  const h = hashString(id);
+  const input = [0.05, 0.1, 0.15, 0.25, 0.5, 1, 2.5, 3][h % 8]!;
+  const listed = OPENROUTER_LIST[id] ?? {
+    label: id.split('/').pop()!.replace(/[-_]/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase()).slice(0, 80),
+    input_price_per_mtok: input,
+    output_price_per_mtok: round(input * [4, 5, 8][h % 3]!, 4),
+  };
+  return {
+    ...listed,
+    context_tokens: [128_000, 200_000, 1_000_000][h % 3]!,
+    max_output_tokens: [8192, 16384, 32768][h % 3]!,
+    supports_tools: h % 5 !== 0,
+  };
+}
+
+function modelFields(b: any, existing?: MockModel) {
+  const m = { ...(existing ?? {}), ...b } as MockModel;
   if (!existing && !/^[a-z0-9-]+\/[a-z0-9._:-]+$/i.test(m.id ?? '')) throw invalid('id must be an OpenRouter model ID such as vendor/model.');
   str(m.label, 'label', 1, 80);
   if ((m.description ?? '').length > 300) throw invalid('description is at most 300 characters.');
   for (const k of ['input_price_per_mtok', 'output_price_per_mtok'] as const) if (m[k] !== undefined && (m[k] < 0 || m[k] > 10000)) throw invalid(`${k} must be 0–10,000.`);
+  for (const k of ['fee_percent', 'commission_percent'] as const) {
+    const v = m[k];
+    if (v != null && (typeof v !== 'number' || v < 0 || v > 1000)) throw invalid(`${k} must be 0–1,000, or null.`);
+  }
   if (m.status && !['active', 'hidden', 'retired'].includes(m.status)) throw invalid('status must be active, hidden or retired.');
   if (m.is_default && (m.status ?? 'active') !== 'active') throw invalid('The default model must be active.');
   return m;
@@ -1658,10 +1781,59 @@ function modelFields(b: any, existing?: MockDb['models'][number]) {
 route('POST', '/platform/models', 'platform', ({ db, body }) => {
   if (db.models.some((m) => m.id === body.id)) throw invalid('A model with that id exists.');
   const now = nowIso();
-  const m = modelFields({ description: '', input_price_per_mtok: 0, output_price_per_mtok: 0, context_tokens: 0, max_output_tokens: 0, supports_tools: true, supports_prompt_cache: false, status: 'active', is_default: false, sort_order: 0, ...body, created_at: now, updated_at: now });
+  // Without both prices, read the model from OpenRouter and fill in what wasn't sent.
+  const fromOpenRouter = body.input_price_per_mtok === undefined || body.output_price_per_mtok === undefined;
+  const listed = fromOpenRouter && /^[a-z0-9-]+\/[a-z0-9._:-]+$/i.test(body.id ?? '') ? openRouterModel(body.id) : undefined;
+  const m = modelFields({
+    description: '',
+    input_price_per_mtok: 0,
+    output_price_per_mtok: 0,
+    context_tokens: 0,
+    max_output_tokens: 0,
+    supports_tools: true,
+    supports_prompt_cache: false,
+    status: 'active',
+    is_default: false,
+    sort_order: 0,
+    fee_percent: null,
+    commission_percent: null,
+    ...listed,
+    ...body,
+    ...(listed ? { input_price_per_mtok: listed.input_price_per_mtok, output_price_per_mtok: listed.output_price_per_mtok } : {}),
+    pricing_synced_at: listed ? now : '',
+    created_at: now,
+    updated_at: now,
+  });
   if (m.is_default) db.models.forEach((x) => (x.is_default = false));
   db.models.push(m);
-  return created({ ...m, bots: 0 });
+  return created(modelOut(db, m));
+});
+
+function refreshPricing(m: MockModel) {
+  const { input_price_per_mtok, output_price_per_mtok } = openRouterModel(m.id);
+  const now = nowIso();
+  Object.assign(m, { input_price_per_mtok, output_price_per_mtok, pricing_synced_at: now, updated_at: now });
+}
+
+route('POST', '/platform/models/refresh-pricing', 'platform', ({ db }) => {
+  const models: ReturnType<typeof modelOut>[] = [];
+  const failed: { id: string; error: string }[] = [];
+  for (const m of db.models.filter((x) => x.status !== 'retired')) {
+    try {
+      refreshPricing(m);
+      models.push(modelOut(db, m));
+    } catch (e) {
+      failed.push({ id: m.id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return { models, failed };
+});
+
+route('POST', '/platform/models/:id/refresh-pricing', 'platform', ({ db, params }) => {
+  const m = db.models.find((x) => x.id === params.id);
+  if (!m) throw notFound('MODEL_NOT_FOUND', 'Model');
+  refreshPricing(m);
+  return modelOut(db, m);
 });
 
 route('PATCH', '/platform/models/:id', 'platform', ({ db, params, body }) => {
@@ -1674,7 +1846,7 @@ route('PATCH', '/platform/models/:id', 'platform', ({ db, params, body }) => {
     const def = db.models.find((x) => x.is_default)!;
     db.workspaces.forEach((w) => w.bot.model === existing.id && (w.bot.model = def.id));
   }
-  return { ...existing, bots: modelBots(db, existing.id) };
+  return modelOut(db, existing);
 });
 
 const templateBots = (db: MockDb, id: string) => db.workspaces.filter((w) => w.bot.promptTemplateId === id).length;

@@ -1,10 +1,12 @@
 import type {
   ApiKey,
   AuditEvent,
+  BillingAddon,
   BotConfig,
   BusinessTypeId,
   Invite,
   KnowledgeDocument,
+  LedgerEntry,
   Limits,
   PlanId,
   PlatformModel,
@@ -39,6 +41,13 @@ export interface MockTenant {
   reply_target_hours: number;
   limit_overrides: Partial<Limits>;
   replies_this_month: number;
+  tokens_this_month: number;
+  /** USD. */
+  balance: number;
+  /** Every extra-token purchase, newest first. */
+  addons: BillingAddon[];
+  /** Every change to the balance, newest first. */
+  ledger: LedgerEntry[];
 }
 
 export interface MockMembership {
@@ -56,15 +65,24 @@ export interface MockBot {
   created_at: string;
 }
 
+/** The stored bot also holds its system prompt, which the API never sends to businesses. */
+export type MockBotConfig = BotConfig & { promptTemplateId?: string; promptVariables?: Record<string, string>; prompt?: string };
+
 export interface MockWorkspace {
   tenant_id: string;
   bot_id: string;
   name: string;
-  bot: BotConfig;
+  bot: MockBotConfig;
   revision: number;
   updated_at?: string;
-  history: WorkspaceVersion[];
+  history: (Omit<WorkspaceVersion, 'bot'> & { bot: MockBotConfig })[];
 }
+
+/** A catalog model as stored: the effective markup and billed prices are worked out on the way out. */
+export type MockModel = Omit<
+  PlatformModel,
+  'bots' | 'effective_fee_percent' | 'effective_commission_percent' | 'billed_input_price_per_mtok' | 'billed_output_price_per_mtok'
+>;
 
 export type MockInvite = Invite & { tenant_id: string; token: string };
 export type MockAudit = AuditEvent & { tenant_id: string };
@@ -102,12 +120,12 @@ export interface MockDb {
   conversations: MockConversation[];
   replies: Record<string, TicketReply[]>;
   webhooks: Record<string, Webhook & { secret: string }>;
-  models: Omit<PlatformModel, 'bots'>[];
+  models: MockModel[];
   templates: Omit<PlatformTemplate, 'bots'>[];
   playground: Record<string, PlaygroundConversation>;
 }
 
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

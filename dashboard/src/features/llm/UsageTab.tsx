@@ -4,7 +4,6 @@ import { useModels } from '@/lib/api/endpoints/bot';
 import { useUsageSummary } from '@/lib/api/endpoints/stats';
 import { cn } from '@/lib/cn';
 import { dayRange, formatCompact, formatCurrency, formatMs, formatNumber, formatPercent, formatPerM } from '@/lib/format';
-import { useOpenRouterModels } from '@/lib/openrouter';
 import { useStoredState } from '@/hooks';
 import { Badge, Card, DataTable, ErrorState, Segmented, Skeleton, SkeletonRows, type Column } from '@/components/ui';
 import { TrendChart } from '@/components/charts';
@@ -26,6 +25,8 @@ interface Row {
   listed: boolean;
   offered: boolean;
   current: boolean;
+  /** USD per million tokens, as billed; null for models no longer in the catalog. */
+  price: { in: number; out: number } | null;
   /** Null when the model isn't in the API's top-5 breakdown, so its usage is unknown. */
   requests: number | null;
   tokens: number | null;
@@ -41,7 +42,6 @@ export default function UsageTab() {
   const range = useMemo(() => dayRange(Number(days)), [days]);
   const usage = useUsageSummary(range);
   const models = useModels();
-  const prices = useOpenRouterModels();
   const u = usage.data;
 
   const savedModel = ws.bot.model || models.data?.find((m) => m.is_default)?.id;
@@ -60,6 +60,7 @@ export default function UsageTab() {
         listed: true,
         offered: m.offered,
         current: m.id === savedModel,
+        price: { in: m.input_price_per_mtok, out: m.output_price_per_mtok },
         // The API reports the top five models; without a remainder, the others had none.
         requests: x?.requests ?? (other ? null : 0),
         tokens: x?.total_tokens ?? (other ? null : 0),
@@ -69,7 +70,7 @@ export default function UsageTab() {
     });
     // Models used in the period but no longer in the catalog.
     for (const x of used.values()) {
-      out.push({ id: x.model, label: x.model.split('/').pop()!, listed: false, offered: false, current: false, requests: x.requests, tokens: x.total_tokens, cost: x.estimated_cost, latency: x.avg_latency_ms });
+      out.push({ id: x.model, label: x.model.split('/').pop()!, listed: false, offered: false, current: false, price: null, requests: x.requests, tokens: x.total_tokens, cost: x.estimated_cost, latency: x.avg_latency_ms });
     }
     out.sort((a, b) => (b.requests ?? -1) - (a.requests ?? -1));
     return { rows: out, otherRequests: other };
@@ -113,18 +114,16 @@ export default function UsageTab() {
     { key: 'latency', header: 'Avg latency', align: 'right', hideBelowLg: true, cell: (r) => <Num v={r.latency} f={formatMs} /> },
     {
       key: 'price',
-      header: 'List price in / out',
+      header: 'Price in / out',
       align: 'right',
-      cell: (r) => {
-        const p = prices.data?.byId.get(r.id);
-        return p ? (
+      cell: (r) =>
+        r.price ? (
           <span className="whitespace-nowrap font-mono text-xs tabular-nums text-ink-muted">
-            {formatPerM(p.inPerM)} / {formatPerM(p.outPerM)}
+            {formatPerM(r.price.in)} / {formatPerM(r.price.out)}
           </span>
         ) : (
-          <span className="text-xs text-ink-faint">{prices.isPending ? '…' : 'Unavailable'}</span>
-        );
-      },
+          <span className="text-xs text-ink-faint">—</span>
+        ),
     },
   ];
 
@@ -160,12 +159,12 @@ export default function UsageTab() {
               sub={u && `${formatCompact(u.input_tokens)} in · ${formatCompact(u.output_tokens)} out`}
             />
             <StatCard
-              label="Estimated cost"
+              label="Cost"
               icon={<Coins />}
               loading={!u}
               value={formatCurrency(u?.estimated_cost)}
               sub={u && u.requests > 0 ? `${formatCurrency(u.estimated_cost / u.requests)} per request` : undefined}
-              info="As OpenRouter reported for each request. Billing may differ."
+              info="What you were billed: each model's price, fees included."
               trend={u?.by_day.map((d) => d.estimated_cost)}
             />
             <StatCard label="Average latency" icon={<Gauge />} loading={!u} value={formatMs(u?.avg_latency_ms)} sub="From request to full reply" />
@@ -190,7 +189,7 @@ export default function UsageTab() {
             )}
           </Card>
 
-          <Card title="By model" description="Every model offered to your business, with what it was used for in this period and its list price per million tokens." flush>
+          <Card title="By model" description="Every model offered to your business, with what it was used for in this period and its price per million tokens." flush>
             {!u || models.isPending ? (
               <div className="p-5">
                 <SkeletonRows rows={4} />

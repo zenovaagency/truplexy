@@ -371,7 +371,7 @@ const PERMISSION_GROUPS: { label: string; items: [Permission, string][] }[] = [
   { label: 'Support', items: [['tickets.read', 'See tickets and handoffs'], ['tickets.write', 'Reply, assign and change tickets'], ['tickets.delete', 'Delete tickets']] },
   { label: 'Assistant', items: [['bot.read', 'See the configuration'], ['bot.write', 'Change the configuration'], ['playground.run', 'Use the playground'], ['knowledge.read', 'See the knowledge base'], ['knowledge.write', 'Add and edit knowledge'], ['tools.read', 'See tools'], ['tools.write', 'Create, edit and run tools']] },
   { label: 'Connect', items: [['integrations.read', 'See integrations, keys and webhook'], ['integrations.write', 'Issue keys and manage the webhook']] },
-  { label: 'Business', items: [['usage.read', 'See usage and stats'], ['members.read', 'See the team'], ['members.write', 'Invite, remove and change roles'], ['owners.manage', 'Manage owners'], ['bots.create', 'Create bots'], ['business.write', 'Edit business details'], ['audit.read', 'See the activity log']] },
+  { label: 'Business', items: [['usage.read', 'See usage and stats'], ['members.read', 'See the team'], ['members.write', 'Invite, remove and change roles'], ['owners.manage', 'Manage owners'], ['bots.create', 'Create bots'], ['business.write', 'Edit business details'], ['billing.write', 'Buy extra tokens'], ['audit.read', 'See the activity log']] },
 ];
 
 export function RolesTab() {

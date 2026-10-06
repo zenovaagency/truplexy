@@ -26,6 +26,8 @@ Every path in this document is relative to the base URL, so `GET /me` means `GET
 
 The API answers browsers only from the origins listed in its `CORS_ALLOWED_ORIGINS` setting (comma-separated, such as `https://dashboard.example.com,http://localhost:5173`). Add your dashboard's local and production origins there, in the API's environment (Vercel project `truplexy-api`), and redeploy. From any other origin, the browser blocks the response.
 
+Origins include the port: `http://localhost:5173` does not permit `http://localhost:5174`. To allow both local dashboards, append `http://localhost:5173,http://localhost:5174` to the API's `CORS_ALLOWED_ORIGINS`, keeping any production origins already listed. When calling `https://api.zenovasolution.xyz`, update the Vercel project's Production environment and redeploy; changing a local `.env` only affects `go run ./cmd/server` after a restart. An unallowed preflight to `/v2/me` can return `405` without `Access-Control-Allow-Origin`.
+
 - **Preflight.** Allowed requests may send `Authorization`, `Content-Type`, `X-Truplexy-Tenant` and `X-Truplexy-Bot`, with the methods `GET`, `POST`, `PUT`, `PATCH` and `DELETE`. Preflights are cached for 10 minutes.
 - **Readable headers.** Browser code can read `X-Request-ID`, `Deprecation`, `Link`, `Sunset` and `Retry-After`.
 - **No cookies.** Credentials mode is never allowed, so don't send `credentials: "include"`. Authentication is a bearer token, below.
@@ -208,7 +210,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `playground.run`, `tickets.write` | | ✓ | ✓ | ✓ | ✓ |
 | `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read` | | | ✓ | ✓ | ✓ |
-| `integrations.write`, `bots.create`, `members.write`, `business.write`, `audit.read` | | | | ✓ | ✓ |
+| `integrations.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
 | `owners.manage` | | | | | ✓ |
 
 - **Platform admins and the admin key** pass every permission check, in every business.
@@ -277,6 +279,10 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/webhook/test` | `integrations.write` | Send a test event |
 | `GET` | `/usage/summary` | `usage.read` | Model usage, cost and answer quality |
 | `GET` | `/stats/support` | `usage.read` | Tickets, response times and cost per ticket (v2) |
+| `GET` | `/billing` | `usage.read` | Balance, this month's tokens and the extra-token slider (v2) |
+| `GET` | `/billing/ledger` | `usage.read` | Changes to the balance (v2) |
+| `GET` | `/billing/token-addons/quote` | `usage.read` | Price extra tokens for the slider (v2) |
+| `POST` | `/billing/token-addons` | `billing.write` | Buy extra tokens for the month from the balance (v2) |
 | `POST` | `/playground/run` | `playground.run` | Answer a message with given settings |
 | `GET` | `/playground/conversations/current` | `playground.run` | The latest playground conversation |
 | `POST` | `/playground/conversations` | `playground.run` | Start a playground conversation |
@@ -284,6 +290,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/platform/tenants` | platform | Every business |
 | `PATCH` | `/platform/tenants/{id}` | platform | Change a business's plan, status or limits |
 | `GET` | `/platform/tenants/{id}/detail` | platform | A business's members, bots and activity (v2) |
+| `POST` | `/platform/tenants/{id}/balance` | platform | Credit or debit a business's balance (v2) |
 | `GET` | `/platform/users` | platform | Everyone who has signed in (v2) |
 | `PATCH` | `/platform/users/{id}` | platform | Grant or revoke platform admin (v2) |
 | `GET` | `/platform/tickets` | platform | Tickets across businesses (v2) |
@@ -293,6 +300,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/platform/models` | platform | The model catalog (v2) |
 | `POST` | `/platform/models` | platform | Add a model (v2) |
 | `PATCH` | `/platform/models/{id}` | platform | Change a model (v2) |
+| `POST` | `/platform/models/{id}/refresh-pricing` | platform | Read a model's prices from OpenRouter again (v2) |
+| `POST` | `/platform/models/refresh-pricing` | platform | Read every model's prices from OpenRouter again (v2) |
 | `GET` | `/platform/prompt-templates` | platform | The prompt templates (v2) |
 | `POST` | `/platform/prompt-templates` | platform | Add a prompt template (v2) |
 | `PATCH` | `/platform/prompt-templates/{id}` | platform | Change a prompt template (v2) |
@@ -344,7 +353,7 @@ Records the person's email and name from their token. **200**:
 
 #### `GET /plans`
 
-**200** `{data: [{id, name, limits: {bots, documents_per_bot, members, replies_per_month}}]}`. A limit of 0 means unlimited. The plans are Free, Starter, Pro and Enterprise. Plans are assigned by platform admins; there is no billing.
+**200** `{data: [{id, name, limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month}, token_addon}]}`. A limit of 0 means unlimited. The plans are Free, Starter, Pro and Enterprise, assigned by platform admins. `token_addon` prices the extra tokens a plan sells, or is `null`; see [Billing](#billing-balance-and-extra-tokens).
 
 #### `POST /tenants`
 
@@ -381,9 +390,10 @@ Scope headers. These act on the business the headers name.
   id, name, business_type, plan, status,         // status: active | suspended
   created_at,
   reply_target_hours,                            // tickets needing a reply longer than this are overdue
-  limits: {bots, documents_per_bot, members, replies_per_month},   // the plan's, with overrides; 0 = unlimited
+  limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month},   // the plan's, with overrides; 0 = unlimited
   limit_overrides: {…},                          // only what a platform admin overrode
-  usage: {bots, members, replies_this_month}     // members includes pending invitations
+  usage: {bots, members, replies_this_month, tokens_this_month},   // members includes pending invitations
+  balance                                        // USD; see GET /billing
 }
 ```
 
@@ -524,9 +534,10 @@ Platform admins own the catalog; businesses only pick from it.
 
 #### `GET /models`
 
-`bot.read`. **200** `{models: [{id, label, description, tier, context_tokens, max_output_tokens, supports_tools, is_default, offered}]}`.
+`bot.read`. **200** `{models: [{id, label, description, tier, input_price_per_mtok, output_price_per_mtok, currency, context_tokens, max_output_tokens, supports_tools, is_default, offered}]}`.
 - `id` is an OpenRouter model ID, such as `google/gemini-3.1-flash-lite`.
-- `tier` is `economy`, `standard` or `premium`; businesses don't see prices.
+- `input_price_per_mtok` and `output_price_per_mtok` are what the business pays per million tokens, in `currency` (`USD`): the model's OpenRouter price plus the platform's fee and commission, shown only as the total. For `openai/gpt-4o` at 2.50/10.00 USD with a 5.5% fee and 20% commission, they are `3.1375` and `12.55`.
+- `tier` is `economy`, `standard` or `premium`, by the model's OpenRouter output price.
 - The list has the active models, plus the bot's current model if it is hidden. That one has `offered: false`: keep it selectable only while it is still selected.
 
 #### `GET /prompt-templates`
@@ -955,7 +966,7 @@ export function verify(rawBody, header, secret) {
 ```text
 {
   from, to, requests, input_tokens, output_tokens, total_tokens,
-  estimated_cost,                 // USD, as OpenRouter reported
+  estimated_cost,                 // USD billed: OpenRouter's cost plus each model's fee and commission
   avg_latency_ms,
   by_day:   [{date, requests, input_tokens, output_tokens, total_tokens, estimated_cost}],   // every day, zeros included
   by_model: [{model, requests, total_tokens, estimated_cost, avg_latency_ms}],               // top 5
@@ -987,12 +998,86 @@ export function verify(rawBody, header, secret) {
   first_response: {count, avg_seconds, median_seconds, p90_seconds},
   resolution:     {count, avg_seconds, median_seconds, p90_seconds},
   cost: {total, per_ticket, per_conversation, per_ai_resolved},
-                   // USD; a ticket's cost is its conversation's AI cost
+                   // USD billed, fee and commission included; a ticket's
+                   // cost is its conversation's AI cost
   by_day: [{date, conversations, tickets_created, tickets_resolved, ticket_cost}]
 }
 ```
 
 **Errors:** `400 INVALID_REQUEST`.
+
+### Billing: balance and extra tokens
+
+Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Free, Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. There is no payment provider: a platform admin credits balances (`POST /platform/tenants/{id}/balance`).
+
+**Pricing.** Extra tokens start at $8 per million, less the plan's discount (Starter 10%, Pro 20%), less a volume discount on larger purchases (10% from the 10th million, 20% from the 50th). The volume discount is graduated, like tax brackets: each million costs its own tier's price, so buying more never costs less in total.
+
+| Plan | Slider | 1st–9th million | 10th–49th | 50th on |
+| --- | --- | --- | --- | --- |
+| Free | 1–20M | $8.00 | $7.20 | — |
+| Starter | 1–100M | $7.20 | $6.48 | $5.76 |
+| Pro | 1–500M | $6.40 | $5.76 | $5.12 |
+
+For example, 10M on Free costs 9 × $8.00 + 1 × $7.20 = $79.20, and 50M on Pro costs 9 × $6.40 + 40 × $5.76 + 1 × $5.12 = $293.12.
+
+**The slider.** `GET /plans` gives each plan's `token_addon`, or `null` when it sells none:
+
+```text
+token_addon: {
+  price_per_million,                     // the first tier's: what 1M costs
+  min_millions, max_millions, step_millions, currency,
+  tiers: [{from_millions, price_per_million}]
+}
+```
+
+Offer `min_millions` to `max_millions` in steps of `step_millions`. For the price as the slider moves, call `GET /billing/token-addons/quote?millions=` (debounced), or compute it from `tiers`: each million from a tier's `from_millions` up to the next tier's costs that tier's `price_per_million`. For the business's own plan, `GET /billing` returns the same `token_addon`, or `null` when its tokens are unlimited.
+
+#### `GET /billing`
+
+`usage.read`. **200**:
+
+```text
+{
+  currency: "USD",
+  balance,                                     // USD
+  month,                                       // YYYY-MM, UTC
+  plan: {id, name},
+  tokens: {unlimited, plan_allowance, addons, allowance, used, remaining},
+          // allowance = plan_allowance + addons; remaining is null when unlimited
+  token_addon,                                 // the slider, or null
+  addons: [{id, tokens, price, month, actor, created_at}]   // bought this month, newest first
+}
+```
+
+#### `GET /billing/ledger`
+
+`usage.read`. Every change to the balance, newest first, 50 per page; pass `before` = `next_before` for the next page. **200** `{data: [{id, amount, balance_after, kind, note, actor, usage_id?, addon_id?, created_at}], next_before?}`.
+- `amount` is in USD: positive adds to the balance, negative spends it.
+- `kind` is `credit` or `debit` (a platform admin's, with their `note`), `token_addon` (extra tokens, `addon_id`) or `overage` (a reply past the month's tokens, `usage_id`).
+
+#### `GET /billing/token-addons/quote`
+
+`usage.read`. `?millions=`: a position on the plan's slider. **200** what buying it costs:
+
+```text
+{
+  millions, tokens, currency,
+  price,                                       // USD, the total
+  average_per_million,
+  breakdown: [{from_millions, to_millions, millions, price_per_million, amount}]   // one line per tier used
+}
+```
+
+**Errors:** `400 INVALID_REQUEST` (`millions` missing or off the slider), `400 ADDON_NOT_AVAILABLE`.
+
+#### `POST /billing/token-addons`
+
+`billing.write`. `{millions}`: a position on the plan's slider. It pays the price `GET /billing/token-addons/quote` gives from the balance, and adds `millions × 1,000,000` tokens for the current month only. **201** `{addon, billing}`, where `billing` is the new `GET /billing`.
+
+**Errors:**
+- `400 INVALID_REQUEST`: `millions` isn't on the slider.
+- `400 ADDON_NOT_AVAILABLE`: the business's tokens are unlimited (Enterprise, or an override of 0), so it needs none.
+- `402 INSUFFICIENT_BALANCE`: the balance is below the price; nothing changes.
 
 ### Playground
 
@@ -1061,8 +1146,10 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
   businesses, suspended_businesses, users, platform_admins, bots,
   conversations_this_month,          // chat API conversations, this UTC month
   open_tickets, needs_reply,
-  replies_this_month, cost_this_month,
-  by_day: [{date, requests, input_tokens, output_tokens, total_tokens, estimated_cost}]   // last 30 days
+  replies_this_month,
+  cost_this_month,                   // USD OpenRouter charged
+  billed_this_month,                 // USD businesses were billed: cost plus fees and commissions
+  by_day: [{date, requests, input_tokens, output_tokens, total_tokens, estimated_cost}]   // last 30 days, OpenRouter's cost
 }
 ```
 
@@ -1075,7 +1162,7 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 `{plan?, status?, limits?}`; leave out what doesn't change.
 - `plan`: a plan `id` from `GET /plans`.
 - `status`: `active` or `suspended`. Suspending blocks the business's members and chat keys.
-- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?}`, each 0 (unlimited) to 10,000,000. It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
+- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?, tokens_per_month?}`, each 0 (unlimited) to 10,000,000 (`tokens_per_month` to 100,000,000,000). It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
 
 **200** the Business.
 
@@ -1091,15 +1178,25 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 {
   members: [{user_id, email, name, role, created_at}],
   bots: [{id, name, model, prompt_template_id, own_prompt, saved, documents,
-          replies_this_month, cost_this_month}],
+          replies_this_month, cost_this_month, billed_this_month}],
+          // cost: what OpenRouter charged; billed: what the business was billed
           // own_prompt: still uses a pre-template prompt
           // saved: false = never configured
   open_tickets,
+  balance,                                           // USD
   audit: [{id, actor, action, target, created_at}]   // recent events
 }
 ```
 
 **Errors:** `404 TENANT_NOT_FOUND`.
+
+#### `POST /platform/tenants/{id}/balance`
+
+`{amount, note}`. Adds `amount` USD to the business's balance, or takes it away when negative (up to 1,000,000 either way). `note` (1–200 characters, such as a bank transfer reference) shows in the business's ledger. A debit can't take the balance below zero. Recorded in the business's activity log as `billing.credit` or `billing.debit`. **200** `{entry, balance}`, `entry` as in `GET /billing/ledger`.
+
+**Errors:**
+- `400 INVALID_REQUEST`
+- `404 TENANT_NOT_FOUND`
 
 #### `GET /platform/users`
 
@@ -1141,17 +1238,19 @@ Read only, across businesses, most recently updated first, 100 per page.
 | `from`, `to` | As in `GET /usage/summary`. |
 | `group` | `tenant` (default), `model` or `day`. |
 
-**200** `{from, to, group, data: [{key, label, requests, input_tokens, output_tokens, cached_tokens, total_tokens, estimated_cost, avg_latency_ms}]}`. `key` is the business ID, model ID or date.
+**200** `{from, to, group, data: [{key, label, requests, input_tokens, output_tokens, cached_tokens, total_tokens, estimated_cost, billed_cost, avg_latency_ms}]}`. `key` is the business ID, model ID or date. `estimated_cost` is what OpenRouter charged in USD; `billed_cost` adds each reply's fee and commission, what businesses were billed. Rows by business or model are sorted by `estimated_cost`.
 
 #### `GET /platform/models`
 
-**200** `{models: [Model + {bots}]}`, where `bots` counts the saved bots using each model.
+**200** `{models: [Model + {bots, effective_fee_percent, effective_commission_percent, billed_input_price_per_mtok, billed_output_price_per_mtok}]}`, where `bots` counts the saved bots using each model. The `effective_` percentages are the model's own or the platform defaults (`PRICE_FEE_PERCENT`, `PRICE_COMMISSION_PERCENT`), and the `billed_` prices are what businesses see in `GET /models`: price × (1 + (fee + commission) / 100), rounded to 6 decimals.
 
 ```text
 Model: {
   id,                                            // OpenRouter model ID
   label, description,
-  input_price_per_mtok, output_price_per_mtok,   // USD per million tokens
+  input_price_per_mtok, output_price_per_mtok,   // OpenRouter's price, USD per million tokens
+  fee_percent, commission_percent,               // the model's own markup; null = platform default
+  pricing_synced_at,                             // when the prices were last read from OpenRouter; "" if never
   context_tokens,
   max_output_tokens,                             // caps bots' output; 0 = no cap
   supports_tools,
@@ -1164,25 +1263,44 @@ Model: {
 #### `POST /platform/models`
 
 A Model's fields:
-- Required: `id` (an OpenRouter model ID such as `vendor/model`) and `label` (1–80 characters).
+- Required: `id` (an OpenRouter model ID such as `vendor/model`). `label` (1–80 characters) is required when you send both prices.
+- **Prices from OpenRouter.** Leave out `input_price_per_mtok` or `output_price_per_mtok`, and the API reads the model from `https://openrouter.ai/api/v1/model/{id}`: its prices, plus the `label`, `context_tokens`, `max_output_tokens` and `supports_tools` you don't send. `{"id": "openai/gpt-4o"}` is enough.
 - `description`: up to 300 characters.
 - Prices: 0–10,000.
+- `fee_percent`, `commission_percent`: 0–1,000, or `null` (the default) for the platform's.
 - `context_tokens`: up to 100,000,000.
 - `max_output_tokens`: up to 1,000,000.
 - `sort_order`: −10,000 to 10,000.
 - `status` defaults to active and `supports_tools` to true. `is_default` needs an active model; setting it moves the default.
 
-**201** the model with `bots`. **Errors:** `400 INVALID_REQUEST` (`message` says which rule).
+**201** the model as in `GET /platform/models`.
+
+**Errors:**
+- `400 INVALID_REQUEST` (`message` says which rule, or that OpenRouter has no model with this ID)
+- `502 PRICING_UNAVAILABLE`: OpenRouter couldn't be reached. Try again, or send the prices.
 
 #### `PATCH /platform/models/{id}`
 
-Any of the fields above, except `id`. The ID contains a slash, so URL-encode it in the path: `/platform/models/google%2Fgemini-3.1-flash-lite`. Models aren't deleted: retire one, and its bots move to the default model. Use `bots` to warn before retiring.
+Any of the fields above, except `id`. The ID contains a slash, so URL-encode it in the path: `/platform/models/google%2Fgemini-3.1-flash-lite`. Models aren't deleted: retire one, and its bots move to the default model. Use `bots` to warn before retiring. Send `fee_percent: null` to return a model to the platform's fee; leaving it out keeps its own.
 
 **200** the model.
 
 **Errors:**
 - `400 INVALID_REQUEST`
 - `404 MODEL_NOT_FOUND`
+
+#### `POST /platform/models/{id}/refresh-pricing`
+
+No body. Reads the model's prices from OpenRouter again and stores them with `pricing_synced_at`; nothing else changes. Replies already made keep the cost they were billed. **200** the model.
+
+**Errors:**
+- `400 INVALID_REQUEST`: OpenRouter has no model with this ID.
+- `404 MODEL_NOT_FOUND`
+- `502 PRICING_UNAVAILABLE`
+
+#### `POST /platform/models/refresh-pricing`
+
+No body. Refreshes every model that isn't retired. **200** `{models: [the refreshed models], failed: [{id, error}]}`: a model OpenRouter doesn't have, or couldn't return, keeps its prices and is listed in `failed`.
 
 #### `GET /platform/prompt-templates`
 
@@ -1261,7 +1379,7 @@ No body. **201** an empty conversation.
 **Errors:**
 - `400 INVALID_REQUEST`
 - `404 CONVERSATION_NOT_FOUND`
-- `429 PLAN_LIMIT_REACHED` (the business's monthly replies are used up)
+- `429 PLAN_LIMIT_REACHED`: the business's monthly replies are used up (`limit: "replies_per_month"`), or its tokens are and its balance is empty (`limit: "tokens_per_month"`)
 - [Model errors](#6-errors)
 
 After an error the message stays stored, marked unanswered, and is left out of the conversation.
@@ -1318,8 +1436,9 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`) |
 | Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys`, `DELETE /api-keys/{id}`, and the chat API section as the integrator guide |
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave` |
+| Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
 | Team | `GET /members`, `PATCH`/`DELETE /members/{user_id}`, `GET`/`POST /invites`, `DELETE /invites/{id}`, `GET /audit` |
-| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `GET`/`PATCH /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…`, `GET`/`POST`/`PATCH /platform/prompt-templates…` |
+| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `GET`/`PATCH /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…` |
 
 ## 6. Errors
 
@@ -1335,7 +1454,7 @@ Every error has its HTTP status and this body:
 }
 ```
 
-`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members` or `replies_per_month`.
+`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month` or `tokens_per_month`.
 
 | HTTP | Codes | What to do |
 | --- | --- | --- |
@@ -1345,7 +1464,9 @@ Every error has its HTTP status and this body:
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /models` and `GET /prompt-templates`, and fill required variables. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `FEATURE_UNAVAILABLE` | The server lacks the service this needs. |
+| 400 | `ADDON_NOT_AVAILABLE` | The business's tokens are unlimited; it needs no extra tokens. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |
+| 402 | `INSUFFICIENT_BALANCE` | The balance is too low; ask a platform admin for a top-up or buy less. |
 | 403 | `FORBIDDEN` | The role lacks the permission; hide the action. |
 | 403 | `TENANT_SUSPENDED` | The business is suspended. |
 | 403 | `INVITE_EMAIL_MISMATCH` | Sign in with the invited address. |
@@ -1362,7 +1483,7 @@ Every error has its HTTP status and this body:
 | 410 | `INVITE_REVOKED`, `INVITE_EXPIRED` | A new invitation is needed. |
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Send `Content-Type: application/json`. |
-| 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up. |
+| 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up, or its tokens are and the balance is empty. |
 | 429 | `LLM_RATE_LIMITED` | The model provider is busy; retry shortly. |
 | 500 | `INTERNAL_ERROR` | Unexpected; quote the request ID. |
 | 502 | `DATABASE_ERROR`, `STORAGE_ERROR`, `RETRIEVAL_FAILED`, `LLM_PROVIDER_ERROR` | A backing service failed; `message` says which. |

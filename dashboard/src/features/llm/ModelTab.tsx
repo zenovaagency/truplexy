@@ -5,7 +5,7 @@ import { useUsageSummary } from '@/lib/api/endpoints/stats';
 import type { Model, ModelTier } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { dayRange, formatCompact, formatCurrency, formatPerM } from '@/lib/format';
-import { replyCost, useOpenRouterModels } from '@/lib/openrouter';
+import { replyCost } from '@/lib/openrouter';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Card, ErrorState, Field, Input, SkeletonRows, Switch } from '@/components/ui';
 import { useBotDraft } from './draft';
@@ -28,10 +28,9 @@ function tempLabel(t: number) {
 }
 
 export default function ModelTab() {
-  const { draft, patchBot, canWrite } = useBotDraft();
+  const { draft, setDraft, patchBot, canWrite } = useBotDraft();
   const { can } = useScopeCtx();
   const models = useModels();
-  const prices = useOpenRouterModels();
   const range = useMemo(() => dayRange(30), []);
   const usage = useUsageSummary(range, { enabled: can('usage.read') });
   const b = draft.bot;
@@ -57,6 +56,17 @@ export default function ModelTab() {
     <div className="grid gap-5">
       <ViewOnly />
 
+      <Card title="Identity" description="How the assistant introduces itself.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Assistant name" hint="Customers see this name." aside={`${b.name.length}/80`}>
+            <Input value={b.name} disabled={!canWrite} onChange={(e) => patchBot({ name: e.target.value.slice(0, 80) })} />
+          </Field>
+          <Field label="Bot name" hint="Shown in this dashboard, e.g. in the bot switcher." aside={`${draft.name.length}/80`}>
+            <Input value={draft.name} disabled={!canWrite} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value.slice(0, 80) }))} />
+          </Field>
+        </div>
+      </Card>
+
       <Card
         title={
           <span className="flex items-center gap-2">
@@ -74,7 +84,7 @@ export default function ModelTab() {
             <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3" role="radiogroup" aria-label="Model">
               {models.data.map((m) => {
                 const on = model?.id === m.id;
-                const p = prices.data?.byId.get(m.id);
+                const p = { inPerM: m.input_price_per_mtok, outPerM: m.output_price_per_mtok };
                 return (
                   <button
                     key={m.id}
@@ -99,22 +109,14 @@ export default function ModelTab() {
                     <span className="grid grid-cols-2 gap-2 rounded-[10px] bg-surface-2 px-3 py-2 text-xs">
                       <span className="grid">
                         <span className="text-ink-faint">Input / 1M</span>
-                        <span className="font-mono font-semibold tabular-nums text-ink">{p ? formatPerM(p.inPerM) : prices.isPending ? '…' : '—'}</span>
+                        <span className="font-mono font-semibold tabular-nums text-ink">{formatPerM(p.inPerM)}</span>
                       </span>
                       <span className="grid">
                         <span className="text-ink-faint">Output / 1M</span>
-                        <span className="font-mono font-semibold tabular-nums text-ink">{p ? formatPerM(p.outPerM) : prices.isPending ? '…' : '—'}</span>
+                        <span className="font-mono font-semibold tabular-nums text-ink">{formatPerM(p.outPerM)}</span>
                       </span>
                       <span className="col-span-2 border-t border-line pt-1.5 text-ink-muted">
-                        {p ? (
-                          <>
-                            ≈ <span className="font-semibold text-ink">{formatCurrency(replyCost(p, avg.in, avg.out) * 1000)}</span> per 1,000 replies
-                          </>
-                        ) : prices.isPending ? (
-                          'Loading price…'
-                        ) : (
-                          'Price unavailable'
-                        )}
+                        ≈ <span className="font-semibold text-ink">{formatCurrency(replyCost(p, avg.in, avg.out) * 1000)}</span> per 1,000 replies
                       </span>
                     </span>
                     <span className="flex flex-wrap gap-1.5">

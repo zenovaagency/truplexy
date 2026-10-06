@@ -27,6 +27,7 @@ export type Permission =
   | 'bots.create'
   | 'members.write'
   | 'business.write'
+  | 'billing.write'
   | 'audit.read'
   | 'owners.manage';
 
@@ -82,12 +83,26 @@ export interface Limits {
   documents_per_bot: number;
   members: number;
   replies_per_month: number;
+  tokens_per_month: number;
+}
+
+/** The extra-token slider a plan sells. */
+export interface TokenAddon {
+  /** The first tier's price: what 1M costs. */
+  price_per_million: number;
+  min_millions: number;
+  max_millions: number;
+  step_millions: number;
+  currency: string;
+  tiers: { from_millions: number; price_per_million: number }[];
 }
 
 export interface Plan {
   id: PlanId;
   name: string;
   limits: Limits;
+  /** Null when the plan sells no extra tokens. */
+  token_addon: TokenAddon | null;
 }
 
 export interface InvitePreview {
@@ -112,7 +127,9 @@ export interface Business {
   reply_target_hours: number;
   limits: Limits;
   limit_overrides: Partial<Limits>;
-  usage: { bots: number; members: number; replies_this_month: number };
+  usage: { bots: number; members: number; replies_this_month: number; tokens_this_month: number };
+  /** USD; see GET /billing. */
+  balance: number;
 }
 
 export interface Member {
@@ -176,10 +193,6 @@ export interface ApiKey {
 
 export interface BotConfig {
   name: string;
-  promptTemplateId?: string;
-  promptVariables?: Record<string, string>;
-  /** Read-only legacy system prompt. */
-  prompt?: string;
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -211,6 +224,10 @@ export interface Model {
   label: string;
   description: string;
   tier: ModelTier;
+  /** What the business pays per million tokens, fee and commission included. */
+  input_price_per_mtok: number;
+  output_price_per_mtok: number;
+  currency: string;
   context_tokens: number;
   max_output_tokens: number;
   supports_tools: boolean;
@@ -224,16 +241,6 @@ export interface TemplateVariable {
   help?: string;
   required: boolean;
   max_length: number;
-}
-
-export interface PromptTemplate {
-  id: string;
-  name: string;
-  description: string;
-  body: string;
-  variables: TemplateVariable[];
-  is_default: boolean;
-  offered: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -601,6 +608,63 @@ export interface SupportStats {
 }
 
 /* ------------------------------------------------------------------ */
+/* Billing                                                             */
+/* ------------------------------------------------------------------ */
+
+export interface BillingAddon {
+  id: string;
+  tokens: number;
+  price: number;
+  month: string;
+  actor: string;
+  created_at: string;
+}
+
+export interface Billing {
+  currency: string;
+  balance: number;
+  /** YYYY-MM, UTC. */
+  month: string;
+  plan: { id: PlanId; name: string };
+  tokens: {
+    unlimited: boolean;
+    plan_allowance: number;
+    addons: number;
+    allowance: number;
+    used: number;
+    /** Null when unlimited. */
+    remaining: number | null;
+  };
+  token_addon: TokenAddon | null;
+  /** Bought this month, newest first. */
+  addons: BillingAddon[];
+}
+
+export type LedgerKind = 'credit' | 'debit' | 'token_addon' | 'overage';
+
+export interface LedgerEntry {
+  id: string;
+  /** USD: positive adds to the balance, negative spends it. */
+  amount: number;
+  balance_after: number;
+  kind: LedgerKind;
+  note: string;
+  actor: string;
+  usage_id?: string;
+  addon_id?: string;
+  created_at: string;
+}
+
+export interface AddonQuote {
+  millions: number;
+  tokens: number;
+  currency: string;
+  price: number;
+  average_per_million: number;
+  breakdown: { from_millions: number; to_millions: number; millions: number; price_per_million: number; amount: number }[];
+}
+
+/* ------------------------------------------------------------------ */
 /* Playground                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -617,10 +681,7 @@ export interface Source {
 export interface PlaygroundRunInput {
   message?: string;
   max_output_tokens: number;
-  prompt_template_id?: string;
-  prompt_variables?: Record<string, string>;
   assistant_name?: string;
-  system_prompt?: string;
   model?: string;
   temperature?: number;
   conversation_id?: string;
@@ -684,7 +745,10 @@ export interface PlatformOverview {
   open_tickets: number;
   needs_reply: number;
   replies_this_month: number;
+  /** USD OpenRouter charged. */
   cost_this_month: number;
+  /** USD businesses were billed: cost plus fees and commissions. */
+  billed_this_month: number;
   by_day: UsageDay[];
 }
 
@@ -705,8 +769,10 @@ export interface PlatformBusinessDetail {
     documents: number;
     replies_this_month: number;
     cost_this_month: number;
+    billed_this_month: number;
   }[];
   open_tickets: number;
+  balance: number;
   audit: { id: string; actor: string; action: string; target: string; created_at: string }[];
 }
 
@@ -759,7 +825,10 @@ export interface PlatformUsageRow {
   output_tokens: number;
   cached_tokens: number;
   total_tokens: number;
+  /** What OpenRouter charged. */
   estimated_cost: number;
+  /** What businesses were billed. */
+  billed_cost: number;
   avg_latency_ms: number;
 }
 
@@ -769,8 +838,14 @@ export interface PlatformModel {
   id: string;
   label: string;
   description: string;
+  /** OpenRouter's price, USD per million tokens. */
   input_price_per_mtok: number;
   output_price_per_mtok: number;
+  /** The model's own markup; null = the platform default. */
+  fee_percent: number | null;
+  commission_percent: number | null;
+  /** When the prices were last read from OpenRouter; "" if never. */
+  pricing_synced_at: string;
   context_tokens: number;
   max_output_tokens: number;
   supports_tools: boolean;
@@ -781,6 +856,11 @@ export interface PlatformModel {
   created_at: string;
   updated_at: string;
   bots: number;
+  effective_fee_percent: number;
+  effective_commission_percent: number;
+  /** What businesses see in GET /models. */
+  billed_input_price_per_mtok: number;
+  billed_output_price_per_mtok: number;
 }
 
 export interface PlatformTemplate {

@@ -3,7 +3,6 @@ import { api } from '@/lib/api/client';
 import type {
   BotConfig,
   Model,
-  PromptTemplate,
   RealtimeInfo,
   Tool,
   ToolInput,
@@ -47,15 +46,6 @@ export function useModels() {
   return useQuery({
     queryKey: qk.bot(scope, 'models'),
     queryFn: ({ signal }) => api<{ models: Model[] }>('/models', { scope, signal }).then((r) => r.models),
-    staleTime: 5 * 60_000,
-  });
-}
-
-export function usePromptTemplates() {
-  const scope = useScope();
-  return useQuery({
-    queryKey: qk.bot(scope, 'prompt-templates'),
-    queryFn: ({ signal }) => api<{ templates: PromptTemplate[] }>('/prompt-templates', { scope, signal }).then((r) => r.templates),
     staleTime: 5 * 60_000,
   });
 }

@@ -1,4 +1,4 @@
-import type { BusinessType, Plan, TicketMessage, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
+import type { BillingAddon, BusinessType, LedgerEntry, Plan, TicketMessage, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
 import { DB_VERSION, hex, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
 
 /* ------------------------------------------------------------------ */
@@ -34,11 +34,28 @@ const id = (prefix: string, r: () => number) =>
 /* Catalogs                                                            */
 /* ------------------------------------------------------------------ */
 
+/** Extra tokens start at $8 per million, less the plan's discount, less 10% from the 10th million and 20% from the 50th. */
+const addon = (discount: number, max: number): Plan['token_addon'] => {
+  const at = (volume: number) => +(8 * (1 - discount) * (1 - volume)).toFixed(2);
+  return {
+    price_per_million: at(0),
+    min_millions: 1,
+    max_millions: max,
+    step_millions: 1,
+    currency: 'USD',
+    tiers: [
+      { from_millions: 1, price_per_million: at(0) },
+      { from_millions: 10, price_per_million: at(0.1) },
+      { from_millions: 50, price_per_million: at(0.2) },
+    ].filter((t) => t.from_millions <= max),
+  };
+};
+
 export const PLANS: Plan[] = [
-  { id: 'free', name: 'Free', limits: { bots: 1, documents_per_bot: 50, members: 3, replies_per_month: 500 } },
-  { id: 'starter', name: 'Starter', limits: { bots: 2, documents_per_bot: 250, members: 6, replies_per_month: 5000 } },
-  { id: 'pro', name: 'Pro', limits: { bots: 5, documents_per_bot: 1000, members: 15, replies_per_month: 25000 } },
-  { id: 'enterprise', name: 'Enterprise', limits: { bots: 0, documents_per_bot: 0, members: 0, replies_per_month: 0 } },
+  { id: 'free', name: 'Free', limits: { bots: 1, documents_per_bot: 50, members: 3, replies_per_month: 500, tokens_per_month: 1_000_000 }, token_addon: addon(0, 20) },
+  { id: 'starter', name: 'Starter', limits: { bots: 2, documents_per_bot: 250, members: 6, replies_per_month: 5000, tokens_per_month: 10_000_000 }, token_addon: addon(0.1, 100) },
+  { id: 'pro', name: 'Pro', limits: { bots: 5, documents_per_bot: 1000, members: 15, replies_per_month: 25000, tokens_per_month: 50_000_000 }, token_addon: addon(0.2, 500) },
+  { id: 'enterprise', name: 'Enterprise', limits: { bots: 0, documents_per_bot: 0, members: 0, replies_per_month: 0, tokens_per_month: 0 }, token_addon: null },
 ];
 
 export const BUSINESS_TYPES: BusinessType[] = [
@@ -540,6 +557,34 @@ function fileDoc(
 }
 
 /* ------------------------------------------------------------------ */
+/* Billing history                                                     */
+/* ------------------------------------------------------------------ */
+
+type BillingEvent =
+  | { days: number; kind: 'credit' | 'debit'; amount: number; actor: string; note: string }
+  | { days: number; kind: 'token_addon'; millions: number; price: number; actor: string };
+
+/** A balance, its ledger and extra-token purchases, from events oldest first. */
+function billingHistory(r: () => number, events: BillingEvent[]) {
+  let balance = 0;
+  const ledger: LedgerEntry[] = [];
+  const addons: BillingAddon[] = [];
+  for (const e of events) {
+    const at = ago(e.days * DAY);
+    if (e.kind === 'token_addon') {
+      const a: BillingAddon = { id: id('add', r), tokens: e.millions * 1_000_000, price: e.price, month: at.slice(0, 7), actor: e.actor, created_at: at };
+      addons.unshift(a);
+      balance = +(balance - e.price).toFixed(6);
+      ledger.unshift({ id: id('led', r), amount: -e.price, balance_after: balance, kind: 'token_addon', note: `${e.millions}M extra tokens`, actor: e.actor, addon_id: a.id, created_at: at });
+    } else {
+      balance = +(balance + e.amount).toFixed(6);
+      ledger.unshift({ id: id('led', r), amount: e.amount, balance_after: balance, kind: e.kind, note: e.note, actor: e.actor, created_at: at });
+    }
+  }
+  return { balance, ledger, addons };
+}
+
+/* ------------------------------------------------------------------ */
 /* The seed                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -561,11 +606,18 @@ export function seedDb(): MockDb {
   ].map((u, i) => ({ ...u, created_at: ago((120 - i * 7) * DAY), last_seen_at: ago(Math.floor(r() * 3 * DAY)) }));
   const [alex, priya, marco, jun, sofia, liam, dana, sam, ops, mia, owen] = users as [typeof users[0], ...typeof users];
 
+  // Its own sequence, so the rest of the sample data stays as it was.
+  const br = rng(4242);
   const tenants: MockDb['tenants'] = [
-    { id: 'acme', name: 'Acme Store', business_type: 'ecommerce', plan: 'pro', status: 'active', created_at: ago(118 * DAY), reply_target_hours: 4, limit_overrides: {}, replies_this_month: 3412 },
-    { id: 'northwind', name: 'Northwind Boards', business_type: 'saas', plan: 'starter', status: 'active', created_at: ago(64 * DAY), reply_target_hours: 8, limit_overrides: {}, replies_this_month: 1288 },
-    { id: 'bloom-clinic', name: 'Bloom Clinic', business_type: 'healthcare', plan: 'free', status: 'active', created_at: ago(30 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 214 },
-    { id: 'harbor-realty', name: 'Harbor Realty', business_type: 'real_estate', plan: 'starter', status: 'suspended', created_at: ago(51 * DAY), reply_target_hours: 12, limit_overrides: { replies_per_month: 8000 }, replies_this_month: 0 },
+    { id: 'acme', name: 'Acme Store', business_type: 'ecommerce', plan: 'pro', status: 'active', created_at: ago(118 * DAY), reply_target_hours: 4, limit_overrides: {}, replies_this_month: 3412, tokens_this_month: 7_120_000,
+      ...billingHistory(br, [
+        { days: 40, kind: 'credit', amount: 150, actor: ops!.email, note: 'Bank transfer INV-1042' },
+        { days: 2, kind: 'token_addon', millions: 5, price: 32, actor: alex!.email },
+      ]) },
+    { id: 'northwind', name: 'Northwind Boards', business_type: 'saas', plan: 'starter', status: 'active', created_at: ago(64 * DAY), reply_target_hours: 8, limit_overrides: {}, replies_this_month: 1288, tokens_this_month: 2_640_000,
+      ...billingHistory(br, [{ days: 20, kind: 'credit', amount: 50, actor: ops!.email, note: 'Bank transfer INV-1077' }]) },
+    { id: 'bloom-clinic', name: 'Bloom Clinic', business_type: 'healthcare', plan: 'free', status: 'active', created_at: ago(30 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 214, tokens_this_month: 940_000, ...billingHistory(br, []) },
+    { id: 'harbor-realty', name: 'Harbor Realty', business_type: 'real_estate', plan: 'starter', status: 'suspended', created_at: ago(51 * DAY), reply_target_hours: 12, limit_overrides: { replies_per_month: 8000 }, replies_this_month: 0, tokens_this_month: 0, ...billingHistory(br, []) },
   ];
 
   const memberships: MockDb['memberships'] = [
@@ -772,12 +824,12 @@ export function seedDb(): MockDb {
 
   const now = ago(0);
   const models: MockDb['models'] = [
-    { id: 'google/gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', description: 'Fast and inexpensive. A strong default for support.', input_price_per_mtok: 0.1, output_price_per_mtok: 0.4, context_tokens: 1_000_000, max_output_tokens: 8192, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: true, sort_order: 10, created_at: ago(90 * DAY), updated_at: now },
-    { id: 'openai/gpt-5-mini', label: 'GPT-5 mini', description: 'Balanced quality and cost, good at following instructions.', input_price_per_mtok: 0.25, output_price_per_mtok: 2, context_tokens: 400_000, max_output_tokens: 16384, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: false, sort_order: 20, created_at: ago(90 * DAY), updated_at: now },
-    { id: 'anthropic/claude-haiku-4.5', label: 'Claude Haiku 4.5', description: 'Natural, careful replies with reliable tool use.', input_price_per_mtok: 1, output_price_per_mtok: 5, context_tokens: 200_000, max_output_tokens: 8192, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: false, sort_order: 30, created_at: ago(80 * DAY), updated_at: now },
-    { id: 'anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5', description: 'The most capable option for complex products and long policies.', input_price_per_mtok: 3, output_price_per_mtok: 15, context_tokens: 200_000, max_output_tokens: 16384, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: false, sort_order: 40, created_at: ago(80 * DAY), updated_at: now },
-    { id: 'meta-llama/llama-4-maverick', label: 'Llama 4 Maverick', description: 'Open-weights model; no tool calling.', input_price_per_mtok: 0.15, output_price_per_mtok: 0.6, context_tokens: 1_000_000, max_output_tokens: 8192, supports_tools: false, supports_prompt_cache: false, status: 'active', is_default: false, sort_order: 50, created_at: ago(60 * DAY), updated_at: now },
-    { id: 'deepseek/deepseek-v3.2', label: 'DeepSeek V3.2', description: 'Kept for bots that already use it.', input_price_per_mtok: 0.27, output_price_per_mtok: 1.1, context_tokens: 128_000, max_output_tokens: 8192, supports_tools: true, supports_prompt_cache: false, status: 'hidden', is_default: false, sort_order: 60, created_at: ago(120 * DAY), updated_at: now },
+    { id: 'google/gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', description: 'Fast and inexpensive. A strong default for support.', input_price_per_mtok: 0.1, output_price_per_mtok: 0.4, fee_percent: null, commission_percent: null, pricing_synced_at: now, context_tokens: 1_000_000, max_output_tokens: 8192, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: true, sort_order: 10, created_at: ago(90 * DAY), updated_at: now },
+    { id: 'openai/gpt-5-mini', label: 'GPT-5 mini', description: 'Balanced quality and cost, good at following instructions.', input_price_per_mtok: 0.25, output_price_per_mtok: 2, fee_percent: null, commission_percent: null, pricing_synced_at: now, context_tokens: 400_000, max_output_tokens: 16384, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: false, sort_order: 20, created_at: ago(90 * DAY), updated_at: now },
+    { id: 'anthropic/claude-haiku-4.5', label: 'Claude Haiku 4.5', description: 'Natural, careful replies with reliable tool use.', input_price_per_mtok: 1, output_price_per_mtok: 5, fee_percent: null, commission_percent: null, pricing_synced_at: now, context_tokens: 200_000, max_output_tokens: 8192, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: false, sort_order: 30, created_at: ago(80 * DAY), updated_at: now },
+    { id: 'anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5', description: 'The most capable option for complex products and long policies.', input_price_per_mtok: 3, output_price_per_mtok: 15, fee_percent: null, commission_percent: null, pricing_synced_at: now, context_tokens: 200_000, max_output_tokens: 16384, supports_tools: true, supports_prompt_cache: true, status: 'active', is_default: false, sort_order: 40, created_at: ago(80 * DAY), updated_at: now },
+    { id: 'meta-llama/llama-4-maverick', label: 'Llama 4 Maverick', description: 'Open-weights model; no tool calling.', input_price_per_mtok: 0.15, output_price_per_mtok: 0.6, fee_percent: null, commission_percent: null, pricing_synced_at: now, context_tokens: 1_000_000, max_output_tokens: 8192, supports_tools: false, supports_prompt_cache: false, status: 'active', is_default: false, sort_order: 50, created_at: ago(60 * DAY), updated_at: now },
+    { id: 'deepseek/deepseek-v3.2', label: 'DeepSeek V3.2', description: 'Kept for bots that already use it.', input_price_per_mtok: 0.27, output_price_per_mtok: 1.1, fee_percent: null, commission_percent: null, pricing_synced_at: now, context_tokens: 128_000, max_output_tokens: 8192, supports_tools: true, supports_prompt_cache: false, status: 'hidden', is_default: false, sort_order: 60, created_at: ago(120 * DAY), updated_at: now },
   ];
 
   const templates: MockDb['templates'] = [

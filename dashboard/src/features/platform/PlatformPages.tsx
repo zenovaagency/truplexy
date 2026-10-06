@@ -10,14 +10,17 @@ import {
   MessagesSquare,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   ShieldCheck,
   Trash2,
   Users,
+  Wallet,
   Wrench,
 } from 'lucide-react';
 import { useBusinessTypes, useMe, usePlans } from '@/lib/api/endpoints/account';
 import {
+  useAdjustBalance,
   usePlatformModels,
   usePlatformOverview,
   usePlatformTemplates,
@@ -27,6 +30,8 @@ import {
   usePlatformTools,
   usePlatformUsage,
   usePlatformUsers,
+  useRefreshAllPricing,
+  useRefreshModelPricing,
   useSavePlatformModel,
   useSavePlatformTemplate,
   useTogglePlatformTool,
@@ -42,6 +47,7 @@ import { dayRange, formatCompact, formatCurrency, formatDate, formatMs, formatNu
 import { scopePath } from '@/lib/session/scope-context';
 import { BUILTIN_VARIABLES, renderTemplate, templateKeys } from '@/lib/template';
 import { OpenRouterPicker, priceDiffers } from './OpenRouterPicker';
+import { notifyInfo, notifySuccess } from '@/lib/notify';
 import { useOpenRouterModels } from '@/lib/openrouter';
 import { useDebounce } from '@/hooks';
 import {
@@ -110,7 +116,7 @@ export function PlatformOverview() {
           </div>
           <Card
             title="Model usage, last 30 days"
-            description={o ? `${formatCurrency(o.cost_this_month)} estimated cost this month.` : undefined}
+            description={o ? `This month: ${formatCurrency(o.cost_this_month)} OpenRouter cost, ${formatCurrency(o.billed_this_month)} billed to businesses. The chart shows OpenRouter's cost.` : undefined}
             actions={
               <Segmented size="xs" label="Metric" value={metric} onChange={setMetric} options={[{ value: 'requests', label: 'Requests' }, { value: 'total_tokens', label: 'Tokens' }, { value: 'estimated_cost', label: 'Cost' }]} />
             }
@@ -188,12 +194,24 @@ export function PlatformBusinesses() {
         </span>
       ),
     },
+    {
+      key: 'tokens',
+      header: 'Tokens',
+      align: 'right',
+      hideBelowLg: true,
+      cell: (b) => (
+        <span className="tabular-nums text-ink-muted">
+          {formatCompact(b.usage.tokens_this_month)} <span className="text-ink-faint">/ {b.limits.tokens_per_month > 0 ? formatCompact(b.limits.tokens_per_month) : '∞'}</span>
+        </span>
+      ),
+    },
+    { key: 'balance', header: 'Balance', align: 'right', cell: (b) => <span className="font-mono tabular-nums text-ink">{formatCurrency(b.balance)}</span> },
     { key: 'size', header: 'Team · bots', align: 'right', hideBelowLg: true, cell: (b) => <span className="tabular-nums text-ink-muted">{b.usage.members} · {b.usage.bots}</span> },
     { key: 'created', header: 'Created', align: 'right', hideBelowLg: true, cell: (b) => <span className="text-ink-muted">{formatDate(b.created_at)}</span> },
   ];
   return (
     <Page>
-      <PageHeader eyebrow="Platform" title="Businesses" description="Change a business's plan, override its limits, or suspend it." />
+      <PageHeader eyebrow="Platform" title="Businesses" description="Change a business's plan, override its limits, top up its balance, or suspend it." />
       <Card flush>
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
           <SearchBox value={search} onChange={setSearch} placeholder="Search name, ID or owner" />
@@ -212,11 +230,12 @@ export function PlatformBusinesses() {
   );
 }
 
-const LIMIT_FIELDS: { key: keyof Limits; label: string }[] = [
-  { key: 'replies_per_month', label: 'AI replies / month' },
-  { key: 'bots', label: 'Bots' },
-  { key: 'documents_per_bot', label: 'Documents / bot' },
-  { key: 'members', label: 'Members' },
+const LIMIT_FIELDS: { key: keyof Limits; label: string; max: number }[] = [
+  { key: 'replies_per_month', label: 'AI replies / month', max: 10_000_000 },
+  { key: 'tokens_per_month', label: 'Tokens / month', max: 100_000_000_000 },
+  { key: 'bots', label: 'Bots', max: 10_000_000 },
+  { key: 'documents_per_bot', label: 'Documents / bot', max: 10_000_000 },
+  { key: 'members', label: 'Members', max: 10_000_000 },
 ];
 
 function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; onClose: () => void }) {
@@ -252,7 +271,7 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
 
   const saveLimits = () => {
     const out: Partial<Limits> = {};
-    for (const f of LIMIT_FIELDS) if (limits[f.key] !== undefined && limits[f.key] !== '') out[f.key] = Math.max(0, Math.min(10_000_000, Math.round(Number(limits[f.key]))));
+    for (const f of LIMIT_FIELDS) if (limits[f.key] !== undefined && limits[f.key] !== '') out[f.key] = Math.max(0, Math.min(f.max, Math.round(Number(limits[f.key]))));
     update.mutate({ id: b.id, body: { limits: out } });
   };
 
@@ -291,17 +310,19 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
           <p className="mono text-ink-faint">Usage</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <LimitBar label="AI replies this month" used={b.usage.replies_this_month} limit={b.limits.replies_per_month} format={formatCompact} />
+            <LimitBar label="Tokens this month (plan)" used={b.usage.tokens_this_month} limit={b.limits.tokens_per_month} format={formatCompact} />
             <LimitBar label="Members" used={b.usage.members} limit={b.limits.members} />
             <LimitBar label="Bots" used={b.usage.bots} limit={b.limits.bots} />
           </div>
         </section>
+        <BalanceSection business={b} />
         <section className="grid gap-3">
           <p className="mono text-ink-faint">Limit overrides</p>
           <p className="text-xs text-ink-faint">Blank uses the plan's limit; 0 means unlimited. Saving replaces every override.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {LIMIT_FIELDS.map((f) => (
               <Field key={f.key} label={f.label}>
-                <Input type="number" min={0} max={10_000_000} placeholder={`Plan: ${formatNumber(plans.data?.find((p) => p.id === b.plan)?.limits[f.key])}`} value={limits[f.key] ?? ''} onChange={(e) => setLimits({ ...limits, [f.key]: e.target.value })} />
+                <Input type="number" min={0} max={f.max} placeholder={`Plan: ${formatNumber(plans.data?.find((p) => p.id === b.plan)?.limits[f.key])}`} value={limits[f.key] ?? ''} onChange={(e) => setLimits({ ...limits, [f.key]: e.target.value })} />
               </Field>
             ))}
           </div>
@@ -334,7 +355,7 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
                         {x.own_prompt && <Badge tone="warn">Own prompt</Badge>}
                       </span>
                       <span className="text-xs text-ink-faint">
-                        {x.model.split('/').pop()} · {pluralize(x.documents, 'document')} · {pluralize(x.replies_this_month, 'reply', 'replies')} · {formatCurrency(x.cost_this_month)} this month
+                        {x.model.split('/').pop()} · {pluralize(x.documents, 'document')} · {pluralize(x.replies_this_month, 'reply', 'replies')} · {formatCurrency(x.cost_this_month)} cost, {formatCurrency(x.billed_this_month)} billed this month
                       </span>
                     </li>
                   ))}
@@ -374,6 +395,67 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
         )}
       </div>
     </Sheet>
+  );
+}
+
+/** Credit or debit a business's balance; there is no payment provider. */
+function BalanceSection({ business: b }: { business: PlatformBusiness }) {
+  const adjust = useAdjustBalance();
+  const confirm = useConfirm();
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  useEffect(() => {
+    setAmount('');
+    setNote('');
+  }, [b.id]);
+
+  const n = Math.round(Number(amount) * 100) / 100;
+  const validAmount = Number.isFinite(n) && n > 0 && n <= 1_000_000;
+  const validNote = note.trim().length >= 1 && note.trim().length <= 200;
+
+  const submit = (sign: 1 | -1) =>
+    confirm({
+      title: sign > 0 ? `Credit ${formatCurrency(n)} to ${b.name}?` : `Debit ${formatCurrency(n)} from ${b.name}?`,
+      description: `The balance goes from ${formatCurrency(b.balance)} to ${formatCurrency(b.balance + sign * n)}. "${note.trim()}" shows in the business's balance history.`,
+      confirmLabel: sign > 0 ? 'Credit' : 'Debit',
+      tone: sign > 0 ? 'default' : 'danger',
+      onConfirm: () =>
+        adjust.mutateAsync({ id: b.id, amount: sign * n, note: note.trim() }).then(() => {
+          setAmount('');
+          setNote('');
+        }),
+    });
+
+  return (
+    <section className="grid gap-3">
+      <p className="mono text-ink-faint">Balance</p>
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 place-items-center rounded-[12px] bg-accent-soft text-accent">
+          <Wallet className="size-5" />
+        </span>
+        <span className="grid">
+          <span className="font-mono text-xl font-semibold tabular-nums text-ink">{formatCurrency(b.balance)}</span>
+          <span className="text-xs text-ink-faint">Pays for extra tokens and for replies past the month's tokens.</span>
+        </span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+        <Field label="Amount (USD)">
+          <Input type="number" min={0.01} max={1_000_000} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="100.00" />
+        </Field>
+        <Field label="Note" aside={`${note.length}/200`} hint="Shown in the business's history, such as a bank transfer reference.">
+          <Input value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder="Bank transfer INV-1100" />
+        </Field>
+      </div>
+      <div className="flex gap-2">
+        <Button size="xs" variant="soft" disabled={!validAmount || !validNote} loading={adjust.isPending && (adjust.variables?.amount ?? 0) > 0} onClick={() => void submit(1)}>
+          Credit
+        </Button>
+        <Button size="xs" variant="danger-ghost" disabled={!validAmount || !validNote || n > b.balance} loading={adjust.isPending && (adjust.variables?.amount ?? 0) < 0} onClick={() => void submit(-1)}>
+          Debit
+        </Button>
+        {validAmount && n > b.balance && <span className="self-center text-xs text-ink-faint">A debit can't take the balance below zero.</span>}
+      </div>
+    </section>
   );
 }
 
@@ -596,13 +678,13 @@ export function PlatformUsage() {
   const range = useMemo(() => dayRange(Number(days)), [days]);
   const q = usePlatformUsage(range, group);
   const rows = q.data?.data ?? [];
-  const total = rows.reduce((a, r) => ({ cost: a.cost + r.estimated_cost, req: a.req + r.requests, tok: a.tok + r.total_tokens }), { cost: 0, req: 0, tok: 0 });
+  const total = rows.reduce((a, r) => ({ cost: a.cost + r.estimated_cost, billed: a.billed + r.billed_cost, req: a.req + r.requests, tok: a.tok + r.total_tokens }), { cost: 0, billed: 0, req: 0, tok: 0 });
   return (
     <Page>
       <PageHeader
         eyebrow="Platform"
         title="Usage"
-        description={q.data ? `${formatNumber(total.req)} requests · ${formatCompact(total.tok)} tokens · ${formatCurrency(total.cost)} estimated` : 'Model usage across every business.'}
+        description={q.data ? `${formatNumber(total.req)} requests · ${formatCompact(total.tok)} tokens · ${formatCurrency(total.cost)} OpenRouter cost · ${formatCurrency(total.billed)} billed` : 'Model usage across every business.'}
         actions={
           <>
             <Segmented label="Group by" value={group} onChange={setGroup} options={[{ value: 'tenant', label: 'Business' }, { value: 'model', label: 'Model' }, { value: 'day', label: 'Day' }]} />
@@ -614,11 +696,19 @@ export function PlatformUsage() {
         <Card><ErrorState error={q.error} onRetry={() => q.refetch()} /></Card>
       ) : (
         <>
-          <Card title={group === 'day' ? 'Cost per day' : `Cost by ${group === 'tenant' ? 'business' : 'model'}`}>
+          <Card title={group === 'day' ? 'Cost and billed per day' : `OpenRouter cost by ${group === 'tenant' ? 'business' : 'model'}`}>
             {!q.data ? (
               <Skeleton className="h-[240px]" />
             ) : group === 'day' ? (
-              <TrendChart data={rows.map((r) => ({ ...r, date: r.key }))} series={[{ key: 'estimated_cost', label: 'Cost', slot: 1 }]} kind="bar" format={formatCurrency} />
+              <TrendChart
+                data={rows.map((r) => ({ ...r, date: r.key }))}
+                series={[
+                  { key: 'estimated_cost', label: 'OpenRouter cost', slot: 1 },
+                  { key: 'billed_cost', label: 'Billed', slot: 2 },
+                ]}
+                kind="bar"
+                format={formatCurrency}
+              />
             ) : (
               <BarList items={[...rows].sort((a, b) => b.estimated_cost - a.estimated_cost).slice(0, 10).map((r) => ({ key: r.key, label: r.label, value: r.estimated_cost, hint: `${formatNumber(r.requests)} req` }))} format={formatCurrency} />
             )}
@@ -637,7 +727,8 @@ export function PlatformUsage() {
                   { key: 'in', header: 'Input', align: 'right', hideBelowLg: true, cell: (r) => <span className="tabular-nums text-ink-muted">{formatCompact(r.input_tokens)}</span> },
                   { key: 'out', header: 'Output', align: 'right', hideBelowLg: true, cell: (r) => <span className="tabular-nums text-ink-muted">{formatCompact(r.output_tokens)}</span> },
                   { key: 'cache', header: 'Cached', align: 'right', hideBelowLg: true, cell: (r) => <span className="tabular-nums text-ink-muted">{formatCompact(r.cached_tokens)}</span> },
-                  { key: 'cost', header: 'Cost', align: 'right', cell: (r) => <span className="tabular-nums font-semibold text-ink">{formatCurrency(r.estimated_cost)}</span> },
+                  { key: 'cost', header: 'Cost', align: 'right', cell: (r) => <span className="tabular-nums text-ink-muted">{formatCurrency(r.estimated_cost)}</span> },
+                  { key: 'billed', header: 'Billed', align: 'right', cell: (r) => <span className="tabular-nums font-semibold text-ink">{formatCurrency(r.billed_cost)}</span> },
                   { key: 'lat', header: 'Latency', align: 'right', hideBelowLg: true, cell: (r) => <span className="tabular-nums text-ink-muted">{formatMs(r.avg_latency_ms)}</span> },
                 ]}
               />
@@ -659,6 +750,8 @@ const EMPTY_MODEL: ModelInput = {
   description: '',
   input_price_per_mtok: 0,
   output_price_per_mtok: 0,
+  fee_percent: null,
+  commission_percent: null,
   context_tokens: 128_000,
   max_output_tokens: 8192,
   supports_tools: true,
@@ -671,14 +764,27 @@ const EMPTY_MODEL: ModelInput = {
 export function PlatformModels() {
   const q = usePlatformModels();
   const or = useOpenRouterModels();
+  const refreshAll = useRefreshAllPricing();
   const [edit, setEdit] = useState<PlatformModel | 'new' | null>(null);
+  const refresh = () =>
+    refreshAll.mutate(undefined, {
+      onSuccess: (r) =>
+        r.failed.length
+          ? notifyInfo(`Refreshed ${pluralize(r.models.length, 'model')}; ${r.failed.length} kept their prices`, r.failed.map((f) => `${f.id}: ${f.error}`).join(' · '))
+          : notifySuccess(`Refreshed ${pluralize(r.models.length, 'model')} from OpenRouter`),
+    });
   return (
     <Page>
       <PageHeader
         eyebrow="Platform"
         title="Models"
-        description="The models businesses can choose from, with OpenRouter's current list prices beside yours. Models are never deleted: retire one and its bots move to the default."
-        actions={<Button variant="accent" leading={<Plus />} onClick={() => setEdit('new')}>Add model</Button>}
+        description="The models businesses can choose from. Businesses pay OpenRouter's price plus each model's fee and commission. Models are never deleted: retire one and its bots move to the default."
+        actions={
+          <>
+            <Button variant="ghost" leading={<RefreshCw />} loading={refreshAll.isPending} onClick={refresh}>Refresh all prices</Button>
+            <Button variant="accent" leading={<Plus />} onClick={() => setEdit('new')}>Add model</Button>
+          </>
+        }
       />
       <Card flush>
         {q.isPending ? (
@@ -704,11 +810,36 @@ export function PlatformModels() {
                 ),
               },
               { key: 'status', header: 'Status', cell: (m) => <Badge tone={STATUS_TONE[m.status]} dot className="capitalize">{m.status}</Badge> },
-              { key: 'price', header: 'Your price in / out per M', align: 'right', cell: (m) => <span className="whitespace-nowrap font-mono text-xs tabular-nums text-ink">{formatPerM(m.input_price_per_mtok)} / {formatPerM(m.output_price_per_mtok)}</span> },
+              {
+                key: 'price',
+                header: 'OpenRouter in / out per M',
+                align: 'right',
+                cell: (m) => (
+                  <span className="grid justify-items-end">
+                    <span className="whitespace-nowrap font-mono text-xs tabular-nums text-ink">{formatPerM(m.input_price_per_mtok)} / {formatPerM(m.output_price_per_mtok)}</span>
+                    <span className="text-[0.68rem] text-ink-faint">{m.pricing_synced_at ? `synced ${formatRelative(m.pricing_synced_at)}` : 'entered by hand'}</span>
+                  </span>
+                ),
+              },
+              {
+                key: 'markup',
+                header: 'Markup',
+                align: 'right',
+                hideBelowLg: true,
+                cell: (m) => (
+                  <Tip content={`${m.effective_fee_percent}% fee + ${m.effective_commission_percent}% commission${m.fee_percent == null && m.commission_percent == null ? ' (platform defaults)' : ''}`}>
+                    <span className="tabular-nums text-ink-muted">
+                      {+(m.effective_fee_percent + m.effective_commission_percent).toFixed(2)}%{(m.fee_percent != null || m.commission_percent != null) && <span className="text-accent">*</span>}
+                    </span>
+                  </Tip>
+                ),
+              },
+              { key: 'billed', header: 'Billed in / out', align: 'right', cell: (m) => <span className="whitespace-nowrap font-mono text-xs font-semibold tabular-nums text-ink">{formatPerM(m.billed_input_price_per_mtok)} / {formatPerM(m.billed_output_price_per_mtok)}</span> },
               {
                 key: 'openrouter',
-                header: 'OpenRouter',
+                header: 'OpenRouter now',
                 align: 'right',
+                hideBelowLg: true,
                 cell: (m) => {
                   const p = or.data?.byId.get(m.id);
                   if (!p) return <span className="text-xs text-ink-faint">{or.isPending ? '…' : 'Not listed'}</span>;
@@ -734,20 +865,56 @@ export function PlatformModels() {
   );
 }
 
+/** Platform defaults (PRICE_FEE_PERCENT, PRICE_COMMISSION_PERCENT), read off any model on the platform default. */
+function usePlatformMarkup() {
+  const models = usePlatformModels().data ?? [];
+  return {
+    fee: models.find((x) => x.fee_percent == null)?.effective_fee_percent,
+    commission: models.find((x) => x.commission_percent == null)?.effective_commission_percent,
+  };
+}
+
 function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; onClose: () => void }) {
   const save = useSavePlatformModel();
+  const refresh = useRefreshModelPricing();
   const confirm = useConfirm();
   const or = useOpenRouterModels();
+  const defaults = usePlatformMarkup();
   const existing = model && model !== 'new' ? model : null;
   const [m, setM] = useState<ModelInput>(EMPTY_MODEL);
+  // New models can leave pricing to the API, which reads it from OpenRouter.
+  const [serverPrices, setServerPrices] = useState(true);
   useEffect(() => {
     if (!model) return;
     if (existing) {
-      const { bots: _b, created_at: _c, updated_at: _u, ...rest } = existing;
+      const {
+        bots: _b,
+        created_at: _c,
+        updated_at: _u,
+        pricing_synced_at: _p,
+        effective_fee_percent: _ef,
+        effective_commission_percent: _ec,
+        billed_input_price_per_mtok: _bi,
+        billed_output_price_per_mtok: _bo,
+        ...rest
+      } = existing;
       setM(rest);
-    } else setM(EMPTY_MODEL);
+    } else {
+      setM(EMPTY_MODEL);
+      setServerPrices(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model]);
+  // Keep the sheet's prices in step after a refresh from OpenRouter.
+  useEffect(() => {
+    if (existing) setM((x) => ({ ...x, input_price_per_mtok: existing.input_price_per_mtok, output_price_per_mtok: existing.output_price_per_mtok }));
+  }, [existing?.input_price_per_mtok, existing?.output_price_per_mtok]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fee = m.fee_percent ?? existing?.effective_fee_percent ?? defaults.fee;
+  const commission = m.commission_percent ?? existing?.effective_commission_percent ?? defaults.commission;
+  const markup = fee != null && commission != null ? 1 + (fee + commission) / 100 : null;
+  const pct = (k: 'fee_percent' | 'commission_percent') => (e: React.ChangeEvent<HTMLInputElement>) =>
+    set(k, e.target.value === '' ? null : Math.max(0, Math.min(1000, Number(e.target.value))));
 
   const set = <K extends keyof ModelInput>(k: K, v: ModelInput[K]) => setM((x) => ({ ...x, [k]: v }));
   const num = (k: keyof ModelInput) => (e: React.ChangeEvent<HTMLInputElement>) => set(k, Number(e.target.value) as never);
@@ -765,7 +932,9 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
       max_output_tokens: p.maxOutput ?? 0,
       supports_tools: p.tools,
     }));
-  const valid = /^[a-z0-9-]+\/[a-z0-9._:-]+$/i.test(m.id) && m.label.trim().length > 0 && !(m.is_default && m.status !== 'active');
+  const fromServer = !existing && serverPrices;
+  // With prices from OpenRouter, the API fills the label too.
+  const valid = /^[a-z0-9-]+\/[a-z0-9._:-]+$/i.test(m.id) && (fromServer || m.label.trim().length > 0) && !(m.is_default && m.status !== 'active');
 
   const submit = async () => {
     if (existing && existing.bots > 0 && m.status === 'retired' && existing.status !== 'retired') {
@@ -777,7 +946,13 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
       });
       if (!ok) return;
     }
-    save.mutate({ existing: Boolean(existing), body: m }, { onSuccess: onClose });
+    let body: Partial<ModelInput> = m;
+    if (fromServer) {
+      const { input_price_per_mtok: _i, output_price_per_mtok: _o, ...rest } = m;
+      // Send only what was entered; the API reads the rest from OpenRouter.
+      body = Object.fromEntries(Object.entries(rest).filter(([k, v]) => !(k === 'label' && v === '') && !(k === 'description' && v === ''))) as Partial<ModelInput>;
+    }
+    save.mutate({ existing: Boolean(existing), body }, { onSuccess: onClose });
   };
 
   return (
@@ -800,16 +975,24 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
             <OpenRouterPicker onPick={fill} />
           </Field>
         )}
+        {!existing && (
+          <Switch
+            checked={serverPrices}
+            onCheckedChange={setServerPrices}
+            label="Read prices from OpenRouter"
+            description="Truplexy reads the prices, and the label if left blank, when you save. Turn off to enter prices yourself."
+          />
+        )}
         <Field label="Model ID" hint="vendor/model, as on OpenRouter. Can't change later.">
           <Input value={m.id} disabled={Boolean(existing)} className="font-mono" onChange={(e) => set('id', e.target.value.trim())} placeholder="google/gemini-3.1-flash-lite" />
         </Field>
-        <Field label="Label" aside={`${m.label.length}/80`}>
+        <Field label="Label" optional={fromServer} aside={`${m.label.length}/80`}>
           <Input value={m.label} onChange={(e) => set('label', e.target.value.slice(0, 80))} />
         </Field>
         <Field label="Description" optional aside={`${m.description.length}/300`} hint="Businesses see this when choosing.">
           <Textarea rows={2} value={m.description} onChange={(e) => set('description', e.target.value.slice(0, 300))} />
         </Field>
-        {listed && drift && (
+        {listed && drift && !fromServer && (
           <Callout tone="warn" title="OpenRouter's list price is different">
             OpenRouter lists {formatPerM(listed.inPerM)} in / {formatPerM(listed.outPerM)} out per million tokens.
             <Button
@@ -821,9 +1004,40 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
             </Button>
           </Callout>
         )}
+        {existing && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line p-3 text-xs">
+            <span className="text-ink-muted">
+              {existing.pricing_synced_at ? `Prices read from OpenRouter ${formatRelative(existing.pricing_synced_at)}.` : 'Prices were entered by hand.'} Replies already made keep what they were billed.
+            </span>
+            <Button size="xs" variant="soft" leading={<RefreshCw />} loading={refresh.isPending} onClick={() => refresh.mutate(existing.id)}>
+              Refresh from OpenRouter
+            </Button>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Input $ / M tokens"><Input type="number" min={0} step="0.01" value={m.input_price_per_mtok} onChange={num('input_price_per_mtok')} /></Field>
-          <Field label="Output $ / M tokens"><Input type="number" min={0} step="0.01" value={m.output_price_per_mtok} onChange={num('output_price_per_mtok')} /></Field>
+          <Field label="OpenRouter input $ / M">
+            <Input type="number" min={0} step="0.01" disabled={fromServer} placeholder={fromServer ? 'From OpenRouter' : undefined} value={fromServer ? '' : m.input_price_per_mtok} onChange={num('input_price_per_mtok')} />
+          </Field>
+          <Field label="OpenRouter output $ / M">
+            <Input type="number" min={0} step="0.01" disabled={fromServer} placeholder={fromServer ? 'From OpenRouter' : undefined} value={fromServer ? '' : m.output_price_per_mtok} onChange={num('output_price_per_mtok')} />
+          </Field>
+          <Field label="Fee %" optional hint={`Blank uses the platform's${defaults.fee != null ? ` (${defaults.fee}%)` : ''}.`}>
+            <Input type="number" min={0} max={1000} step="0.1" value={m.fee_percent ?? ''} placeholder={defaults.fee != null ? String(defaults.fee) : 'Default'} onChange={pct('fee_percent')} />
+          </Field>
+          <Field label="Commission %" optional hint={`Blank uses the platform's${defaults.commission != null ? ` (${defaults.commission}%)` : ''}.`}>
+            <Input type="number" min={0} max={1000} step="0.1" value={m.commission_percent ?? ''} placeholder={defaults.commission != null ? String(defaults.commission) : 'Default'} onChange={pct('commission_percent')} />
+          </Field>
+        </div>
+        {markup != null && !fromServer && (
+          <p className="rounded-[12px] bg-surface-2 px-3 py-2 text-xs text-ink-muted">
+            Businesses pay{' '}
+            <span className="font-mono font-semibold tabular-nums text-ink">
+              {formatPerM(+(m.input_price_per_mtok * markup).toFixed(6))} / {formatPerM(+(m.output_price_per_mtok * markup).toFixed(6))}
+            </span>{' '}
+            per million tokens in / out ({+(fee! + commission!).toFixed(2)}% on top of OpenRouter).
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Context tokens"><Input type="number" min={0} value={m.context_tokens} onChange={num('context_tokens')} /></Field>
           <Field label="Max output" hint="0 = no cap"><Input type="number" min={0} value={m.max_output_tokens} onChange={num('max_output_tokens')} /></Field>
           <Field label="Sort order" hint="Lower shows first"><Input type="number" value={m.sort_order} onChange={num('sort_order')} /></Field>
