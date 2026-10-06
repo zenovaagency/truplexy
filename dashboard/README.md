@@ -20,7 +20,7 @@ Copy `.env.example` to `.env.local`:
 
 | Variable | Meaning |
 | --- | --- |
-| `VITE_API_BASE_URL` | The API, e.g. `https://api.truplexy.com/v2` |
+| `VITE_API_BASE_URL` | The API, e.g. `https://api.zenovasolution.xyz/v2` |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase Auth, for sign-in and live updates |
 | `VITE_DASHBOARD_URL` | This app's public URL, used in invitation links |
 | `VITE_USE_MOCKS` | `true` serves every call from the in-browser mock API |
@@ -36,10 +36,10 @@ When pointing at a real API:
 
 ## Deploying
 
-The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.truplexy.com`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.
+The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.zenovasolution.xyz`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.
 
 - Set the `VITE_*` variables in the Vercel project's environment. They are read at build time, so redeploy after changing them. Use `VITE_USE_MOCKS=false` for production; `true` gives a demo deploy.
-- Add `https://app.truplexy.com` to the API's `CORS_ALLOWED_ORIGINS` and the R2 bucket's CORS, and `https://app.truplexy.com/auth/callback` to Supabase Auth's redirect URLs.
+- Add `https://app.zenovasolution.xyz` to the API's `CORS_ALLOWED_ORIGINS` and the R2 bucket's CORS, and `https://app.zenovasolution.xyz/auth/callback` to Supabase Auth's redirect URLs.
 - Run both services locally with `vercel dev` from the repo root, then open `http://app.localhost:3000`.
 
 ## Demo mode

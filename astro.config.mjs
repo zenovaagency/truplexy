@@ -8,7 +8,7 @@ import tailwindcss from '@tailwindcss/vite';
 // `site` feeds canonical URLs, OG URLs and the sitemap. It mirrors SITE.url
 // in src/data/site.ts — change both together when the domain is confirmed.
 export default defineConfig({
-  site: 'https://truplexy.com',
+  site: 'https://zenovasolution.xyz',
 
   integrations: [react(), sitemap()],
 

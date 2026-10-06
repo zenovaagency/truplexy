@@ -1,7 +1,7 @@
 import { env } from '@/lib/env';
 
 /** The API base integrators call: the real URL, even in demo mode. */
-export const PUBLIC_API = /^https?:\/\//.test(env.apiBaseUrl) ? env.apiBaseUrl : 'https://api.truplexy.com/v2';
+export const PUBLIC_API = /^https?:\/\//.test(env.apiBaseUrl) ? env.apiBaseUrl : 'https://api.zenovasolution.xyz/v2';
 
 export type Lang = 'node' | 'python' | 'php' | 'go' | 'java' | 'csharp' | 'ruby';
 
