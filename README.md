@@ -15,6 +15,12 @@ Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mir
 | `npm run verify` | Honesty audit of `dist/index.html` (run after build) |
 | `npm run brand` | Regenerate trimmed logos, favicons and the OG card from `/logo` |
 
+## Deploying
+
+`vercel.json` deploys this site and the dashboard (`dashboard/`) as one Vercel project with two
+services: `dashboard` on `app.` hosts (`app.truplexy.com`), `site` on every other host.
+`vercel dev` runs both locally (the dashboard at `http://app.localhost:3000`).
+
 ## Where things live
 
 - `src/data/channels.ts` — **channel registry**. Every badge, diagram node and footer
@@ -29,7 +35,7 @@ Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mir
 
 Search for `PLACEHOLDER`:
 
-- `src/data/site.ts` — domain, contact email, sign-up URL and demo-booking URL (currently
+- `src/data/site.ts` — domain, dashboard URL, contact email, sign-up URL and demo-booking URL (currently
   `mailto:` links). The domain is also set in `astro.config.mjs` (`site`) and `public/robots.txt`.
 - `src/components/home/Context.astro` — the one-line privacy note under "No unnecessary
   repetition". Confirm it matches how Truplexy actually handles conversation data.

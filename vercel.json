@@ -1,0 +1,27 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "site": {
+      "root": ".",
+      "framework": "astro"
+    },
+    "dashboard": {
+      "root": "dashboard",
+      "framework": "vite",
+      "rewrites": [
+        { "source": "/(.*)", "destination": "/index.html" }
+      ]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": { "pre": "app." } }],
+      "destination": { "service": "dashboard" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "site" }
+    }
+  ]
+}

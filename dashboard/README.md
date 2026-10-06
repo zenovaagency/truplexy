@@ -34,6 +34,14 @@ When pointing at a real API:
 - Allow `PUT` from that origin on the R2 bucket, so knowledge uploads can go straight to storage.
 - Add `<VITE_DASHBOARD_URL>/auth/callback` to Supabase Auth's redirect URLs, for magic links and Google.
 
+## Deploying
+
+The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.truplexy.com`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.
+
+- Set the `VITE_*` variables in the Vercel project's environment. They are read at build time, so redeploy after changing them. Use `VITE_USE_MOCKS=false` for production; `true` gives a demo deploy.
+- Add `https://app.truplexy.com` to the API's `CORS_ALLOWED_ORIGINS` and the R2 bucket's CORS, and `https://app.truplexy.com/auth/callback` to Supabase Auth's redirect URLs.
+- Run both services locally with `vercel dev` from the repo root, then open `http://app.localhost:3000`.
+
 ## Demo mode
 
 `npm run dev:mock` signs you in as Alex Rivera, with four sample businesses, tickets, documents, tools, keys and 30 days of usage. Data is kept in `localStorage` and refreshed daily.
