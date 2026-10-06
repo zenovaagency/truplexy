@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useOutletContext, useSearchParams } from 'react-router';
-import { BookOpen, CheckCircle2, FilePlus2, FileText, FlaskConical, Search, Sparkles, TriangleAlert, Upload } from 'lucide-react';
+import { BookOpen, CheckCircle2, FilePlus2, FileText, FlaskConical, Infinity as InfinityIcon, Search, Sparkles, TriangleAlert, Upload } from 'lucide-react';
 import { useTenant } from '@/lib/api/endpoints/business';
 import { useDocuments, useSearchKnowledge } from '@/lib/api/endpoints/knowledge';
 import type { KnowledgeDocument, SearchFilters } from '@/lib/api/types';
@@ -147,6 +147,11 @@ export function DocumentsTab() {
   // 0 means unlimited, for both the plan and the server.
   const planMax = tenant.data?.limits.documents_per_bot || Infinity;
   const max = Math.min(meta?.max_documents || Infinity, planMax);
+  const capacityReady = Boolean(meta && tenant.data);
+  const used = meta?.total ?? 0;
+  const limited = Number.isFinite(max);
+  const usage = limited ? used / max : 0;
+  const capacityTone = usage >= 1 ? 'danger' : usage >= 0.9 ? 'warn' : 'accent';
 
   const columns: Column<KnowledgeDocument>[] = [
     {
@@ -194,21 +199,36 @@ export function DocumentsTab() {
 
   return (
     <div className="grid gap-5">
-      <div className="panel grid w-full max-w-sm content-center gap-2 p-4">
-        <div className="flex items-baseline justify-between text-xs">
-          <span className="font-semibold text-ink">Capacity</span>
-          <span className="font-mono tabular-nums text-ink-faint">
-            {formatNumber(meta?.total ?? 0)} / {Number.isFinite(max) ? formatNumber(max) : '—'}
-          </span>
-        </div>
-        <Progress value={Number.isFinite(max) && meta ? meta.total / max : 0} tone={meta && meta.total / max >= 0.9 ? 'warn' : 'accent'} label="Documents used" />
-        <span className="text-[0.7rem] text-ink-faint">Documents for this bot on your plan</span>
-      </div>
       <Card flush>
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
           <div className="relative min-w-[220px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
             <Input size="sm" className="pl-9" placeholder="Search titles and file names" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search documents" />
+          </div>
+          <div className="flex w-full shrink-0 items-center justify-between gap-4 text-xs sm:w-auto sm:justify-end" aria-live="polite">
+            {capacityReady ? (
+              <>
+                <div className="grid gap-1 sm:text-right">
+                  <span className="inline-flex items-center gap-1 text-ink-muted">
+                    <span className="font-semibold tabular-nums text-ink">{formatNumber(used)}</span>
+                    <span>/</span>
+                    {limited ? (
+                      <span className="tabular-nums">{formatNumber(max)}</span>
+                    ) : (
+                      <span role="img" aria-label="Unlimited capacity">
+                        <InfinityIcon className="size-3.5" aria-hidden="true" />
+                      </span>
+                    )} documents
+                  </span>
+                  {limited && usage >= 1 && (
+                    <span className="text-[0.7rem] text-danger">Limit reached</span>
+                  )}
+                </div>
+                {limited && <Progress value={usage} tone={capacityTone} className="w-20" label="Document capacity used" />}
+              </>
+            ) : (
+              <span className="text-ink-faint">{all.isError || tenant.isError ? 'Capacity unavailable' : 'Loading capacity…'}</span>
+            )}
           </div>
         </div>
         {list.isPending ? (
