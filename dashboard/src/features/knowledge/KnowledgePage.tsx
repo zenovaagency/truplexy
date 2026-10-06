@@ -299,6 +299,10 @@ export function SearchTab() {
   const [topK, setTopK] = useState(4);
   const [filters, setFilters] = useState<SearchFilters>({});
   const r = search.data;
+  const degraded = r?.result.degraded ?? [];
+  const passages = r?.result.passages ?? [];
+  const hits = r?.hits ?? [];
+  const trace = r?.trace ?? {};
 
   const run = (e: React.FormEvent) => {
     e.preventDefault();
@@ -307,8 +311,8 @@ export function SearchTab() {
     search.mutate({ query: query.trim(), top_k: topK, filters: Object.keys(f).length ? f : undefined });
   };
 
-  const timings = r ? TIMINGS.map(([k, label]) => ({ k, label, v: Number(r.trace[k] ?? 0) })).filter((t) => t.v > 0) : [];
-  const total = r ? Number(r.trace.total_ms ?? r.trace.retrieval_ms ?? 0) : 0;
+  const timings = TIMINGS.map(([k, label]) => ({ k, label, v: Number(trace[k] ?? 0) })).filter((t) => t.v > 0);
+  const total = Number(trace.total_ms ?? trace.retrieval_ms ?? 0);
 
   return (
     <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -358,9 +362,9 @@ export function SearchTab() {
               <Badge tone="outline">{r.result.candidates} candidates</Badge>
               <Badge tone="outline">{formatNumber(r.result.context_tokens)} context tokens</Badge>
               <Badge tone="outline">{formatMs(total)}</Badge>
-              {r.trace.rewrite && r.trace.rewrite !== r.result.query && (
+              {trace.rewrite && trace.rewrite !== r.result.query && (
                 <span className="text-xs text-ink-faint">
-                  Rewritten as “<span className="text-ink">{String(r.trace.rewrite)}</span>”
+                  Rewritten as “<span className="text-ink">{String(trace.rewrite)}</span>”
                 </span>
               )}
             </div>
@@ -369,16 +373,16 @@ export function SearchTab() {
                 The assistant would likely say it doesn't know, or hand off. Add a document that answers this question.
               </Callout>
             )}
-            {r.result.degraded.length > 0 && (
+            {degraded.length > 0 && (
               <Callout tone="warn" icon={<TriangleAlert />} title="Some stages were skipped">
-                {r.result.degraded.join(', ')} failed, so results may be less accurate.
+                {degraded.join(', ')} failed, so results may be less accurate.
               </Callout>
             )}
 
             <Card title="Passages the model reads" description="Numbered as they appear in the prompt.">
-              {r.result.passages.length ? (
+              {passages.length ? (
                 <ol className="grid gap-3">
-                  {r.result.passages.map((p, i) => (
+                  {passages.map((p, i) => (
                     <li key={p.id} className="grid gap-1.5 rounded-[12px] border border-line p-3.5">
                       <div className="flex items-center gap-2">
                         <span className="grid size-6 place-items-center rounded-[7px] bg-accent-soft font-mono text-xs font-bold text-accent">{i + 1}</span>
@@ -410,7 +414,7 @@ export function SearchTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {r.hits.map((h, i) => (
+                    {hits.map((h, i) => (
                       <tr key={h.id} className={cn(!h.selected && 'opacity-60')}>
                         <td className="font-mono text-xs">{i + 1}</td>
                         <td>

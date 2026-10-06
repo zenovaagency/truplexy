@@ -328,15 +328,15 @@ export interface SearchResult {
   result: {
     query: string;
     confidence: 'high' | 'low' | 'none';
-    passages: Passage[];
+    passages?: Passage[] | null;
     sources: unknown[];
     context_tokens: number;
     candidates: number;
     fallback: boolean;
-    degraded: string[];
+    degraded?: string[] | null;
   };
-  hits: SearchHit[];
-  trace: {
+  hits?: SearchHit[] | null;
+  trace?: {
     query?: string;
     rewrite?: string;
     stages?: Record<string, unknown>;
@@ -349,7 +349,7 @@ export interface SearchResult {
     retrieval_ms?: number;
     total_ms?: number;
     [k: string]: unknown;
-  };
+  } | null;
 }
 
 /* ------------------------------------------------------------------ */
