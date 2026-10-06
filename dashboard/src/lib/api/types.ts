@@ -275,7 +275,7 @@ export interface DocumentList {
   counts: Partial<Record<DocumentStatus, number>>;
   max_documents: number;
   max_file_bytes: number;
-  accept: string[];
+  accept: string[] | string;
 }
 
 export interface UploadRegistration {

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useOutletContext, useSearchParams } from 'react-router';
-import { BookOpen, CheckCircle2, FilePlus2, FileText, FlaskConical, Loader2, Search, Sparkles, TriangleAlert, Upload } from 'lucide-react';
+import { BookOpen, CheckCircle2, FilePlus2, FileText, FlaskConical, Search, Sparkles, TriangleAlert, Upload } from 'lucide-react';
 import { useTenant } from '@/lib/api/endpoints/business';
 import { useDocuments, useSearchKnowledge } from '@/lib/api/endpoints/knowledge';
-import type { DocumentStatus, KnowledgeDocument, SearchFilters } from '@/lib/api/types';
+import type { KnowledgeDocument, SearchFilters } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatBytes, formatMs, formatNumber, formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
@@ -28,7 +28,7 @@ import {
   Tip,
   type Column,
 } from '@/components/ui';
-import { DOC_STATUS, DocStatusBadge } from '@/components/domain/badges';
+import { DocStatusBadge } from '@/components/domain/badges';
 import { ArticleEditor, DocumentSheet, UploadDialog } from './dialogs';
 
 interface Ctx {
@@ -47,6 +47,12 @@ export default function KnowledgePage() {
   // The documents query already has the limits; reuse its cache.
   const docs = useDocuments({});
   const first = docs.data?.pages[0];
+  const accept = first?.accept;
+  const uploadAccept = typeof accept === 'string'
+    ? accept.split(',')
+    : Array.isArray(accept) && accept.every((ext) => typeof ext === 'string')
+      ? accept
+      : DEFAULT_ACCEPT;
 
   const setParam = (k: string, v?: string) =>
     setParams(
@@ -101,7 +107,7 @@ export default function KnowledgePage() {
           <UploadDialog
             open={params.get('upload') === '1'}
             onOpenChange={(o) => !o && setParam('upload')}
-            accept={first?.accept ?? DEFAULT_ACCEPT}
+            accept={uploadAccept}
             maxFileBytes={first?.max_file_bytes ?? 25 * 1024 * 1024}
             onOpenDocument={ctx.openDoc}
           />
@@ -128,16 +134,12 @@ export default function KnowledgePage() {
 
 /* ------------------------------------------------------------------ */
 
-const STATUS_ORDER: DocumentStatus[] = ['indexed', 'processing', 'failed', 'pending_upload'];
-const STATUS_ICON = { indexed: CheckCircle2, processing: Loader2, failed: TriangleAlert, pending_upload: Upload };
-
 export function DocumentsTab() {
   const { can } = useScopeCtx();
   const { openUpload, openArticle, openDoc } = useOutletContext<Ctx>();
   const [search, setSearch] = useState('');
   const q = useDebounce(search.trim(), 300);
-  const [status, setStatus] = useState<DocumentStatus | undefined>();
-  const list = useDocuments({ q: q || undefined, status });
+  const list = useDocuments({ q: q || undefined });
   const all = useDocuments({});
   const tenant = useTenant();
   const docs = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
@@ -192,55 +194,22 @@ export function DocumentsTab() {
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {STATUS_ORDER.map((s) => {
-          const Icon = STATUS_ICON[s];
-          const n = meta?.counts[s] ?? 0;
-          const active = status === s;
-          return (
-            <button
-              key={s}
-              type="button"
-              aria-pressed={active}
-              onClick={() => setStatus(active ? undefined : s)}
-              className={cn('panel flex items-center gap-3 p-4 text-left transition-all hover:border-line-strong', active && 'border-accent ring-2 ring-accent/20')}
-            >
-              <span className={cn('grid size-9 place-items-center rounded-[10px]', s === 'failed' && n ? 'bg-danger-soft text-danger' : 'bg-surface-2 text-ink-faint')}>
-                <Icon className={cn('size-4', s === 'processing' && n > 0 && 'animate-spin')} />
-              </span>
-              <span className="grid">
-                <span className="text-xl font-bold tabular-nums text-ink">{formatNumber(n)}</span>
-                <span className="text-xs text-ink-faint">{DOC_STATUS[s].label}</span>
-              </span>
-            </button>
-          );
-        })}
-        <div className="panel grid content-center gap-2 p-4 sm:col-span-2 xl:col-span-1">
-          <div className="flex items-baseline justify-between text-xs">
-            <span className="font-semibold text-ink">Capacity</span>
-            <span className="font-mono tabular-nums text-ink-faint">
-              {formatNumber(meta?.total ?? 0)} / {Number.isFinite(max) ? formatNumber(max) : '—'}
-            </span>
-          </div>
-          <Progress value={Number.isFinite(max) && meta ? meta.total / max : 0} tone={meta && meta.total / max >= 0.9 ? 'warn' : 'accent'} label="Documents used" />
-          <span className="text-[0.7rem] text-ink-faint">Documents for this bot on your plan</span>
+      <div className="panel grid w-full max-w-sm content-center gap-2 p-4">
+        <div className="flex items-baseline justify-between text-xs">
+          <span className="font-semibold text-ink">Capacity</span>
+          <span className="font-mono tabular-nums text-ink-faint">
+            {formatNumber(meta?.total ?? 0)} / {Number.isFinite(max) ? formatNumber(max) : '—'}
+          </span>
         </div>
+        <Progress value={Number.isFinite(max) && meta ? meta.total / max : 0} tone={meta && meta.total / max >= 0.9 ? 'warn' : 'accent'} label="Documents used" />
+        <span className="text-[0.7rem] text-ink-faint">Documents for this bot on your plan</span>
       </div>
-
       <Card flush>
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
           <div className="relative min-w-[220px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
             <Input size="sm" className="pl-9" placeholder="Search titles and file names" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search documents" />
           </div>
-          {status && (
-            <Badge tone="accent">
-              {DOC_STATUS[status].label}
-              <button type="button" className="ml-0.5 [@media(pointer:coarse)]:min-h-0" onClick={() => setStatus(undefined)} aria-label="Clear status filter">
-                ×
-              </button>
-            </Badge>
-          )}
         </div>
         {list.isPending ? (
           <SkeletonRows rows={6} className="p-4" />
@@ -254,8 +223,8 @@ export function DocumentsTab() {
             onRowClick={(d) => openDoc(d.id)}
             className={cn(list.isFetching && !list.isFetchingNextPage && 'opacity-70 transition-opacity')}
             empty={
-              q || status ? (
-                <EmptyState compact icon={<Search />} title="No documents match" description="Try another search or clear the filter." />
+              q ? (
+                <EmptyState compact icon={<Search />} title="No documents match" description="Try another search." />
               ) : (
                 <EmptyState
                   icon={<BookOpen />}

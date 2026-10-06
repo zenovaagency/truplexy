@@ -156,7 +156,10 @@ export function UploadDialog({
     }
   }, [open]);
 
-  const exts = accept.map((a) => (a.startsWith('.') ? a : `.${a}`).toLowerCase());
+  const exts = accept
+    .map((a) => a.trim())
+    .filter(Boolean)
+    .map((a) => (a.startsWith('.') ? a : `.${a}`).toLowerCase());
   const add = useCallback(
     (list: FileList | File[]) => {
       const next = [...list].map<QueuedFile>((file) => {
