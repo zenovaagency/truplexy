@@ -35,13 +35,13 @@ interface Entry {
 const SUB_PAGES: { label: string; path: string; permission: Permission; keywords?: string[] }[] = [
   { label: 'Handoffs', path: 'tickets/handoffs', permission: 'tickets.read', keywords: ['take over', 'human'] },
   { label: 'Test retrieval', path: 'knowledge/search', permission: 'knowledge.read', keywords: ['search', 'rag'] },
-  { label: 'System prompt', path: 'llm/prompt', permission: 'bot.read', keywords: ['instructions', 'template', 'assistant name'] },
-  { label: 'Model & reply settings', path: 'llm/model', permission: 'bot.read', keywords: ['temperature', 'max tokens', 'price', 'openrouter'] },
+  { label: 'Model & reply settings', path: 'llm/model', permission: 'bot.read', keywords: ['assistant name', 'bot name', 'temperature', 'max tokens', 'price', 'openrouter'] },
   { label: 'Model usage & costs', path: 'llm/usage', permission: 'usage.read', keywords: ['tokens', 'spend', 'cost'] },
   { label: 'Webhook', path: 'integrations/webhook', permission: 'integrations.read', keywords: ['events'] },
   { label: 'Invitations', path: 'team/invitations', permission: 'members.read' },
   { label: 'Roles & permissions', path: 'team/roles', permission: 'members.read' },
-  { label: 'Plan & usage', path: 'settings/plan', permission: 'members.read', keywords: ['limits', 'billing'] },
+  { label: 'Plan & usage', path: 'settings/plan', permission: 'members.read', keywords: ['limits', 'tokens'] },
+  { label: 'Billing', path: 'settings/billing', permission: 'usage.read', keywords: ['balance', 'extra tokens', 'top-up', 'ledger'] },
   { label: 'Bots', path: 'settings/bots', permission: 'members.read' },
   { label: 'Backup & restore', path: 'settings/backup', permission: 'bot.read', keywords: ['export', 'import'] },
 ];

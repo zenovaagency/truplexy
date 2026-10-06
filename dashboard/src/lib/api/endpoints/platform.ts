@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { api } from '@/lib/api/client';
 import type {
   Business,
+  LedgerEntry,
   Limits,
   PlanId,
   PlatformBusiness,
@@ -53,6 +54,19 @@ export function useUpdatePlatformTenant() {
       qc.invalidateQueries({ queryKey: ['tenant'] });
     },
     meta: { success: 'Business updated' },
+  });
+}
+
+export function useAdjustBalance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, amount, note }: { id: string; amount: number; note: string }) =>
+      api<{ entry: LedgerEntry; balance: number }>(`/platform/tenants/${id}/balance`, { method: 'POST', body: { amount, note } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.platform() });
+      qc.invalidateQueries({ queryKey: ['tenant'] });
+    },
+    meta: { success: 'Balance updated' },
   });
 }
 
@@ -125,7 +139,18 @@ export function usePlatformModels() {
   });
 }
 
-export type ModelInput = Omit<PlatformModel, 'created_at' | 'updated_at' | 'bots'>;
+/** The fields an admin sets. Leave out both prices on create and the API reads them from OpenRouter. */
+export type ModelInput = Omit<
+  PlatformModel,
+  | 'created_at'
+  | 'updated_at'
+  | 'bots'
+  | 'pricing_synced_at'
+  | 'effective_fee_percent'
+  | 'effective_commission_percent'
+  | 'billed_input_price_per_mtok'
+  | 'billed_output_price_per_mtok'
+>;
 
 export function useSavePlatformModel() {
   const qc = useQueryClient();
@@ -139,6 +164,23 @@ export function useSavePlatformModel() {
         : api<PlatformModel>('/platform/models', { method: 'POST', body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('models') }),
     meta: { success: 'Model saved' },
+  });
+}
+
+export function useRefreshModelPricing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<PlatformModel>(`/platform/models/${encodeURIComponent(id)}/refresh-pricing`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('models') }),
+    meta: { success: 'Prices read from OpenRouter' },
+  });
+}
+
+export function useRefreshAllPricing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ models: PlatformModel[]; failed: { id: string; error: string }[] }>('/platform/models/refresh-pricing', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('models') }),
   });
 }
 

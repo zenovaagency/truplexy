@@ -16,6 +16,7 @@ const CATEGORY_TONE: Record<AuditCategory, Tone> = {
   bots: 'accent',
   business: 'neutral',
   plan: 'live',
+  billing: 'live',
   webhook: 'outline',
   other: 'neutral',
 };

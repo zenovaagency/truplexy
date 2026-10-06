@@ -1,7 +1,7 @@
 import type { AuditEvent } from '@/lib/api/types';
-import { humanize } from '@/lib/format';
+import { formatCurrency, humanize } from '@/lib/format';
 
-export type AuditCategory = 'members' | 'invites' | 'keys' | 'bots' | 'business' | 'plan' | 'webhook' | 'other';
+export type AuditCategory = 'members' | 'invites' | 'keys' | 'bots' | 'business' | 'plan' | 'billing' | 'webhook' | 'other';
 
 export const AUDIT_CATEGORY_LABEL: Record<AuditCategory, string> = {
   members: 'Members',
@@ -10,6 +10,7 @@ export const AUDIT_CATEGORY_LABEL: Record<AuditCategory, string> = {
   bots: 'Bots',
   business: 'Business',
   plan: 'Plan & limits',
+  billing: 'Billing',
   webhook: 'Webhook',
   other: 'Other',
 };
@@ -22,6 +23,7 @@ const PREFIX: [string, AuditCategory][] = [
   ['business.', 'business'],
   ['plan.', 'plan'],
   ['limits.', 'plan'],
+  ['billing.', 'billing'],
   ['webhook.', 'webhook'],
 ];
 
@@ -44,6 +46,9 @@ const VERB: Record<string, string> = {
   'business.reactivated': 'reactivated the business',
   'plan.changed': 'changed the plan',
   'limits.changed': 'changed plan limits',
+  'billing.credit': 'credited the balance',
+  'billing.debit': 'debited the balance',
+  'billing.token_addon': 'bought extra tokens',
   'webhook.updated': 'updated the webhook',
   'webhook.deleted': 'removed the webhook',
   'webhook.secret_rotated': 'rotated the webhook secret',
@@ -54,12 +59,13 @@ const VERB: Record<string, string> = {
 /** "changed the role of", plus the target when the sentence needs one. */
 export function describeAudit(e: AuditEvent, nameOf?: (userId: string) => string | undefined) {
   const verb = VERB[e.action] ?? humanize(e.action).toLowerCase();
-  const selfContained = /business$|left the business|joined the business|accepted an invitation|the webhook|secret$|the plan|plan limits|details$/.test(verb);
+  const selfContained = /business$|left the business|joined the business|accepted an invitation|the webhook|secret$|the plan|plan limits|the balance|extra tokens|details$/.test(verb);
   const d = e.details ?? {};
   let extra = '';
   if (e.action === 'member.role_changed' && d.from && d.to) extra = ` from ${d.from} to ${d.to}`;
   if (e.action === 'invite.created' && d.role) extra = ` as ${d.role}`;
   if (e.action === 'plan.changed' && d.to) extra = ` to ${d.to}`;
+  if ((e.action === 'billing.credit' || e.action === 'billing.debit') && typeof d.amount === 'number') extra = ` by ${formatCurrency(Math.abs(d.amount))}`;
   const label = (typeof d.email === 'string' && d.email) || (typeof d.name === 'string' && d.name) || nameOf?.(e.target) || e.target;
   return { verb, target: selfContained ? '' : label, extra };
 }

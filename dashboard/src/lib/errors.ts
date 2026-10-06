@@ -13,6 +13,9 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   TENANT_NOT_FOUND: { title: 'Business not found', hint: "It may have been removed, or you're no longer a member." },
   BOT_NOT_FOUND: { title: 'Bot not found' },
   PLAN_LIMIT_REACHED: { title: 'Plan limit reached', hint: 'See Settings → Plan & usage.' },
+  ADDON_NOT_AVAILABLE: { title: "Extra tokens aren't needed", hint: "This business's tokens are unlimited." },
+  INSUFFICIENT_BALANCE: { title: 'The balance is too low', hint: 'Ask Truplexy for a top-up, or buy fewer tokens.' },
+  PRICING_UNAVAILABLE: { title: "Couldn't reach OpenRouter for prices", hint: 'Try again, or enter the prices yourself.' },
   BUSINESS_LIMIT_REACHED: { title: 'You already own 3 businesses', hint: 'Leave or hand over one before creating another.' },
   WORKSPACE_CONFLICT: { title: 'Someone else saved first', hint: 'Reload to get their changes, then apply yours again.' },
   INVALID_STATUS_CHANGE: { title: "That status change isn't allowed", hint: 'Reopen a closed ticket before changing it.' },
@@ -29,9 +32,6 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   INVALID_REQUEST: { title: 'Check the form', useMessage: true },
   INVALID_ASSIGNEE: { title: "That person can't be assigned", hint: 'Assignees need the Agent role or above.' },
   MODEL_NOT_ALLOWED: { title: "That model isn't available", useMessage: true },
-  PROMPT_TEMPLATE_NOT_ALLOWED: { title: "That template isn't offered to this business" },
-  INVALID_PROMPT_VARIABLES: { title: 'Fill in the required prompt fields', useMessage: true },
-  PROMPT_NOT_EDITABLE: { title: "The legacy prompt can't be edited", hint: 'Pick a template instead.' },
   LLM_RATE_LIMITED: { title: 'The model provider is busy', hint: 'Try again in a moment.' },
   LLM_TIMEOUT: { title: 'The model took too long', hint: 'Try again.' },
   TIMEOUT: { title: 'That took too long', hint: 'Try again.' },
@@ -53,6 +53,7 @@ const LIMIT_LABEL: Record<string, string> = {
   documents_per_bot: 'documents per bot',
   members: 'team members',
   replies_per_month: 'AI replies this month',
+  tokens_per_month: 'tokens this month',
 };
 
 export interface Described {
@@ -67,7 +68,8 @@ export function describeError(e: unknown): Described {
   if (isApiError(e)) {
     const c = COPY[e.code];
     let detail = c?.useMessage || !c ? e.message : c.hint;
-    if (e.code === 'PLAN_LIMIT_REACHED' && e.limit) detail = `Your plan has no room for more ${LIMIT_LABEL[e.limit] ?? e.limit}. See Settings → Plan & usage.`;
+    if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'tokens_per_month') detail = "This month's tokens are used up and the balance is empty. Buy extra tokens in Settings → Billing.";
+    else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit) detail = `Your plan has no room for more ${LIMIT_LABEL[e.limit] ?? e.limit}. See Settings → Plan & usage.`;
     return { title: c?.title ?? 'Request failed', detail, code: e.code, requestId: e.requestId };
   }
   if (e instanceof Error) return { title: 'Something went wrong', detail: e.message };

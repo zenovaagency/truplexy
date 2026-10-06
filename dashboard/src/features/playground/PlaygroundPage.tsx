@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, CircleStop, FileText, MessageSquarePlus, RefreshCw, Send, Sparkles, Wrench } from 'lucide-react';
 import { isApiError } from '@/lib/api/client';
-import { useModels, usePromptTemplates } from '@/lib/api/endpoints/bot';
+import { useModels } from '@/lib/api/endpoints/bot';
 import { useCurrentPlayground, useNewPlayground, useRunPlayground } from '@/lib/api/endpoints/playground';
 import type { PlaygroundConversation, PlaygroundMessage, PlaygroundRunInput, PlaygroundRunResult } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -25,7 +25,6 @@ export default function PlaygroundPage() {
   const fresh = useNewPlayground();
   const run = useRunPlayground();
   const models = useModels();
-  const templates = usePromptTemplates();
   const confirm = useConfirm();
   const [text, setText] = useState('');
   const [pending, setPending] = useState<string | null>(null);
@@ -46,10 +45,7 @@ export default function PlaygroundPage() {
 
   const input = (extra: Partial<PlaygroundRunInput>): PlaygroundRunInput => ({
     max_output_tokens: b.maxTokens ?? 800,
-    prompt_template_id: b.promptTemplateId || undefined,
-    prompt_variables: b.promptTemplateId ? b.promptVariables : undefined,
     assistant_name: b.name,
-    system_prompt: !b.promptTemplateId && b.prompt ? b.prompt : undefined,
     model: b.model || undefined,
     temperature: b.temperature,
     rag_enabled: b.ragEnabled ?? true,
@@ -110,7 +106,6 @@ export default function PlaygroundPage() {
     });
 
   const modelLabel = models.data?.find((m) => m.id === b.model)?.label ?? models.data?.find((m) => m.is_default)?.label ?? 'Default model';
-  const templateName = templates.data?.find((t) => t.id === b.promptTemplateId)?.name ?? (b.prompt ? 'Own prompt' : '—');
 
   return (
     <Page>
@@ -219,7 +214,6 @@ export default function PlaygroundPage() {
             <DescList
               items={[
                 { label: 'Assistant', value: b.name },
-                { label: 'Template', value: templateName },
                 { label: 'Model', value: modelLabel },
                 { label: 'Temperature', value: b.temperature ?? '—' },
                 { label: 'Max reply', value: `${formatNumber(b.maxTokens ?? 800)} tokens` },

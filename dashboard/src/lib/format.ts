@@ -24,7 +24,7 @@ export function formatCurrency(n: number | null | undefined) {
 export function formatPerM(n: number | null | undefined) {
   if (n == null || Number.isNaN(n)) return '—';
   if (n === 0) return 'Free';
-  return `$${n.toFixed(n < 0.1 ? 3 : n < 10 ? 2 : 0)}`;
+  return `$${n.toFixed(n < 0.1 ? 3 : n < 100 ? 2 : 0)}`;
 }
 
 /** A 0–1 rate as a percentage. */
