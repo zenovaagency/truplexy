@@ -93,6 +93,7 @@ const link =
 
       <div class="flex items-center gap-1.5">
         <!-- Wrapped: the Button's own inline-flex would otherwise beat `hidden`. -->
+        <div class="hidden sm:block"><Button href={SITE.dashboardUrl} variant="ghost" size="sm" arrow={false}>Sign in</Button></div>
         <div class="hidden sm:block"><Button href={SITE.signupUrl} size="sm" arrow={false}>Get started</Button></div>
 
         <button
@@ -139,6 +140,7 @@ const link =
   </ul>
   <div class="container-t mt-auto flex flex-col gap-3 pb-10">
     <Button href={SITE.signupUrl}>Get started</Button>
+    <Button href={SITE.dashboardUrl} variant="ghost" arrow={false}>Sign in</Button>
   </div>
 </div>
 
