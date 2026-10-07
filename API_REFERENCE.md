@@ -192,9 +192,13 @@ Ticket and conversation changes are pushed through [Supabase Realtime Broadcast]
 The API stays a pure JSON API. These jobs fall to the frontend:
 
 - **Invitations.**
-  - `POST /invites` returns a one-time `token`.
-  - Build the link yourself (for example `https://dashboard.example.com/invite/{token}`), and show it or email it with your own email provider. The API sends no email.
-  - The invite page calls `POST /invites/preview` to describe the invitation, then `POST /invites/accept` once the person is signed in with the invited address.
+  - `POST /invites` returns a one-time `token`. With the API's `DASHBOARD_URL` set, it also returns the `link`, `{DASHBOARD_URL}/invite/{token}`.
+  - With `SUPABASE_SECRET_KEY` set as well, the API emails the invitation through Supabase Auth and reports `emailed: true`. A new address gets the Invite user email, which creates the account; an existing account gets the Magic Link email.
+  - Either email signs the person in and lands on `{DASHBOARD_URL}/auth/callback?next=/invite/{token}`. That page must complete sign-in, then open `next`:
+    - with `token_hash` and `type` in the query (templates built on `{{ .TokenHash }}`), call `supabase.auth.verifyOtp({ token_hash, type })`;
+    - with `access_token` and `refresh_token` in the URL's hash (the default `{{ .ConfirmationURL }}` templates), call `supabase.auth.setSession(...)`. These emails are started by the API, so they can't use PKCE and never arrive with a `code`.
+  - When `emailed` is `false` (email off or failed), show the `link` to copy, or build it from the `token` yourself. Inviting the address again sends a new link and cancels the old one.
+  - The invite page (`/invite/{token}`) calls `POST /invites/preview` to describe the invitation, then `POST /invites/accept` once the person is signed in with the invited address. Someone signed out there should sign in or sign up, then return to it.
 - **Backups.**
   - To export, read `GET /workspace` and each document with `GET /knowledge/documents/{id}`, which includes `content`.
   - To import, `PUT /workspace`, then `POST /knowledge/documents` for each article. Expect `409 DUPLICATE_DOCUMENT` for content already present.
@@ -439,7 +443,7 @@ Changing the type changes the defaults for new bots, not saved bots. **200** the
 
 `members.write`. `{email, role}`; inviting an owner needs `owners.manage`. Inviting an address again replaces its pending invitation. An invitation works once, for 7 days, and only for the invited address.
 
-**201** the invitation with its one-time `token`. Build the invitation link from it; see [Work a dashboard does itself](#work-a-dashboard-does-itself).
+**201** `{id, email, role, status, invited_by, expires_at, created_at, token, link?, emailed}`: the invitation with its one-time `token`, `link` when the API's `DASHBOARD_URL` is set, and `emailed`, whether the link was emailed through Supabase Auth. A failed email doesn't fail the invitation. `GET /invites` never returns `token`, `link` or `emailed`. See [Work a dashboard does itself](#work-a-dashboard-does-itself).
 
 **Errors:**
 - `403 FORBIDDEN`

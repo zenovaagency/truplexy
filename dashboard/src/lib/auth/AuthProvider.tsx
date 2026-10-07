@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Session } from '@supabase/supabase-js';
+import type { EmailOtpType, Session } from '@supabase/supabase-js';
 import { configureApi } from '@/lib/api/client';
 import { env } from '@/lib/env';
 import { getSupabase } from './supabase';
@@ -17,7 +17,7 @@ interface AuthValue {
   status: Status;
   user: AuthUser | null;
   signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name?: string) => Promise<{ needsConfirmation: boolean }>;
+  signUp: (email: string, password: string, name?: string, next?: string) => Promise<{ needsConfirmation: boolean }>;
   sendMagicLink: (email: string, next?: string) => Promise<void>;
   signInWithGoogle: (next?: string) => Promise<void>;
   /** Finishes a magic-link, confirmation or OAuth redirect on /auth/callback. */
@@ -170,12 +170,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sb = await getSupabase();
         fail((await sb.auth.signInWithPassword({ email, password })).error);
       },
-      signUp: async (email, password, name) => {
+      signUp: async (email, password, name, next) => {
         const sb = await getSupabase();
         const { data, error } = await sb.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: callbackUrl(), data: name ? { full_name: name } : undefined },
+          options: { emailRedirectTo: callbackUrl(next), data: name ? { full_name: name } : undefined },
         });
         fail(error);
         return { needsConfirmation: !data.session };
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const accessToken = hash.get('access_token');
         const refreshToken = hash.get('refresh_token');
         if (tokenHash && type) {
-          failAs((await sb.auth.verifyOtp({ token_hash: tokenHash, type: type as 'email' })).error);
+          failAs((await sb.auth.verifyOtp({ token_hash: tokenHash, type: type as EmailOtpType })).error);
         } else if (accessToken && refreshToken) {
           failAs((await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })).error);
         } else if (code) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useSearchParams } from 'react-router';
-import { Check, Clock, Mail, MailPlus, Minus, Shield, Trash2, UserMinus, Users } from 'lucide-react';
+import { Check, Clock, Mail, MailPlus, Minus, RotateCw, Shield, Trash2, UserMinus, Users } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
 import { useCreateInvite, useInvites, useMembers, useRemoveMember, useRevokeInvite, useTenant, useUpdateMember } from '@/lib/api/endpoints/business';
 import type { Invite, Member, Permission, Role } from '@/lib/api/types';
@@ -193,9 +193,14 @@ export function InvitesTab() {
   const { can } = useScopeCtx();
   const invites = useInvites();
   const revoke = useRevokeInvite();
+  const resend = useCreateInvite();
   const confirm = useConfirm();
   const [params, setParams] = useSearchParams();
+  const [resent, setResent] = useState<Invite | null>(null);
   const writable = can('members.write');
+
+  // Inviting the address again sends a new link and cancels the old one.
+  const onResend = (i: Invite) => resend.mutate({ email: i.email, role: i.role }, { onSuccess: setResent });
 
   const onRevoke = (i: Invite) =>
     confirm({
@@ -240,11 +245,26 @@ export function InvitesTab() {
       hideOnCard: !writable,
       cell: (i) =>
         writable && (
-          <Tip content="Cancel invitation">
-            <Button size="xs" icon variant="quiet" className="hover:text-danger" onClick={() => void onRevoke(i)} aria-label={`Cancel invitation for ${i.email}`}>
-              <Trash2 />
-            </Button>
-          </Tip>
+          <span className="inline-flex items-center gap-1">
+            <Tip content="Send a new link">
+              <Button
+                size="xs"
+                icon
+                variant="quiet"
+                disabled={resend.isPending}
+                aria-busy={(resend.isPending && resend.variables?.email === i.email) || undefined}
+                onClick={() => onResend(i)}
+                aria-label={`Send a new invitation link to ${i.email}`}
+              >
+                <RotateCw className={cn(resend.isPending && resend.variables?.email === i.email && 'animate-spin')} />
+              </Button>
+            </Tip>
+            <Tip content="Cancel invitation">
+              <Button size="xs" icon variant="quiet" className="hover:text-danger" onClick={() => void onRevoke(i)} aria-label={`Cancel invitation for ${i.email}`}>
+                <Trash2 />
+              </Button>
+            </Tip>
+          </span>
         ),
     },
   ];
@@ -273,7 +293,38 @@ export function InvitesTab() {
         )}
       </Card>
       {writable && <InviteDialog open={params.get('invite') === '1'} onOpenChange={(o) => !o && setParams({}, { replace: true })} />}
+      <Dialog
+        open={!!resent}
+        onOpenChange={(o) => !o && setResent(null)}
+        title="New link sent"
+        description={resent ? `${sentCopy(resent)} The previous link no longer works.` : undefined}
+        footer={
+          <Button variant="accent" onClick={() => setResent(null)}>
+            Done
+          </Button>
+        }
+      >
+        {resent && <InviteResult invite={resent} />}
+      </Dialog>
     </>
+  );
+}
+
+const sentCopy = (inv: Invite) =>
+  `${inv.emailed ? `We emailed ${inv.email} a link to join.` : `Send this link to ${inv.email}.`} It works once, for that address, until ${formatDate(inv.expires_at)}.`;
+
+/** The link of a just-created invitation, and whether it was emailed. */
+function InviteResult({ invite }: { invite: Invite }) {
+  const link = invite.link ?? (invite.token ? `${env.dashboardUrl}/invite/${invite.token}` : '');
+  return (
+    <div className="grid gap-3">
+      <CopyField value={link} />
+      <Callout tone="neutral" icon={<Mail />}>
+        {invite.emailed
+          ? `If it doesn't arrive, share this link instead; only ${invite.email} can accept it.`
+          : `The invitation email wasn't sent. Share this link however you like; only ${invite.email} can accept it.`}
+      </Callout>
+    </div>
   );
 }
 
@@ -294,18 +345,13 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   }, [open]);
 
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const link = created?.link ?? (created?.token ? `${env.dashboardUrl}/invite/${created.token}` : '');
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       title={created ? 'Invitation created' : 'Invite a teammate'}
-      description={
-        created
-          ? `${created.emailed ? `We emailed ${created.email} a link to join.` : `Send this link to ${created.email}.`} It works once, for that address, until ${formatDate(created.expires_at)}.`
-          : 'They join with the role you pick. You can change it later.'
-      }
+      description={created ? sentCopy(created) : 'They join with the role you pick. You can change it later.'}
       footer={
         created ? (
           <Button variant="accent" onClick={() => onOpenChange(false)}>
@@ -324,14 +370,7 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       }
     >
       {created ? (
-        <div className="grid gap-3">
-          <CopyField value={link} />
-          <Callout tone="neutral" icon={<Mail />}>
-            {created.emailed
-              ? `If it doesn't arrive, share this link instead; only ${created.email} can accept it.`
-              : `The invitation email wasn't sent. Share this link however you like; only ${created.email} can accept it.`}
-          </Callout>
-        </div>
+        <InviteResult invite={created} />
       ) : (
         <form
           id="invite-form"

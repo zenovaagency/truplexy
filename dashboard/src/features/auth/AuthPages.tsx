@@ -86,7 +86,7 @@ export function SignInPage() {
         await auth.sendMagicLink(v.email, next);
         if (!env.useMocks) setSent(v.email);
       } else if (mode === 'signup') {
-        const r = await auth.signUp(v.email, v.password, v.name || undefined);
+        const r = await auth.signUp(v.email, v.password, v.name || undefined, next);
         if (r.needsConfirmation) setSent(v.email);
       } else {
         await auth.signInWithPassword(v.email, v.password);
@@ -521,6 +521,7 @@ export function InvitePage() {
   const qc = useQueryClient();
   const nav = useNavigate();
   const accept = useAcceptInvite();
+  const [switching, setSwitching] = useState(false);
   const preview = useQuery({
     queryKey: ['invite', token],
     queryFn: () => previewInvite(token),
@@ -563,7 +564,17 @@ export function InvitePage() {
       },
     });
 
-  const err = preview.error ?? accept.error;
+  // Only the invited address can accept. The mock accepts any address, so it isn't checked there.
+  const mismatchError = accept.isError && hasCode(accept.error, 'INVITE_EMAIL_MISMATCH');
+  const wrongAccount =
+    mismatchError || (!env.useMocks && !!preview.data && !!auth.user?.email && preview.data.email.toLowerCase() !== auth.user.email.toLowerCase());
+  // Signing out shows the signed-out invitation, whose sign-in links come back here.
+  const switchAccount = () => {
+    setSwitching(true);
+    void auth.signOut().finally(() => setSwitching(false));
+  };
+
+  const err = preview.error ?? (mismatchError ? null : accept.error);
   const d = err ? describeError(err) : null;
 
   return (
@@ -608,9 +619,20 @@ export function InvitePage() {
                 <dd className="font-medium text-ink">{auth.user?.email}</dd>
               </div>
             </dl>
-            <Button variant="accent" size="md" loading={accept.isPending} onClick={onAccept}>
-              Accept and continue
-            </Button>
+            {wrongAccount ? (
+              <>
+                <Callout tone="warn" title="Wrong account for this invitation">
+                  This invitation is for <span className="font-semibold text-ink">{preview.data.email}</span>. Sign in with that address to accept it.
+                </Callout>
+                <Button variant="accent" size="md" loading={switching} onClick={switchAccount}>
+                  Sign in as {preview.data.email}
+                </Button>
+              </>
+            ) : (
+              <Button variant="accent" size="md" loading={accept.isPending} onClick={onAccept}>
+                Accept and continue
+              </Button>
+            )}
           </div>
         )
       )}
