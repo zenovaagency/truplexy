@@ -63,6 +63,7 @@ import type {
   TicketPriority,
   TicketStatus,
 } from '@/lib/api/types';
+import { planUsage } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { dayRange, formatCompact, formatCurrency, formatDate, formatMs, formatNumber, formatRelative, formatPerM, pluralize } from '@/lib/format';
 import { scopeLink } from '@/lib/session/scope-context';
@@ -106,6 +107,10 @@ import { PRIORITIES, PRIORITY, PriorityBadge, RoleBadge, TICKET_STATUS, TICKET_S
 
 const STATUS_TONE: Record<CatalogStatus, Tone> = { active: 'live', hidden: 'warn', retired: 'neutral' };
 
+/** Known plans cheapest first; any other plan sorts after them. */
+const PLAN_ORDER = ['free', 'starter', 'pro', 'enterprise'];
+const planRank = (plan: string) => (PLAN_ORDER.includes(plan) ? PLAN_ORDER.indexOf(plan) : PLAN_ORDER.length);
+
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
@@ -122,8 +127,30 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
 export function PlatformOverview() {
   const q = usePlatformOverview();
   const pending = usePlatformDeletionRequests('pending').data ?? [];
+  const tenants = usePlatformTenants();
   const [metric, setMetric] = useState<'requests' | 'total_tokens' | 'estimated_cost'>('requests');
   const o = q.data;
+  const last30 = useMemo(
+    () => o && { tokens: o.by_day.reduce((n, d) => n + d.total_tokens, 0), requests: o.by_day.reduce((n, d) => n + d.requests, 0) },
+    [o],
+  );
+  const fleet = useMemo(() => {
+    if (!tenants.data) return undefined;
+    const live = liveBusinesses(tenants.data);
+    const month = new Date().toISOString().slice(0, 7);
+    const plans = new Map<string, number>();
+    for (const b of live) plans.set(b.plan, (plans.get(b.plan) ?? 0) + 1);
+    const shares = live.filter((b) => b.status === 'active').map((b) => planUsage(b)?.share ?? 0);
+    return {
+      newThisMonth: live.filter((b) => b.created_at.slice(0, 7) === month).length,
+      planMix: [...plans]
+        .sort(([a], [b]) => planRank(a) - planRank(b))
+        .map(([plan, n]) => `${n} ${plan}`)
+        .join(' · '),
+      nearLimit: shares.filter((s) => s >= 0.8).length,
+      atLimit: shares.filter((s) => s >= 1).length,
+    };
+  }, [tenants.data]);
   return (
     <Page>
       <PageHeader eyebrow="Platform" title="Overview" description="Every business on Truplexy, this month." />
@@ -161,9 +188,43 @@ export function PlatformOverview() {
             <StatCard label="Conversations" icon={<MessagesSquare />} loading={!o} value={formatCompact(o?.conversations_this_month)} sub={o && `${formatCompact(o.replies_this_month)} AI replies this month`} />
             <StatCard label="Open tickets" icon={<Inbox />} loading={!o} value={formatNumber(o?.open_tickets)} sub={o && `${o.needs_reply} need a reply`} tone={o && o.needs_reply > 20 ? 'warn' : undefined} />
           </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Billed this month"
+              icon={<Wallet />}
+              loading={!o}
+              value={formatCurrency(o?.billed_this_month)}
+              sub={o && `${formatCurrency(o.cost_this_month)} OpenRouter cost · ${formatCurrency(o.billed_this_month - o.cost_this_month)} margin`}
+              info="What businesses were billed for models this UTC month: OpenRouter's cost plus fees and commissions."
+            />
+            <StatCard
+              label="Tokens, last 30 days"
+              icon={<Cpu />}
+              loading={!last30}
+              value={formatCompact(last30?.tokens)}
+              sub={last30 && `${formatCompact(last30.requests)} model requests`}
+              trend={o?.by_day.map((d) => d.total_tokens)}
+            />
+            <StatCard
+              label="New this month"
+              icon={<Plus />}
+              loading={!fleet}
+              value={formatNumber(fleet?.newThisMonth)}
+              sub={fleet && (fleet.planMix ? `All businesses: ${fleet.planMix}` : 'No businesses yet')}
+            />
+            <StatCard
+              label="Near a limit"
+              icon={<AlertTriangle />}
+              loading={!fleet}
+              value={formatNumber(fleet?.nearLimit)}
+              sub={fleet && (fleet.nearLimit ? `${fleet.atLimit} at their limit` : 'Every business has room')}
+              tone={fleet && fleet.atLimit > 0 ? 'warn' : undefined}
+              info="Active businesses that have used 80% or more of this month's token or reply limit."
+            />
+          </div>
           <Card
             title="Model usage, last 30 days"
-            description={o ? `This month: ${formatCurrency(o.cost_this_month)} OpenRouter cost, ${formatCurrency(o.billed_this_month)} billed to businesses. The chart shows OpenRouter's cost.` : undefined}
+            description="The chart shows OpenRouter's cost."
             actions={
               <Segmented size="xs" label="Metric" value={metric} onChange={setMetric} options={[{ value: 'requests', label: 'Requests' }, { value: 'total_tokens', label: 'Tokens' }, { value: 'estimated_cost', label: 'Cost' }]} />
             }

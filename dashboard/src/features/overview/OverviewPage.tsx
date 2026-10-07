@@ -14,9 +14,9 @@ import {
 import { useMe } from '@/lib/api/endpoints/account';
 import { useAudit, useMembers, useTenant } from '@/lib/api/endpoints/business';
 import { useSupportStats, useUsageSummary } from '@/lib/api/endpoints/stats';
-import type { Business } from '@/lib/api/types';
 import { useRecentTickets } from '@/lib/api/endpoints/tickets';
 import { describeAudit } from '@/lib/audit';
+import { planUsage } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import {
   dayRange,
@@ -51,17 +51,6 @@ const METRIC: Record<Metric, { label: string; format: (n: number) => string }> =
   total_tokens: { label: 'Tokens', format: formatCompact },
   estimated_cost: { label: 'Cost', format: formatCurrency },
 };
-
-/** The monthly limit closest to running out, or null when the plan has none. */
-function planUsage(t: Business) {
-  const limits = [
-    { unit: 'tokens', used: t.usage.tokens_this_month, limit: t.limits.tokens_per_month },
-    { unit: 'replies', used: t.usage.replies_this_month, limit: t.limits.replies_per_month },
-  ]
-    .filter((l) => l.limit > 0)
-    .map((l) => ({ ...l, share: l.used / l.limit }));
-  return limits.sort((a, b) => b.share - a.share)[0] ?? null;
-}
 
 /** Monthly limits reset on the 1st, UTC. */
 function nextMonthStart() {

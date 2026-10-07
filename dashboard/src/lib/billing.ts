@@ -1,4 +1,4 @@
-import type { AddonQuote, LedgerKind, TokenAddon } from '@/lib/api/types';
+import type { AddonQuote, Business, LedgerKind, TokenAddon } from '@/lib/api/types';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -16,6 +16,17 @@ export function quoteTokens(a: TokenAddon, millions: number): AddonQuote {
   });
   const price = +breakdown.reduce((s, b) => s + b.amount, 0).toFixed(2);
   return { millions, tokens: millions * 1_000_000, currency: a.currency, price, average_per_million: millions ? +(price / millions).toFixed(4) : 0, breakdown };
+}
+
+/** The monthly limit closest to running out, or null when the plan has none. */
+export function planUsage(t: Business) {
+  const limits = [
+    { unit: 'tokens', used: t.usage.tokens_this_month, limit: t.limits.tokens_per_month },
+    { unit: 'replies', used: t.usage.replies_this_month, limit: t.limits.replies_per_month },
+  ]
+    .filter((l) => l.limit > 0)
+    .map((l) => ({ ...l, share: l.used / l.limit }));
+  return limits.sort((a, b) => b.share - a.share)[0] ?? null;
 }
 
 /** "1st", "10th", "50th". */
