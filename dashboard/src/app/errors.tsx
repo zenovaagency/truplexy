@@ -30,7 +30,7 @@ interface StatusProps {
 }
 
 /** The centered block of a status page: hero, heading, copy, actions. */
-export function StatusContent({ hero, eyebrow, title, description, actions, detail, className }: StatusProps) {
+function StatusContent({ hero, eyebrow, title, description, actions, detail, className }: StatusProps) {
   return (
     <div className={cn('grid w-full max-w-[520px] justify-items-center gap-4 text-center', className)}>
       {hero}
@@ -77,46 +77,40 @@ function NotFoundHero() {
   );
 }
 
-export function NotFound({ inShell }: { inShell?: boolean }) {
+/** Full screen for every visitor, signed in or not; never inside the app shell. */
+export function NotFound() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   // React Router keeps a history index; 0 means this tab opened straight onto the missing page.
   const canGoBack = ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0;
 
-  const content: StatusProps = {
-    hero: <NotFoundHero />,
-    eyebrow: 'Page not found',
-    title: "This page doesn't exist",
-    description: (
-      <>
-        <p>Nothing lives at this address. It may have moved, or the link has a typo.</p>
-        <code className="mt-3 inline-block max-w-full break-all rounded-lg border border-line bg-surface-2 px-2.5 py-1 font-mono text-xs text-ink-muted">
-          {pathname}
-        </code>
-      </>
-    ),
-    actions: (
-      <>
-        <Button asChild variant="accent" size="md" className="w-full sm:w-auto" leading={<LayoutDashboard />}>
-          <Link to="/">Go to dashboard</Link>
-        </Button>
-        {canGoBack && (
-          <Button variant="ghost" size="md" className="w-full sm:w-auto" leading={<ArrowLeft />} onClick={() => navigate(-1)}>
-            Go back
+  return (
+    <StatusScreen
+      hero={<NotFoundHero />}
+      eyebrow="Page not found"
+      title="This page doesn't exist"
+      description={
+        <>
+          <p>Nothing lives at this address. It may have moved, or the link has a typo.</p>
+          <code className="mt-3 inline-block max-w-full break-all rounded-lg border border-line bg-surface-2 px-2.5 py-1 font-mono text-xs text-ink-muted">
+            {pathname}
+          </code>
+        </>
+      }
+      actions={
+        <>
+          <Button asChild variant="accent" size="md" className="w-full sm:w-auto" leading={<LayoutDashboard />}>
+            <Link to="/">Go to dashboard</Link>
           </Button>
-        )}
-      </>
-    ),
-  };
-
-  if (inShell) {
-    return (
-      <div className="grid min-h-[60vh] place-items-center px-4 py-12">
-        <StatusContent {...content} />
-      </div>
-    );
-  }
-  return <StatusScreen {...content} />;
+          {canGoBack && (
+            <Button variant="ghost" size="md" className="w-full sm:w-auto" leading={<ArrowLeft />} onClick={() => navigate(-1)}>
+              Go back
+            </Button>
+          )}
+        </>
+      }
+    />
+  );
 }
 
 /** After a deploy, old chunk names 404: a reload picks up the new build. */
@@ -125,7 +119,7 @@ const isChunkError = (e: unknown) =>
 
 export function RouteError() {
   const error = useRouteError();
-  if (isRouteErrorResponse(error) && error.status === 404) return <NotFound inShell />;
+  if (isRouteErrorResponse(error) && error.status === 404) return <NotFound />;
   const chunk = isChunkError(error);
   if (!chunk) console.error(error);
   return (

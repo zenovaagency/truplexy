@@ -96,7 +96,6 @@ const businessRoutes: RouteObject[] = [
       ],
     },
   ]),
-  { path: '*', element: <NotFound inShell /> },
 ];
 
 const platformRoutes: RouteObject[] = [
@@ -109,7 +108,6 @@ const platformRoutes: RouteObject[] = [
   { path: 'usage', ...lazyRoute(pages.platform, (m) => m.PlatformUsage) },
   { path: 'models', ...lazyRoute(pages.platform, (m) => m.PlatformModels) },
   { path: 'templates', ...lazyRoute(pages.platform, (m) => m.PlatformTemplates) },
-  { path: '*', element: <NotFound inShell /> },
 ];
 
 export const router = createBrowserRouter([
@@ -135,6 +133,7 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // Every unknown address, signed in or not: a full-screen 404 outside the shell and the sign-in guard.
       { path: '*', element: <NotFound /> },
     ],
   },
