@@ -3,8 +3,9 @@ import { Link } from 'react-router';
 import {
   ArrowRight,
   Bot,
-  Clock,
+  CheckCircle2,
   Coins,
+  Gauge,
   Inbox,
   MessagesSquare,
   ScrollText,
@@ -71,6 +72,9 @@ export default function OverviewPage() {
   const firstName = me.data?.user.name?.split(' ')[0];
 
   const conversationsTrend = s?.by_day.map((d) => d.conversations);
+  const replyLimit = t?.limits.replies_per_month ?? 0;
+  // Unlimited plans get an empty bar so the card keeps the same footer as its neighbours.
+  const replyShare = t ? (replyLimit > 0 ? t.usage.replies_this_month / replyLimit : 0) : undefined;
   const backlogParts = s
     ? [
         { key: 'open', label: 'Open', value: s.backlog.by_status.open ?? 0, slot: 1 as const },
@@ -122,7 +126,7 @@ export default function OverviewPage() {
           <ErrorState error={support.error} onRetry={() => support.refetch()} />
         </Card>
       ) : (
-        <div className={cn('grid gap-4 sm:grid-cols-2 xl:grid-cols-3 transition-opacity', support.isPlaceholderData && 'opacity-60')}>
+        <div className={cn('grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3 transition-opacity', support.isPlaceholderData && 'opacity-60')}>
           <StatCard
             label="Conversations"
             icon={<MessagesSquare />}
@@ -137,32 +141,34 @@ export default function OverviewPage() {
             loading={!s}
             value={formatPercent(s?.conversations.deflection_rate)}
             sub={s && `${formatNumber(s.conversations.ai_only)} conversations without a person`}
+            meter={s?.conversations.deflection_rate ?? 0}
             info="Share of conversations the assistant handled alone: no handoff, no escalation, no ticket from the customer."
           />
           <StatCard
-            label="Open backlog"
-            icon={<Inbox />}
+            label="Tickets resolved"
+            icon={<CheckCircle2 />}
             loading={!s}
-            value={formatNumber(s?.backlog.total)}
-            tone={s && s.backlog.overdue > 0 ? 'warn' : undefined}
-            sub={s && `${formatNumber(s.backlog.overdue)} overdue · ${formatNumber(s.backlog.unassigned)} unassigned`}
-            info={t ? `Overdue means no team reply within ${t.reply_target_hours} hours of the customer's last message.` : undefined}
+            value={formatNumber(s?.tickets.resolved)}
+            sub={s && `of ${formatNumber(s.tickets.created)} opened · ${formatDuration(s.resolution.median_seconds)} median to resolve`}
+            trend={s?.by_day.map((d) => d.tickets_resolved)}
           />
           <StatCard
-            label="First response"
-            icon={<Clock />}
-            loading={!s}
-            value={formatDuration(s?.first_response.median_seconds)}
-            sub={s && `Median · 90% within ${formatDuration(s.first_response.p90_seconds)}`}
-            info="Time from a ticket opening to the first reply from your team."
+            label="AI response time"
+            icon={<Gauge />}
+            loading={!u}
+            value={u ? formatMs(u.avg_latency_ms) : '—'}
+            sub={u && `Average · ${formatNumber(u.requests)} model requests · ${formatCompact(u.total_tokens)} tokens`}
+            trend={u?.by_day.map((d) => d.requests)}
+            info="How long the model takes to produce a reply, averaged over every request in this period."
           />
           <StatCard
             label="AI replies this month"
             icon={<Bot />}
             loading={!t}
             value={t ? formatCompact(t.usage.replies_this_month) : '—'}
-            sub={t && (t.limits.replies_per_month > 0 ? `of ${formatCompact(t.limits.replies_per_month)} on the ${t.plan} plan` : `Unlimited on the ${t.plan} plan`)}
-            trend={undefined}
+            sub={t && (replyLimit > 0 ? `of ${formatCompact(replyLimit)} on the ${t.plan} plan` : `Unlimited on the ${t.plan} plan`)}
+            meter={replyShare}
+            tone={replyShare !== undefined && replyShare >= 0.9 ? 'warn' : undefined}
           />
           <StatCard
             label="Cost per ticket"
@@ -170,6 +176,7 @@ export default function OverviewPage() {
             loading={!s}
             value={formatCurrency(s?.cost.per_ticket)}
             sub={s && `${formatCurrency(s.cost.total)} in this period · ${formatCurrency(s.cost.per_conversation)} per conversation`}
+            trend={s?.by_day.map((d) => d.ticket_cost)}
             info="Estimated model cost. Billing may differ."
           />
         </div>
