@@ -274,6 +274,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `PATCH` | `/tickets/{id}` | `tickets.write` | Change a ticket |
 | `DELETE` | `/tickets/{id}` | `tickets.delete` | Delete a ticket |
 | `POST` | `/tickets/{id}/replies` | `tickets.write` | Reply to the customer, or add a note |
+| `POST` | `/tickets/{id}/summary` | `tickets.write` | Generate the ticket's AI summary (v2) |
 | `GET` | `/handoffs` | `tickets.read` | Conversations the assistant flagged |
 | `GET` | `/realtime` | `tickets.read` | The bot's live update topic (v2) |
 | `GET` | `/webhook` | `integrations.read` | The bot's webhook |
@@ -767,18 +768,18 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   needs_reply, handed_off,
   flags: {needs_reply, escalated, handed_off, unassigned, overdue, reopened},
   last_customer_at?, last_agent_at?,
-  first_response_at?, closed_at?, reopen_count,  // closed_at is cleared on reopen
+  first_response_at?, closed_at?, reopen_count,
+  summary?, summary_at?,                   // the AI summary a person last generated, and when
   created_at, updated_at
 }
 ```
 
 **Statuses.**
-- A ticket is `open` or `closed`. Any other value is `400 INVALID_REQUEST`.
-- Send `status: open` to reopen a closed ticket. This adds one to `reopen_count`.
+- `open` while a person still has to act on the ticket; `closed` once it's done. Any other value is `400 INVALID_REQUEST`.
+- A ticket moves freely between the two. Reopening a closed ticket (`status: open`) clears `closed_at` and counts in `reopen_count`.
 
 **Automatic changes:**
-- Assigning someone doesn't change the status.
-- A customer message sets `needs_reply`. It doesn't change the status.
+- A customer message sets `needs_reply`.
 - Closing ends escalation, and the assistant answers again.
 
 **Flags**, for badges and filters:
@@ -801,8 +802,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | `view` | `all` (default), `open` (every open ticket), `needs_reply`, `escalated` or `mine` (the caller's open tickets). |
 | `flag` | One of the flags above. |
 | `assignee` | `me`, `none`, or a member's user ID. |
-| `status` | `open` or `closed`. Any other value is `400 INVALID_REQUEST`. |
-| `priority` | One value. |
+| `status`, `priority` | One value each; `status` is `open` or `closed`. |
 | `q` | Up to 200 characters: matches the subject, or a ticket or conversation ID exactly. |
 | `limit` | 1–100, default 50. |
 | `cursor` | `next_cursor` from the previous page. |
@@ -824,7 +824,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 
 **Errors:**
 - `404 CONVERSATION_NOT_FOUND`
-- `409 TICKET_EXISTS` (the conversation already has an open ticket; `message` names it and says to close it first)
+- `409 TICKET_EXISTS` (the conversation already has an open ticket; `message` names it)
 
 #### `GET /tickets/{id}`
 
@@ -855,7 +855,6 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 
 **Errors:**
 - `400 INVALID_ASSIGNEE`
-- `400 INVALID_REQUEST` (an unknown status, or `escalated` with `status: closed`)
 - `404 TICKET_NOT_FOUND`
 - `409 TICKET_EXISTS` (reopening would make a second open ticket for the conversation)
 
@@ -871,9 +870,25 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | --- | --- |
 | `kind` | `reply` (default) reaches the customer; `note` stays internal. |
 | `content` | Required. 1–8000 characters. |
-| `status` | Optional. Also sets the ticket's status: `closed` sends and closes, `open` reopens. |
+| `status` | Optional. Also sets the ticket's status, `open` or `closed`, for example `closed` with a final reply. |
 
 The signed-in person is recorded as the author; any `author` sent is replaced. A reply is added to the conversation (`author: "agent"`), clears the handoff flag, sets `first_response_at` if unset, and goes to the bot's webhook and live topics. **201** `{reply, ticket}`.
+
+#### `POST /tickets/{id}/summary`
+
+`tickets.write`, v2 only. No body. Generates an AI summary of the ticket's conversation and team notes for the person taking it over, and stores it on the ticket. Every later read returns it as `summary`, with `summary_at` for when it was generated. The summary is a few short bullets: the issue, the details the customer gave, what was already tried or answered, what is still open, and the customer's mood when they stated it. Secrets are written as `[redacted]`.
+
+Nothing is generated automatically. The dashboard shows a **Generate summary** button on escalated tickets, and **Regenerate** once `summary` is set. Calling it again replaces the summary; a failure keeps the one there was. The summary covers the conversation up to `summary_at`, so show a hint such as "New messages since this summary" when `last_customer_at` or `last_agent_at` is later. Generating it doesn't change `updated_at`, so the ticket keeps its place in the list.
+
+**Billing.** A summary is billed like an AI reply: its tokens count toward the month's tokens and, past them, are paid from the balance, and it counts as one reply toward `replies_per_month`. It is written by the `RAG_REWRITE_MODEL` model.
+
+**200** the ticket, with `summary` and `summary_at`. The bot's live topic gets `ticket.updated`; the customer's topic doesn't.
+
+**Errors:**
+- `400 NO_CONVERSATION` (a ticket opened without a conversation)
+- `404 TICKET_NOT_FOUND`
+- `429 PLAN_LIMIT_REACHED` (the month's replies or tokens are used up and the balance is empty)
+- `429 LLM_RATE_LIMITED`, `502 LLM_PROVIDER_ERROR`, `503 LLM_NOT_CONFIGURED`, `504 LLM_TIMEOUT`
 
 #### `GET /handoffs`
 
@@ -999,10 +1014,9 @@ export function verify(rawBody, header, secret) {
                    // ai_only: no ticket or handoff; deflection_rate = ai_only / total
   tickets: {created, closed, from_customer, reopened, reopen_rate},
   backlog: {total, overdue, unassigned, by_status: {…}, by_priority: {…}},
-                   // open tickets now, whatever the range; by_status only has `open`
+                   // open tickets now, whatever the range
   first_response: {count, avg_seconds, median_seconds, p90_seconds},
   resolution:     {count, avg_seconds, median_seconds, p90_seconds},
-                   // time to close: created_at to closed_at
   cost: {total, per_ticket, per_conversation, per_ai_resolved},
                    // USD billed, fee and commission included; a ticket's
                    // cost is its conversation's AI cost
@@ -1224,8 +1238,7 @@ Read only, across businesses, most recently updated first, 100 per page.
 | --- | --- |
 | `tenant` | A business ID. |
 | `view` | `all`, `open`, `needs_reply` or `escalated`. |
-| `status` | `open` or `closed`. Any other value is `400 INVALID_REQUEST`. |
-| `priority` | One value. |
+| `status`, `priority` | One value each; `status` is `open` or `closed`. |
 | `before` | `next_before` from the previous page. |
 
 **200** `{data: [{id, tenant_id, tenant_name, bot_id, subject, status, priority, source, escalated, needs_reply, handed_off, created_at, updated_at}], next_before?}`. To open one, act in that business as a platform admin, using its scope headers with `GET /tickets/{id}`.
@@ -1489,7 +1502,7 @@ Every error has its HTTP status and this body:
 | 410 | `INVITE_REVOKED`, `INVITE_EXPIRED` | A new invitation is needed. |
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Send `Content-Type: application/json`. |
-| 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up, or its tokens are and the balance is empty. |
+| 429 | `PLAN_LIMIT_REACHED` | The month' AI replies are used up, or its tokens are and the balance is empty. |
 | 429 | `LLM_RATE_LIMITED` | The model provider is busy; retry shortly. |
 | 500 | `INTERNAL_ERROR` | Unexpected; quote the request ID. |
 | 502 | `DATABASE_ERROR`, `STORAGE_ERROR`, `RETRIEVAL_FAILED`, `LLM_PROVIDER_ERROR` | A backing service failed; `message` says which. |
