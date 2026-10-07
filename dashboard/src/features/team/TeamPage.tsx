@@ -294,14 +294,18 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   }, [open]);
 
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const link = created?.token ? `${env.dashboardUrl}/invite/${created.token}` : '';
+  const link = created?.link ?? (created?.token ? `${env.dashboardUrl}/invite/${created.token}` : '');
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       title={created ? 'Invitation created' : 'Invite a teammate'}
-      description={created ? `Send this link to ${created.email}. It works once, for that address, until ${formatDate(created.expires_at)}.` : 'They join with the role you pick. You can change it later.'}
+      description={
+        created
+          ? `${created.emailed ? `We emailed ${created.email} a link to join.` : `Send this link to ${created.email}.`} It works once, for that address, until ${formatDate(created.expires_at)}.`
+          : 'They join with the role you pick. You can change it later.'
+      }
       footer={
         created ? (
           <Button variant="accent" onClick={() => onOpenChange(false)}>
@@ -323,7 +327,9 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
         <div className="grid gap-3">
           <CopyField value={link} />
           <Callout tone="neutral" icon={<Mail />}>
-            Truplexy doesn't email the link for you. Share it however you like; only {created.email} can accept it.
+            {created.emailed
+              ? `If it doesn't arrive, share this link instead; only ${created.email} can accept it.`
+              : `The invitation email wasn't sent. Share this link however you like; only ${created.email} can accept it.`}
           </Callout>
         </div>
       ) : (

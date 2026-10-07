@@ -532,7 +532,8 @@ route('POST', '/invites', 'members.write', (c) => {
   c.db.invites.push(inv);
   audit(c, 'invite.created', inv.id, { email, role });
   const { tenant_id: _t, ...out } = inv;
-  return created(out);
+  // The mock API sends no email.
+  return created({ ...out, emailed: false });
 });
 
 route('DELETE', '/invites/:id', 'members.write', (c) => {

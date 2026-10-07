@@ -150,6 +150,10 @@ export interface Invite {
   created_at: string;
   /** Only in the POST /invites response. */
   token?: string;
+  /** Only in the POST /invites response, when the API knows the dashboard's URL. */
+  link?: string;
+  /** Only in the POST /invites response: whether the API emailed the link. */
+  emailed?: boolean;
 }
 
 export interface AuditEvent {

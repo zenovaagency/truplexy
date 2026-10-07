@@ -198,8 +198,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const tokenHash = url.searchParams.get('token_hash');
         const type = url.searchParams.get('type');
         const code = url.searchParams.get('code');
+        // Emails the API asks Supabase to send (invitations) can't use PKCE: with the default templates they
+        // land here with the session in the hash.
+        const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+        const accessToken = hash.get('access_token');
+        const refreshToken = hash.get('refresh_token');
         if (tokenHash && type) {
           failAs((await sb.auth.verifyOtp({ token_hash: tokenHash, type: type as 'email' })).error);
+        } else if (accessToken && refreshToken) {
+          failAs((await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })).error);
         } else if (code) {
           failAs((await sb.auth.exchangeCodeForSession(code)).error);
         } else if (!(await sb.auth.getSession()).data.session) {
