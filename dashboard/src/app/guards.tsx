@@ -1,15 +1,14 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation, useOutletContext, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Building2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useMe } from '@/lib/api/endpoints/account';
 import type { Bot, Business, Permission } from '@/lib/api/types';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
 import { qk } from '@/lib/query-keys';
-import { lastScope, rememberScope, ScopeContext, scopePath, useScopeCtx, type ScopeContextValue } from '@/lib/session/scope-context';
-import { Button, EmptyState, ErrorState, NoAccess } from '@/components/ui';
+import { activeScope, ScopeContext, scopeLink, scopeOf, setActiveScope, useScopeCtx, type ScopeContextValue } from '@/lib/session/scope-context';
+import { ErrorState, NoAccess } from '@/components/ui';
 import { LogoMark } from '@/components/layout/Brand';
 import { AppShell } from './layouts/AppShell';
 import { FullPage } from './errors';
@@ -39,57 +38,60 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
-/** "/" → the last business and bot used, the first one, the platform console, or onboarding. */
-export function RootRedirect() {
-  const me = useMe();
-  if (me.isPending) return <Splash />;
-  if (me.isError)
-    return (
-      <FullPage>
-        <ErrorState error={me.error} onRetry={() => me.refetch()} />
-      </FullPage>
-    );
-  const { memberships, platform_admin } = me.data;
-  const last = lastScope();
-  const remembered = last && memberships.find((m) => m.tenant_id === last.tenant && m.bots.some((b) => b.id === last.bot));
-  if (remembered) return <Navigate to={scopePath(last)} replace />;
-  const first = memberships.find((m) => m.bots.length);
-  if (first) return <Navigate to={scopePath({ tenant: first.tenant_id, bot: first.bots[0]!.id })} replace />;
-  if (platform_admin) return <Navigate to="/platform" replace />;
-  return <Navigate to="/onboarding" replace />;
+/** Old /t/:tenant/:bot/... links (bookmarks, shared links): select that scope and show the plain URL. */
+export function LegacyScopeRedirect() {
+  const { tenant = '', bot = '', '*': rest = '' } = useParams();
+  const { search } = useLocation();
+  const link = scopeLink({ tenant, bot }, rest || 'overview');
+  return <Navigate to={link.to + search} state={link.state} replace />;
 }
 
 /**
- * Every /t/:tenant/:bot page. Resolves the membership from GET /me, builds
- * the permission check, and renders the shell. Platform admins may open a
+ * Every business page. The scope comes from the navigation that switched to
+ * it, else this tab's last scope, else the first business with a bot; it is
+ * never in the URL. Resolves the membership from GET /me, builds the
+ * permission check, and renders the shell. Platform admins may open a
  * business they don't belong to; they pass every check.
  */
 export function ScopeLayout() {
-  const { tenant = '', bot = '' } = useParams();
   const loc = useLocation();
   const me = useMe();
-  const membership = me.data?.memberships.find((m) => m.tenant_id === tenant);
+  const [stored, setStored] = useState(activeScope);
+  const requested = scopeOf(loc.state) ?? stored;
+  const memberships = me.data?.memberships;
   const isPlatformAdmin = me.data?.platform_admin ?? false;
-  const scope = useMemo(() => ({ tenant, bot }), [tenant, bot]);
-  const visiting = Boolean(me.data && !membership && isPlatformAdmin);
+
+  // A business you no longer belong to falls back to your first one; platform admins may visit any.
+  const requestedMember = requested && memberships?.find((m) => m.tenant_id === requested.tenant && m.bots.length);
+  const visiting = Boolean(requested && memberships && isPlatformAdmin && !memberships.some((m) => m.tenant_id === requested.tenant));
+  const first = memberships?.find((m) => m.bots.length);
+  const tenant = requestedMember || visiting ? requested!.tenant : (first?.tenant_id ?? '');
+  const wantedBot = requested?.tenant === tenant ? requested.bot : '';
+  const membership = memberships?.find((m) => m.tenant_id === tenant);
+  const tenantScope = useMemo(() => ({ tenant, bot: wantedBot }), [tenant, wantedBot]);
 
   // A platform admin visiting: read the business and its bots through the API (same cache keys as the pages).
   const visitBusiness = useQuery({
-    queryKey: qk.tenant(scope, 'business'),
-    queryFn: ({ signal }) => api<Business>('/tenant', { scope, signal }),
+    queryKey: qk.tenant(tenantScope, 'business'),
+    queryFn: ({ signal }) => api<Business>('/tenant', { scope: tenantScope, signal }),
     enabled: visiting,
   });
   const visitBots = useQuery({
-    queryKey: qk.tenant(scope, 'bots'),
-    queryFn: ({ signal }) => api<{ data: Bot[] }>('/bots', { scope, signal }).then((r) => r.data),
+    queryKey: qk.tenant(tenantScope, 'bots'),
+    queryFn: ({ signal }) => api<{ data: Bot[] }>('/bots', { scope: tenantScope, signal }).then((r) => r.data),
     enabled: visiting,
   });
 
   const bots = membership?.bots ?? visitBots.data?.map((b) => ({ id: b.id, name: b.name }));
-  const currentBot = bots?.find((b) => b.id === bot);
+  // Unknown bot: the business's first bot, on the same page.
+  const currentBot = bots?.find((b) => b.id === wantedBot) ?? bots?.[0];
+  const botId = currentBot?.id ?? '';
+  const scope = useMemo(() => ({ tenant, bot: botId }), [tenant, botId]);
 
   useEffect(() => {
-    if (membership && currentBot) rememberScope(scope);
+    if (!currentBot) return;
+    setActiveScope(scope, { remember: Boolean(membership) });
+    setStored((s) => (s?.tenant === scope.tenant && s.bot === scope.bot ? s : scope));
   }, [membership, currentBot, scope]);
 
   const value = useMemo<ScopeContextValue | null>(() => {
@@ -106,7 +108,7 @@ export function ScopeLayout() {
       role,
       isPlatformAdmin,
       can: (p) => isPlatformAdmin || perms.has(p),
-      href: (path = 'overview') => scopePath(scope, path),
+      href: (path = 'overview') => `/${path}`,
     };
   }, [me.data, bots, currentBot, membership, scope, tenant, isPlatformAdmin, visitBusiness.data]);
 
@@ -117,35 +119,14 @@ export function ScopeLayout() {
         <ErrorState error={me.error} onRetry={() => me.refetch()} />
       </FullPage>
     );
-  if (!membership && !isPlatformAdmin) {
-    return (
-      <FullPage>
-        <EmptyState
-          icon={<Building2 />}
-          title="You're not a member of this business"
-          description="It may have been removed, or your access ended. Ask an owner to invite you again."
-          action={
-            <Button asChild variant="accent">
-              <a href="/">Go to my dashboard</a>
-            </Button>
-          }
-        />
-      </FullPage>
-    );
-  }
   if (visiting && visitBots.isError)
     return (
       <FullPage>
         <ErrorState error={visitBots.error} onRetry={() => visitBots.refetch()} />
       </FullPage>
     );
-  // Unknown bot in the URL: same page on the business's first bot.
-  if (bots && !currentBot) {
-    const first = bots[0];
-    if (!first) return <Navigate to="/" replace />;
-    const rest = loc.pathname.split('/').slice(4).join('/');
-    return <Navigate to={scopePath({ tenant, bot: first.id }, rest || 'overview')} replace />;
-  }
+  // No business with a bot to show: the platform console, or onboarding.
+  if (!currentBot) return <Navigate to={isPlatformAdmin ? '/platform' : '/onboarding'} replace />;
   if (!value) return <Splash />;
 
   return (

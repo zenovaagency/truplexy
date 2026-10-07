@@ -4,7 +4,7 @@ import { Loader2, Save, Undo2 } from 'lucide-react';
 import { hasCode } from '@/lib/api/client';
 import { useSaveWorkspace, useWorkspace } from '@/lib/api/endpoints/bot';
 import type { BotConfig, Workspace } from '@/lib/api/types';
-import { scopePath, useScopeCtx } from '@/lib/session/scope-context';
+import { switchesScope, useScopeCtx } from '@/lib/session/scope-context';
 import { Button, Card, ErrorState, Page, Skeleton, SkeletonRows, useConfirm } from '@/components/ui';
 
 export interface Draft {
@@ -68,11 +68,10 @@ function DraftScope() {
   const patchBot = useCallback((p: Partial<BotConfig>) => setDraft((d) => ({ ...d, bot: { ...d.bot, ...p } })), [setDraft]);
 
   // Moving between this bot's LLM, Tools and Playground keeps the draft; anywhere else asks first.
-  const prefix = `${scopePath(scope, '')}/`;
   const blocker = useBlocker(({ nextLocation }) => {
     if (!dirty) return false;
-    const p = nextLocation.pathname;
-    return !(p.startsWith(prefix) && DRAFT_PAGES.has(p.slice(prefix.length).split('/')[0]!));
+    if (switchesScope(nextLocation.state, scope)) return true;
+    return !DRAFT_PAGES.has(nextLocation.pathname.split('/')[1]!);
   });
   useEffect(() => {
     if (blocker.state !== 'blocked') return;

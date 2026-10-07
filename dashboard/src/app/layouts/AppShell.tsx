@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate, useNavigation } from 'react-router';
+import { useContext, useState } from 'react';
+import { Link, Outlet, useNavigate, useNavigation } from 'react-router';
 import { Dialog as D } from 'radix-ui';
 import { ArrowLeft, FlaskConical, Menu as MenuIcon, PauseCircle, Search, ShieldCheck } from 'lucide-react';
 import { useHealth } from '@/lib/api/endpoints/account';
@@ -8,7 +8,7 @@ import { useTicketCounts } from '@/lib/api/endpoints/tickets';
 import { cn } from '@/lib/cn';
 import { formatCompact } from '@/lib/format';
 import { useLiveUpdates, type LiveStatus } from '@/lib/realtime';
-import { useScopeCtx } from '@/lib/session/scope-context';
+import { ScopeContext, useScopeCtx } from '@/lib/session/scope-context';
 import { useHotkeys, useIsDesktop, useIsTablet, useStoredState } from '@/hooks';
 import { BUSINESS_NAV, PLATFORM_NAV, type NavItem } from '@/app/nav';
 import { Badge, Button, Kbd, MOD, Progress, Tip } from '@/components/ui';
@@ -30,7 +30,7 @@ export function AppShell({ variant }: { variant: 'business' | 'platform' }) {
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
   const navigation = useNavigation();
-  const loc = useLocation();
+  const scope = useContext(ScopeContext)?.scope;
 
   const collapsed = isTablet && (!isDesktop || pinnedCollapsed);
   const sidebarW = !isTablet ? '0px' : collapsed ? 'var(--rail-w)' : 'var(--sidebar-w)';
@@ -125,7 +125,7 @@ export function AppShell({ variant }: { variant: 'business' | 'platform' }) {
 
         {variant === 'business' && <SuspendedBanner />}
 
-        <main id="main" className="flex-1" key={variant === 'business' ? loc.pathname.split('/').slice(0, 4).join('/') : 'platform'}>
+        <main id="main" className="flex-1" key={scope ? `${scope.tenant}/${scope.bot}` : 'platform'}>
           <Outlet />
         </main>
       </div>

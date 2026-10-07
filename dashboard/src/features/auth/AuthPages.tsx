@@ -12,7 +12,7 @@ import { describeError } from '@/lib/errors';
 import { formatDate } from '@/lib/format';
 import { ROLE_DESCRIPTION, ROLE_LABEL } from '@/lib/permissions';
 import { qk } from '@/lib/query-keys';
-import { scopePath } from '@/lib/session/scope-context';
+import { scopeLink } from '@/lib/session/scope-context';
 import { Button, Callout, EmptyState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { Splash } from '@/app/guards';
 import { BrandMark } from '@/components/layout/Brand';
@@ -261,7 +261,12 @@ export function OnboardingPage() {
     if (!type || !name.trim()) return;
     create.mutate(
       { name: name.trim(), business_type: type },
-      { onSuccess: ({ tenant, bot_id }) => nav(scopePath({ tenant: tenant.id, bot: bot_id }), { replace: true }) },
+      {
+        onSuccess: ({ tenant, bot_id }) => {
+          const link = scopeLink({ tenant: tenant.id, bot: bot_id });
+          nav(link.to, { state: link.state, replace: true });
+        },
+      },
     );
   };
 
@@ -447,7 +452,8 @@ export function InvitePage() {
       onSuccess: async (inv) => {
         const me = await qc.fetchQuery({ queryKey: qk.me, queryFn: () => fetchMe(), staleTime: 0 });
         const m = me.memberships.find((x) => x.tenant_id === inv.tenant_id);
-        nav(m?.bots[0] ? scopePath({ tenant: m.tenant_id, bot: m.bots[0].id }) : '/', { replace: true });
+        const link = m?.bots[0] ? scopeLink({ tenant: m.tenant_id, bot: m.bots[0].id }) : { to: '/', state: undefined };
+        nav(link.to, { state: link.state, replace: true });
       },
     });
 

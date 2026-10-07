@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import type { Permission } from '@/lib/api/types';
 import { pages } from './nav';
-import { RequireAuth, RequirePermission, RequirePlatformAdmin, RootRedirect, ScopeLayout } from './guards';
+import { LegacyScopeRedirect, RequireAuth, RequirePermission, RequirePlatformAdmin, ScopeLayout } from './guards';
 import { NotFound, RouteError } from './errors';
 import { PlatformLayout } from './layouts/PlatformLayout';
 
@@ -122,10 +122,12 @@ export const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
-          { index: true, element: <RootRedirect /> },
           { path: '/onboarding', ...lazyRoute(auth, (m) => m.OnboardingPage) },
+          // Earlier address of business pages, still used by shared links.
+          { path: '/t/:tenant/:bot/*', element: <LegacyScopeRedirect /> },
+          // Business pages sit at the root (/overview, /tickets/…); the business and bot are not in the URL.
           // The pathless child keeps errors inside the shell, so navigation still works.
-          { path: '/t/:tenant/:bot', element: <ScopeLayout />, children: [{ errorElement: <RouteError />, children: businessRoutes }] },
+          { element: <ScopeLayout />, children: [{ errorElement: <RouteError />, children: businessRoutes }] },
           {
             path: '/platform',
             element: <RequirePlatformAdmin />,

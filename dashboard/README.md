@@ -83,7 +83,7 @@ src/
 
 ### Conventions
 
-- **Scope in the URL.** Business pages live at `/t/:tenant/:bot/<tab>`, so links can be shared. `/` returns to the last business used.
+- **Scope out of the URL.** Business pages live at `/<tab>` (`/overview`, `/tickets/:id`); the business and bot are never in the address bar. Each tab keeps its own scope (sessionStorage), and a new tab returns to the last business used. Switching scope is a navigation with `state.scope` (`scopeLink()`). Shared links ("Copy link") use `/t/:tenant/:bot/<tab>`, which selects that scope and redirects to the plain URL.
 - **Permissions.** `useScopeCtx().can('tickets.write')` reads the role table from `GET /me`. Tabs a role can't open are hidden from the sidebar and the command palette, and show a no-access state when opened by URL. Actions a role lacks are hidden or disabled.
 - **Server state.** Each endpoint group in `lib/api/endpoints` exports React Query hooks. Keys are built with `qk.tenant(scope, …)` and `qk.bot(scope, …)`, so switching bots never shows another bot's data. Errors toast globally with their request ID; set `meta.silent` or `meta.silentCodes` when a page shows the error itself.
 - **Shortcuts.** `Ctrl/⌘ K` opens the command palette. `G` then a letter jumps to a tab (`G T` tickets, `G L` LLM, `G W` tools, `G P` playground). `J` and `K` move through the ticket queue.

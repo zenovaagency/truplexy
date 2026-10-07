@@ -29,7 +29,7 @@ import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber
 import { useDebounce } from '@/hooks';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
-import { scopePath, useScopeCtx } from '@/lib/session/scope-context';
+import { scopeLink, useScopeCtx } from '@/lib/session/scope-context';
 import {
   Badge,
   Button,
@@ -590,7 +590,7 @@ export function BotsTab() {
                 </div>
                 {b.id !== current.id && (
                   <Button size="xs" asChild>
-                    <Link to={scopePath({ tenant: scope.tenant, bot: b.id })}>Switch to it</Link>
+                    <Link {...scopeLink({ tenant: scope.tenant, bot: b.id })}>Switch to it</Link>
                   </Button>
                 )}
               </li>
@@ -621,7 +621,10 @@ export function BotsTab() {
           className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            create.mutate({ bot_id: id, name: name.trim() }, { onSuccess: (b) => nav(scopePath({ tenant: scope.tenant, bot: b.id }, 'llm/model')) });
+            create.mutate({ bot_id: id, name: name.trim() }, { onSuccess: (b) => {
+                const link = scopeLink({ tenant: scope.tenant, bot: b.id }, 'llm/model');
+                nav(link.to, { state: link.state });
+              }, });
           }}
         >
           <Field label="Name" aside={`${name.length}/80`}>

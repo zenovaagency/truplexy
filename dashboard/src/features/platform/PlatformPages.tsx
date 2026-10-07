@@ -44,7 +44,7 @@ import {
 import type { BusinessTypeId, CatalogStatus, Limits, PlatformBusiness, PlatformModel, PlatformTemplate, TemplateVariable, TicketPriority, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { dayRange, formatCompact, formatCurrency, formatDate, formatMs, formatNumber, formatRelative, formatPerM, pluralize } from '@/lib/format';
-import { scopePath } from '@/lib/session/scope-context';
+import { scopeLink } from '@/lib/session/scope-context';
 import { BUILTIN_VARIABLES, renderTemplate, templateKeys } from '@/lib/template';
 import { OpenRouterPicker, priceDiffers } from './OpenRouterPicker';
 import { notifyInfo, notifySuccess } from '@/lib/notify';
@@ -288,7 +288,7 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
             {b.status === 'active' ? 'Suspend business' : 'Reactivate business'}
           </Button>
           <Button asChild variant="accent" leading={<ArrowUpRight />}>
-            <Link to={scopePath({ tenant: b.id, bot: b.first_bot })}>Open business</Link>
+            <Link {...scopeLink({ tenant: b.id, bot: b.first_bot })}>Open business</Link>
           </Button>
         </>
       }
@@ -600,7 +600,7 @@ export function PlatformTickets() {
                 align: 'right',
                 cell: (t) => (
                   <Button asChild size="xs" leading={<ArrowUpRight />}>
-                    <Link to={scopePath({ tenant: t.tenant_id, bot: t.bot_id }, `tickets/${t.id}`)}>Open</Link>
+                    <Link {...scopeLink({ tenant: t.tenant_id, bot: t.bot_id }, `tickets/${t.id}`)}>Open</Link>
                   </Button>
                 ),
               },

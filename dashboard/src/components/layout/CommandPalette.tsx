@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
 import type { Permission } from '@/lib/api/types';
-import { ScopeContext, scopePath } from '@/lib/session/scope-context';
+import { ScopeContext, scopeLink } from '@/lib/session/scope-context';
 import { useTheme } from '@/lib/theme';
 import { BUSINESS_NAV, PLATFORM_NAV } from '@/app/nav';
 import { Kbd } from '@/components/ui';
@@ -53,10 +53,11 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const { resolved, toggle } = useTheme();
   const [q, setQ] = useState('');
 
-  const go = (to: string) => () => {
+  const go = (to: string | ReturnType<typeof scopeLink>) => () => {
     onOpenChange(false);
     setQ('');
-    nav(to);
+    if (typeof to === 'string') nav(to);
+    else nav(to.to, { state: to.state });
   };
   const allowed = (p?: Permission) => !p || (ctx?.can(p) ?? false);
 
@@ -102,7 +103,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       label: `${m.name} / ${b.name}`,
       icon: <Bot />,
       keywords: [m.tenant_id, b.id],
-      run: go(scopePath({ tenant: m.tenant_id, bot: b.id })),
+      run: go(scopeLink({ tenant: m.tenant_id, bot: b.id })),
     })),
   );
 

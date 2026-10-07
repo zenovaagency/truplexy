@@ -23,7 +23,7 @@ import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketPriorit
 import { cn } from '@/lib/cn';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
 import { notifySuccess } from '@/lib/notify';
-import { useScopeCtx } from '@/lib/session/scope-context';
+import { shareUrl, useScopeCtx } from '@/lib/session/scope-context';
 import { useCopy, useMediaQuery } from '@/hooks';
 import {
   Badge,
@@ -96,7 +96,7 @@ export function TicketDetail({ id, backHref }: { id: string; backHref?: string }
 /* ------------------------------------------------------------------ */
 
 function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?: string; onDetails?: () => void }) {
-  const { can, href } = useScopeCtx();
+  const { can, href, scope } = useScopeCtx();
   const update = useUpdateTicket();
   const del = useDeleteTicket();
   const confirm = useConfirm();
@@ -197,7 +197,7 @@ function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?
             </Button>
           </MenuTrigger>
           <MenuContent>
-            <MenuItem onSelect={() => void copy(window.location.origin + href(`tickets/${t.id}`)).then(() => notifySuccess('Link copied'))}>
+            <MenuItem onSelect={() => void copy(shareUrl(scope, `tickets/${t.id}`)).then(() => notifySuccess('Link copied'))}>
               <Link2 /> Copy link
             </MenuItem>
             <MenuItem onSelect={() => void copy(t.id).then(() => notifySuccess('Ticket ID copied'))}>

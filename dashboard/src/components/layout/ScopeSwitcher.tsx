@@ -3,13 +3,13 @@ import { Bot, Check, ChevronsUpDown, Plus, Settings2 } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
 import { cn } from '@/lib/cn';
 import { ROLE_LABEL } from '@/lib/permissions';
-import { scopePath, useScopeCtx } from '@/lib/session/scope-context';
+import { scopeLink, useScopeCtx } from '@/lib/session/scope-context';
 import { Avatar, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui';
 
 /** The tab segment of the current URL, so switching keeps you on the same tab (not the same record). */
 function useCurrentTab() {
   const loc = useLocation();
-  const parts = loc.pathname.split('/').slice(4);
+  const parts = loc.pathname.split('/').slice(1);
   const tab = parts[0] ?? 'overview';
   // Sub-tabs are shared across scopes; record ids (tickets/abc) are not.
   return tab === 'tickets' ? 'tickets' : parts.join('/') || 'overview';
@@ -23,6 +23,7 @@ export function ScopeSwitcher() {
   const me = useMe();
   const nav = useNavigate();
   const tab = useCurrentTab();
+  const go = (link: ReturnType<typeof scopeLink>) => nav(link.to, { state: link.state });
   const memberships = me.data?.memberships ?? [];
 
   return (
@@ -41,7 +42,7 @@ export function ScopeSwitcher() {
           {memberships.map((m) => (
             <MenuItem
               key={m.tenant_id}
-              onSelect={() => m.bots[0] && nav(scopePath({ tenant: m.tenant_id, bot: m.bots[0].id }, tab))}
+              onSelect={() => m.bots[0] && go(scopeLink({ tenant: m.tenant_id, bot: m.bots[0].id }, tab))}
               disabled={!m.bots.length}
             >
               <Avatar name={m.name} size={22} className="rounded-[7px]" />
@@ -76,7 +77,7 @@ export function ScopeSwitcher() {
         <MenuContent align="start" className="w-[260px]">
           <MenuLabel>Bots in {businessName}</MenuLabel>
           {bots.map((b) => (
-            <MenuItem key={b.id} onSelect={() => nav(scopePath({ tenant: scope.tenant, bot: b.id }, tab))}>
+            <MenuItem key={b.id} onSelect={() => go(scopeLink({ tenant: scope.tenant, bot: b.id }, tab))}>
               <Bot />
               <span className="grid min-w-0 flex-1">
                 <span className="truncate">{b.name}</span>
@@ -87,12 +88,12 @@ export function ScopeSwitcher() {
           ))}
           {(can('bots.create') || can('members.read')) && <MenuSeparator />}
           {can('bots.create') && (
-            <MenuItem onSelect={() => nav(scopePath(scope, 'settings/bots?new=1'))}>
+            <MenuItem onSelect={() => nav('/settings/bots?new=1')}>
               <Plus />
               New bot
             </MenuItem>
           )}
-          <MenuItem onSelect={() => nav(scopePath(scope, 'settings/bots'))}>
+          <MenuItem onSelect={() => nav('/settings/bots')}>
             <Settings2 />
             Manage bots
           </MenuItem>

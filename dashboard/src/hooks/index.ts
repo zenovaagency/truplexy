@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useBlocker } from 'react-router';
+import { ScopeContext, switchesScope } from '@/lib/session/scope-context';
 
 export function useDebounce<T>(value: T, ms = 300) {
   const [v, setV] = useState(value);
@@ -103,7 +104,10 @@ export function useHotkeys(bindings: Record<string, (e: KeyboardEvent) => void>,
 
 /** Warns before leaving a page with unsaved edits, both in-app and on tab close. */
 export function useUnsavedChanges(dirty: boolean) {
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
+  const scope = useContext(ScopeContext)?.scope;
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) => dirty && (currentLocation.pathname !== nextLocation.pathname || switchesScope(nextLocation.state, scope)),
+  );
   useEffect(() => {
     if (!dirty) return;
     const onUnload = (e: BeforeUnloadEvent) => e.preventDefault();
