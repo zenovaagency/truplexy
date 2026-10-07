@@ -12,13 +12,15 @@ import {
   LogOut,
   Lock,
   Plus,
+  Trash2,
+  Undo2,
   Upload,
   Wallet,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, hasCode } from '@/lib/api/client';
 import { useBusinessTypes, usePlans } from '@/lib/api/endpoints/account';
-import { useBots, useCreateBot, useLeaveTenant, useTenant, useUpdateTenant } from '@/lib/api/endpoints/business';
+import { useBots, useCreateBot, useDeletionRequest, useLeaveTenant, useRequestDeletion, useTenant, useUpdateTenant, useWithdrawDeletion } from '@/lib/api/endpoints/business';
 import { useAddonQuote, useBilling, useBillingLedger, useBuyTokens } from '@/lib/api/endpoints/billing';
 import { useWorkspace } from '@/lib/api/endpoints/bot';
 import { useDocuments } from '@/lib/api/endpoints/knowledge';
@@ -26,6 +28,7 @@ import type { Billing, BotConfig, BusinessTypeId, DocumentList, KnowledgeDocumen
 import { formatMonth, LEDGER_KIND, ordinal, quoteTokens } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber, formatPerM, isoDay } from '@/lib/format';
+import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { useDebounce } from '@/hooks';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
@@ -834,16 +837,88 @@ export function DangerTab() {
             Leave business
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-4 border-t border-line px-5 py-4">
-          <div className="grid min-w-[240px] flex-1 gap-0.5">
-            <p className="font-semibold text-ink">Delete this business</p>
-            <p className="text-[0.8125rem] text-ink-muted">Businesses are deleted by the Truplexy team, so nothing is lost by accident. Download a backup of each bot first.</p>
-          </div>
-          <Button asChild variant="ghost">
-            <a href={`mailto:hello@truplexy.com?subject=${encodeURIComponent(`Delete business ${businessName}`)}`}>Contact support</a>
-          </Button>
-        </div>
+        <DeleteBusinessRow />
       </section>
+    </div>
+  );
+}
+
+/** Owners ask Truplexy to delete the business; a platform admin reviews the request. */
+function DeleteBusinessRow() {
+  const { businessName, can, href } = useScopeCtx();
+  const q = useDeletionRequest();
+  const request = useRequestDeletion();
+  const withdraw = useWithdrawDeletion();
+  const confirm = useConfirm();
+  const [open, setOpen] = useState(false);
+  const owner = can('business.delete');
+  const r = q.data;
+  const pending = r?.status === 'pending';
+
+  const onWithdraw = () =>
+    confirm({
+      title: 'Withdraw the deletion request?',
+      description: `${businessName} stays as it is. An owner can ask again at any time.`,
+      confirmLabel: 'Withdraw request',
+      onConfirm: () => withdraw.mutateAsync(),
+    });
+
+  return (
+    <div className="grid gap-3 border-t border-line px-5 py-4">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="grid min-w-[240px] flex-1 gap-0.5">
+          <p className="font-semibold text-ink">Delete this business</p>
+          <p className="text-[0.8125rem] text-ink-muted">
+            An owner asks, and the Truplexy team reviews the request. A deleted business can be restored for 30 days; after that its bots, knowledge, tickets and
+            history are erased. People's accounts stay.
+          </p>
+        </div>
+        {q.isPending ? null : pending ? (
+          owner && (
+            <Button variant="ghost" leading={<Undo2 />} onClick={() => void onWithdraw()}>
+              Withdraw request
+            </Button>
+          )
+        ) : owner ? (
+          <Button variant="danger-ghost" leading={<Trash2 />} disabled={q.isError} onClick={() => setOpen(true)}>
+            Request deletion
+          </Button>
+        ) : (
+          <p className="max-w-[220px] text-xs text-ink-faint">Only owners can ask Truplexy to delete this business.</p>
+        )}
+      </div>
+      {q.isError && <ErrorState compact error={q.error} onRetry={() => q.refetch()} />}
+      {pending && (
+        <Callout tone="warn" icon={<AlertTriangle />} title={`Deletion requested ${formatDate(r.created_at)}`}>
+          {r.requested_by_email} asked Truplexy to delete {businessName}. Until the team reviews it, everything keeps working.
+          {r.reason && <span className="mt-1 block italic">“{r.reason}”</span>}
+        </Callout>
+      )}
+      {r?.status === 'rejected' && (
+        <Callout tone="neutral" title={`Deletion request declined${r.reviewed_at ? ` ${formatDate(r.reviewed_at)}` : ''}`}>
+          {r.review_note ? <span className="italic">“{r.review_note}”</span> : 'Truplexy left no note.'} An owner can ask again.
+        </Callout>
+      )}
+      <ReasonDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={`Ask to delete ${businessName}?`}
+        description="The Truplexy team reviews the request. Nothing changes until they approve it, and you can withdraw it until then."
+        label="Reason"
+        hint="Shown to the Truplexy team."
+        placeholder="We no longer need it."
+        typeToConfirm={businessName}
+        confirmLabel="Request deletion"
+        tone="danger"
+        onSubmit={(reason) => request.mutateAsync(reason)}
+      >
+        <Callout tone="warn" icon={<AlertTriangle />} title="Download a backup first">
+          Once deleted, every bot's configuration and knowledge is erased after 30 days.{' '}
+          <Link className="font-medium text-accent hover:underline" to={href('settings/backup')} onClick={() => setOpen(false)}>
+            Go to Backup
+          </Link>
+        </Callout>
+      </ReasonDialog>
     </div>
   );
 }

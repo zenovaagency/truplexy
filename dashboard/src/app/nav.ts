@@ -15,6 +15,7 @@ import {
   Ticket,
   UserRound,
   Users,
+  Trash2,
   Wrench,
   BarChart3,
 } from 'lucide-react';
@@ -98,6 +99,7 @@ export const PLATFORM_NAV: NavSection[] = [
     items: [
       { id: 'p-overview', label: 'Overview', path: '/platform/overview', icon: LayoutDashboard, prefetch: pages.platform },
       { id: 'p-businesses', label: 'Businesses', path: '/platform/businesses', icon: Building2, prefetch: pages.platform },
+      { id: 'p-deletions', label: 'Deletions', path: '/platform/deletions', icon: Trash2, prefetch: pages.platform, keywords: ['delete', 'restore', 'requests'] },
       { id: 'p-users', label: 'Users', path: '/platform/users', icon: UserRound, prefetch: pages.platform },
       { id: 'p-tickets', label: 'Tickets', path: '/platform/tickets', icon: Ticket, prefetch: pages.platform },
     ],

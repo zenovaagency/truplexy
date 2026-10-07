@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
+  AlertTriangle,
   ArrowUpRight,
   Bot,
   Building2,
@@ -11,6 +12,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   ShieldCheck,
   Trash2,
@@ -21,6 +23,10 @@ import {
 import { useBusinessTypes, useMe, usePlans } from '@/lib/api/endpoints/account';
 import {
   useAdjustBalance,
+  useApproveDeletion,
+  useDeletedTenants,
+  useDeleteTenant,
+  usePlatformDeletionRequests,
   usePlatformModels,
   usePlatformOverview,
   usePlatformTemplates,
@@ -32,16 +38,31 @@ import {
   usePlatformUsers,
   useRefreshAllPricing,
   useRefreshModelPricing,
+  useRejectDeletion,
+  useRestoreTenant,
   useSavePlatformModel,
   useSavePlatformTemplate,
   useTogglePlatformTool,
   useUpdatePlatformTenant,
   useUpdatePlatformUser,
+  type DeletionRequestFilter,
   type ModelInput,
   type PlatformTicketQuery,
   type TemplateInput,
 } from '@/lib/api/endpoints/platform';
-import type { BusinessTypeId, CatalogStatus, Limits, PlatformBusiness, PlatformModel, PlatformTemplate, TemplateVariable, TicketPriority, TicketStatus } from '@/lib/api/types';
+import type {
+  BusinessTypeId,
+  CatalogStatus,
+  DeletionRequest,
+  Limits,
+  PlatformBusiness,
+  PlatformModel,
+  PlatformTemplate,
+  TemplateVariable,
+  TenantDeletion,
+  TicketPriority,
+  TicketStatus,
+} from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { dayRange, formatCompact, formatCurrency, formatDate, formatMs, formatNumber, formatRelative, formatPerM, pluralize } from '@/lib/format';
 import { scopeLink } from '@/lib/session/scope-context';
@@ -80,6 +101,7 @@ import {
 } from '@/components/ui';
 import { BarList, TrendChart } from '@/components/charts';
 import { StatCard } from '@/components/domain/StatCard';
+import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { PRIORITIES, PRIORITY, PriorityBadge, RoleBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 
 const STATUS_TONE: Record<CatalogStatus, Tone> = { active: 'live', hidden: 'warn', retired: 'neutral' };
@@ -99,6 +121,7 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
 
 export function PlatformOverview() {
   const q = usePlatformOverview();
+  const pending = usePlatformDeletionRequests('pending').data ?? [];
   const [metric, setMetric] = useState<'requests' | 'total_tokens' | 'estimated_cost'>('requests');
   const o = q.data;
   return (
@@ -108,8 +131,32 @@ export function PlatformOverview() {
         <Card><ErrorState error={q.error} onRetry={() => q.refetch()} /></Card>
       ) : (
         <>
+          {pending.length > 0 && (
+            <Callout
+              tone="warn"
+              icon={<AlertTriangle />}
+              title={`${pluralize(pending.length, 'deletion request')} waiting`}
+              action={
+                <Button asChild size="xs" leading={<ArrowUpRight />}>
+                  <Link to="/platform/deletions">Review</Link>
+                </Button>
+              }
+            >
+              {pending
+                .slice(0, 3)
+                .map((r) => r.tenant_name)
+                .join(', ')}
+              {pending.length > 3 && ` and ${pending.length - 3} more`} asked to be deleted.
+            </Callout>
+          )}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Businesses" icon={<Building2 />} loading={!o} value={formatNumber(o?.businesses)} sub={o && `${o.suspended_businesses} suspended · ${o.bots} bots`} />
+            <StatCard
+              label="Businesses"
+              icon={<Building2 />}
+              loading={!o}
+              value={formatNumber(o?.businesses)}
+              sub={o && `${o.suspended_businesses} suspended · ${o.deleted_businesses ?? 0} deleted · ${o.bots} bots`}
+            />
             <StatCard label="People" icon={<Users />} loading={!o} value={formatNumber(o?.users)} sub={o && `${o.platform_admins} platform admins`} />
             <StatCard label="Conversations" icon={<MessagesSquare />} loading={!o} value={formatCompact(o?.conversations_this_month)} sub={o && `${formatCompact(o.replies_this_month)} AI replies this month`} />
             <StatCard label="Open tickets" icon={<Inbox />} loading={!o} value={formatNumber(o?.open_tickets)} sub={o && `${o.needs_reply} need a reply`} tone={o && o.needs_reply > 20 ? 'warn' : undefined} />
@@ -127,9 +174,10 @@ export function PlatformOverview() {
               <Skeleton className="h-[260px]" />
             )}
           </Card>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {[
               { to: '/platform/businesses', icon: Building2, title: 'Businesses', text: 'Plans, limits and suspensions.' },
+              { to: '/platform/deletions', icon: Trash2, title: 'Deletions', text: 'Owner requests and restores.' },
               { to: '/platform/models', icon: Cpu, title: 'Models', text: 'What businesses can choose from.' },
               { to: '/platform/templates', icon: FileText, title: 'Prompt templates', text: 'Starting instructions per business type.' },
             ].map((l) => (
@@ -156,13 +204,13 @@ export function PlatformOverview() {
 export function PlatformBusinesses() {
   const q = usePlatformTenants();
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | 'active' | 'suspended'>('all');
+  const [status, setStatus] = useState<'all' | 'active' | 'suspended' | 'deleted'>('all');
   const [open, setOpen] = useState<string | null>(null);
   const rows = useMemo(
     () =>
       (q.data ?? []).filter(
         (b) =>
-          (status === 'all' || b.status === status) &&
+          (status === 'deleted' ? Boolean(b.deleted_at) : !b.deleted_at && (status === 'all' || b.status === status)) &&
           (!search || `${b.name} ${b.id} ${b.owner_email}`.toLowerCase().includes(search.toLowerCase())),
       ),
     [q.data, search, status],
@@ -183,7 +231,7 @@ export function PlatformBusinesses() {
     },
     { key: 'owner', header: 'Owner', hideBelowLg: true, cell: (b) => <span className="text-ink-muted">{b.owner_email}</span> },
     { key: 'plan', header: 'Plan', cell: (b) => <Badge tone="accent" className="capitalize">{b.plan}</Badge> },
-    { key: 'status', header: 'Status', cell: (b) => <Badge tone={b.status === 'active' ? 'live' : 'warn'} dot>{b.status === 'active' ? 'Active' : 'Suspended'}</Badge> },
+    { key: 'status', header: 'Status', cell: (b) => <BusinessStatusBadge business={b} /> },
     {
       key: 'replies',
       header: 'Replies this month',
@@ -211,11 +259,22 @@ export function PlatformBusinesses() {
   ];
   return (
     <Page>
-      <PageHeader eyebrow="Platform" title="Businesses" description="Change a business's plan, override its limits, top up its balance, or suspend it." />
+      <PageHeader eyebrow="Platform" title="Businesses" description="Change a business's plan, override its limits, top up its balance, suspend it or delete it." />
       <Card flush>
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
           <SearchBox value={search} onChange={setSearch} placeholder="Search name, ID or owner" />
-          <Segmented size="xs" label="Status" value={status} onChange={setStatus} options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'suspended', label: 'Suspended' }]} />
+          <Segmented
+            size="xs"
+            label="Status"
+            value={status}
+            onChange={setStatus}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'active', label: 'Active' },
+              { value: 'suspended', label: 'Suspended' },
+              { value: 'deleted', label: 'Deleted' },
+            ]}
+          />
         </div>
         {q.isPending ? (
           <SkeletonRows rows={5} className="p-4" />
@@ -230,6 +289,14 @@ export function PlatformBusinesses() {
   );
 }
 
+function BusinessStatusBadge({ business: b }: { business: PlatformBusiness }) {
+  if (b.deleted_at) return <Badge tone="danger" dot>Deleted</Badge>;
+  return <Badge tone={b.status === 'active' ? 'live' : 'warn'} dot>{b.status === 'active' ? 'Active' : 'Suspended'}</Badge>;
+}
+
+/** Businesses that can still be filtered on: deleted ones have nothing to show. */
+const liveBusinesses = (list: PlatformBusiness[] | undefined) => (list ?? []).filter((t) => !t.deleted_at);
+
 const LIMIT_FIELDS: { key: keyof Limits; label: string; max: number }[] = [
   { key: 'replies_per_month', label: 'AI replies / month', max: 10_000_000 },
   { key: 'tokens_per_month', label: 'Tokens / month', max: 100_000_000_000 },
@@ -239,10 +306,13 @@ const LIMIT_FIELDS: { key: keyof Limits; label: string; max: number }[] = [
 ];
 
 function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; onClose: () => void }) {
-  const detail = usePlatformTenantDetail(b?.id ?? null);
+  // A deleted business has no detail to read until it is restored.
+  const detail = usePlatformTenantDetail(b && !b.deleted_at ? b.id : null);
   const plans = usePlans();
   const update = useUpdatePlatformTenant();
+  const remove = useDeleteTenant();
   const confirm = useConfirm();
+  const [deleting, setDeleting] = useState(false);
   const [plan, setPlan] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
 
@@ -253,7 +323,9 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
   }, [b]);
 
   if (!b) return <Sheet open={false} onOpenChange={() => {}} title="" />;
+  if (b.deleted_at) return <DeletedBusinessSheet business={b} onClose={onClose} />;
   const d = detail.data;
+  const protectedBusiness = b.id === 'default';
   const overridesChanged = JSON.stringify(Object.fromEntries(Object.entries(limits).filter(([, v]) => v !== ''))) !== JSON.stringify(Object.fromEntries(Object.entries(b.limit_overrides ?? {}).map(([k, v]) => [k, String(v)])));
 
   const toggleStatus = () =>
@@ -284,6 +356,13 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
       description={`${b.id} · owned by ${b.owner_email}`}
       footer={
         <>
+          <Tip content={protectedBusiness ? "The default business can't be deleted." : undefined}>
+            <span className="mr-auto inline-flex">
+              <Button variant="danger-ghost" leading={<Trash2 />} disabled={protectedBusiness} onClick={() => setDeleting(true)}>
+                Delete
+              </Button>
+            </span>
+          </Tip>
           <Button variant={b.status === 'active' ? 'danger-ghost' : 'ghost'} onClick={() => void toggleStatus()}>
             {b.status === 'active' ? 'Suspend business' : 'Reactivate business'}
           </Button>
@@ -394,8 +473,91 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
           )
         )}
       </div>
+      <ReasonDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        title={`Delete ${b.name}?`}
+        description="Nobody can reach it, its chat keys stop working within a minute, and it leaves its members' business lists. You can restore it for 30 days; after that everything it had is erased."
+        label="Reason"
+        hint="Kept with the deletion record."
+        typeToConfirm={b.id}
+        confirmLabel="Delete business"
+        tone="danger"
+        onSubmit={(reason) => remove.mutateAsync({ id: b.id, reason })}
+      />
     </Sheet>
   );
+}
+
+/** A deleted business: nothing to change, only the way back. */
+function DeletedBusinessSheet({ business: b, onClose }: { business: PlatformBusiness; onClose: () => void }) {
+  const deletions = useDeletedTenants();
+  const d = deletions.data?.find((x) => x.tenant_id === b.id && x.state === 'deleted');
+  const restore = useRestoreConfirm();
+  return (
+    <Sheet
+      open
+      onOpenChange={(o) => !o && onClose()}
+      width="lg"
+      title={b.name}
+      description={`${b.id} · owned by ${b.owner_email}`}
+      footer={
+        <Button variant="accent" leading={<RotateCcw />} disabled={!d?.restorable} onClick={() => d && void restore(d)}>
+          Restore business
+        </Button>
+      }
+    >
+      <div className="grid gap-6">
+        <Callout tone="danger" icon={<Trash2 />} title={`Deleted ${formatDate(b.deleted_at!)}`}>
+          {d ? (
+            <>
+              {d.restorable ? `It can be restored until ${formatDate(d.restore_until)}, ${daysLeft(d.restore_until)} from now. After that it is erased.` : 'Its restore window has passed; it is erased on the next daily run.'}
+              {d.reason && <span className="mt-1 block italic">“{d.reason}”</span>}
+              {d.deleted_by_email && <span className="mt-1 block text-xs">Deleted by {d.deleted_by_email}{d.request_id ? ', on the owner\'s request' : ''}.</span>}
+            </>
+          ) : deletions.isPending ? (
+            'Reading the deletion record…'
+          ) : (
+            'Nobody can reach it until it is restored.'
+          )}
+        </Callout>
+        {deletions.isError && <ErrorState compact error={deletions.error} onRetry={() => deletions.refetch()} />}
+        <section className="grid gap-3">
+          <p className="mono text-ink-faint">When it was deleted</p>
+          <dl className="grid gap-3 text-[0.8125rem] sm:grid-cols-3">
+            <div>
+              <dt className="text-ink-faint">Plan</dt>
+              <dd className="capitalize text-ink">{b.plan}</dd>
+            </div>
+            <div>
+              <dt className="text-ink-faint">Team · bots</dt>
+              <dd className="tabular-nums text-ink">
+                {b.usage.members} · {b.usage.bots}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-ink-faint">Balance</dt>
+              <dd className="font-mono tabular-nums text-ink">{formatCurrency(b.balance)}</dd>
+            </div>
+          </dl>
+          <p className="text-xs text-ink-faint">Restoring brings it back exactly as it was, with its members, bots, keys and balance.</p>
+        </section>
+      </div>
+    </Sheet>
+  );
+}
+
+/** Confirms, then restores a deleted business. */
+function useRestoreConfirm() {
+  const restore = useRestoreTenant();
+  const confirm = useConfirm();
+  return (d: TenantDeletion) =>
+    confirm({
+      title: `Restore ${d.tenant_name}?`,
+      description: 'It comes back exactly as it was: its members reach it again and its chat keys work again.',
+      confirmLabel: 'Restore business',
+      onConfirm: () => restore.mutateAsync(d.tenant_id),
+    });
 }
 
 /** Credit or debit a business's balance; there is no payment provider. */
@@ -456,6 +618,218 @@ function BalanceSection({ business: b }: { business: PlatformBusiness }) {
         {validAmount && n > b.balance && <span className="self-center text-xs text-ink-faint">A debit can't take the balance below zero.</span>}
       </div>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Deletions                                                           */
+/* ------------------------------------------------------------------ */
+
+const REQUEST_STATUS: Record<DeletionRequest['status'], { label: string; tone: Tone }> = {
+  pending: { label: 'Pending', tone: 'warn' },
+  approved: { label: 'Approved', tone: 'danger' },
+  rejected: { label: 'Rejected', tone: 'neutral' },
+  cancelled: { label: 'Withdrawn', tone: 'outline' },
+};
+
+export function PlatformDeletions() {
+  return (
+    <Page>
+      <PageHeader
+        eyebrow="Platform"
+        title="Deletions"
+        description="Owners' requests to delete their business, and deleted businesses. A deleted business can be restored for 30 days; then a daily job erases it. People's accounts are kept."
+      />
+      <DeletionRequestsCard />
+      <DeletedBusinessesCard />
+    </Page>
+  );
+}
+
+function DeletionRequestsCard() {
+  const [status, setStatus] = useState<DeletionRequestFilter>('pending');
+  const q = usePlatformDeletionRequests(status);
+  const approve = useApproveDeletion();
+  const reject = useRejectDeletion();
+  const confirm = useConfirm();
+  const [rejecting, setRejecting] = useState<DeletionRequest | null>(null);
+
+  const onApprove = (r: DeletionRequest) =>
+    confirm({
+      title: `Delete ${r.tenant_name}?`,
+      description: `Approving deletes it now. Nobody can reach it and its chat keys stop within a minute. You can restore it for 30 days.`,
+      confirmLabel: 'Approve and delete',
+      tone: 'danger',
+      typeToConfirm: r.tenant_id,
+      onConfirm: () => approve.mutateAsync({ id: r.id, note: '' }),
+    });
+
+  return (
+    <Card
+      flush
+      title="Requests"
+      actions={
+        <Segmented
+          size="xs"
+          label="Status"
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: 'pending', label: 'Pending' },
+            { value: 'rejected', label: 'Rejected' },
+            { value: 'approved', label: 'Approved' },
+            { value: 'cancelled', label: 'Withdrawn' },
+            { value: 'all', label: 'All' },
+          ]}
+        />
+      }
+    >
+      {q.isPending ? (
+        <SkeletonRows rows={3} className="p-4" />
+      ) : q.isError ? (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : (
+        <DataTable
+          rows={q.data}
+          getKey={(r) => r.id}
+          empty={<EmptyState compact icon={<Inbox />} title={status === 'pending' ? 'No requests waiting' : 'No requests'} />}
+          columns={[
+            {
+              key: 'business',
+              header: 'Business',
+              cell: (r) => (
+                <span className="grid min-w-0">
+                  <span className="truncate font-semibold text-ink">{r.tenant_name}</span>
+                  <span className="truncate font-mono text-xs text-ink-faint">{r.tenant_id}</span>
+                </span>
+              ),
+            },
+            {
+              key: 'reason',
+              header: 'Reason',
+              cell: (r) => (
+                <span className="grid min-w-0 max-w-[360px]">
+                  <span className="truncate text-ink-muted">{r.reason || <span className="text-ink-faint">No reason given</span>}</span>
+                  <span className="truncate text-xs text-ink-faint">{r.requested_by_email}</span>
+                  {r.review_note && <span className="truncate text-xs text-ink-faint">Note: {r.review_note}</span>}
+                </span>
+              ),
+            },
+            { key: 'status', header: 'Status', cell: (r) => <Badge tone={REQUEST_STATUS[r.status].tone} dot>{REQUEST_STATUS[r.status].label}</Badge> },
+            { key: 'when', header: 'Asked', align: 'right', hideBelowLg: true, cell: (r) => <span className="whitespace-nowrap text-ink-muted">{formatRelative(r.created_at)}</span> },
+            {
+              key: 'actions',
+              header: <span className="sr-only">Actions</span>,
+              align: 'right',
+              cell: (r) =>
+                r.status === 'pending' ? (
+                  <span className="inline-flex gap-1.5">
+                    <Button size="xs" variant="ghost" onClick={() => setRejecting(r)}>
+                      Reject
+                    </Button>
+                    <Button size="xs" variant="danger-ghost" onClick={() => void onApprove(r)}>
+                      Approve
+                    </Button>
+                  </span>
+                ) : (
+                  <span className="text-xs text-ink-faint">{r.reviewed_at ? formatDate(r.reviewed_at) : ''}</span>
+                ),
+            },
+          ]}
+        />
+      )}
+      <ReasonDialog
+        open={Boolean(rejecting)}
+        onOpenChange={(o) => !o && setRejecting(null)}
+        title={`Reject ${rejecting?.tenant_name ?? ''}'s request?`}
+        description="The business stays as it is. Its owners see that the request was declined, with your note."
+        label="Note"
+        hint="Shown to the business."
+        placeholder="Your balance has open charges; settle them first."
+        confirmLabel="Reject request"
+        onSubmit={(note) => reject.mutateAsync({ id: rejecting!.id, note })}
+      />
+    </Card>
+  );
+}
+
+function DeletedBusinessesCard() {
+  const q = useDeletedTenants();
+  const restore = useRestoreConfirm();
+  return (
+    <Card flush title="Deleted businesses" description="Newest first. Restored and erased ones stay listed as a record.">
+      {q.isPending ? (
+        <SkeletonRows rows={3} className="p-4" />
+      ) : q.isError ? (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : (
+        <DataTable
+          rows={q.data}
+          getKey={(d) => d.id}
+          empty={<EmptyState compact icon={<Trash2 />} title="No deleted businesses" />}
+          columns={[
+            {
+              key: 'business',
+              header: 'Business',
+              cell: (d) => (
+                <span className="grid min-w-0">
+                  <span className="truncate font-semibold text-ink">{d.tenant_name}</span>
+                  <span className="truncate text-xs text-ink-faint">
+                    <span className="font-mono">{d.tenant_id}</span>
+                    {d.owner_email && ` · ${d.owner_email}`}
+                  </span>
+                </span>
+              ),
+            },
+            {
+              key: 'reason',
+              header: 'Reason',
+              hideBelowLg: true,
+              cell: (d) => (
+                <span className="grid min-w-0 max-w-[320px]">
+                  <span className="truncate text-ink-muted">{d.reason || <span className="text-ink-faint">None given</span>}</span>
+                  <span className="truncate text-xs text-ink-faint">
+                    {d.deleted_by_email ? `By ${d.deleted_by_email}` : ''}
+                    {d.request_id ? ', on request' : ''}
+                  </span>
+                </span>
+              ),
+            },
+            { key: 'deleted', header: 'Deleted', align: 'right', cell: (d) => <span className="whitespace-nowrap text-ink-muted">{formatDate(d.deleted_at)}</span> },
+            { key: 'state', header: 'State', align: 'right', cell: (d) => <DeletionState deletion={d} /> },
+            {
+              key: 'restore',
+              header: <span className="sr-only">Restore</span>,
+              align: 'right',
+              cell: (d) =>
+                d.restorable && (
+                  <Button size="xs" leading={<RotateCcw />} onClick={() => void restore(d)}>
+                    Restore
+                  </Button>
+                ),
+            },
+          ]}
+        />
+      )}
+    </Card>
+  );
+}
+
+/** "24 days", rounded up: a restore window measured in whole days. */
+const daysLeft = (iso: string) => pluralize(Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)), 'day');
+
+function DeletionState({ deletion: d }: { deletion: TenantDeletion }) {
+  if (d.state === 'restored') return <Badge tone="live">Restored{d.restored_at ? ` ${formatDate(d.restored_at)}` : ''}</Badge>;
+  if (d.state === 'purged') return <Badge tone="outline">Erased{d.purged_at ? ` ${formatDate(d.purged_at)}` : ''}</Badge>;
+  if (!d.restorable) return <Badge tone="neutral">Erasing</Badge>;
+  return (
+    <Tip content={`Restorable until ${formatDate(d.restore_until)}`}>
+      <span className="inline-flex">
+        <Badge tone="warn" dot>
+          {daysLeft(d.restore_until)} to restore
+        </Badge>
+      </span>
+    </Tip>
   );
 }
 
@@ -562,7 +936,7 @@ export function PlatformTickets() {
       <Card flush>
         <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
           <Segmented size="xs" label="View" value={f.view ?? 'all'} onChange={(v) => setF({ ...f, view: v })} options={[{ value: 'open', label: 'Open' }, { value: 'needs_reply', label: 'Needs reply' }, { value: 'escalated', label: 'Escalated' }, { value: 'all', label: 'All' }]} />
-          <Select size="sm" className="w-44" aria-label="Business" value={f.tenant ?? ''} onChange={(e) => setF({ ...f, tenant: e.target.value || undefined })} placeholder="All businesses" options={(tenants.data ?? []).map((t) => ({ value: t.id, label: t.name }))} />
+          <Select size="sm" className="w-44" aria-label="Business" value={f.tenant ?? ''} onChange={(e) => setF({ ...f, tenant: e.target.value || undefined })} placeholder="All businesses" options={liveBusinesses(tenants.data).map((t) => ({ value: t.id, label: t.name }))} />
           <Select size="sm" className="w-40" aria-label="Status" value={f.status ?? ''} onChange={(e) => setF({ ...f, status: (e.target.value as TicketStatus) || undefined })} placeholder="Any status" options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))} />
           <Select size="sm" className="w-36" aria-label="Priority" value={f.priority ?? ''} onChange={(e) => setF({ ...f, priority: (e.target.value as TicketPriority) || undefined })} placeholder="Any priority" options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY[p].label }))} />
         </div>
@@ -626,7 +1000,7 @@ export function PlatformTools() {
       <PageHeader eyebrow="Platform" title="Tools" description="Every business's tools, with the last 30 days of calls. Turn one off if it misbehaves; no bot can call it until you turn it back on." />
       <Card flush>
         <div className="border-b border-line p-3">
-          <Select size="sm" className="w-56" aria-label="Business" value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="All businesses" options={(tenants.data ?? []).map((t) => ({ value: t.id, label: t.name }))} />
+          <Select size="sm" className="w-56" aria-label="Business" value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="All businesses" options={liveBusinesses(tenants.data).map((t) => ({ value: t.id, label: t.name }))} />
         </div>
         {q.isPending ? (
           <SkeletonRows rows={4} className="p-4" />

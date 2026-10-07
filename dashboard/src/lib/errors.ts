@@ -46,6 +46,11 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   INVITE_USED: { title: 'This invitation was already used' },
   INVITE_NOT_FOUND: { title: 'Invitation not found' },
   BODY_TOO_LARGE: { title: 'That is too large to send' },
+  DELETION_REQUEST_PENDING: { title: 'A deletion request is already pending', hint: 'Withdraw it first to send a new one.' },
+  DELETION_REQUEST_NOT_FOUND: { title: 'Deletion request not found', hint: 'It may already have been reviewed or withdrawn.' },
+  TENANT_PROTECTED: { title: "This business can't be deleted", hint: 'The default business is kept.' },
+  TENANT_DELETED: { title: 'This business is already deleted' },
+  RESTORE_EXPIRED: { title: "It can't be restored", hint: 'It was deleted more than 30 days ago.' },
   INTERNAL_ERROR: { title: 'Something went wrong on our side', hint: 'Quote the request ID if you contact support.' },
 };
 

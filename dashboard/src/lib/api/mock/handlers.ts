@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   ApiKey,
+  DeletionRequest,
   Billing,
   BillingAddon,
   BotConfig,
@@ -113,6 +114,7 @@ function businessOf(db: MockDb, t: MockTenant): Business {
       tokens_this_month: t.tokens_this_month,
     },
     balance: t.balance,
+    ...(t.deleted_at ? { deleted_at: t.deleted_at } : {}),
   };
 }
 
@@ -271,7 +273,7 @@ function applyStatus(t: MockTicket, next: TicketStatus) {
 /* Usage, derived deterministically from the date                      */
 /* ------------------------------------------------------------------ */
 
-const BASE_VOLUME: Record<string, number> = { 'acme/support': 150, 'acme/wholesale': 14, 'northwind/support': 72, 'bloom-clinic/support': 9, 'harbor-realty/support': 18 };
+const BASE_VOLUME: Record<string, number> = { 'acme/support': 150, 'acme/wholesale': 14, 'northwind/support': 72, 'bloom-clinic/support': 9, 'harbor-realty/support': 18, 'old-bakery/support': 0 };
 
 function usageDay(tenant: string, bot: string, date: string): UsageDay {
   const r = rng(hashString(`${tenant}/${bot}/${date}`));
@@ -350,7 +352,7 @@ route('GET', '/me', 'account', ({ db, user }) => ({
   user: { id: user.id, email: user.email, name: user.name },
   platform_admin: user.platform_admin,
   memberships: db.memberships
-    .filter((m) => m.user_id === user.id)
+    .filter((m) => m.user_id === user.id && !db.tenants.find((t) => t.id === m.tenant_id)?.deleted_at)
     .map((m) => {
       const t = db.tenants.find((x) => x.id === m.tenant_id)!;
       return {
@@ -459,6 +461,44 @@ route('POST', '/tenant/leave', 'members.read', (c) => {
   c.db.memberships = c.db.memberships.filter((m) => !(m.tenant_id === c.tenant.id && m.user_id === c.user.id));
   audit(c, 'member.left', c.user.id);
   return noContent();
+});
+
+/* Deletion requests --------------------------------------------------- */
+
+const RESTORE_DAYS = 30;
+
+const reasonOf = (v: unknown, field: string) => str(v, field, 0, 1000, false)?.trim() ?? '';
+
+function protect(t: MockTenant) {
+  if (t.id === 'default') throw err(409, 'TENANT_PROTECTED', "The default business can't be deleted.");
+}
+
+const latestRequest = (db: MockDb, tenant: string) =>
+  db.deletionRequests.filter((r) => r.tenant_id === tenant).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+const pendingRequest = (db: MockDb, tenant: string) => db.deletionRequests.find((r) => r.tenant_id === tenant && r.status === 'pending');
+
+route('GET', '/tenant/deletion-request', 'members.read', (c) => {
+  const r = latestRequest(c.db, c.tenant.id);
+  if (!r) throw notFound('DELETION_REQUEST_NOT_FOUND', 'Deletion request');
+  return r;
+});
+
+route('POST', '/tenant/deletion-request', 'business.delete', (c) => {
+  protect(c.tenant);
+  if (pendingRequest(c.db, c.tenant.id)) throw err(409, 'DELETION_REQUEST_PENDING', 'A deletion request is already pending.');
+  const reason = reasonOf(c.body?.reason, 'reason');
+  const r: DeletionRequest = { id: newId('dlr'), tenant_id: c.tenant.id, tenant_name: c.tenant.name, requested_by: c.user.id, requested_by_email: c.user.email, reason, status: 'pending', created_at: nowIso() };
+  c.db.deletionRequests.unshift(r);
+  audit(c, 'business.deletion_requested', c.tenant.id, reason ? { reason } : null);
+  return created(r);
+});
+
+route('DELETE', '/tenant/deletion-request', 'business.delete', (c) => {
+  const r = pendingRequest(c.db, c.tenant.id);
+  if (!r) throw notFound('DELETION_REQUEST_NOT_FOUND', 'Deletion request');
+  r.status = 'cancelled';
+  audit(c, 'business.deletion_cancelled', c.tenant.id);
+  return r;
 });
 
 route('GET', '/members', 'members.read', (c) => ({
@@ -1545,8 +1585,9 @@ route('GET', '/platform/overview', 'platform', ({ db }) => {
   const thisMonth = by_day.filter((d) => d.date.startsWith(month));
   const unresolved = db.tickets.map((t) => ticketOut(db, t)).filter((t) => t.status === 'open');
   return {
-    businesses: db.tenants.length,
-    suspended_businesses: db.tenants.filter((t) => t.status === 'suspended').length,
+    businesses: db.tenants.filter((t) => !t.deleted_at).length,
+    suspended_businesses: db.tenants.filter((t) => !t.deleted_at && t.status === 'suspended').length,
+    deleted_businesses: db.tenants.filter((t) => t.deleted_at).length,
     users: db.users.length,
     platform_admins: db.users.filter((u) => u.platform_admin).length,
     bots: db.bots.length,
@@ -1569,9 +1610,15 @@ route('GET', '/platform/tenants', 'platform', ({ db }) => ({
     }),
 }));
 
-route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
-  const t = c.db.tenants.find((x) => x.id === c.params.id);
+/** A live business; deleted ones can't be changed until they are restored. */
+function liveTenant(db: MockDb, id: string) {
+  const t = db.tenants.find((x) => x.id === id && !x.deleted_at);
   if (!t) throw notFound('TENANT_NOT_FOUND', 'Business');
+  return t;
+}
+
+route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
+  const t = liveTenant(c.db, c.params.id!);
   const b = c.body ?? {};
   if (b.plan !== undefined) {
     if (!PLANS.some((p) => p.id === b.plan)) throw invalid('Unknown plan.');
@@ -1598,8 +1645,7 @@ route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
 });
 
 route('GET', '/platform/tenants/:id/detail', 'platform', ({ db, params }) => {
-  const t = db.tenants.find((x) => x.id === params.id);
-  if (!t) throw notFound('TENANT_NOT_FOUND', 'Business');
+  const t = liveTenant(db, params.id!);
   const month = new Date().toISOString().slice(0, 7);
   const monthDays = rangeOf(new URLSearchParams()).days.filter((d) => d.startsWith(month));
   return {
@@ -1634,8 +1680,7 @@ route('GET', '/platform/tenants/:id/detail', 'platform', ({ db, params }) => {
 });
 
 route('POST', '/platform/tenants/:id/balance', 'platform', (c) => {
-  const t = c.db.tenants.find((x) => x.id === c.params.id);
-  if (!t) throw notFound('TENANT_NOT_FOUND', 'Business');
+  const t = liveTenant(c.db, c.params.id!);
   const amount = c.body?.amount;
   if (typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1_000_000) throw invalid('amount must be a non-zero number, up to 1,000,000 either way.');
   const note = str(c.body?.note, 'note', 1, 200)!;
@@ -1643,6 +1688,88 @@ route('POST', '/platform/tenants/:id/balance', 'platform', (c) => {
   const entry = ledgerEntry(t, { amount: round(amount, 6), kind: amount > 0 ? 'credit' : 'debit', note, actor: c.user.email });
   audit({ ...c, tenant: t }, amount > 0 ? 'billing.credit' : 'billing.debit', t.id, { amount, note });
   return { entry, balance: t.balance };
+});
+
+/* Deleting and restoring ---------------------------------------------- */
+
+const deletionOut = (d: MockDb['deletions'][number]) => ({ ...d, restorable: d.state === 'deleted' && new Date(d.restore_until).getTime() > Date.now() });
+
+function deleteTenant(c: Ctx, t: MockTenant, reason: string, request?: DeletionRequest) {
+  protect(t);
+  if (t.deleted_at) throw err(409, 'TENANT_DELETED', 'This business is already deleted.');
+  const now = nowIso();
+  const owner = c.db.memberships.find((m) => m.tenant_id === t.id && m.role === 'owner');
+  // Deleting approves a pending request too.
+  const req = request ?? pendingRequest(c.db, t.id);
+  if (req) Object.assign(req, { status: 'approved', reviewed_by: c.user.id, reviewed_at: now });
+  t.deleted_at = now;
+  const d: MockDb['deletions'][number] = {
+    id: newId('del'),
+    tenant_id: t.id,
+    tenant_name: t.name,
+    owner_email: owner ? (userById(c.db, owner.user_id)?.email ?? '') : '',
+    reason: reason || req?.reason || '',
+    ...(req ? { request_id: req.id } : {}),
+    deleted_by: c.user.id,
+    deleted_by_email: c.user.email,
+    deleted_at: now,
+    restore_until: new Date(Date.now() + RESTORE_DAYS * DAY).toISOString(),
+    state: 'deleted',
+  };
+  c.db.deletions.unshift(d);
+  audit({ ...c, tenant: t }, 'business.deleted', t.id, d.reason ? { reason: d.reason } : null);
+  return deletionOut(d);
+}
+
+route('DELETE', '/platform/tenants/:id', 'platform', (c) => {
+  const t = c.db.tenants.find((x) => x.id === c.params.id);
+  if (!t) throw notFound('TENANT_NOT_FOUND', 'Business');
+  return deleteTenant(c, t, reasonOf(c.body?.reason, 'reason'));
+});
+
+route('POST', '/platform/tenants/:id/restore', 'platform', (c) => {
+  const t = c.db.tenants.find((x) => x.id === c.params.id && x.deleted_at);
+  const d = c.db.deletions.find((x) => x.tenant_id === c.params.id && x.state === 'deleted');
+  if (!t || !d) throw notFound('TENANT_NOT_FOUND', 'Deleted business');
+  if (!deletionOut(d).restorable) throw err(410, 'RESTORE_EXPIRED', 'Deleted more than 30 days ago.');
+  delete t.deleted_at;
+  Object.assign(d, { state: 'restored', restored_at: nowIso(), restored_by: c.user.id });
+  audit({ ...c, tenant: t }, 'business.restored', t.id);
+  return businessOf(c.db, t);
+});
+
+route('GET', '/platform/deleted-tenants', 'platform', ({ db }) => ({
+  data: [...db.deletions].sort((a, b) => b.deleted_at.localeCompare(a.deleted_at)).map(deletionOut),
+}));
+
+route('GET', '/platform/deletion-requests', 'platform', ({ db, query }) => {
+  const status = query.get('status') || 'pending';
+  if (!['pending', 'approved', 'rejected', 'cancelled', 'all'].includes(status)) throw invalid('status must be pending, approved, rejected, cancelled or all.');
+  return { data: db.deletionRequests.filter((r) => status === 'all' || r.status === status).sort((a, b) => b.created_at.localeCompare(a.created_at)) };
+});
+
+function pendingById(c: Ctx) {
+  const r = c.db.deletionRequests.find((x) => x.id === c.params.id && x.status === 'pending');
+  if (!r) throw notFound('DELETION_REQUEST_NOT_FOUND', 'Deletion request');
+  return r;
+}
+
+route('POST', '/platform/deletion-requests/:id/approve', 'platform', (c) => {
+  const r = pendingById(c);
+  const t = c.db.tenants.find((x) => x.id === r.tenant_id);
+  if (!t) throw notFound('TENANT_NOT_FOUND', 'Business');
+  const note = reasonOf(c.body?.note, 'note');
+  if (note) r.review_note = note;
+  return deleteTenant(c, t, r.reason, r);
+});
+
+route('POST', '/platform/deletion-requests/:id/reject', 'platform', (c) => {
+  const r = pendingById(c);
+  const note = reasonOf(c.body?.note, 'note');
+  Object.assign(r, { status: 'rejected', reviewed_by: c.user.id, reviewed_at: nowIso(), ...(note ? { review_note: note } : {}) });
+  const t = c.db.tenants.find((x) => x.id === r.tenant_id);
+  if (t) audit({ ...c, tenant: t }, 'business.deletion_rejected', t.id, note ? { note } : null);
+  return r;
 });
 
 route('GET', '/platform/users', 'platform', ({ db, query }) => {
@@ -1654,7 +1781,7 @@ route('GET', '/platform/users', 'platform', ({ db, query }) => {
       .slice(0, 100)
       .map((u) => ({
         ...u,
-        memberships: db.memberships.filter((m) => m.user_id === u.id).map((m) => ({ tenant_id: m.tenant_id, tenant_name: db.tenants.find((t) => t.id === m.tenant_id)?.name ?? m.tenant_id, role: m.role })),
+        memberships: db.memberships.filter((m) => m.user_id === u.id && !db.tenants.find((t) => t.id === m.tenant_id)?.deleted_at).map((m) => ({ tenant_id: m.tenant_id, tenant_name: db.tenants.find((t) => t.id === m.tenant_id)?.name ?? m.tenant_id, role: m.role })),
       })),
   };
 });
@@ -1971,7 +2098,8 @@ export function dispatch(db: MockDb, req: MockRequest): { status: number; body: 
     const botId = req.headers.get('X-Truplexy-Bot');
     if (!tenantId || !botId) throw err(400, 'SCOPE_REQUIRED', 'Send X-Truplexy-Tenant and X-Truplexy-Bot.');
     if (!ID_RE.test(tenantId) || !ID_RE.test(botId)) throw err(400, 'INVALID_SCOPE', 'Malformed scope ID.');
-    const tenant = db.tenants.find((t) => t.id === tenantId);
+    // Nobody reaches a deleted business, platform admins included.
+    const tenant = db.tenants.find((t) => t.id === tenantId && !t.deleted_at);
     const membership = tenant ? memberOf(db, tenant.id, user!.id) : undefined;
     if (!tenant || (!membership && !user!.platform_admin)) throw err(404, 'TENANT_NOT_FOUND', 'Business not found.');
     if (tenant.status === 'suspended' && !user!.platform_admin) throw err(403, 'TENANT_SUSPENDED', 'This business is suspended.');

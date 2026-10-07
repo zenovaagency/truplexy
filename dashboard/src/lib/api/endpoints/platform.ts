@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { api } from '@/lib/api/client';
 import type {
   Business,
+  DeletionRequest,
   LedgerEntry,
   Limits,
   PlanId,
@@ -14,6 +15,7 @@ import type {
   PlatformTool,
   PlatformUsageRow,
   PlatformUser,
+  TenantDeletion,
   TicketPriority,
   TicketStatus,
 } from '@/lib/api/types';
@@ -67,6 +69,74 @@ export function useAdjustBalance() {
       qc.invalidateQueries({ queryKey: ['tenant'] });
     },
     meta: { success: 'Balance updated' },
+  });
+}
+
+/* Deletion ------------------------------------------------------------ */
+
+/** Deleting or restoring a business changes lists, counts and people's businesses. */
+function useInvalidateDeletion() {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: qk.platform() });
+    qc.invalidateQueries({ queryKey: qk.me });
+    qc.invalidateQueries({ queryKey: ['tenant'] });
+  };
+}
+
+export function useDeleteTenant() {
+  const invalidate = useInvalidateDeletion();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api<TenantDeletion>(`/platform/tenants/${id}`, { method: 'DELETE', body: reason ? { reason } : {} }),
+    onSuccess: invalidate,
+    meta: { success: 'Business deleted. It can be restored for 30 days.' },
+  });
+}
+
+export function useRestoreTenant() {
+  const invalidate = useInvalidateDeletion();
+  return useMutation({
+    mutationFn: (id: string) => api<Business>(`/platform/tenants/${id}/restore`, { method: 'POST' }),
+    onSuccess: invalidate,
+    meta: { success: 'Business restored' },
+  });
+}
+
+export function useDeletedTenants() {
+  return useQuery({
+    queryKey: qk.platform('deleted-tenants'),
+    queryFn: ({ signal }) => api<{ data: TenantDeletion[] }>('/platform/deleted-tenants', { signal }).then((r) => r.data),
+  });
+}
+
+export type DeletionRequestFilter = DeletionRequest['status'] | 'all';
+
+export function usePlatformDeletionRequests(status: DeletionRequestFilter = 'pending') {
+  return useQuery({
+    queryKey: qk.platform('deletion-requests', status),
+    queryFn: ({ signal }) => api<{ data: DeletionRequest[] }>('/platform/deletion-requests', { signal, query: { status } }).then((r) => r.data),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useApproveDeletion() {
+  const invalidate = useInvalidateDeletion();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) =>
+      api<TenantDeletion>(`/platform/deletion-requests/${id}/approve`, { method: 'POST', body: note ? { note } : {} }),
+    onSuccess: invalidate,
+    meta: { success: 'Request approved. The business is deleted and can be restored for 30 days.' },
+  });
+}
+
+export function useRejectDeletion() {
+  const invalidate = useInvalidateDeletion();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) =>
+      api<DeletionRequest>(`/platform/deletion-requests/${id}/reject`, { method: 'POST', body: note ? { note } : {} }),
+    onSuccess: invalidate,
+    meta: { success: 'Request rejected' },
   });
 }
 

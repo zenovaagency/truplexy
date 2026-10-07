@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
-import type { ApiKey, AuditEvent, Bot, Business, BusinessTypeId, Invite, Member, Role } from '@/lib/api/types';
+import { api, hasCode } from '@/lib/api/client';
+import type { ApiKey, AuditEvent, Bot, Business, BusinessTypeId, DeletionRequest, Invite, Member, Role } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -35,6 +35,47 @@ export function useLeaveTenant() {
   return useMutation({
     mutationFn: () => api<void>('/tenant/leave', { method: 'POST', scope }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.me }),
+  });
+}
+
+/* Deletion request --------------------------------------------------- */
+
+/** The business's latest deletion request, or null when there was none. */
+export function useDeletionRequest() {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.tenant(scope, 'deletion-request'),
+    queryFn: ({ signal }) =>
+      api<DeletionRequest>('/tenant/deletion-request', { scope, signal }).catch((e) => {
+        if (hasCode(e, 'DELETION_REQUEST_NOT_FOUND')) return null;
+        throw e;
+      }),
+  });
+}
+
+export function useRequestDeletion() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reason: string) => api<DeletionRequest>('/tenant/deletion-request', { method: 'POST', body: reason ? { reason } : {}, scope }),
+    onSuccess: (r) => {
+      qc.setQueryData(qk.tenant(scope, 'deletion-request'), r);
+      qc.invalidateQueries({ queryKey: qk.tenant(scope, 'audit') });
+    },
+    meta: { success: 'Deletion requested. Truplexy will review it.' },
+  });
+}
+
+export function useWithdrawDeletion() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<DeletionRequest>('/tenant/deletion-request', { method: 'DELETE', scope }),
+    onSuccess: (r) => {
+      qc.setQueryData(qk.tenant(scope, 'deletion-request'), r);
+      qc.invalidateQueries({ queryKey: qk.tenant(scope, 'audit') });
+    },
+    meta: { success: 'Deletion request withdrawn' },
   });
 }
 

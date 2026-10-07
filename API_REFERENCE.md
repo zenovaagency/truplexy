@@ -215,10 +215,11 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `playground.run`, `tickets.write` | | ✓ | ✓ | ✓ | ✓ |
 | `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read` | | | ✓ | ✓ | ✓ |
 | `integrations.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
-| `owners.manage` | | | | | ✓ |
+| `owners.manage`, `business.delete` | | | | | ✓ |
 
 - **Platform admins and the admin key** pass every permission check, in every business.
 - **Owners.** Only an owner (`owners.manage`) can invite, promote, demote or remove an owner. A business always keeps at least one owner (`409 LAST_OWNER`).
+- **Deleting the business.** Only an owner (`business.delete`) can ask platform admins to delete it (see [Deleting a business](#deleting-a-business)).
 - **Refusals.** A role without the endpoint's permission gets `403 FORBIDDEN`. Role changes take effect within 30 seconds on every server.
 
 ## 3. Endpoint index
@@ -244,6 +245,9 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/invites` | `members.write` | Invite someone |
 | `DELETE` | `/invites/{id}` | `members.write` | Cancel an invitation |
 | `GET` | `/audit` | `audit.read` | The activity log |
+| `GET` | `/tenant/deletion-request` | `members.read` | The business's latest deletion request (v2) |
+| `POST` | `/tenant/deletion-request` | `business.delete` | Ask platform admins to delete the business (v2) |
+| `DELETE` | `/tenant/deletion-request` | `business.delete` | Withdraw the pending deletion request (v2) |
 | `GET` | `/bots` | `bot.read` | List the business's bots |
 | `POST` | `/bots` | `bots.create` | Create a bot |
 | `GET` | `/api-keys` | `integrations.read` | List chat API keys |
@@ -296,6 +300,12 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `PATCH` | `/platform/tenants/{id}` | platform | Change a business's plan, status or limits |
 | `GET` | `/platform/tenants/{id}/detail` | platform | A business's members, bots and activity (v2) |
 | `POST` | `/platform/tenants/{id}/balance` | platform | Credit or debit a business's balance (v2) |
+| `DELETE` | `/platform/tenants/{id}` | platform | Delete a business, restorable for 30 days (v2) |
+| `POST` | `/platform/tenants/{id}/restore` | platform | Restore a deleted business (v2) |
+| `GET` | `/platform/deleted-tenants` | platform | Deleted businesses and their restore deadlines (v2) |
+| `GET` | `/platform/deletion-requests` | platform | Owners' deletion requests (v2) |
+| `POST` | `/platform/deletion-requests/{id}/approve` | platform | Approve a request, deleting the business (v2) |
+| `POST` | `/platform/deletion-requests/{id}/reject` | platform | Reject a request (v2) |
 | `GET` | `/platform/users` | platform | Everyone who has signed in (v2) |
 | `PATCH` | `/platform/users/{id}` | platform | Grant or revoke platform admin (v2) |
 | `GET` | `/platform/tickets` | platform | Tickets across businesses (v2) |
@@ -320,6 +330,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/conversations/{id}/replies` | chat key | Record a reply written on the integration's platform |
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
+| `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
 
 ## 4. Endpoints
 
@@ -398,7 +409,8 @@ Scope headers. These act on the business the headers name.
   limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month},   // the plan's, with overrides; 0 = unlimited
   limit_overrides: {…},                          // only what a platform admin overrode
   usage: {bots, members, replies_this_month, tokens_this_month},   // members includes pending invitations
-  balance                                        // USD; see GET /billing
+  balance,                                       // USD; see GET /billing
+  deleted_at?                                    // only on deleted businesses, which only platform admins see
 }
 ```
 
@@ -461,6 +473,40 @@ Changing the type changes the defaults for new bots, not saved bots. **200** the
 - `actor` is a user ID, or `service` for the admin key.
 - `action` is a string such as `member.role_changed`, `invite.created`, `api_key.created`, `bot.created` or `business.updated`.
 - The log covers members, invitations, roles, bots, API keys, plans and business details, not conversations or documents.
+
+#### Deleting a business
+
+An owner asks platform admins to delete the business; a platform admin approves (which deletes it) or rejects the request. A deleted business can't be reached by anyone, its chat API keys stop working, and it leaves its members' `GET /me`. A platform admin can restore it for 30 days; after that every record, knowledge file and vector it had is erased. The `default` business can't be deleted.
+
+**Deletion request:**
+
+```text
+{
+  id,                       // dlr_…
+  tenant_id, tenant_name,
+  requested_by, requested_by_email, reason,
+  status,                   // pending | approved | rejected | cancelled
+  reviewed_by?, review_note?, reviewed_at?,
+  created_at
+}
+```
+
+#### `GET /tenant/deletion-request` (v2)
+
+`members.read`. **200** the business's latest deletion request, so a settings page can show it pending, or rejected with the platform's note. **Errors:** `404 DELETION_REQUEST_NOT_FOUND` when there was none.
+
+#### `POST /tenant/deletion-request` (v2)
+
+`business.delete` (owners). `{reason?}`, at most 1000 characters; the body may be left out. **201** the Deletion request. Recorded as `business.deletion_requested`.
+
+**Errors:**
+- `403 FORBIDDEN`
+- `409 DELETION_REQUEST_PENDING`: one is already pending.
+- `409 TENANT_PROTECTED`: the `default` business.
+
+#### `DELETE /tenant/deletion-request` (v2)
+
+`business.delete`. Withdraws the pending request. **200** the request, `cancelled`. **Errors:** `404 DELETION_REQUEST_NOT_FOUND`.
 
 ### Bots and chat API keys
 
@@ -1163,7 +1209,9 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 
 ```text
 {
-  businesses, suspended_businesses, users, platform_admins, bots,
+  businesses, suspended_businesses,   // businesses that aren't deleted
+  deleted_businesses,                // deleted, not purged yet
+  users, platform_admins, bots,
   conversations_this_month,          // chat API conversations, this UTC month
   open_tickets, needs_reply,
   replies_this_month,
@@ -1175,7 +1223,7 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 
 #### `GET /platform/tenants`
 
-**200** `{data: [Business + {owner_email, first_bot}]}`, every business newest first.
+**200** `{data: [Business + {owner_email, first_bot}]}`, every business newest first, with `deleted_at` on deleted ones that aren't purged yet. A deleted business can't be changed (`404 TENANT_NOT_FOUND`) until it is restored.
 
 #### `PATCH /platform/tenants/{id}`
 
@@ -1217,6 +1265,52 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 **Errors:**
 - `400 INVALID_REQUEST`
 - `404 TENANT_NOT_FOUND`
+
+#### `DELETE /platform/tenants/{id}` (v2)
+
+`{reason?}`, at most 1000 characters; the body may be left out. Deletes the business at once: nobody reaches it, its chat keys stop within a minute, and it can be restored until `restore_until`, 30 days later. A pending deletion request of the business is approved. Recorded as `business.deleted`. **200** the Deletion:
+
+```text
+{
+  id,                          // del_…
+  tenant_id, tenant_name, owner_email, reason, request_id?,
+  deleted_by, deleted_by_email?, deleted_at,
+  restore_until,
+  restored_at?, restored_by?, purged_at?,
+  state,                       // deleted | restored | purged
+  restorable                   // state is deleted and restore_until hasn't passed
+}
+```
+
+**Errors:**
+- `400 INVALID_REQUEST`
+- `404 TENANT_NOT_FOUND`
+- `409 TENANT_DELETED`: already deleted.
+- `409 TENANT_PROTECTED`: the `default` business.
+
+#### `POST /platform/tenants/{id}/restore` (v2)
+
+Restores a deleted business as it was. Recorded as `business.restored`. **200** the Business.
+
+**Errors:**
+- `404 TENANT_NOT_FOUND`: no deleted business has this ID.
+- `410 RESTORE_EXPIRED`: deleted more than 30 days ago.
+
+#### `GET /platform/deleted-tenants` (v2)
+
+**200** `{data: [Deletion]}`, newest first: deletions that can still be restored, and the record of restored and purged ones, which stays after the business's own records are erased.
+
+#### `GET /platform/deletion-requests?status=` (v2)
+
+`status`: `pending` (the default), `approved`, `rejected`, `cancelled` or `all`. **200** `{data: [Deletion request]}`, newest first.
+
+#### `POST /platform/deletion-requests/{id}/approve` (v2)
+
+`{note?}`. Deletes the business as `DELETE /platform/tenants/{id}` does, with the request's reason. **200** the Deletion. **Errors:** `404 DELETION_REQUEST_NOT_FOUND` for a request that isn't pending.
+
+#### `POST /platform/deletion-requests/{id}/reject` (v2)
+
+`{note?}`, shown to the business as `review_note`. **200** the request, `rejected`. Recorded as `business.deletion_rejected`. **Errors:** `404 DELETION_REQUEST_NOT_FOUND`.
 
 #### `GET /platform/users`
 
@@ -1439,6 +1533,10 @@ It opens a ticket if there is none, and isn't sent back to the webhook. **201** 
 
 For the scheduler only (Vercel Cron, `Authorization: Bearer <CRON_SECRET>`). It finishes knowledge documents left processing. Frontends never call it. Without `CRON_SECRET` it answers `503 CRON_NOT_CONFIGURED`.
 
+#### `GET /internal/cron/purge`
+
+For the scheduler only, authenticated like the one above; Vercel runs it daily. It erases the businesses deleted more than 30 days ago: their knowledge files in R2, their vectors, then every D1 record of theirs, and marks their deletion `purged`. People's accounts stay. It works for up to 45 seconds and the next run continues what is left. **200** `{purged: [tenant_id], pending: [tenant_id]}`.
+
 ## 5. Which endpoints a dashboard needs where
 
 A guide to which calls back each typical area. It doesn't prescribe screens.
@@ -1455,10 +1553,10 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
 | Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`) |
 | Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys`, `DELETE /api-keys/{id}`, and the chat API section as the integrator guide |
-| Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave` |
+| Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
 | Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
 | Team | `GET /members`, `PATCH`/`DELETE /members/{user_id}`, `GET`/`POST /invites`, `DELETE /invites/{id}`, `GET /audit` |
-| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `GET`/`PATCH /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…` |
+| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `DELETE /platform/tenants/{id}`, `POST …/restore`, `GET /platform/deleted-tenants`, `GET /platform/deletion-requests` with `POST …/approve` and `…/reject`, `GET`/`PATCH /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…` |
 
 ## 6. Errors
 
@@ -1502,7 +1600,7 @@ Every error has its HTTP status and this body:
 | 410 | `INVITE_REVOKED`, `INVITE_EXPIRED` | A new invitation is needed. |
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Send `Content-Type: application/json`. |
-| 429 | `PLAN_LIMIT_REACHED` | The month' AI replies are used up, or its tokens are and the balance is empty. |
+| 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up, or its tokens are and the balance is empty. |
 | 429 | `LLM_RATE_LIMITED` | The model provider is busy; retry shortly. |
 | 500 | `INTERNAL_ERROR` | Unexpected; quote the request ID. |
 | 502 | `DATABASE_ERROR`, `STORAGE_ERROR`, `RETRIEVAL_FAILED`, `LLM_PROVIDER_ERROR` | A backing service failed; `message` says which. |

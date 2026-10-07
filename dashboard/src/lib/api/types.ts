@@ -29,7 +29,8 @@ export type Permission =
   | 'business.write'
   | 'billing.write'
   | 'audit.read'
-  | 'owners.manage';
+  | 'owners.manage'
+  | 'business.delete';
 
 /* ------------------------------------------------------------------ */
 /* Account                                                             */
@@ -130,6 +131,8 @@ export interface Business {
   usage: { bots: number; members: number; replies_this_month: number; tokens_this_month: number };
   /** USD; see GET /billing. */
   balance: number;
+  /** Only on deleted businesses, which only platform admins see. */
+  deleted_at?: string;
 }
 
 export interface Member {
@@ -163,6 +166,22 @@ export interface AuditEvent {
   action: string;
   target: string;
   details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/** An owner's request that platform admins delete the business. */
+export interface DeletionRequest {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  requested_by: string;
+  requested_by_email: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  reviewed_by?: string;
+  /** Shown to the business when a request is rejected. */
+  review_note?: string;
+  reviewed_at?: string;
   created_at: string;
 }
 
@@ -742,8 +761,11 @@ export interface PlaygroundConversation {
 /* ------------------------------------------------------------------ */
 
 export interface PlatformOverview {
+  /** Businesses that aren't deleted. */
   businesses: number;
   suspended_businesses: number;
+  /** Deleted, not purged yet. */
+  deleted_businesses: number;
   users: number;
   platform_admins: number;
   bots: number;
@@ -780,6 +802,26 @@ export interface PlatformBusinessDetail {
   open_tickets: number;
   balance: number;
   audit: { id: string; actor: string; action: string; target: string; created_at: string }[];
+}
+
+/** A business's deletion: restorable until `restore_until`, then purged. */
+export interface TenantDeletion {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  owner_email: string;
+  reason: string;
+  request_id?: string;
+  deleted_by: string;
+  deleted_by_email?: string;
+  deleted_at: string;
+  restore_until: string;
+  restored_at?: string;
+  restored_by?: string;
+  purged_at?: string;
+  state: 'deleted' | 'restored' | 'purged';
+  /** state is deleted and restore_until hasn't passed. */
+  restorable: boolean;
 }
 
 export interface PlatformUser {

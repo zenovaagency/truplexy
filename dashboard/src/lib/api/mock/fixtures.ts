@@ -584,6 +584,26 @@ function billingHistory(r: () => number, events: BillingEvent[]) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Deletions: one pending request, one restorable business, one purged */
+/* ------------------------------------------------------------------ */
+
+type Person = { id: string; email: string };
+
+function deletionHistory(dana: Person, owen: Person, ops: Person): Pick<MockDb, 'deletionRequests' | 'deletions'> {
+  const bakeryRequest = 'dlr_' + hex(32);
+  return {
+    deletionRequests: [
+      { id: 'dlr_' + hex(32), tenant_id: 'northwind', tenant_name: 'Northwind Boards', requested_by: dana.id, requested_by_email: dana.email, reason: 'We are moving support to another tool.', status: 'pending', created_at: ago(2 * DAY) },
+      { id: bakeryRequest, tenant_id: 'old-bakery', tenant_name: 'Old Town Bakery', requested_by: owen.id, requested_by_email: owen.email, reason: 'The bakery has closed.', status: 'approved', reviewed_by: ops.id, reviewed_at: ago(6 * DAY), created_at: ago(8 * DAY) },
+    ],
+    deletions: [
+      { id: 'del_' + hex(32), tenant_id: 'old-bakery', tenant_name: 'Old Town Bakery', owner_email: owen.email, reason: 'The bakery has closed.', request_id: bakeryRequest, deleted_by: ops.id, deleted_by_email: ops.email, deleted_at: ago(6 * DAY), restore_until: ago(-24 * DAY), state: 'deleted' },
+      { id: 'del_' + hex(32), tenant_id: 'pinecrest', tenant_name: 'Pinecrest Outfitters', owner_email: 'jo@pinecrest.example', reason: 'Duplicate business made by mistake.', deleted_by: ops.id, deleted_by_email: ops.email, deleted_at: ago(45 * DAY), restore_until: ago(15 * DAY), purged_at: ago(14 * DAY), state: 'purged' },
+    ],
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* The seed                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -617,6 +637,8 @@ export function seedDb(): MockDb {
       ...billingHistory(br, [{ days: 20, kind: 'credit', amount: 50, actor: ops!.email, note: 'Bank transfer INV-1077' }]) },
     { id: 'bloom-clinic', name: 'Bloom Clinic', business_type: 'healthcare', plan: 'free', status: 'active', created_at: ago(30 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 214, tokens_this_month: 940_000, ...billingHistory(br, []) },
     { id: 'harbor-realty', name: 'Harbor Realty', business_type: 'real_estate', plan: 'starter', status: 'suspended', created_at: ago(51 * DAY), reply_target_hours: 12, limit_overrides: { replies_per_month: 8000 }, replies_this_month: 0, tokens_this_month: 0, ...billingHistory(br, []) },
+    // Deleted 6 days ago: restorable from the platform console.
+    { id: 'old-bakery', name: 'Old Town Bakery', business_type: 'hospitality', plan: 'free', status: 'active', created_at: ago(140 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 0, tokens_this_month: 0, balance: 0, addons: [], ledger: [], deleted_at: ago(6 * DAY) },
   ];
 
   const memberships: MockDb['memberships'] = [
@@ -631,6 +653,7 @@ export function seedDb(): MockDb {
     { tenant_id: 'northwind', user_id: sam!.id, role: 'agent', joined_at: ago(38 * DAY) },
     { tenant_id: 'bloom-clinic', user_id: mia!.id, role: 'owner', joined_at: ago(30 * DAY) },
     { tenant_id: 'harbor-realty', user_id: owen!.id, role: 'owner', joined_at: ago(51 * DAY) },
+    { tenant_id: 'old-bakery', user_id: owen!.id, role: 'owner', joined_at: ago(140 * DAY) },
   ];
 
   const bots: MockDb['bots'] = [
@@ -639,6 +662,7 @@ export function seedDb(): MockDb {
     { tenant_id: 'northwind', id: 'support', name: 'Product specialist', kb_version: 6, created_at: ago(64 * DAY) },
     { tenant_id: 'bloom-clinic', id: 'support', name: 'Clinic assistant', kb_version: 1, created_at: ago(30 * DAY) },
     { tenant_id: 'harbor-realty', id: 'support', name: 'Property assistant', kb_version: 2, created_at: ago(51 * DAY) },
+    { tenant_id: 'old-bakery', id: 'support', name: 'Bakery assistant', kb_version: 0, created_at: ago(140 * DAY) },
   ];
 
   const conversations: MockConversation[] = [];
@@ -802,6 +826,9 @@ export function seedDb(): MockDb {
   addAudit('northwind', dana, 'invite.created', 'inv_' + hex(32), { email: 'alex@acme.example', role: 'admin' }, 41 * DAY);
   addAudit('northwind', dana, 'api_key.created', apiKeys[4]!.id, { name: 'Discord community' }, 30 * DAY);
   addAudit('harbor-realty', ops, 'business.suspended', 'harbor-realty', { reason: 'Payment overdue' }, 5 * DAY);
+  addAudit('northwind', dana, 'business.deletion_requested', 'northwind', { reason: 'We are moving support to another tool.' }, 2 * DAY);
+  addAudit('old-bakery', owen, 'business.deletion_requested', 'old-bakery', { reason: 'The bakery has closed.' }, 8 * DAY);
+  addAudit('old-bakery', ops, 'business.deleted', 'old-bakery', { reason: 'The bakery has closed.' }, 6 * DAY);
   audit.sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   const invites: MockDb['invites'] = [
@@ -942,5 +969,6 @@ Hand over when: {{escalation_policy}}
     models,
     templates,
     playground: {},
+    ...deletionHistory(dana!, owen!, ops!),
   };
 }

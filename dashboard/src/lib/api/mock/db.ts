@@ -4,6 +4,7 @@ import type {
   BillingAddon,
   BotConfig,
   BusinessTypeId,
+  DeletionRequest,
   Invite,
   KnowledgeDocument,
   LedgerEntry,
@@ -15,6 +16,7 @@ import type {
   Role,
   Ticket,
   TicketMessage,
+  TenantDeletion,
   TicketReply,
   Tool,
   Webhook,
@@ -48,6 +50,8 @@ export interface MockTenant {
   addons: BillingAddon[];
   /** Every change to the balance, newest first. */
   ledger: LedgerEntry[];
+  /** Set while the business is deleted and not purged yet. */
+  deleted_at?: string;
 }
 
 export interface MockMembership {
@@ -123,9 +127,12 @@ export interface MockDb {
   models: MockModel[];
   templates: Omit<PlatformTemplate, 'bots'>[];
   playground: Record<string, PlaygroundConversation>;
+  deletionRequests: DeletionRequest[];
+  /** `restorable` is worked out on the way out. */
+  deletions: Omit<TenantDeletion, 'restorable'>[];
 }
 
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

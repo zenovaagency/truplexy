@@ -102,6 +102,7 @@ const platformRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="overview" replace /> },
   { path: 'overview', ...lazyRoute(pages.platform, (m) => m.PlatformOverview) },
   { path: 'businesses', ...lazyRoute(pages.platform, (m) => m.PlatformBusinesses) },
+  { path: 'deletions', ...lazyRoute(pages.platform, (m) => m.PlatformDeletions) },
   { path: 'users', ...lazyRoute(pages.platform, (m) => m.PlatformUsers) },
   { path: 'tickets', ...lazyRoute(pages.platform, (m) => m.PlatformTickets) },
   { path: 'tools', ...lazyRoute(pages.platform, (m) => m.PlatformTools) },
