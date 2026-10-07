@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
   ArrowRight,
-  Bot,
   CheckCircle2,
   Coins,
   Gauge,
@@ -10,10 +9,12 @@ import {
   MessagesSquare,
   ScrollText,
   Sparkles,
+  Timer,
 } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
 import { useAudit, useMembers, useTenant } from '@/lib/api/endpoints/business';
 import { useSupportStats, useUsageSummary } from '@/lib/api/endpoints/stats';
+import type { Business } from '@/lib/api/types';
 import { useRecentTickets } from '@/lib/api/endpoints/tickets';
 import { describeAudit } from '@/lib/audit';
 import { cn } from '@/lib/cn';
@@ -21,17 +22,19 @@ import {
   dayRange,
   formatCompact,
   formatCurrency,
+  formatDate,
   formatDuration,
   formatMs,
   formatNumber,
   formatPercent,
   formatRelative,
+  previousRange,
 } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { useStoredState } from '@/hooks';
 import { Avatar, Card, EmptyState, ErrorState, Page, PageHeader, Segmented, Skeleton, SkeletonRows } from '@/components/ui';
 import { BarList, Legend, TrendChart, type Series } from '@/components/charts';
-import { StatCard } from '@/components/domain/StatCard';
+import { compareStat, StatCard } from '@/components/domain/StatCard';
 import { PriorityBadge, TicketStatusBadge } from '@/components/domain/badges';
 
 type Days = '7' | '30' | '90';
@@ -49,6 +52,23 @@ const METRIC: Record<Metric, { label: string; format: (n: number) => string }> =
   estimated_cost: { label: 'Cost', format: formatCurrency },
 };
 
+/** The monthly limit closest to running out, or null when the plan has none. */
+function planUsage(t: Business) {
+  const limits = [
+    { unit: 'tokens', used: t.usage.tokens_this_month, limit: t.limits.tokens_per_month },
+    { unit: 'replies', used: t.usage.replies_this_month, limit: t.limits.replies_per_month },
+  ]
+    .filter((l) => l.limit > 0)
+    .map((l) => ({ ...l, share: l.used / l.limit }));
+  return limits.sort((a, b) => b.share - a.share)[0] ?? null;
+}
+
+/** Monthly limits reset on the 1st, UTC. */
+function nextMonthStart() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+}
+
 function greeting() {
   const h = new Date().getHours();
   return h < 5 ? 'Working late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
@@ -61,20 +81,25 @@ export default function OverviewPage() {
   const [statsScope, setStatsScope] = useState<'bot' | 'business'>('bot');
   const [metric, setMetric] = useState<Metric>('requests');
   const range = useMemo(() => dayRange(Number(days)), [days]);
+  const prevRange = useMemo(() => previousRange(range), [range]);
 
   const usage = useUsageSummary(range);
   const support = useSupportStats(range, statsScope);
+  const prevSupport = useSupportStats(prevRange, statsScope);
   const tenant = useTenant();
 
   const s = support.data;
+  // A placeholder still holds the last range's previous period, which would compare the wrong days.
+  const p = prevSupport.isPlaceholderData ? undefined : prevSupport.data;
   const u = usage.data;
   const t = tenant.data;
   const firstName = me.data?.user.name?.split(' ')[0];
 
-  const conversationsTrend = s?.by_day.map((d) => d.conversations);
-  const replyLimit = t?.limits.replies_per_month ?? 0;
-  // Unlimited plans get an empty bar so the card keeps the same footer as its neighbours.
-  const replyShare = t ? (replyLimit > 0 ? t.usage.replies_this_month / replyLimit : 0) : undefined;
+  const vs = `vs previous ${days} days`;
+  const replyTarget = t ? t.reply_target_hours * 3600 : undefined;
+  const firstReply = s?.first_response.median_seconds;
+  const overTarget = firstReply != null && replyTarget != null && firstReply > replyTarget;
+  const plan = t ? planUsage(t) : undefined;
   const backlogCounts = s
     ? [
         { key: 'open', label: 'Open', value: s.backlog.total, to: 'tickets' },
@@ -132,52 +157,65 @@ export default function OverviewPage() {
             icon={<MessagesSquare />}
             loading={!s}
             value={formatNumber(s?.conversations.total)}
+            delta={compareStat(s?.conversations.total, p?.conversations.total, { better: 'none', title: vs })}
             sub={s && `${formatNumber(s.conversations.handed_off)} handed to a person · ${formatNumber(s.conversations.escalated)} escalated`}
-            trend={conversationsTrend}
+            trend={s?.by_day.map((d) => d.conversations)}
           />
           <StatCard
             label="Resolved by AI"
             icon={<Sparkles />}
             loading={!s}
             value={formatPercent(s?.conversations.deflection_rate)}
+            delta={compareStat(s?.conversations.deflection_rate, p?.conversations.deflection_rate, { kind: 'points', title: vs })}
             sub={s && `${formatNumber(s.conversations.ai_only)} conversations without a person`}
             meter={s?.conversations.deflection_rate ?? 0}
             info="Share of conversations the assistant handled alone: no handoff, no escalation, no ticket from the customer."
+          />
+          <StatCard
+            label="First reply"
+            icon={<Timer />}
+            loading={!s || !t}
+            value={formatDuration(firstReply)}
+            delta={compareStat(firstReply, p?.first_response.median_seconds, { better: 'down', title: vs })}
+            sub={s && t && `Median · target ${formatDuration(replyTarget)} · 90% within ${formatDuration(s.first_response.p90_seconds)}`}
+            meter={firstReply != null && replyTarget ? Math.min(1, firstReply / replyTarget) : 0}
+            tone={overTarget ? 'warn' : undefined}
+            info="How long customers wait for a person's first reply on a ticket. The bar fills toward the reply target in Settings."
           />
           <StatCard
             label="Tickets closed"
             icon={<CheckCircle2 />}
             loading={!s}
             value={formatNumber(s?.tickets.closed)}
+            delta={compareStat(s?.tickets.closed, p?.tickets.closed, { title: vs })}
             sub={s && `of ${formatNumber(s.tickets.created)} opened · ${formatDuration(s.resolution.median_seconds)} median to close`}
             trend={s?.by_day.map((d) => d.tickets_closed)}
           />
           <StatCard
-            label="AI response time"
-            icon={<Gauge />}
-            loading={!u}
-            value={u ? formatMs(u.avg_latency_ms) : '—'}
-            sub={u && `Average · ${formatNumber(u.requests)} model requests · ${formatCompact(u.total_tokens)} tokens`}
-            trend={u?.by_day.map((d) => d.requests)}
-            info="How long the model takes to produce a reply, averaged over every request in this period."
-          />
-          <StatCard
-            label="AI replies this month"
-            icon={<Bot />}
-            loading={!t}
-            value={t ? formatCompact(t.usage.replies_this_month) : '—'}
-            sub={t && (replyLimit > 0 ? `of ${formatCompact(replyLimit)} on the ${t.plan} plan` : `Unlimited on the ${t.plan} plan`)}
-            meter={replyShare}
-            tone={replyShare !== undefined && replyShare >= 0.9 ? 'warn' : undefined}
-          />
-          <StatCard
-            label="Cost per ticket"
+            label="Cost per AI resolution"
             icon={<Coins />}
             loading={!s}
-            value={formatCurrency(s?.cost.per_ticket)}
+            value={formatCurrency(s?.cost.per_ai_resolved)}
+            delta={compareStat(s?.cost.per_ai_resolved, p?.cost.per_ai_resolved, { better: 'down', title: vs })}
             sub={s && `${formatCurrency(s.cost.total)} in this period · ${formatCurrency(s.cost.per_conversation)} per conversation`}
             trend={s?.by_day.map((d) => d.ticket_cost)}
-            info="Estimated model cost. Billing may differ."
+            info="AI cost for each conversation the assistant resolved without a person. Estimated; billing may differ."
+          />
+          <StatCard
+            label="Plan usage"
+            icon={<Gauge />}
+            loading={!t}
+            value={t ? (plan ? formatPercent(plan.share) : 'Unlimited') : '—'}
+            sub={
+              t &&
+              (plan
+                ? `${formatCompact(plan.used)} of ${formatCompact(plan.limit)} ${plan.unit} this month · resets ${formatDate(nextMonthStart(), { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
+                : `No monthly limit on the ${t.plan} plan`)
+            }
+            // Unlimited plans get an empty bar so the card keeps the same footer as its neighbours.
+            meter={t ? (plan?.share ?? 0) : undefined}
+            tone={plan && plan.share >= 1 ? 'danger' : plan && plan.share >= 0.9 ? 'warn' : undefined}
+            info="This month's replies and tokens across every bot, against your plan. Shows whichever is closer to its limit."
           />
         </div>
       )}

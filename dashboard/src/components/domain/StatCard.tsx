@@ -1,13 +1,46 @@
 import type { ReactNode } from 'react';
-import { Info } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Info, Minus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Skeleton, Tip } from '@/components/ui';
 import { Sparkline } from '@/components/charts';
 
-/** A headline number: label, value, one line of context, and an optional trend or meter. */
+export interface StatDelta {
+  label: string;
+  direction: 'up' | 'down' | 'flat';
+  tone: 'good' | 'bad' | 'neutral';
+  /** What the change is measured against, e.g. "vs previous 30 days". */
+  title?: string;
+}
+
+/**
+ * The change from `prev` to `curr`: relative ("+12%") or, for rates, in percentage points ("+3.1 pts").
+ * Undefined when either side is missing, or when a relative change has nothing to compare with.
+ */
+export function compareStat(
+  curr: number | null | undefined,
+  prev: number | null | undefined,
+  { kind = 'relative', better = 'up', title }: { kind?: 'relative' | 'points'; better?: 'up' | 'down' | 'none'; title?: string } = {},
+): StatDelta | undefined {
+  if (curr == null || prev == null || Number.isNaN(curr) || Number.isNaN(prev)) return undefined;
+  if (kind === 'relative' && prev === 0) return undefined;
+  const change = kind === 'points' ? (curr - prev) * 100 : ((curr - prev) / Math.abs(prev)) * 100;
+  const flat = Math.abs(change) < (kind === 'points' ? 0.1 : 0.5);
+  const direction = flat ? 'flat' : change > 0 ? 'up' : 'down';
+  const tone = flat || better === 'none' ? 'neutral' : direction === better ? 'good' : 'bad';
+  const size = Math.abs(change);
+  const label = flat
+    ? 'No change'
+    : kind === 'points'
+      ? `${change > 0 ? '+' : '−'}${size.toFixed(1)} pts`
+      : `${change > 0 ? '+' : '−'}${size >= 10 ? Math.round(size) : size.toFixed(1)}%`;
+  return { label, direction, tone, title };
+}
+
+/** A headline number: label, value, one line of context, an optional change, and an optional trend or meter. */
 export function StatCard({
   label,
   value,
+  delta,
   sub,
   icon,
   trend,
@@ -19,6 +52,7 @@ export function StatCard({
 }: {
   label: ReactNode;
   value: ReactNode;
+  delta?: StatDelta;
   sub?: ReactNode;
   icon?: ReactNode;
   trend?: number[];
@@ -52,9 +86,12 @@ export function StatCard({
         </div>
       ) : (
         <div className="grid gap-1">
-          <p className={cn('text-[1.75rem] font-bold leading-none tracking-tight tabular-nums text-ink', tone === 'warn' && 'text-warn', tone === 'danger' && 'text-danger')}>
-            {value}
-          </p>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <p className={cn('text-[1.75rem] font-bold leading-none tracking-tight tabular-nums text-ink', tone === 'warn' && 'text-warn', tone === 'danger' && 'text-danger')}>
+              {value}
+            </p>
+            {delta && <DeltaPill delta={delta} />}
+          </div>
           {sub && <p className="line-clamp-2 text-xs text-ink-faint">{sub}</p>}
         </div>
       )}
@@ -73,5 +110,24 @@ export function StatCard({
         </div>
       )}
     </div>
+  );
+}
+
+function DeltaPill({ delta }: { delta: StatDelta }) {
+  const Icon = delta.direction === 'up' ? ArrowUpRight : delta.direction === 'down' ? ArrowDownRight : Minus;
+  return (
+    <span
+      title={delta.title}
+      aria-label={delta.title ? `${delta.label} ${delta.title}` : delta.label}
+      className={cn(
+        'inline-flex items-center gap-0.5 self-center rounded-full px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums',
+        delta.tone === 'good' && 'bg-resolved-soft text-resolved',
+        delta.tone === 'bad' && 'bg-danger-soft text-danger',
+        delta.tone === 'neutral' && 'bg-surface-2 text-ink-muted',
+      )}
+    >
+      <Icon className="size-3" aria-hidden />
+      {delta.label}
+    </span>
   );
 }

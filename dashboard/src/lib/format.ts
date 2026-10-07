@@ -99,6 +99,14 @@ export function dayRange(days: number) {
   return { from: isoDay(from), to: isoDay(to) };
 }
 
+/** The range of the same length that ends the day before `range.from`. */
+export function previousRange(range: { from: string; to: string }) {
+  const from = Date.parse(`${range.from}T00:00:00Z`);
+  const span = Date.parse(`${range.to}T00:00:00Z`) - from;
+  const to = from - 86400_000;
+  return { from: isoDay(new Date(to - span)), to: isoDay(new Date(to)) };
+}
+
 export function initials(name?: string | null, email?: string | null) {
   const src = (name || email || '?').trim();
   const parts = src.split(/[\s@._-]+/).filter(Boolean);
