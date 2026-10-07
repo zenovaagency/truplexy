@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import wordmarkLight from '@/assets/brand/wordmark-light.webp';
 import { BrandMark } from '@/components/layout/Brand';
+import { cn } from '@/lib/cn';
 
 const POINTS = [
   'One assistant for web chat, WhatsApp, Telegram, Discord, Shopify and more',
@@ -9,10 +10,10 @@ const POINTS = [
   'Hands off to your team the moment a person is needed',
 ];
 
-/** Split screen: the form on the right, a brand panel on the left from 1024px. */
+/** Split screen: the form on the right, a brand panel on the left from 1024px. Without the aside, one centered column. */
 export function AuthFrame({ children, aside = true }: { children: ReactNode; aside?: boolean }) {
   return (
-    <div className="grid min-h-dvh bg-paper lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+    <div className={cn('grid min-h-dvh bg-paper', aside && 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]')}>
       {aside && (
         <aside className="relative hidden overflow-hidden bg-[#0b0f24] p-12 text-white lg:flex lg:flex-col">
           <div
@@ -51,8 +52,8 @@ export function AuthFrame({ children, aside = true }: { children: ReactNode; asi
         </aside>
       )}
       <main className="relative flex flex-col overflow-hidden px-4 py-8 sm:px-8">
-        <div className="aurora lg:hidden" />
-        <div className="relative lg:hidden">
+        <div className={cn('aurora', aside && 'lg:hidden')} />
+        <div className={cn('relative', aside && 'lg:hidden')}>
           <BrandMark className="h-7" />
         </div>
         <div className="relative mx-auto my-auto w-full max-w-[400px] py-10">{children}</div>

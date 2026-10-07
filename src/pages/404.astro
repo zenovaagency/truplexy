@@ -3,19 +3,54 @@ import Base from '../layouts/Base.astro';
 import Nav from '../components/chrome/Nav.astro';
 import Footer from '../components/chrome/Footer.astro';
 import Button from '../components/ui/Button.astro';
+import { NAV, SITE } from '../data/site';
 ---
 
 <Base title="Page not found — Truplexy" noindex>
   <Nav />
   <main id="main" class="relative overflow-hidden">
     <div class="aurora" aria-hidden="true"></div>
-    <section class="container-t relative flex min-h-[70vh] flex-col items-center justify-center pt-[var(--nav-h)] text-center">
-      <p class="eyebrow">404</p>
-      <h1 class="display mt-5 text-[clamp(2.4rem,1.6rem+3vw,4rem)]">This thread doesn’t lead anywhere.</h1>
-      <p class="lede mt-5 max-w-[520px]">The page you’re looking for has moved or never existed. The conversation continues on the home page.</p>
-      <div class="mt-9">
-        <Button href="/">Back to Truplexy</Button>
+    <section
+      class="container-t relative flex min-h-[calc(100dvh-var(--nav-h))] flex-col items-center justify-center pt-[calc(var(--nav-h)+2.5rem)] pb-20 text-center"
+    >
+      <!-- The thread motif, broken: this path leads nowhere. -->
+      <div class="grid justify-items-center gap-4" aria-hidden="true">
+        <p class="gradient-text display text-[clamp(5.5rem,3rem+12vw,11rem)] leading-none tabular-nums">404</p>
+        <div class="flex w-[min(14rem,60vw)] items-center gap-3">
+          <span class="thread-h flex-1"></span>
+          <span class="size-1.5 shrink-0 rounded-full bg-[var(--color-line-strong)]"></span>
+          <span class="h-0.5 flex-1 rounded-full bg-[var(--color-line)]"></span>
+        </div>
       </div>
+
+      <p class="eyebrow mt-9">Page not found</p>
+      <h1 class="display mt-5 max-w-[16ch] text-balance text-[clamp(2.1rem,1.5rem+2.6vw,3.5rem)]">This thread doesn’t lead anywhere.</h1>
+      <p class="lede mt-5 max-w-[520px] text-pretty">
+        The page you’re looking for has moved or never existed. The conversation continues on the home page.
+      </p>
+
+      <div class="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:justify-center">
+        <Button href="/" class="w-full sm:w-auto">Back to Truplexy</Button>
+        <Button href={SITE.dashboardUrl} variant="ghost" arrow={false} class="w-full sm:w-auto">Open dashboard</Button>
+      </div>
+
+      <nav aria-label="Popular sections" class="mt-12 grid justify-items-center gap-3">
+        <p class="mono text-[var(--color-ink-faint)]">Or jump to</p>
+        <ul class="flex max-w-[520px] flex-wrap justify-center gap-2">
+          {
+            NAV.map((item) => (
+              <li>
+                <a
+                  href={`/${item.href}`}
+                  class="chip border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-muted)] transition-colors hover:border-[var(--color-line-strong)] hover:text-[var(--color-ink)]"
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
     </section>
   </main>
   <Footer />

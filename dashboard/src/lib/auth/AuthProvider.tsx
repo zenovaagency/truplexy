@@ -33,6 +33,27 @@ export function useAuth() {
   return v;
 }
 
+/** A failed /auth/callback, with Supabase's error code (otp_expired, flow_state_not_found, …). */
+export class AuthCallbackError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'AuthCallbackError';
+    this.code = code;
+  }
+}
+
+/** Supabase reports redirect errors in the query (PKCE) or in the hash (email links, implicit flow). */
+export function callbackError(url: URL): AuthCallbackError | null {
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const get = (k: string) => url.searchParams.get(k) ?? hash.get(k);
+  const error = get('error');
+  const code = get('error_code');
+  const description = get('error_description');
+  if (!error && !code && !description) return null;
+  return new AuthCallbackError(code || error || 'unknown', description || 'Sign-in failed.');
+}
+
 const callbackUrl = (next?: string) =>
   `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`;
 
@@ -125,7 +146,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp: async () => (await signIn(), { needsConfirmation: false }),
         sendMagicLink: signIn,
         signInWithGoogle: signIn,
-        completeSignIn: signIn,
+        completeSignIn: async (url) => {
+          const err = callbackError(url);
+          if (err) throw err;
+          await signIn();
+        },
         signOut: async () => {
           setMockSignedIn(false);
           qc.clear();
@@ -164,16 +189,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fail((await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: callbackUrl(next) } })).error);
       },
       completeSignIn: async (url) => {
+        const redirectError = callbackError(url);
+        if (redirectError) throw redirectError;
         const sb = await getSupabase();
+        const failAs = (e: { message: string; code?: string } | null) => {
+          if (e) throw new AuthCallbackError(e.code ?? 'unknown', e.message);
+        };
         const tokenHash = url.searchParams.get('token_hash');
         const type = url.searchParams.get('type');
         const code = url.searchParams.get('code');
-        const err = url.searchParams.get('error_description');
-        if (err) throw new Error(err);
         if (tokenHash && type) {
-          fail((await sb.auth.verifyOtp({ token_hash: tokenHash, type: type as 'email' })).error);
+          failAs((await sb.auth.verifyOtp({ token_hash: tokenHash, type: type as 'email' })).error);
         } else if (code) {
-          fail((await sb.auth.exchangeCodeForSession(code)).error);
+          failAs((await sb.auth.exchangeCodeForSession(code)).error);
+        } else if (!(await sb.auth.getSession()).data.session) {
+          // Nothing to complete and no session: the link lost its code (cut off when copied, or opened bare).
+          throw new AuthCallbackError('missing_code', 'This link is missing its sign-in code.');
         }
       },
       signOut: async () => {

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Building2, CheckCircle2, FlaskConical, Lightbulb, Mail, MailCheck, Wrench } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, CheckCircle2, FlaskConical, LifeBuoy, Lightbulb, Link2Off as LinkIcon, Mail, MailCheck, Wrench } from 'lucide-react';
 import { fetchMe, previewInvite, useAcceptInvite, useBusinessTypes, useCreateTenant, useMe } from '@/lib/api/endpoints/account';
 import { hasCode } from '@/lib/api/client';
 import type { BusinessTypeId } from '@/lib/api/types';
-import { useAuth } from '@/lib/auth/AuthProvider';
+import { AuthCallbackError, useAuth } from '@/lib/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 import { authConfigured, env } from '@/lib/env';
 import { describeError } from '@/lib/errors';
@@ -15,6 +15,7 @@ import { qk } from '@/lib/query-keys';
 import { scopeLink } from '@/lib/session/scope-context';
 import { Button, Callout, EmptyState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { Splash } from '@/app/guards';
+import { StatusScreen } from '@/app/errors';
 import { BrandMark } from '@/components/layout/Brand';
 import { AuthFrame } from './AuthFrame';
 
@@ -50,7 +51,10 @@ export function SignInPage() {
   const auth = useAuth();
   const [params] = useSearchParams();
   const next = safeNext(params.get('next'));
-  const [mode, setMode] = useState<'signin' | 'signup' | 'magic'>(params.get('mode') === 'signup' ? 'signup' : 'signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'magic'>(() => {
+    const m = params.get('mode');
+    return m === 'signup' || m === 'magic' ? m : 'signin';
+  });
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [google, setGoogle] = useState(false);
@@ -208,10 +212,80 @@ export function SignInPage() {
 /* Redirect target for magic links, confirmations and OAuth             */
 /* ------------------------------------------------------------------ */
 
+interface CallbackFailure {
+  code: string;
+  message: string;
+  next: string;
+}
+
+interface CallbackCopy {
+  title: string;
+  description: string;
+  /** `resend` offers a fresh magic link; `signin` goes back to the sign-in form. */
+  action: 'resend' | 'signin';
+  actionLabel?: string;
+}
+
+/** Supabase error codes, in words a person can act on. */
+function describeCallbackError(code: string, message: string): CallbackCopy {
+  switch (code) {
+    case 'otp_expired':
+    case 'expired':
+      return {
+        title: 'This link has expired',
+        description: 'Sign-in links work once and expire after a short time. Request a new one and open it on this device.',
+        action: 'resend',
+      };
+    case 'access_denied':
+      return {
+        title: 'Sign-in was cancelled',
+        description: "Sign-in wasn't completed with your provider, so nothing changed. Try again whenever you're ready.",
+        action: 'signin',
+        actionLabel: 'Try again',
+      };
+    case 'flow_state_not_found':
+    case 'flow_state_expired':
+    case 'bad_code_verifier':
+    case 'pkce_code_verifier_not_found':
+      return {
+        title: 'Open the link in the same browser',
+        description: 'For your security, a sign-in link only works in the browser where you asked for it. Open it there, or sign in again here.',
+        action: 'signin',
+        actionLabel: 'Sign in again',
+      };
+    case 'email_address_not_authorized':
+      return {
+        title: "This email can't sign in",
+        description: "Sign-in isn't enabled for this address. Use a different email, or contact support.",
+        action: 'signin',
+      };
+    case 'signup_disabled':
+      return {
+        title: 'Sign-ups are closed',
+        description: "New accounts can't be created right now. Sign in with an existing account instead.",
+        action: 'signin',
+      };
+    case 'user_banned':
+      return {
+        title: 'This account is suspended',
+        description: 'Contact support if you think this is a mistake.',
+        action: 'signin',
+      };
+    case 'missing_code':
+      return {
+        title: 'This link is incomplete',
+        description: 'The sign-in code is missing. Open the link straight from the email rather than copying it, or sign in again.',
+        action: 'signin',
+      };
+    default:
+      return { title: "That link didn't work", description: message, action: 'signin' };
+  }
+}
+
 export function AuthCallbackPage() {
   const auth = useAuth();
   const nav = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<CallbackFailure | null>(null);
   const ran = useRef(false);
 
   useEffect(() => {
@@ -222,22 +296,54 @@ export function AuthCallbackPage() {
     auth
       .completeSignIn(url)
       .then(() => nav(next, { replace: true }))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'This sign-in link is invalid or expired.'));
+      .catch((e: unknown) => {
+        const f: CallbackFailure = {
+          code: e instanceof AuthCallbackError ? e.code : 'unknown',
+          message: e instanceof Error ? e.message : 'This sign-in link is invalid or expired.',
+          next,
+        };
+        // Drop the spent code and any tokens from the address bar; keep the error so a refresh shows it again.
+        const clean = new URLSearchParams({ error_code: f.code, error_description: f.message });
+        if (next !== '/') clean.set('next', next);
+        window.history.replaceState(window.history.state, '', `${url.pathname}?${clean}`);
+        setFailure(f);
+      });
   }, [auth, nav]);
 
-  if (!error) return <Splash />;
+  if (!failure || auth.status === 'loading') return <Splash />;
+  // An old or reused link, but this browser is already signed in: carry on.
+  if (auth.status === 'signedIn') return <Navigate to={failure.next} replace />;
+
+  const copy = describeCallbackError(failure.code, failure.message);
+  const nextQuery = failure.next !== '/' ? `next=${encodeURIComponent(failure.next)}` : '';
+  const primary =
+    copy.action === 'resend'
+      ? { to: `/sign-in?mode=magic${nextQuery && `&${nextQuery}`}`, label: 'Send a new link', icon: <Mail /> }
+      : { to: `/sign-in${nextQuery && `?${nextQuery}`}`, label: copy.actionLabel ?? 'Back to sign in', icon: <ArrowLeft /> };
+  const support = `mailto:hello@truplexy.com?subject=${encodeURIComponent(`Sign-in problem (${failure.code})`)}`;
+
   return (
-    <AuthFrame aside={false}>
-      <EmptyState
-        title="That link didn't work"
-        description={error}
-        action={
-          <Button asChild variant="accent">
-            <Link to="/sign-in">Back to sign in</Link>
+    <StatusScreen
+      hero={
+        <span className="grid size-16 place-items-center rounded-[20px] border border-warn/25 bg-warn-soft text-warn [&_svg]:size-7">
+          <LinkIcon />
+        </span>
+      }
+      eyebrow="Sign-in error"
+      title={copy.title}
+      description={<p>{copy.description}</p>}
+      actions={
+        <>
+          <Button asChild variant="accent" size="md" className="w-full sm:w-auto" leading={primary.icon}>
+            <Link to={primary.to}>{primary.label}</Link>
           </Button>
-        }
-      />
-    </AuthFrame>
+          <Button asChild variant="ghost" size="md" className="w-full sm:w-auto" leading={<LifeBuoy />}>
+            <a href={support}>Contact support</a>
+          </Button>
+        </>
+      }
+      detail={<p className="mono break-all text-ink-faint">Error code · {failure.code}</p>}
+    />
   );
 }
 
