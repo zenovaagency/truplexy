@@ -209,11 +209,11 @@ function str(v: unknown, field: string, min: number, max: number, required = tru
 /* Tickets                                                             */
 /* ------------------------------------------------------------------ */
 
-const UNRESOLVED: TicketStatus[] = ['open', 'in_progress', 'waiting_customer'];
+const TICKET_STATUSES: TicketStatus[] = ['open', 'closed'];
 
 function ticketOut(db: MockDb, t: MockTicket): Ticket {
   const tenant = db.tenants.find((x) => x.id === t.tenant_id)!;
-  const done = !UNRESOLVED.includes(t.status);
+  const done = t.status !== 'open';
   const needs = !done && !!t.last_customer_at && (!t.last_agent_at || t.last_customer_at > t.last_agent_at);
   const overdue = needs && Date.now() - new Date(t.last_customer_at!).getTime() > tenant.reply_target_hours * 3_600_000;
   const assignee = t.assignee_user_id ? userById(db, t.assignee_user_id) : undefined;
@@ -246,21 +246,25 @@ function emitTicket(c: Ctx, t: MockTicket, event: 'ticket.created' | 'ticket.upd
   void c;
 }
 
+/** Reads an optional ?status= filter; anything but open or closed is a 400. */
+function statusParam(q: URLSearchParams): TicketStatus | undefined {
+  const s = q.get('status');
+  if (!s) return undefined;
+  if (!TICKET_STATUSES.includes(s as TicketStatus)) throw invalid('status must be open or closed.');
+  return s as TicketStatus;
+}
+
 function applyStatus(t: MockTicket, next: TicketStatus) {
-  if (t.status === 'closed' && next !== 'open' && next !== 'closed') {
-    throw err(409, 'INVALID_STATUS_CHANGE', 'A closed ticket can only be reopened (status: open).');
+  if (!TICKET_STATUSES.includes(next)) throw invalid('status must be open or closed.');
+  if (next === 'open' && t.status === 'closed') {
+    t.reopen_count += 1;
+    t.closed_at = undefined;
   }
-  const wasDone = !UNRESOLVED.includes(t.status);
-  if (wasDone && UNRESOLVED.includes(next)) t.reopen_count += 1;
-  t.status = next;
-  if (next === 'resolved') {
-    t.resolved_at = nowIso();
-    t.escalated = false;
-  }
-  if (next === 'closed') {
+  if (next === 'closed' && t.status !== 'closed') {
     t.closed_at = nowIso();
     t.escalated = false;
   }
+  t.status = next;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1017,28 +1021,29 @@ route('GET', '/tickets', 'tickets.read', (c) => {
   const all = botTickets(c).map((t) => ticketOut(c.db, t));
   const counts = {
     all: all.length,
-    open: all.filter((t) => UNRESOLVED.includes(t.status)).length,
+    open: all.filter((t) => t.status === 'open').length,
     needs_reply: all.filter((t) => t.flags.needs_reply).length,
     escalated: all.filter((t) => t.escalated).length,
-    mine: all.filter((t) => UNRESOLVED.includes(t.status) && t.assignee_user_id === c.user.id).length,
+    mine: all.filter((t) => t.status === 'open' && t.assignee_user_id === c.user.id).length,
     overdue: all.filter((t) => t.flags.overdue).length,
-    unassigned: all.filter((t) => UNRESOLVED.includes(t.status) && t.flags.unassigned).length,
+    unassigned: all.filter((t) => t.status === 'open' && t.flags.unassigned).length,
   };
   const view = q.get('view') ?? 'all';
+  const status = statusParam(q);
   const flag = q.get('flag') as keyof Ticket['flags'] | null;
   const assignee = q.get('assignee');
   const s = (q.get('q') ?? '').trim().toLowerCase();
   const filtered = all
     .filter((t) =>
-      view === 'open' ? UNRESOLVED.includes(t.status)
+      view === 'open' ? t.status === 'open'
       : view === 'needs_reply' ? t.flags.needs_reply
       : view === 'escalated' ? t.escalated
-      : view === 'mine' ? UNRESOLVED.includes(t.status) && t.assignee_user_id === c.user.id
+      : view === 'mine' ? t.status === 'open' && t.assignee_user_id === c.user.id
       : true,
     )
     .filter((t) => !flag || t.flags[flag])
     .filter((t) => !assignee || (assignee === 'me' ? t.assignee_user_id === c.user.id : assignee === 'none' ? !t.assignee_user_id : t.assignee_user_id === assignee))
-    .filter((t) => !q.get('status') || t.status === q.get('status'))
+    .filter((t) => !status || t.status === status)
     .filter((t) => !q.get('priority') || t.priority === q.get('priority'))
     .filter((t) => !s || t.subject.toLowerCase().includes(s) || t.id === s || t.conversation_id === s)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -1057,8 +1062,8 @@ route('POST', '/tickets', 'tickets.write', (c) => {
   if (b.conversation_id) {
     conv = c.db.conversations.find((x) => x.id === b.conversation_id && x.tenant_id === c.tenant.id && x.bot_id === c.botId);
     if (!conv) throw notFound('CONVERSATION_NOT_FOUND', 'Conversation');
-    const open = botTickets(c).find((t) => t.conversation_id === conv!.id && UNRESOLVED.includes(t.status));
-    if (open) throw err(409, 'TICKET_EXISTS', `This conversation already has ticket ${open.id}.`);
+    const open = botTickets(c).find((t) => t.conversation_id === conv!.id && t.status === 'open');
+    if (open) throw err(409, 'TICKET_EXISTS', `This conversation already has open ticket ${open.id}. Close it first.`);
   } else {
     str(b.subject, 'subject', 1, 200);
   }
@@ -1104,7 +1109,7 @@ route('GET', '/tickets/:id', 'tickets.read', (c) => {
 route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
   const t = findTicket(c);
   const b = c.body ?? {};
-  if (b.escalated !== undefined && (b.status === 'resolved' || b.status === 'closed')) throw invalid("escalated can't be combined with resolved or closed.");
+  if (b.escalated !== undefined && b.status === 'closed') throw invalid("escalated can't be combined with closed.");
   if (b.subject !== undefined) t.subject = str(b.subject, 'subject', 1, 200)!;
   if (b.priority !== undefined) {
     if (!['low', 'normal', 'high', 'urgent'].includes(b.priority)) throw invalid('Unknown priority.');
@@ -1120,11 +1125,10 @@ route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
       if (!m || m.role === 'viewer') throw err(400, 'INVALID_ASSIGNEE', 'Assignees need the tickets.write permission (agent or above).');
       t.assignee_user_id = m.user_id;
       t.assignee_name = userById(c.db, m.user_id)?.name;
-      if (t.status === 'open') t.status = 'in_progress';
     }
   }
   if (b.escalated !== undefined) {
-    if (b.escalated && !UNRESOLVED.includes(t.status)) applyStatus(t, 'open');
+    if (b.escalated && t.status !== 'open') applyStatus(t, 'open');
     t.escalated = Boolean(b.escalated);
     t.escalated_at = t.escalated ? nowIso() : t.escalated_at;
   }
@@ -1173,7 +1177,7 @@ route('POST', '/tickets/:id/replies', 'tickets.write', (c) => {
 route('GET', '/handoffs', 'tickets.read', (c) => ({
   data: c.db.conversations
     .filter((x) => x.tenant_id === c.tenant.id && x.bot_id === c.botId && x.status === 'handoff')
-    .filter((x) => !botTickets(c).some((t) => t.conversation_id === x.id && UNRESOLVED.includes(t.status)))
+    .filter((x) => !botTickets(c).some((t) => t.conversation_id === x.id && t.status === 'open'))
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .slice(0, 50)
     .map((x) => ({ conversation_id: x.id, channel: x.channel, title: x.title, updated_at: x.updated_at })),
@@ -1313,7 +1317,7 @@ route('GET', '/stats/support', 'usage.read', (c): SupportStats => {
       date,
       conversations: conv,
       tickets_created: dayTickets.length + Math.round(conv * 0.04),
-      tickets_resolved: tickets.filter((t) => t.resolved_at?.slice(0, 10) === date).length + Math.round(conv * 0.035),
+      tickets_closed: tickets.filter((t) => t.closed_at?.slice(0, 10) === date).length + Math.round(conv * 0.035),
       ticket_cost: +(dayTickets.length * 0.0011 + conv * 0.00004).toFixed(4),
     };
   });
@@ -1321,8 +1325,8 @@ route('GET', '/stats/support', 'usage.read', (c): SupportStats => {
   const handedOff = Math.round(total * 0.071);
   const escalated = Math.round(total * 0.032);
   const ticketsCreated = by_day.reduce((n, d) => n + d.tickets_created, 0);
-  const resolved = by_day.reduce((n, d) => n + d.tickets_resolved, 0);
-  const unresolved = tickets.map((t) => ticketOut(c.db, t)).filter((t) => UNRESOLVED.includes(t.status));
+  const closed = by_day.reduce((n, d) => n + d.tickets_closed, 0);
+  const open = tickets.map((t) => ticketOut(c.db, t)).filter((t) => t.status === 'open');
   const count = <K extends string>(xs: K[]) => xs.reduce((o, k) => ((o[k] = (o[k] ?? 0) + 1), o), {} as Partial<Record<K, number>>);
   const costTotal = by_day.reduce((n, d) => n + d.ticket_cost, 0) + total * 0.0009;
   const r = rng(hashString(`${from}${to}${scope}`));
@@ -1331,16 +1335,16 @@ route('GET', '/stats/support', 'usage.read', (c): SupportStats => {
     to,
     scope,
     conversations: { total, ai_only: total - handedOff - escalated, handed_off: handedOff, escalated, deflection_rate: total ? (total - handedOff - escalated) / total : 0 },
-    tickets: { created: ticketsCreated, resolved, closed: Math.round(resolved * 0.6), from_customer: Math.round(ticketsCreated * 0.78), reopened: Math.round(ticketsCreated * 0.04), reopen_rate: 0.04 },
+    tickets: { created: ticketsCreated, closed, from_customer: Math.round(ticketsCreated * 0.78), reopened: Math.round(ticketsCreated * 0.04), reopen_rate: 0.04 },
     backlog: {
-      total: unresolved.length,
-      overdue: unresolved.filter((t) => t.flags.overdue).length,
-      unassigned: unresolved.filter((t) => t.flags.unassigned).length,
-      by_status: count(unresolved.map((t) => t.status)),
-      by_priority: count(unresolved.map((t) => t.priority)),
+      total: open.length,
+      overdue: open.filter((t) => t.flags.overdue).length,
+      unassigned: open.filter((t) => t.flags.unassigned).length,
+      by_status: count(open.map((t) => t.status)),
+      by_priority: count(open.map((t) => t.priority)),
     },
     first_response: { count: created_.length + 40, avg_seconds: 2400 + r() * 1200, median_seconds: 1500 + r() * 600, p90_seconds: 9000 + r() * 4000 },
-    resolution: { count: resolved, avg_seconds: 30000 + r() * 9000, median_seconds: 16000 + r() * 6000, p90_seconds: 90000 + r() * 30000 },
+    resolution: { count: closed, avg_seconds: 30000 + r() * 9000, median_seconds: 16000 + r() * 6000, p90_seconds: 90000 + r() * 30000 },
     cost: { total: +costTotal.toFixed(4), per_ticket: ticketsCreated ? costTotal / ticketsCreated / 6 : 0, per_conversation: total ? costTotal / total : 0, per_ai_resolved: total ? (costTotal * 0.7) / Math.max(1, total - handedOff - escalated) : 0 },
     by_day,
   };
@@ -1507,7 +1511,7 @@ route('GET', '/platform/overview', 'platform', ({ db }) => {
     };
   });
   const thisMonth = by_day.filter((d) => d.date.startsWith(month));
-  const unresolved = db.tickets.map((t) => ticketOut(db, t)).filter((t) => UNRESOLVED.includes(t.status));
+  const unresolved = db.tickets.map((t) => ticketOut(db, t)).filter((t) => t.status === 'open');
   return {
     businesses: db.tenants.length,
     suspended_businesses: db.tenants.filter((t) => t.status === 'suspended').length,
@@ -1591,7 +1595,7 @@ route('GET', '/platform/tenants/:id/detail', 'platform', ({ db, params }) => {
           billed_this_month: +usage.reduce((n, d) => n + d.estimated_cost * MOCK_MARKUP, 0).toFixed(4),
         };
       }),
-    open_tickets: db.tickets.filter((x) => x.tenant_id === t.id && UNRESOLVED.includes(x.status)).length,
+    open_tickets: db.tickets.filter((x) => x.tenant_id === t.id && x.status === 'open').length,
     balance: t.balance,
     audit: db.audit.filter((a) => a.tenant_id === t.id).slice(0, 20).map(({ id, actor, action, target, created_at }) => ({ id, actor, action, target, created_at })),
   };
@@ -1634,11 +1638,12 @@ route('PATCH', '/platform/users/:id', 'platform', (c) => {
 
 route('GET', '/platform/tickets', 'platform', ({ db, query }) => {
   const view = query.get('view') ?? 'all';
+  const status = statusParam(query);
   const list = db.tickets
     .map((t) => ({ raw: t, t: ticketOut(db, t) }))
     .filter(({ raw }) => !query.get('tenant') || raw.tenant_id === query.get('tenant'))
-    .filter(({ t }) => (view === 'open' ? UNRESOLVED.includes(t.status) : view === 'needs_reply' ? t.flags.needs_reply : view === 'escalated' ? t.escalated : true))
-    .filter(({ t }) => !query.get('status') || t.status === query.get('status'))
+    .filter(({ t }) => (view === 'open' ? t.status === 'open' : view === 'needs_reply' ? t.flags.needs_reply : view === 'escalated' ? t.escalated : true))
+    .filter(({ t }) => !status || t.status === status)
     .filter(({ t }) => !query.get('priority') || t.priority === query.get('priority'))
     .sort((a, b) => b.t.updated_at.localeCompare(a.t.updated_at));
   const before = query.get('before');

@@ -41,9 +41,11 @@ const VIEWS: { value: TicketView; label: string; count: keyof TicketCounts }[] =
 /** Filters live in the URL, so a filtered queue can be shared and survives reloads. */
 function useTicketFilters() {
   const [params, setParams] = useSearchParams();
+  // Old links may carry a status the API no longer accepts; drop it rather than show an error.
+  const status = params.get('status') as TicketStatus | null;
   const filters: TicketQuery = {
     view: (params.get('view') as TicketView) || 'open',
-    status: (params.get('status') as TicketStatus) || undefined,
+    status: status && TICKET_STATUSES.includes(status) ? status : undefined,
     priority: (params.get('priority') as TicketPriority) || undefined,
     assignee: params.get('assignee') || undefined,
     flag: (params.get('flag') as TicketFlag) || undefined,

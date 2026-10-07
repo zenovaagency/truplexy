@@ -403,7 +403,7 @@ export interface ToolRun {
 /* Tickets                                                             */
 /* ------------------------------------------------------------------ */
 
-export type TicketStatus = 'open' | 'in_progress' | 'waiting_customer' | 'resolved' | 'closed';
+export type TicketStatus = 'open' | 'closed';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type TicketFlag = 'needs_reply' | 'escalated' | 'handed_off' | 'unassigned' | 'overdue' | 'reopened';
 export type TicketView = 'all' | 'open' | 'needs_reply' | 'escalated' | 'mine';
@@ -427,7 +427,6 @@ export interface Ticket {
   last_customer_at?: string;
   last_agent_at?: string;
   first_response_at?: string;
-  resolved_at?: string;
   closed_at?: string;
   reopen_count: number;
   created_at: string;
@@ -597,7 +596,7 @@ export interface SupportStats {
   to: string;
   scope: 'bot' | 'business';
   conversations: { total: number; ai_only: number; handed_off: number; escalated: number; deflection_rate: number };
-  tickets: { created: number; resolved: number; closed: number; from_customer: number; reopened: number; reopen_rate: number };
+  tickets: { created: number; closed: number; from_customer: number; reopened: number; reopen_rate: number };
   backlog: {
     total: number;
     overdue: number;
@@ -608,7 +607,7 @@ export interface SupportStats {
   first_response: DurationStats;
   resolution: DurationStats;
   cost: { total: number; per_ticket: number; per_conversation: number; per_ai_resolved: number };
-  by_day: { date: string; conversations: number; tickets_created: number; tickets_resolved: number; ticket_cost: number }[];
+  by_day: { date: string; conversations: number; tickets_created: number; tickets_closed: number; ticket_cost: number }[];
 }
 
 /* ------------------------------------------------------------------ */

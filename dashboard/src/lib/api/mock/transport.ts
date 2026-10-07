@@ -87,7 +87,7 @@ function startSimulator() {
     const topic = activeTopics()[0];
     if (!topic || document.hidden) return;
     const [, tenant, bot] = topic.split(':');
-    const candidates = db.tickets.filter((t) => t.tenant_id === tenant && t.bot_id === bot && ['open', 'in_progress', 'waiting_customer'].includes(t.status));
+    const candidates = db.tickets.filter((t) => t.tenant_id === tenant && t.bot_id === bot && t.status === 'open');
     const t = candidates[Math.floor(Math.random() * candidates.length)];
     const conv = t && db.conversations.find((c) => c.id === t.conversation_id);
     if (!t || !conv) return;
@@ -97,7 +97,6 @@ function startSimulator() {
     conv.updated_at = now;
     t.last_customer_at = now;
     t.updated_at = now;
-    if (t.status === 'waiting_customer') t.status = 'open';
     saveDb(db);
     emit(t.tenant_id, t.bot_id, 'message.created', { conversation_id: conv.id, ticket_id: t.id, message });
     emit(t.tenant_id, t.bot_id, 'ticket.updated', { conversation_id: conv.id, ticket: { id: t.id, subject: t.subject, status: t.status, priority: t.priority, escalated: t.escalated } });

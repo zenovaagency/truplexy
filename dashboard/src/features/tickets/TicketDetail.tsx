@@ -391,13 +391,13 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
       {
         onSuccess: () => {
           setText('');
-          notifySuccess(kind === 'note' ? 'Note added' : status === 'resolved' ? 'Reply sent and ticket resolved' : 'Reply sent');
+          notifySuccess(kind === 'note' ? 'Note added' : status === 'closed' ? 'Reply sent and ticket closed' : 'Reply sent');
         },
       },
     );
   };
 
-  const aiActive = Boolean(t.conversation_id) && !t.escalated && t.status !== 'resolved' && t.status !== 'closed';
+  const aiActive = Boolean(t.conversation_id) && !t.escalated && t.status !== 'closed';
 
   return (
     <div className="border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
@@ -455,9 +455,7 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
                   </Button>
                 </MenuTrigger>
                 <MenuContent>
-                  <MenuItem onSelect={() => send('waiting_customer')}>Send and wait for the customer</MenuItem>
-                  <MenuItem onSelect={() => send('resolved')}>Send and resolve</MenuItem>
-                  <MenuItem onSelect={() => send('in_progress')}>Send and keep in progress</MenuItem>
+                  <MenuItem onSelect={() => send('closed')}>Send and close</MenuItem>
                 </MenuContent>
               </Menu>
             </div>
@@ -487,9 +485,8 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
             value={t.status}
             disabled={!writable}
             onChange={(e) => patch({ status: e.target.value as TicketStatus })}
-            options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label, disabled: closed && s !== 'open' && s !== 'closed' }))}
+            options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))}
           />
-          {closed && writable && <span className="text-[0.7rem] text-ink-faint">Reopen a closed ticket before changing it further.</span>}
         </label>
         <label className="grid gap-1.5">
           <span className="mono text-ink-faint">Priority</span>
@@ -533,8 +530,7 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
             { label: 'First response', value: t.first_response_at ? formatDateTime(t.first_response_at) : <span className="text-warn">Not yet</span> },
             { label: 'Customer wrote', value: formatRelative(t.last_customer_at), hidden: !t.last_customer_at },
             { label: 'Team replied', value: formatRelative(t.last_agent_at), hidden: !t.last_agent_at },
-            { label: 'Resolved', value: formatDateTime(t.resolved_at), hidden: !t.resolved_at },
-            { label: 'Closed', value: formatDateTime(t.closed_at), hidden: !t.closed_at },
+            { label: 'Closed', value: formatRelative(t.closed_at), hidden: !t.closed_at },
             { label: 'Reopened', value: `${t.reopen_count} times`, hidden: !t.reopen_count },
           ]}
         />

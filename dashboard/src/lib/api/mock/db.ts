@@ -125,7 +125,7 @@ export interface MockDb {
   playground: Record<string, PlaygroundConversation>;
 }
 
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

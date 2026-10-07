@@ -5,9 +5,6 @@ import { Badge, type Tone } from '@/components/ui';
 
 export const TICKET_STATUS: Record<TicketStatus, { label: string; tone: Tone }> = {
   open: { label: 'Open', tone: 'accent' },
-  in_progress: { label: 'In progress', tone: 'violet' },
-  waiting_customer: { label: 'Waiting on customer', tone: 'cyan' },
-  resolved: { label: 'Resolved', tone: 'live' },
   closed: { label: 'Closed', tone: 'neutral' },
 };
 

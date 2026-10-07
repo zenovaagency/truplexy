@@ -30,7 +30,7 @@ import {
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { useStoredState } from '@/hooks';
 import { Avatar, Card, EmptyState, ErrorState, Page, PageHeader, Segmented, Skeleton, SkeletonRows } from '@/components/ui';
-import { BarList, Legend, SplitBar, TrendChart, type Series } from '@/components/charts';
+import { BarList, Legend, TrendChart, type Series } from '@/components/charts';
 import { StatCard } from '@/components/domain/StatCard';
 import { PriorityBadge, TicketStatusBadge } from '@/components/domain/badges';
 
@@ -40,7 +40,7 @@ type Metric = 'requests' | 'total_tokens' | 'estimated_cost';
 const SUPPORT_SERIES: Series[] = [
   { key: 'conversations', label: 'Conversations', slot: 1 },
   { key: 'tickets_created', label: 'Tickets opened', slot: 2 },
-  { key: 'tickets_resolved', label: 'Tickets resolved', slot: 3 },
+  { key: 'tickets_closed', label: 'Tickets closed', slot: 3 },
 ];
 
 const METRIC: Record<Metric, { label: string; format: (n: number) => string }> = {
@@ -75,11 +75,11 @@ export default function OverviewPage() {
   const replyLimit = t?.limits.replies_per_month ?? 0;
   // Unlimited plans get an empty bar so the card keeps the same footer as its neighbours.
   const replyShare = t ? (replyLimit > 0 ? t.usage.replies_this_month / replyLimit : 0) : undefined;
-  const backlogParts = s
+  const backlogCounts = s
     ? [
-        { key: 'open', label: 'Open', value: s.backlog.by_status.open ?? 0, slot: 1 as const },
-        { key: 'in_progress', label: 'In progress', value: s.backlog.by_status.in_progress ?? 0, slot: 4 as const },
-        { key: 'waiting_customer', label: 'Waiting on customer', value: s.backlog.by_status.waiting_customer ?? 0, slot: 2 as const },
+        { key: 'open', label: 'Open', value: s.backlog.total, to: 'tickets' },
+        { key: 'overdue', label: 'Overdue', value: s.backlog.overdue, to: 'tickets?flag=overdue' },
+        { key: 'unassigned', label: 'Unassigned', value: s.backlog.unassigned, to: 'tickets?flag=unassigned' },
       ]
     : [];
 
@@ -145,12 +145,12 @@ export default function OverviewPage() {
             info="Share of conversations the assistant handled alone: no handoff, no escalation, no ticket from the customer."
           />
           <StatCard
-            label="Tickets resolved"
+            label="Tickets closed"
             icon={<CheckCircle2 />}
             loading={!s}
-            value={formatNumber(s?.tickets.resolved)}
-            sub={s && `of ${formatNumber(s.tickets.created)} opened · ${formatDuration(s.resolution.median_seconds)} median to resolve`}
-            trend={s?.by_day.map((d) => d.tickets_resolved)}
+            value={formatNumber(s?.tickets.closed)}
+            sub={s && `of ${formatNumber(s.tickets.created)} opened · ${formatDuration(s.resolution.median_seconds)} median to close`}
+            trend={s?.by_day.map((d) => d.tickets_closed)}
           />
           <StatCard
             label="AI response time"
@@ -186,10 +186,21 @@ export default function OverviewPage() {
         <Card title="Conversations and tickets" description="Per day, in UTC." actions={<Legend series={SUPPORT_SERIES} />}>
           {s ? <TrendChart data={s.by_day} series={SUPPORT_SERIES} height={260} /> : <Skeleton className="h-[260px]" />}
         </Card>
-        <Card title="Backlog" description="Open tickets right now, by status and priority.">
+        <Card title="Backlog" description="Open tickets right now, by priority.">
           {s ? (
             <div className="grid gap-6">
-              <SplitBar parts={backlogParts} />
+              <div className="grid grid-cols-3 gap-2">
+                {backlogCounts.map((b) => (
+                  <Link
+                    key={b.key}
+                    to={href(b.to)}
+                    className="grid gap-0.5 rounded-[10px] border border-line bg-surface px-2.5 py-1.5 transition-colors hover:border-line-strong"
+                  >
+                    <span className="text-xs text-ink-faint">{b.label}</span>
+                    <span className="font-mono text-sm font-semibold tabular-nums text-ink">{formatNumber(b.value)}</span>
+                  </Link>
+                ))}
+              </div>
               <div className="grid gap-2">
                 <p className="mono text-ink-faint">By priority</p>
                 <div className="flex flex-wrap gap-2">
@@ -207,13 +218,13 @@ export default function OverviewPage() {
               </div>
               <div className="grid grid-cols-2 gap-3 border-t border-line pt-4 text-[0.8125rem]">
                 <div>
-                  <p className="text-ink-faint">Resolution, median</p>
+                  <p className="text-ink-faint">Time to close, median</p>
                   <p className="font-semibold text-ink">{formatDuration(s.resolution.median_seconds)}</p>
                 </div>
                 <div>
                   <p className="text-ink-faint">Reopened</p>
                   <p className="font-semibold text-ink">
-                    {formatPercent(s.tickets.reopen_rate)} <span className="font-normal text-ink-faint">of resolved</span>
+                    {formatPercent(s.tickets.reopen_rate)} <span className="font-normal text-ink-faint">of closed</span>
                   </p>
                 </div>
               </div>

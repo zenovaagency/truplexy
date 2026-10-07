@@ -325,7 +325,7 @@ const GENERIC_SCRIPTS: Script[] = [
 /* Builders                                                            */
 /* ------------------------------------------------------------------ */
 
-const STATUSES: TicketStatus[] = ['open', 'open', 'in_progress', 'in_progress', 'waiting_customer', 'resolved', 'resolved', 'closed'];
+const STATUSES: TicketStatus[] = ['open', 'open', 'open', 'open', 'open', 'closed', 'closed', 'closed'];
 
 function buildTickets(
   r: () => number,
@@ -341,7 +341,7 @@ function buildTickets(
     const s = scripts[i % scripts.length]!;
     const age = Math.floor(r() * (i < scripts.length ? 3 : 28) * DAY) + 20 * MIN;
     const created = Date.now() - age;
-    const status = i < 4 ? pick(r, ['open', 'in_progress'] as TicketStatus[]) : pick(r, STATUSES);
+    const status: TicketStatus = i < 4 ? 'open' : pick(r, STATUSES);
     const assignee = r() < 0.65 ? pick(r, agents) : undefined;
     const convId = id('conv', r);
     const channel = r() < 0.85 ? 'api' : 'playground';
@@ -373,7 +373,7 @@ function buildTickets(
     const last = messages.at(-1)!;
     const lastCustomer = [...messages].reverse().find((m) => m.author === 'customer');
     const lastAgent = [...messages].reverse().find((m) => m.author === 'agent');
-    const done = status === 'resolved' || status === 'closed';
+    const done = status === 'closed';
     const escalated = !done && (s.priority === 'urgent' || r() < 0.2);
 
     conversations.push({
@@ -406,8 +406,7 @@ function buildTickets(
       last_customer_at: lastCustomer?.created_at,
       last_agent_at: lastAgent?.created_at,
       first_response_at: lastAgent?.created_at,
-      resolved_at: done ? new Date(Math.min(t + 2 * HOUR, Date.now())).toISOString() : undefined,
-      closed_at: status === 'closed' ? new Date(Math.min(t + 26 * HOUR, Date.now())).toISOString() : undefined,
+      closed_at: done ? new Date(Math.min(t + 2 * HOUR, Date.now())).toISOString() : undefined,
       reopen_count: r() < 0.08 ? 1 : 0,
       created_at: new Date(created).toISOString(),
       updated_at: last.created_at,

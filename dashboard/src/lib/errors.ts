@@ -18,7 +18,6 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   PRICING_UNAVAILABLE: { title: "Couldn't reach OpenRouter for prices", hint: 'Try again, or enter the prices yourself.' },
   BUSINESS_LIMIT_REACHED: { title: 'You already own 3 businesses', hint: 'Leave or hand over one before creating another.' },
   WORKSPACE_CONFLICT: { title: 'Someone else saved first', hint: 'Reload to get their changes, then apply yours again.' },
-  INVALID_STATUS_CHANGE: { title: "That status change isn't allowed", hint: 'Reopen a closed ticket before changing it.' },
   TICKET_EXISTS: { title: 'This conversation already has an open ticket', useMessage: true },
   DUPLICATE_DOCUMENT: { title: 'Already in the knowledge base', hint: 'The same content exists as another document.' },
   KNOWLEDGE_BASE_FULL: { title: 'The knowledge base is full' },

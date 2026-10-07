@@ -750,7 +750,7 @@ Arguments that don't fill a placeholder go in the query string for `GET` and `DE
 
 ### Tickets
 
-Scope headers; these act on the bot. A ticket is a support case, usually for one conversation, and a conversation has at most one unresolved ticket.
+Scope headers; these act on the bot. A ticket is a support case, usually for one conversation, and a conversation has at most one open ticket.
 
 **Ticket:**
 
@@ -758,7 +758,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 {
   id, conversation_id?, channel?,          // channel: api | playground
   subject,
-  status,                                  // open | in_progress | waiting_customer | resolved | closed
+  status,                                  // open | closed
   priority,                                // low | normal | high | urgent
   assignee_user_id?, assignee_name?,       // the member it is assigned to
   assignee?,                               // legacy free text set by API callers
@@ -767,19 +767,19 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   needs_reply, handed_off,
   flags: {needs_reply, escalated, handed_off, unassigned, overdue, reopened},
   last_customer_at?, last_agent_at?,
-  first_response_at?, resolved_at?, closed_at?, reopen_count,
+  first_response_at?, closed_at?, reopen_count,  // closed_at is cleared on reopen
   created_at, updated_at
 }
 ```
 
 **Statuses.**
-- `open`, `in_progress` and `waiting_customer` are unresolved; `resolved` and `closed` are done.
-- A closed ticket can only be reopened, by sending `status: open` (`409 INVALID_STATUS_CHANGE` otherwise). A resolved ticket can move anywhere.
+- A ticket is `open` or `closed`. Any other value is `400 INVALID_REQUEST`.
+- Send `status: open` to reopen a closed ticket. This adds one to `reopen_count`.
 
 **Automatic changes:**
-- Assigning someone to an `open` ticket moves it to `in_progress`.
-- A customer message moves `waiting_customer` back to `open`, and sets `needs_reply`.
-- Resolving or closing ends escalation, and the assistant answers again.
+- Assigning someone doesn't change the status.
+- A customer message sets `needs_reply`. It doesn't change the status.
+- Closing ends escalation, and the assistant answers again.
 
 **Flags**, for badges and filters:
 
@@ -798,10 +798,11 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 
 | Query | Rules |
 | --- | --- |
-| `view` | `all` (default), `open` (every unresolved), `needs_reply`, `escalated` or `mine` (the caller's unresolved tickets). |
+| `view` | `all` (default), `open` (every open ticket), `needs_reply`, `escalated` or `mine` (the caller's open tickets). |
 | `flag` | One of the flags above. |
 | `assignee` | `me`, `none`, or a member's user ID. |
-| `status`, `priority` | One value each. |
+| `status` | `open` or `closed`. Any other value is `400 INVALID_REQUEST`. |
+| `priority` | One value. |
 | `q` | Up to 200 characters: matches the subject, or a ticket or conversation ID exactly. |
 | `limit` | 1–100, default 50. |
 | `cursor` | `next_cursor` from the previous page. |
@@ -823,7 +824,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 
 **Errors:**
 - `404 CONVERSATION_NOT_FOUND`
-- `409 TICKET_EXISTS` (the conversation already has an unresolved ticket; `message` names it)
+- `409 TICKET_EXISTS` (the conversation already has an open ticket; `message` names it and says to close it first)
 
 #### `GET /tickets/{id}`
 
@@ -844,19 +845,19 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | Field | Rules |
 | --- | --- |
 | `subject` | 1–200 characters. |
-| `status` | See the statuses above. |
+| `status` | `open` or `closed`. |
 | `priority` | `low`, `normal`, `high` or `urgent`. |
 | `assignee_user_id` | A member whose role has `tickets.write` (agent or above); `""` unassigns. Use `GET /members` for the picker. |
-| `escalated` | `true` takes the conversation over (reopening a done ticket); `false` hands it back to the AI. Can't be combined with `resolved` or `closed`. |
+| `escalated` | `true` takes the conversation over (reopening a closed ticket); `false` hands it back to the AI. Can't be combined with `status: closed`. |
 | `assignee` | Legacy free text, up to 64 characters. |
 
 **200** the ticket.
 
 **Errors:**
 - `400 INVALID_ASSIGNEE`
+- `400 INVALID_REQUEST` (an unknown status, or `escalated` with `status: closed`)
 - `404 TICKET_NOT_FOUND`
-- `409 INVALID_STATUS_CHANGE`
-- `409 TICKET_EXISTS` (reopening would make a second unresolved ticket for the conversation)
+- `409 TICKET_EXISTS` (reopening would make a second open ticket for the conversation)
 
 #### `DELETE /tickets/{id}`
 
@@ -870,13 +871,13 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | --- | --- |
 | `kind` | `reply` (default) reaches the customer; `note` stays internal. |
 | `content` | Required. 1–8000 characters. |
-| `status` | Optional. Also sets the ticket's status, for example `waiting_customer` after a reply, or `resolved`. |
+| `status` | Optional. Also sets the ticket's status: `closed` sends and closes, `open` reopens. |
 
 The signed-in person is recorded as the author; any `author` sent is replaced. A reply is added to the conversation (`author: "agent"`), clears the handoff flag, sets `first_response_at` if unset, and goes to the bot's webhook and live topics. **201** `{reply, ticket}`.
 
 #### `GET /handoffs`
 
-`tickets.read`. **200** `{data: [{conversation_id, channel, title, updated_at}]}`: the latest 50 conversations the assistant flagged for the team, most recent first, that have no unresolved ticket. The assistant keeps replying in them until someone takes one over.
+`tickets.read`. **200** `{data: [{conversation_id, channel, title, updated_at}]}`: the latest 50 conversations the assistant flagged for the team, most recent first, that have no open ticket. The assistant keeps replying in them until someone takes one over.
 
 ### Live updates
 
@@ -996,15 +997,16 @@ export function verify(rawBody, header, secret) {
   conversations: {total, ai_only, handed_off, escalated, deflection_rate},
                    // chat API conversations started in the range
                    // ai_only: no ticket or handoff; deflection_rate = ai_only / total
-  tickets: {created, resolved, closed, from_customer, reopened, reopen_rate},
+  tickets: {created, closed, from_customer, reopened, reopen_rate},
   backlog: {total, overdue, unassigned, by_status: {…}, by_priority: {…}},
-                   // unresolved tickets now, whatever the range
+                   // open tickets now, whatever the range; by_status only has `open`
   first_response: {count, avg_seconds, median_seconds, p90_seconds},
   resolution:     {count, avg_seconds, median_seconds, p90_seconds},
+                   // time to close: created_at to closed_at
   cost: {total, per_ticket, per_conversation, per_ai_resolved},
                    // USD billed, fee and commission included; a ticket's
                    // cost is its conversation's AI cost
-  by_day: [{date, conversations, tickets_created, tickets_resolved, ticket_cost}]
+  by_day: [{date, conversations, tickets_created, tickets_closed, ticket_cost}]
 }
 ```
 
@@ -1222,7 +1224,8 @@ Read only, across businesses, most recently updated first, 100 per page.
 | --- | --- |
 | `tenant` | A business ID. |
 | `view` | `all`, `open`, `needs_reply` or `escalated`. |
-| `status`, `priority` | One value each. |
+| `status` | `open` or `closed`. Any other value is `400 INVALID_REQUEST`. |
+| `priority` | One value. |
 | `before` | `next_before` from the previous page. |
 
 **200** `{data: [{id, tenant_id, tenant_name, bot_id, subject, status, priority, source, escalated, needs_reply, handed_off, created_at, updated_at}], next_before?}`. To open one, act in that business as a platform admin, using its scope headers with `GET /tickets/{id}`.
@@ -1480,7 +1483,6 @@ Every error has its HTTP status and this body:
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |
-| 409 | `INVALID_STATUS_CHANGE` | Reopen the closed ticket first. |
 | 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT` | Already exists. |
 | 409 | `LAST_OWNER`, `OWN_ACCESS` | The change would leave no owner, or remove your own platform access. |
 | 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL` | State conflicts. |
