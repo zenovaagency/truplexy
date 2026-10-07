@@ -1,10 +1,11 @@
 ---
 import Logo from './Logo.astro';
 import ChannelIcon from '../ui/ChannelIcon';
-import { NAV, SITE } from '../../data/site';
+import { NAV, SITE, navHref } from '../../data/site';
 import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
 
 const year = new Date().getFullYear();
+const onHome = Astro.url.pathname === '/';
 ---
 
 <footer class="border-t border-line bg-surface">
@@ -22,7 +23,7 @@ const year = new Date().getFullYear();
         <h2 class="mono text-ink-faint">Product</h2>
         <ul class="mt-4 space-y-2.5 text-[0.95rem]">
           {NAV.map((item) => (
-            <li><a href={item.href} class="text-ink-muted transition-colors hover:text-ink">{item.label}</a></li>
+            <li><a href={navHref(item.href, onHome)} class="text-ink-muted transition-colors hover:text-ink">{item.label}</a></li>
           ))}
         </ul>
       </nav>

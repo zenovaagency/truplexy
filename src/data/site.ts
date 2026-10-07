@@ -22,11 +22,19 @@ export const SITE = {
   demoUrl: `mailto:${email}?subject=${encodeURIComponent('Book a Truplexy demo')}`,
 } as const;
 
-/** In-page sections, in page order. */
+/** Home-page sections in page order, then the standalone pages. */
 export const NAV = [
   { label: 'Features', href: '#features' },
   { label: 'Try it', href: '#try' },
   { label: 'Channels', href: '#channels' },
   { label: 'Continuity', href: '#continuous' },
-  { label: 'Pricing', href: '#pricing' },
+  { label: 'Pricing', href: '/pricing' },
 ] as const;
+
+/**
+ * Resolves a NAV href for the page it's rendered on. Section anchors only
+ * exist on the home page, so everywhere else they point back to it.
+ */
+export function navHref(href: string, onHome: boolean) {
+  return href.startsWith('#') && !onHome ? `/${href}` : href;
+}

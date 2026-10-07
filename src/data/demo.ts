@@ -382,7 +382,7 @@ export const CONTEXT = {
     label: 'Website · Tuesday',
     messages: [
       { from: 'customer', channel: 'web', text: 'I think the Pro plan might be too much for us.' },
-      { from: 'ai', channel: 'web', text: 'That’s fair for a team of three. Premium covers the core support features — Pro mainly adds advanced automation.' },
+      { from: 'ai', channel: 'web', text: 'That’s fair for a team of three. Starter covers the core support features — Pro mainly adds advanced automation.' },
     ] satisfies Msg[],
   },
   after: {
@@ -390,7 +390,7 @@ export const CONTEXT = {
     label: 'Telegram · Wednesday',
     messages: [
       { from: 'customer', channel: 'telegram', text: 'What was the cheaper one you mentioned?' },
-      { from: 'ai', channel: 'telegram', text: 'The plan we discussed earlier was Premium. It includes the core support features without the advanced automation in Pro.' },
+      { from: 'ai', channel: 'telegram', text: 'The plan we discussed earlier was Starter. It includes the core support features without the advanced automation in Pro.' },
     ] satisfies Msg[],
   },
 };
@@ -459,16 +459,16 @@ export const INBOX: InboxThread[] = [
     topic: 'Pricing',
     status: 'qualified',
     updated: '14m',
-    preview: 'The plan we discussed earlier was Premium.',
+    preview: 'The plan we discussed earlier was Starter.',
     customer: [
       { label: 'Company', value: 'Team of 3' },
-      { label: 'Interest', value: 'Premium plan' },
+      { label: 'Interest', value: 'Starter plan' },
       { label: 'Linked channels', value: 'Website, Telegram' },
     ],
     previous: [
-      { when: 'Yesterday', channel: 'web', text: 'Compared Pro and Premium. Leaning Premium.' },
+      { when: 'Yesterday', channel: 'web', text: 'Compared Pro and Starter. Leaning Starter.' },
     ],
-    summary: 'Small team comparing plans. Felt Pro was more than they need; came back on Telegram to confirm the cheaper option. Good fit for Premium.',
+    summary: 'Small team comparing plans. Felt Pro was more than they need; came back on Telegram to confirm the cheaper option. Good fit for Starter.',
     intent: 'Choose a plan',
     handoff: 'Sales notified · lead qualified',
     messages: [

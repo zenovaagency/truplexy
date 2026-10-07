@@ -1,0 +1,305 @@
+---
+import { Check } from 'lucide-react';
+import Button from '../ui/Button.astro';
+import { PLANS, YEARLY_SAVING, type Billing } from '../../data/pricing';
+
+interface Props {
+  /** Link to the full comparison on /pricing. Off on that page itself. */
+  compareLink?: boolean;
+}
+const { compareLink = true } = Astro.props;
+
+const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
+
+// Both periods are rendered; the root's data-billing picks which shows.
+// A plan priced the same either way (Free) renders once and never moves.
+const priceVariants = (price: Record<Billing, number>) =>
+  price.monthly === price.yearly
+    ? [{ billing: null, amount: price.monthly, note: price.monthly === 0 ? 'Always free' : 'Billed monthly or yearly' }]
+    : [
+        { billing: 'monthly', amount: price.monthly, note: 'Billed monthly' },
+        { billing: 'yearly', amount: price.yearly, note: `Billed ${usd(price.yearly * 12)} yearly` },
+      ];
+
+// Crossfade between the two periods' copies. The leaving copy goes at once
+// and the arriving one follows 80ms behind, so they never sit on each other.
+const swap = (billing: string | null) => [
+  '[grid-area:1/1] transition-[opacity,translate,visibility] duration-300 ease-[var(--ease-out-expo)]',
+  billing === 'monthly' &&
+    'delay-80 group-data-[billing=yearly]/pricing:invisible group-data-[billing=yearly]/pricing:-translate-y-1 group-data-[billing=yearly]/pricing:opacity-0 group-data-[billing=yearly]/pricing:delay-0',
+  billing === 'yearly' &&
+    'invisible translate-y-1 opacity-0 group-data-[billing=yearly]/pricing:visible group-data-[billing=yearly]/pricing:translate-y-0 group-data-[billing=yearly]/pricing:opacity-100 group-data-[billing=yearly]/pricing:delay-80',
+];
+
+const DIGITS = [...'0123456789'];
+
+type Column = { char: string } | { m: number; y: number };
+
+/**
+ * Splits a price into odometer columns: each digit becomes a reel that rolls
+ * between its monthly and yearly value; anything else (commas) stays put.
+ * Null when there's nothing to roll, or the two amounts differ in length —
+ * those use the crossfade instead.
+ */
+const reels = (price: Record<Billing, number>): Column[] | null => {
+  const m = price.monthly.toLocaleString('en-US');
+  const y = price.yearly.toLocaleString('en-US');
+  if (m === y || m.length !== y.length) return null;
+  return [...m].map((c, i) => (/\d/.test(c) ? { m: Number(c), y: Number(y[i]) } : { char: c }));
+};
+
+// Odometer cards ripple left to right, in this order.
+const rolling = PLANS.filter((p) => reels(p.price)).map((p) => p.id);
+
+const BILLING = [
+  { id: 'monthly', label: 'Monthly', badge: false },
+  { id: 'yearly', label: 'Yearly', badge: true },
+];
+
+// Shared by the toggle's buttons and the thumb's copy of them, so the two
+// line up exactly.
+const shape =
+  'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-[0.875rem] font-semibold';
+const option = `btn ${shape} border-0 text-ink-muted [--btn-lift:0px] aria-[pressed=false]:hover:bg-surface-2 aria-[pressed=false]:hover:text-ink`;
+const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-semibold text-live';
+---
+
+<div class="group/pricing" data-billing="monthly" data-plan-cards>
+  <!-- Needs the script below, so it only shows once JS has marked the page. -->
+  <div class="mt-10 hidden justify-center [.js_&]:flex" data-reveal>
+    <div
+      class="relative inline-flex items-center gap-1 rounded-full border border-line bg-paper p-1 shadow-[var(--shadow-sm)]"
+      role="group"
+      aria-label="Billing period"
+      data-billing-toggle
+    >
+      {BILLING.map((b) => (
+        <button type="button" data-billing-option={b.id} aria-pressed={b.id === 'monthly' ? 'true' : 'false'} class={option}>
+          {b.label}
+          {b.badge && <span class={badge}>Save {YEARLY_SAVING}%</span>}
+        </button>
+      ))}
+      <!-- The thumb: an inked copy of the buttons, clipped to the pressed one.
+           Sliding the clip moves the fill and the white label as one. -->
+      <span
+        class="pointer-events-none absolute inset-0 flex items-center gap-1 rounded-full bg-ink p-1 text-paper"
+        aria-hidden="true"
+        data-billing-thumb
+      >
+        {BILLING.map((b) => (
+          <span class={shape}>
+            {b.label}
+            {b.badge && <span class={badge}>Save {YEARLY_SAVING}%</span>}
+          </span>
+        ))}
+      </span>
+    </div>
+  </div>
+  <p class="sr-only" aria-live="polite" data-billing-status></p>
+
+  <ul class="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
+    {PLANS.map((plan, i) => {
+      const cols = reels(plan.price);
+      const variants = priceVariants(plan.price);
+      return (
+      <li
+        class:list={[
+          'card relative flex flex-col p-6 sm:p-8',
+          plan.featured ? '!border-accent/40 !shadow-[var(--shadow-lg)] ring-4 ring-accent/10' : '!bg-paper',
+        ]}
+        data-reveal
+        data-reveal-delay={String(i * 0.06)}
+      >
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-xl font-bold tracking-tight">{plan.name}</h3>
+          {plan.featured && <span class="chip bg-accent-soft !py-1 text-[0.72rem] text-accent">Most popular</span>}
+        </div>
+        <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-muted">{plan.blurb}</p>
+
+        <div class="mt-6">
+          <p class="flex items-baseline gap-2">
+            {cols ? (
+              <span class="text-[2.6rem] font-bold leading-none tracking-[-0.03em] tabular-nums">
+                <!-- The reels are decoration; the sr-only copies carry the price. -->
+                <span class="inline-flex items-center" aria-hidden="true" style={`--card:${rolling.indexOf(plan.id)}`}>
+                  <span>$</span>
+                  {cols.map((c, j) =>
+                    'char' in c ? (
+                      <span>{c.char}</span>
+                    ) : (
+                      <span class:list={['reel', c.m !== c.y && 'reel-moves']}>
+                        <span class="reel-strip" style={`--m:${c.m};--y:${c.y};--col:${j}`}>
+                          {DIGITS.map((d) => <span>{d}</span>)}
+                        </span>
+                      </span>
+                    ),
+                  )}
+                </span>
+                <span class="sr-only group-data-[billing=yearly]/pricing:hidden">{usd(plan.price.monthly)}</span>
+                <span class="sr-only hidden group-data-[billing=yearly]/pricing:inline">{usd(plan.price.yearly)}</span>
+              </span>
+            ) : (
+              <span class="grid text-[2.6rem] font-bold leading-none tracking-[-0.03em] tabular-nums">
+                {variants.map((v) => <span class:list={swap(v.billing)}>{usd(v.amount)}</span>)}
+              </span>
+            )}
+            <span class="text-[0.9rem] text-ink-faint">per month</span>
+          </p>
+          <p class="mt-2 grid text-[0.85rem] text-ink-faint">
+            {variants.map((v) => <span class:list={swap(v.billing)}>{v.note}</span>)}
+          </p>
+        </div>
+        <ul class="mt-4 space-y-1">
+          {plan.limits.map((l) => <li class="mono text-[0.66rem] text-ink-muted">{l}</li>)}
+        </ul>
+
+        <div class="mt-7">
+          <Button href={plan.cta.href} variant={plan.featured ? 'primary' : 'ghost'} arrow={false} class="w-full">
+            {plan.cta.label}
+          </Button>
+        </div>
+
+        <div class="mt-7 border-t border-line pt-6">
+          <p class="text-[0.85rem] font-semibold text-ink">{plan.includes}</p>
+          <ul class="mt-4 space-y-3 text-[0.92rem] text-ink-muted">
+            {plan.features.map((f) => (
+              <li class="flex gap-3">
+                <span class="mt-[3px] grid h-[18px] w-[18px] flex-none place-items-center rounded-full bg-accent-soft text-accent" aria-hidden="true">
+                  <Check size={11} strokeWidth={3} />
+                </span>
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </li>
+      );
+    })}
+  </ul>
+
+  {compareLink && (
+    <p class="mt-8 text-center" data-reveal>
+      <a href="/pricing" class="inline-flex items-center gap-1.5 text-[0.95rem] font-semibold text-accent hover:underline">
+        Compare all features
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13m0 0-5.5-5.5M18 12l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </a>
+    </p>
+  )}
+</div>
+
+<style>
+  /* Toggle thumb. The script measures the pressed button into --l/--t/--r/--b;
+     the fallbacks roughly cover Monthly until it runs. Moves only animate once
+     the first placement has painted. */
+  [data-billing-thumb] {
+    clip-path: inset(var(--t, 4px) var(--r, 50%) var(--b, 4px) var(--l, 4px) round 999px);
+  }
+
+  [data-billing-thumb][data-ready] {
+    transition: clip-path 500ms var(--ease-out-expo);
+  }
+
+  /* Pops each time Yearly is picked: the animation only exists in that state,
+     so switching to it starts it afresh. Lands as the thumb arrives. */
+  [data-billing='yearly'] .save-chip {
+    animation: badge-pop 480ms var(--ease-out-expo) 120ms;
+  }
+
+  @keyframes badge-pop {
+    40% { scale: 1.14; }
+    70% { scale: 0.97; }
+  }
+
+  /* Price odometer. Each digit is a 0–9 strip behind a one-cell window, and
+     the root's data-billing picks the cell, so the roll is a plain
+     transition. The window is taller than the digit (the negative margins give
+     the space back) so the edge fade only ever touches empty space at rest.
+     overflow: clip, not hidden, keeps it from becoming a scroll container. */
+  .reel {
+    --cell: 1.15em;
+    height: var(--cell);
+    margin-block: calc((1em - var(--cell)) / 2);
+    overflow: clip;
+    mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent);
+    -webkit-mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent);
+  }
+
+  .reel-strip {
+    --delay: calc(var(--card) * 80ms + var(--col) * 40ms);
+    display: flex;
+    flex-direction: column;
+    translate: 0 calc(var(--m) * var(--cell) * -1);
+    transition: translate 700ms var(--ease-out-expo) var(--delay);
+  }
+
+  .reel-strip > span {
+    height: var(--cell);
+    line-height: var(--cell);
+  }
+
+  [data-billing='yearly'] .reel-strip {
+    translate: 0 calc(var(--y) * var(--cell) * -1);
+  }
+
+  /* Motion blur on the reels that move. One identical keyframe per state, so
+     every switch restarts it; held back until the first switch so it never
+     plays on load. */
+  [data-billing-touched] .reel-moves .reel-strip {
+    animation: reel-blur-m 700ms var(--ease-out-expo) var(--delay);
+  }
+
+  [data-billing-touched][data-billing='yearly'] .reel-moves .reel-strip {
+    animation-name: reel-blur-y;
+  }
+
+  @keyframes reel-blur-m {
+    30% { filter: blur(1.2px); }
+  }
+
+  @keyframes reel-blur-y {
+    30% { filter: blur(1.2px); }
+  }
+</style>
+
+<script>
+  // Billing toggle. Flips the root's data-billing; the prices and notes
+  // above switch off it in CSS. The script also steers the thumb.
+  document.querySelectorAll<HTMLElement>('[data-plan-cards]').forEach((root) => {
+    const toggle = root.querySelector<HTMLElement>('[data-billing-toggle]')!;
+    const thumb = toggle.querySelector<HTMLElement>('[data-billing-thumb]')!;
+    const options = toggle.querySelectorAll<HTMLButtonElement>('[data-billing-option]');
+    const status = root.querySelector<HTMLElement>('[data-billing-status]')!;
+
+    /**
+     * Clips the thumb to the pressed button. offset* are layout positions
+     * relative to the toggle and ignore transforms, so the reveal's scale-in
+     * can't throw them off.
+     */
+    const place = () => {
+      const on = toggle.querySelector<HTMLElement>('[aria-pressed="true"]')!;
+      const { offsetLeft: l, offsetTop: t, offsetWidth: w, offsetHeight: h } = on;
+      thumb.style.setProperty('--l', `${l}px`);
+      thumb.style.setProperty('--t', `${t}px`);
+      thumb.style.setProperty('--r', `${toggle.clientWidth - l - w}px`);
+      thumb.style.setProperty('--b', `${toggle.clientHeight - t - h}px`);
+    };
+
+    place();
+    // Font swaps, resizes and the toggle first being shown all move the buttons.
+    const ro = new ResizeObserver(place);
+    [toggle, ...options].forEach((el) => ro.observe(el));
+    requestAnimationFrame(() => requestAnimationFrame(() => (thumb.dataset.ready = '')));
+
+    options.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const billing = btn.dataset.billingOption!;
+        if (root.dataset.billing === billing) return;
+        root.dataset.billingTouched = '';
+        root.dataset.billing = billing;
+        options.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+        place();
+        status.textContent = billing === 'yearly' ? 'Showing yearly prices, billed annually.' : 'Showing monthly prices.';
+      }),
+    );
+  });
+</script>
