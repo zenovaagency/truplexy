@@ -429,6 +429,9 @@ export interface Ticket {
   first_response_at?: string;
   closed_at?: string;
   reopen_count: number;
+  /** The AI summary a person last generated, and when. */
+  summary?: string;
+  summary_at?: string;
   created_at: string;
   updated_at: string;
 }

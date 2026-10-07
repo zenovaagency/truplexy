@@ -35,6 +35,8 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   LLM_TIMEOUT: { title: 'The model took too long', hint: 'Try again.' },
   TIMEOUT: { title: 'That took too long', hint: 'Try again.' },
   LLM_PROVIDER_ERROR: { title: 'The model provider failed', useMessage: true },
+  LLM_NOT_CONFIGURED: { title: "AI isn't set up on this server" },
+  NO_CONVERSATION: { title: 'This ticket has no conversation to summarize' },
   STORAGE_ERROR: { title: 'Storage failed', useMessage: true },
   RETRIEVAL_FAILED: { title: 'Retrieval failed', useMessage: true },
   REALTIME_NOT_CONFIGURED: { title: 'Live updates are off on this server' },

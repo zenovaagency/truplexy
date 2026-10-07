@@ -127,6 +127,16 @@ export function useReplyToTicket() {
   });
 }
 
+/** Generates the ticket's AI summary. It doesn't change `updated_at`, so lists keep their order. */
+export function useSummarizeTicket() {
+  const scope = useScope();
+  const apply = useApplyTicket();
+  return useMutation({
+    mutationFn: (id: string) => api<Ticket>(`/tickets/${id}/summary`, { method: 'POST', scope }),
+    onSuccess: apply,
+  });
+}
+
 export function useHandoffs() {
   const scope = useScope();
   return useQuery({

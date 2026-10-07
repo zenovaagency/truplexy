@@ -11,14 +11,16 @@ import {
   MoreHorizontal,
   PanelRight,
   Pencil,
+  RefreshCw,
   Send,
   ShieldAlert,
+  Sparkles,
   StickyNote,
   Trash2,
   Undo2,
   UserRound,
 } from 'lucide-react';
-import { useDeleteTicket, useReplyToTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
+import { useDeleteTicket, useReplyToTicket, useSummarizeTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
 import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
@@ -248,8 +250,15 @@ function Transcript({ ticket: t }: { ticket: TDetail }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [items.length]);
 
+  const summary = Boolean(t.conversation_id) && (Boolean(t.summary) || t.escalated);
+
   return (
     <div ref={ref} className="flex-1 overflow-y-auto bg-paper px-4 py-5 sm:px-6">
+      {summary && (
+        <div className="mx-auto mb-4 max-w-[760px]">
+          <SummaryCard ticket={t} />
+        </div>
+      )}
       {!items.length ? (
         <EmptyState compact icon={<StickyNote />} title="No messages yet" description="This ticket has no conversation. Add a note or a reply below." />
       ) : (
@@ -273,6 +282,80 @@ function Transcript({ ticket: t }: { ticket: TDetail }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Bullet lines ("- " or "• ") as a list; anything else as plain text. */
+function SummaryText({ text }: { text: string }) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const bullet = /^[-•*]\s+/;
+  if (!lines.length || !lines.every((l) => bullet.test(l))) return <p className="whitespace-pre-line">{text}</p>;
+  return (
+    <ul className="grid list-disc gap-1 pl-4 marker:text-ink-faint">
+      {lines.map((l, i) => (
+        <li key={i}>{l.replace(bullet, '')}</li>
+      ))}
+    </ul>
+  );
+}
+
+function SummaryCard({ ticket: t }: { ticket: TDetail }) {
+  const { can } = useScopeCtx();
+  const summarize = useSummarizeTicket();
+  const [open, setOpen] = useState(true);
+  const writable = can('tickets.write');
+  const generate = () => summarize.mutate(t.id);
+
+  if (!t.summary) {
+    return (
+      <Callout
+        tone="accent"
+        icon={<Sparkles />}
+        className="py-2.5"
+        action={
+          writable && (
+            <Button size="xs" variant="soft" leading={<Sparkles />} loading={summarize.isPending} onClick={generate}>
+              Generate summary
+            </Button>
+          )
+        }
+      >
+        Catch up quickly with a short AI summary of this conversation and your team's notes.
+      </Callout>
+    );
+  }
+
+  const latest = [t.last_customer_at, t.last_agent_at].filter(Boolean).sort().at(-1);
+  const stale = Boolean(latest && t.summary_at && latest > t.summary_at);
+
+  return (
+    <section className="rounded-[14px] border border-line bg-surface" aria-label="AI summary">
+      <header className="flex items-center gap-2 px-3.5 py-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[0.8125rem] font-semibold text-ink"
+          aria-expanded={open}
+        >
+          <Sparkles className="size-3.5 shrink-0 text-accent" />
+          AI summary
+          {t.summary_at && <span className="truncate text-[0.7rem] font-normal text-ink-faint">· {formatRelative(t.summary_at)}</span>}
+          <ChevronDown className={cn('ml-auto size-3.5 shrink-0 text-ink-faint transition-transform', !open && '-rotate-90')} />
+        </button>
+        {writable && (
+          <Button size="xs" variant="quiet" leading={<RefreshCw />} loading={summarize.isPending} onClick={generate}>
+            Regenerate
+          </Button>
+        )}
+      </header>
+      {open && (
+        <div className="grid gap-2 border-t border-line/70 px-3.5 py-3 text-[0.8125rem] text-ink">
+          <SummaryText text={t.summary} />
+          {stale && <p className="text-[0.7rem] font-medium text-warn">New messages since this summary</p>}
+          <p className="text-[0.7rem] text-ink-faint">Billed like an AI reply.</p>
+        </div>
+      )}
+    </section>
   );
 }
 

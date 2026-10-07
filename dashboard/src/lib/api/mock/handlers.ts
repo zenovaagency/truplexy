@@ -1174,6 +1174,38 @@ route('POST', '/tickets/:id/replies', 'tickets.write', (c) => {
   return created({ reply, ticket });
 });
 
+route('POST', '/tickets/:id/summary', 'tickets.write', (c) => {
+  const t = findTicket(c);
+  const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
+  if (!t.conversation_id || !conv) throw err(400, 'NO_CONVERSATION', "This ticket wasn't opened from a conversation, so there's nothing to summarize.");
+  const max = limitsOf(c.tenant).replies_per_month;
+  if (max > 0 && c.tenant.replies_this_month >= max && c.tenant.balance <= 0) {
+    throw err(429, 'PLAN_LIMIT_REACHED', "This month's AI replies are used up.", { limit: 'replies_per_month' });
+  }
+
+  const clip = (s: string, n = 140) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+  const customer = conv.messages.filter((m) => m.author === 'customer');
+  const answered = conv.messages.filter((m) => m.author !== 'customer' && m.content).at(-1);
+  const notes = (c.db.replies[t.id] ?? []).filter((r) => r.kind === 'note');
+  const needs = !!t.last_customer_at && (!t.last_agent_at || t.last_customer_at > t.last_agent_at);
+  const lines = [
+    `- Issue: ${customer[0] ? clip(customer[0].content) : t.subject}`,
+    customer.length > 1 && `- Latest from the customer: ${clip(customer.at(-1)!.content)}`,
+    answered && `- Already answered (${answered.author === 'agent' ? answered.agent ?? 'team' : 'assistant'}): ${clip(answered.content)}`,
+    notes.length > 0 && `- Team notes: ${notes.length}, latest from ${notes.at(-1)!.author}: ${clip(notes.at(-1)!.content, 100)}`,
+    `- Still open: ${needs ? 'the customer is waiting for a reply.' : t.status === 'closed' ? 'nothing; the ticket is closed.' : 'no reply is owed right now.'}`,
+  ].filter(Boolean);
+
+  t.summary = lines.join('\n');
+  t.summary_at = nowIso();
+  // Billed like an AI reply; updated_at stays, so the ticket keeps its place in lists.
+  c.tenant.replies_this_month += 1;
+  c.tenant.tokens_this_month += 600 + conv.messages.reduce((n, m) => n + Math.ceil(m.content.length / 4), 0) + Math.ceil(t.summary.length / 4);
+  emitTicket(c, t, 'ticket.updated');
+  const { tenant_id: _t, bot_id: _b, ...out } = ticketOut(c.db, t) as any;
+  return out;
+});
+
 route('GET', '/handoffs', 'tickets.read', (c) => ({
   data: c.db.conversations
     .filter((x) => x.tenant_id === c.tenant.id && x.bot_id === c.botId && x.status === 'handoff')
