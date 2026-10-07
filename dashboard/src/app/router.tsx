@@ -116,6 +116,8 @@ export const router = createBrowserRouter([
     children: [
       { path: '/sign-in', ...lazyRoute(auth, (m) => m.SignInPage) },
       { path: '/auth/callback', ...lazyRoute(auth, (m) => m.AuthCallbackPage) },
+      // Supabase's suggested email templates link to /auth/confirm?token_hash=…&type=…&next=….
+      { path: '/auth/confirm', ...lazyRoute(auth, (m) => m.AuthCallbackPage) },
       { path: '/invite/:token', ...lazyRoute(auth, (m) => m.InvitePage) },
       {
         element: <RequireAuth />,

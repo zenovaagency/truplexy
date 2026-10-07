@@ -19,8 +19,22 @@ import { StatusScreen } from '@/app/errors';
 import { BrandMark } from '@/components/layout/Brand';
 import { AuthFrame } from './AuthFrame';
 
-/** Only same-site paths are followed after sign-in. */
-const safeNext = (next: string | null) => (next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
+/**
+ * Only this site's own pages are followed after sign-in. Email templates may pass `{{ .RedirectTo }}`, a full
+ * URL that is itself the callback (`/auth/callback?next=/invite/…`): that resolves to its own `next`.
+ */
+function safeNext(next: string | null): string {
+  if (!next) return '/';
+  let url: URL;
+  try {
+    url = new URL(next, window.location.origin);
+  } catch {
+    return '/';
+  }
+  if (url.origin !== window.location.origin) return '/';
+  if (url.pathname === '/auth/callback' || url.pathname === '/auth/confirm') return safeNext(url.searchParams.get('next'));
+  return `${url.pathname}${url.search}${url.hash}`;
+}
 
 /* ------------------------------------------------------------------ */
 /* Sign in / create account                                             */

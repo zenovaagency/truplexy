@@ -32,7 +32,7 @@ Only browser-safe values belong here. Never add `ADMIN_API_KEY`, `PLAYGROUND_API
 - The API returns an invitation's `link` when its `DASHBOARD_URL` is set to this app's URL. Otherwise the dashboard builds the link from `VITE_DASHBOARD_URL`.
 - With `SUPABASE_SECRET_KEY` set as well, the API emails the invitation through Supabase Auth. Both the Invite user and Magic Link emails land on `/auth/callback?next=/invite/<token>`.
 - Supabase's redirect URLs must allow that query string. Add `<VITE_DASHBOARD_URL>/auth/callback**`.
-- `/auth/callback` accepts the default `{{ .ConfirmationURL }}` templates, which put the session in the URL hash. It also accepts templates built on `{{ .TokenHash }}`, which link to `/auth/callback` with `token_hash` and `type` (`invite`, `magiclink`, …) in the query. Those templates must keep the `next` parameter.
+- `/auth/callback` accepts the default `{{ .ConfirmationURL }}` templates, which put the session in the URL hash. It also accepts templates built on `{{ .TokenHash }}`, such as `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next={{ .RedirectTo }}`. `/auth/confirm` and `/auth/callback` behave the same, and a `next` that is itself the callback URL goes straight to its own `next`.
 
 Model list prices come from OpenRouter's public model list (`https://openrouter.ai/api/v1/models`), which needs no key; if it can't be reached, prices show as unavailable and nothing else changes.
 
