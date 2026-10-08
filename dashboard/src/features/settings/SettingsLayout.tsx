@@ -350,7 +350,18 @@ export function BillingTab() {
         <ExtraTokens billing={bl} />
       ) : (
         <Card title="Extra tokens">
-          <p className="text-[0.8125rem] text-ink-muted">This business's tokens are unlimited, so it needs no extra tokens.</p>
+          <p className="text-[0.8125rem] text-ink-muted">
+            {t.unlimited ? (
+              "This business's tokens are unlimited, so it needs no extra tokens."
+            ) : (
+              <>
+                The {bl.plan.name} plan doesn't include extra tokens.{' '}
+                <a className="font-medium text-accent hover:underline" href="mailto:hello@truplexy.com?subject=Plan%20change">
+                  Contact us to change plan
+                </a>
+              </>
+            )}
+          </p>
         </Card>
       )}
 
@@ -361,6 +372,7 @@ export function BillingTab() {
 
 function ExtraTokens({ billing: bl }: { billing: Billing }) {
   const a = bl.token_addon!;
+  const tiered = a.tiers.length > 1;
   const { can } = useScopeCtx();
   const confirm = useConfirm();
   const buy = useBuyTokens();
@@ -384,20 +396,25 @@ function ExtraTokens({ billing: bl }: { billing: Billing }) {
     });
 
   return (
-    <Card title="Extra tokens" description={`More tokens for ${formatMonth(bl.month)}, paid from the balance. Larger purchases cost less per million.`}>
+    <Card
+      title="Extra tokens"
+      description={`More tokens for ${formatMonth(bl.month)}, paid from the balance. ${tiered ? 'Larger purchases cost less per million.' : `${formatPerM(a.price_per_million)} per million.`}`}
+    >
       <div className="grid gap-5">
-        <div className="flex flex-wrap gap-1.5">
-          {a.tiers.map((tier, i) => {
-            const next = a.tiers[i + 1]?.from_millions;
-            const on = millions >= tier.from_millions;
-            return (
-              <Badge key={tier.from_millions} tone={on ? 'accent' : 'outline'}>
-                {ordinal(tier.from_millions)}
-                {next ? `–${ordinal(Math.min(next - 1, a.max_millions))}` : ' on'} million: {formatPerM(tier.price_per_million)}
-              </Badge>
-            );
-          })}
-        </div>
+        {tiered && (
+          <div className="flex flex-wrap gap-1.5">
+            {a.tiers.map((tier, i) => {
+              const next = a.tiers[i + 1]?.from_millions;
+              const on = millions >= tier.from_millions;
+              return (
+                <Badge key={tier.from_millions} tone={on ? 'accent' : 'outline'}>
+                  {ordinal(tier.from_millions)}
+                  {next ? `–${ordinal(Math.min(next - 1, a.max_millions))}` : ' on'} million: {formatPerM(tier.price_per_million)}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
 
         <Field label="How many million tokens" aside={`${formatNumber(a.min_millions)}–${formatNumber(a.max_millions)}M`}>
           <div className="flex items-center gap-3">

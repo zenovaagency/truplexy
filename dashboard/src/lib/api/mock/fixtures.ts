@@ -34,27 +34,20 @@ const id = (prefix: string, r: () => number) =>
 /* Catalogs                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Extra tokens start at $8 per million, less the plan's discount, less 10% from the 10th million and 20% from the 50th. */
-const addon = (discount: number, max: number): Plan['token_addon'] => {
-  const at = (volume: number) => +(8 * (1 - discount) * (1 - volume)).toFixed(2);
-  return {
-    price_per_million: at(0),
-    min_millions: 1,
-    max_millions: max,
-    step_millions: 1,
-    currency: 'USD',
-    tiers: [
-      { from_millions: 1, price_per_million: at(0) },
-      { from_millions: 10, price_per_million: at(0.1) },
-      { from_millions: 50, price_per_million: at(0.2) },
-    ].filter((t) => t.from_millions <= max),
-  };
-};
+/** Extra tokens at a flat price per million, up to `max` million a month. */
+const addon = (price: number, max: number): Plan['token_addon'] => ({
+  price_per_million: price,
+  min_millions: 1,
+  max_millions: max,
+  step_millions: 1,
+  currency: 'USD',
+  tiers: [{ from_millions: 1, price_per_million: price }],
+});
 
 export const PLANS: Plan[] = [
-  { id: 'free', name: 'Free', limits: { bots: 1, documents_per_bot: 50, members: 3, replies_per_month: 500, tokens_per_month: 1_000_000 }, token_addon: addon(0, 20) },
-  { id: 'starter', name: 'Starter', limits: { bots: 2, documents_per_bot: 250, members: 6, replies_per_month: 5000, tokens_per_month: 10_000_000 }, token_addon: addon(0.1, 100) },
-  { id: 'pro', name: 'Pro', limits: { bots: 5, documents_per_bot: 1000, members: 15, replies_per_month: 25000, tokens_per_month: 50_000_000 }, token_addon: addon(0.2, 500) },
+  { id: 'free', name: 'Free', limits: { bots: 1, documents_per_bot: 50, members: 3, replies_per_month: 500, tokens_per_month: 1_000_000 }, token_addon: null },
+  { id: 'starter', name: 'Starter', limits: { bots: 2, documents_per_bot: 250, members: 6, replies_per_month: 5000, tokens_per_month: 10_000_000 }, token_addon: addon(8, 5) },
+  { id: 'pro', name: 'Pro', limits: { bots: 5, documents_per_bot: 1000, members: 15, replies_per_month: 25000, tokens_per_month: 50_000_000 }, token_addon: addon(6, 30) },
   { id: 'enterprise', name: 'Enterprise', limits: { bots: 0, documents_per_bot: 0, members: 0, replies_per_month: 0, tokens_per_month: 0 }, token_addon: null },
 ];
 
@@ -697,7 +690,7 @@ export function seedDb(): MockDb {
     { id: 'acme', name: 'Acme Store', business_type: 'ecommerce', plan: 'pro', status: 'active', created_at: ago(118 * DAY), reply_target_hours: 4, limit_overrides: {}, replies_this_month: 3412, tokens_this_month: 7_120_000,
       ...billingHistory(br, [
         { days: 40, kind: 'credit', amount: 150, actor: ops!.email, note: 'Bank transfer INV-1042' },
-        { days: 2, kind: 'token_addon', millions: 5, price: 32, actor: alex!.email },
+        { days: 2, kind: 'token_addon', millions: 5, price: 30, actor: alex!.email },
       ]) },
     { id: 'northwind', name: 'Northwind Boards', business_type: 'saas', plan: 'starter', status: 'active', created_at: ago(64 * DAY), reply_target_hours: 8, limit_overrides: {}, replies_this_month: 1288, tokens_this_month: 2_640_000,
       ...billingHistory(br, [{ days: 20, kind: 'credit', amount: 50, actor: ops!.email, note: 'Bank transfer INV-1077' }]) },

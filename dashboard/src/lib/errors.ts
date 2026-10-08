@@ -13,7 +13,7 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   TENANT_NOT_FOUND: { title: 'Business not found', hint: "It may have been removed, or you're no longer a member." },
   BOT_NOT_FOUND: { title: 'Bot not found' },
   PLAN_LIMIT_REACHED: { title: 'Plan limit reached', hint: 'See Settings → Plan & usage.' },
-  ADDON_NOT_AVAILABLE: { title: "Extra tokens aren't needed", hint: "This business's tokens are unlimited." },
+  ADDON_NOT_AVAILABLE: { title: "Extra tokens aren't available", hint: "This business's plan doesn't sell extra tokens, or its tokens are unlimited." },
   INSUFFICIENT_BALANCE: { title: 'The balance is too low', hint: 'Ask Truplexy for a top-up, or buy fewer tokens.' },
   PRICING_UNAVAILABLE: { title: "Couldn't reach OpenRouter for prices", hint: 'Try again, or enter the prices yourself.' },
   BUSINESS_LIMIT_REACHED: { title: 'You already own 3 businesses', hint: 'Leave or hand over one before creating another.' },

@@ -165,8 +165,11 @@ function billingOf(t: MockTenant): Billing {
 }
 
 function addonMillions(t: MockTenant, raw: unknown) {
-  const a = billingOf(t).token_addon;
-  if (!a) throw err(400, 'ADDON_NOT_AVAILABLE', "This business's tokens are unlimited, so it needs no extra tokens.");
+  const b = billingOf(t);
+  const a = b.token_addon;
+  if (!a) {
+    throw err(400, 'ADDON_NOT_AVAILABLE', b.tokens.unlimited ? "This business's tokens are unlimited, so it needs no extra tokens." : "This business's plan doesn't sell extra tokens.");
+  }
   const m = Number(raw);
   if (raw === undefined || raw === null || raw === '' || !Number.isInteger(m) || m < a.min_millions || m > a.max_millions || (m - a.min_millions) % a.step_millions) {
     throw invalid(`millions must be ${a.min_millions}–${a.max_millions}.`);

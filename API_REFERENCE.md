@@ -1169,17 +1169,16 @@ export function verify(rawBody, header, secret) {
 
 ### Billing: balance and extra tokens
 
-Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Free, Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. There is no payment provider: a platform admin credits balances (`POST /platform/tenants/{id}/balance`).
+Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; Free sells none, and Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. There is no payment provider: a platform admin credits balances (`POST /platform/tenants/{id}/balance`).
 
-**Pricing.** Extra tokens start at $8 per million, less the plan's discount (Starter 10%, Pro 20%), less a volume discount on larger purchases (10% from the 10th million, 20% from the 50th). The volume discount is graduated, like tax brackets: each million costs its own tier's price, so buying more never costs less in total.
+**Pricing.** Extra tokens cost a flat price per million, up to a monthly maximum:
 
-| Plan | Slider | 1st–9th million | 10th–49th | 50th on |
-| --- | --- | --- | --- | --- |
-| Free | 1–20M | $8.00 | $7.20 | — |
-| Starter | 1–100M | $7.20 | $6.48 | $5.76 |
-| Pro | 1–500M | $6.40 | $5.76 | $5.12 |
+| Plan | Price per million | Slider |
+| --- | --- | --- |
+| Starter | $8.00 | 1–5M |
+| Pro | $6.00 | 1–30M |
 
-For example, 10M on Free costs 9 × $8.00 + 1 × $7.20 = $79.20, and 50M on Pro costs 9 × $6.40 + 40 × $5.76 + 1 × $5.12 = $293.12.
+For example, 5M on Starter costs 5 × $8.00 = $40.00, and 30M on Pro costs 30 × $6.00 = $180.00.
 
 **The slider.** `GET /plans` gives each plan's `token_addon`, or `null` when it sells none:
 
@@ -1191,7 +1190,7 @@ token_addon: {
 }
 ```
 
-Offer `min_millions` to `max_millions` in steps of `step_millions`. For the price as the slider moves, call `GET /billing/token-addons/quote?millions=` (debounced), or compute it from `tiers`: each million from a tier's `from_millions` up to the next tier's costs that tier's `price_per_million`. For the business's own plan, `GET /billing` returns the same `token_addon`, or `null` when its tokens are unlimited.
+Offer `min_millions` to `max_millions` in steps of `step_millions`. For the price as the slider moves, call `GET /billing/token-addons/quote?millions=` (debounced), or compute it from `tiers`: each million from a tier's `from_millions` up to the next tier's costs that tier's `price_per_million`. Every plan has a single tier today; if more are added they are graduated, like tax brackets, so buying more never costs less in total. For the business's own plan, `GET /billing` returns the same `token_addon`, or `null` when the plan sells none or its tokens are unlimited.
 
 #### `GET /billing`
 
@@ -1237,7 +1236,7 @@ Offer `min_millions` to `max_millions` in steps of `step_millions`. For the pric
 
 **Errors:**
 - `400 INVALID_REQUEST`: `millions` isn't on the slider.
-- `400 ADDON_NOT_AVAILABLE`: the business's tokens are unlimited (Enterprise, or an override of 0), so it needs none.
+- `400 ADDON_NOT_AVAILABLE`: the plan sells no extra tokens (Free), or the business's tokens are unlimited (Enterprise, or an override of 0), so it needs none.
 - `402 INSUFFICIENT_BALANCE`: the balance is below the price; nothing changes.
 
 ### Playground
@@ -1722,7 +1721,7 @@ Every error has its HTTP status and this body:
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
 | 400 | `FEATURE_UNAVAILABLE` | The server lacks the service this needs. |
-| 400 | `ADDON_NOT_AVAILABLE` | The business's tokens are unlimited; it needs no extra tokens. |
+| 400 | `ADDON_NOT_AVAILABLE` | The plan sells no extra tokens (Free), or the business's tokens are unlimited and it needs none. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |
 | 402 | `INSUFFICIENT_BALANCE` | The balance is too low; ask a platform admin for a top-up or buy less. |
 | 403 | `FORBIDDEN` | The role lacks the permission; hide the action. |
