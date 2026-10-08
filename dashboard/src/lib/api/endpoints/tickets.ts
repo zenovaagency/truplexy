@@ -91,7 +91,7 @@ export function useCreateTicket() {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { subject?: string; conversation_id?: string; priority?: TicketPriority; escalated?: boolean }) =>
+    mutationFn: (body: { subject?: string; conversation_id?: string; priority?: TicketPriority; escalated?: boolean; channel_id?: string }) =>
       api<Ticket>('/tickets', { method: 'POST', body, scope }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.bot(scope, 'tickets') });

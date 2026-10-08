@@ -37,6 +37,7 @@ const SUB_PAGES: { label: string; path: string; permission: Permission; keywords
   { label: 'Test retrieval', path: 'knowledge/search', permission: 'knowledge.read', keywords: ['search', 'rag'] },
   { label: 'Model & reply settings', path: 'llm/model', permission: 'bot.read', keywords: ['assistant name', 'bot name', 'temperature', 'max tokens', 'price', 'openrouter'] },
   { label: 'Model usage & costs', path: 'llm/usage', permission: 'usage.read', keywords: ['tokens', 'spend', 'cost'] },
+  { label: 'Integration guides', path: 'integrations/guides', permission: 'integrations.read', keywords: ['setup', 'whatsapp', 'telegram', 'discord', 'shopify', 'wordpress'] },
   { label: 'Webhook', path: 'integrations/webhook', permission: 'integrations.read', keywords: ['events'] },
   { label: 'Invitations', path: 'team/invitations', permission: 'members.read' },
   { label: 'Roles & permissions', path: 'team/roles', permission: 'members.read' },

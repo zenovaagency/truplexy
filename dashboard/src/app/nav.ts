@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   type LucideIcon,
   Plug,
+  Radio,
+  Shapes,
   ScrollText,
   Settings,
   Sparkles,
@@ -79,7 +81,7 @@ export const BUSINESS_NAV: NavSection[] = [
   {
     label: 'Connect',
     items: [
-      { id: 'integrations', label: 'Integrations', path: 'integrations', icon: Plug, permission: 'integrations.read', key: 'i', prefetch: pages.integrations, keywords: ['whatsapp', 'telegram', 'discord', 'shopify', 'wordpress', 'webhook', 'channels'] },
+      { id: 'integrations', label: 'Integrations', path: 'integrations', icon: Plug, permission: 'integrations.read', key: 'i', prefetch: pages.integrations, keywords: ['channels', 'whatsapp', 'telegram', 'discord', 'shopify', 'wordpress', 'webhook', 'guides'] },
       { id: 'api-keys', label: 'API keys', path: 'api-keys', icon: KeyRound, permission: 'integrations.read', key: 'a', prefetch: pages.apiKeys, keywords: ['chat key', 'token', 'credentials'] },
     ],
   },
@@ -102,6 +104,7 @@ export const PLATFORM_NAV: NavSection[] = [
       { id: 'p-deletions', label: 'Deletions', path: '/platform/deletions', icon: Trash2, prefetch: pages.platform, keywords: ['delete', 'restore', 'requests'] },
       { id: 'p-users', label: 'Users', path: '/platform/users', icon: UserRound, prefetch: pages.platform },
       { id: 'p-tickets', label: 'Tickets', path: '/platform/tickets', icon: Ticket, prefetch: pages.platform },
+      { id: 'p-channels', label: 'Channels', path: '/platform/channels', icon: Radio, prefetch: pages.platform, keywords: ['discord', 'whatsapp', 'website', 'disable'] },
     ],
   },
   {
@@ -109,6 +112,7 @@ export const PLATFORM_NAV: NavSection[] = [
     items: [
       { id: 'p-models', label: 'Models', path: '/platform/models', icon: Cpu, prefetch: pages.platform },
       { id: 'p-templates', label: 'Prompt templates', path: '/platform/templates', icon: FileText, prefetch: pages.platform },
+      { id: 'p-channel-types', label: 'Channel types', path: '/platform/channel-types', icon: Shapes, prefetch: pages.platform },
       { id: 'p-tools', label: 'Tools', path: '/platform/tools', icon: Wrench, prefetch: pages.platform },
       { id: 'p-usage', label: 'Usage', path: '/platform/usage', icon: BarChart3, prefetch: pages.platform },
     ],

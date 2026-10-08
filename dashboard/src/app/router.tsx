@@ -65,7 +65,8 @@ const businessRoutes: RouteObject[] = [
       path: 'integrations',
       ...lazyRoute(pages.integrations, (m) => m.default),
       children: [
-        { index: true, ...lazyRoute(pages.integrations, (m) => m.CatalogTab) },
+        { index: true, ...lazyRoute(pages.integrations, (m) => m.ChannelsTab) },
+        { path: 'guides', ...lazyRoute(pages.integrations, (m) => m.CatalogTab) },
         { path: 'webhook', ...lazyRoute(pages.integrations, (m) => m.WebhookTab) },
       ],
     },
@@ -105,10 +106,12 @@ const platformRoutes: RouteObject[] = [
   { path: 'deletions', ...lazyRoute(pages.platform, (m) => m.PlatformDeletions) },
   { path: 'users', ...lazyRoute(pages.platform, (m) => m.PlatformUsers) },
   { path: 'tickets', ...lazyRoute(pages.platform, (m) => m.PlatformTickets) },
+  { path: 'channels', ...lazyRoute(pages.platform, (m) => m.PlatformChannels) },
   { path: 'tools', ...lazyRoute(pages.platform, (m) => m.PlatformTools) },
   { path: 'usage', ...lazyRoute(pages.platform, (m) => m.PlatformUsage) },
   { path: 'models', ...lazyRoute(pages.platform, (m) => m.PlatformModels) },
   { path: 'templates', ...lazyRoute(pages.platform, (m) => m.PlatformTemplates) },
+  { path: 'channel-types', ...lazyRoute(pages.platform, (m) => m.PlatformChannelTypes) },
 ];
 
 export const router = createBrowserRouter([

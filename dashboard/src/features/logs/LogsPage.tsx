@@ -13,6 +13,7 @@ const CATEGORY_TONE: Record<AuditCategory, Tone> = {
   members: 'violet',
   invites: 'cyan',
   keys: 'warn',
+  channels: 'cyan',
   bots: 'accent',
   business: 'neutral',
   plan: 'live',

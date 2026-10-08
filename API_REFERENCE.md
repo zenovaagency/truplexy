@@ -181,7 +181,7 @@ Ticket and conversation changes are pushed through [Supabase Realtime Broadcast]
 | Event | Sent when | `data` |
 | --- | --- | --- |
 | `message.created` | A customer message, an assistant reply, or a person's reply (from a ticket or an integration). | `{conversation_id, ticket_id?, message: {id, role, content, author?, agent?, created_at}}` |
-| `ticket.created` | A ticket is opened. | `{conversation_id, ticket: {id, subject, status, priority, escalated}}` |
+| `ticket.created` | A ticket is opened. | `{conversation_id, ticket: {id, subject, status, priority, escalated, channel_id?}}` |
 | `ticket.updated` | Status, priority, assignee, escalation or subject changes; a note is added; the ticket is deleted. | The same as `ticket.created`. A deletion sends `{ticket: {id}, deleted: true}`. |
 | `conversation.updated` | A conversation is flagged for the team (handoff). | `{conversation_id, status}` |
 
@@ -211,10 +211,10 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 
 | Permission | Viewer | Agent | Editor | Admin | Owner |
 | --- | :-: | :-: | :-: | :-: | :-: |
-| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `playground.run`, `tickets.write` | | ✓ | ✓ | ✓ | ✓ |
 | `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read` | | | ✓ | ✓ | ✓ |
-| `integrations.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
+| `integrations.write`, `channels.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
 | `owners.manage`, `business.delete` | | | | | ✓ |
 
 - **Platform admins and the admin key** pass every permission check, in every business.
@@ -253,6 +253,12 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/api-keys` | `integrations.read` | List chat API keys |
 | `POST` | `/api-keys` | `integrations.write` | Issue a chat API key |
 | `DELETE` | `/api-keys/{id}` | `integrations.write` | Revoke a chat API key |
+| `GET` | `/channel-types` | `channels.read` | Channel types the bot may add (v2) |
+| `GET` | `/channels` | `channels.read` | List the bot's channels (v2) |
+| `POST` | `/channels` | `channels.write` | Add a channel (v2) |
+| `GET` | `/channels/{id}` | `channels.read` | A channel (v2) |
+| `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
+| `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
 | `GET` | `/workspace` | `bot.read` | The bot's configuration and versions |
 | `PUT` | `/workspace` | `bot.write` | Save the bot's configuration |
 | `GET` | `/models` | `bot.read` | Models the bot may use (v2) |
@@ -320,6 +326,11 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/platform/prompt-templates` | platform | The prompt templates (v2) |
 | `POST` | `/platform/prompt-templates` | platform | Add a prompt template (v2) |
 | `PATCH` | `/platform/prompt-templates/{id}` | platform | Change a prompt template (v2) |
+| `GET` | `/platform/channel-types` | platform | The channel type catalog (v2) |
+| `POST` | `/platform/channel-types` | platform | Add a channel type (v2) |
+| `PATCH` | `/platform/channel-types/{id}` | platform | Change or hide a channel type (v2) |
+| `GET` | `/platform/channels` | platform | Channels across businesses (v2) |
+| `PATCH` | `/platform/channels/{id}` | platform | Turn a business's channel off or on (v2) |
 | `POST` | `/conversations` | chat key | Start a conversation |
 | `GET` | `/conversations/{id}` | chat key | A conversation with its latest messages |
 | `POST` | `/conversations/{id}/messages` | chat key | Send a customer message, get the reply |
@@ -526,15 +537,91 @@ Scope headers; these act on the business. With the admin key, the endpoints cove
 
 #### `GET /api-keys`
 
-`integrations.read`. **200** `{data: [{id, name, tenant_id, bot_id, key_prefix, status, created_at, last_used_at?}]}`, newest first, without secrets. `status` is `active` or `revoked`.
+`integrations.read`. **200** `{data: [{id, name, tenant_id, bot_id, key_prefix, channel_id?, status, created_at, last_used_at?}]}`, newest first, without secrets. `status` is `active` or `revoked`; `channel_id` names the channel the key is bound to.
 
 #### `POST /api-keys`
 
-`integrations.write`. `{bot_id, name}`. **201** the key, with the secret in `key` (`tpx_` plus 48 hex characters). The secret is returned only this once, so show it with a copy button and a warning. The key reaches only that bot's conversations. **Errors:** `404 BOT_NOT_FOUND`.
+`integrations.write`. `{bot_id, name, channel_id?}`. **201** the key, with the secret in `key` (`tpx_` plus 48 hex characters). The secret is returned only this once, so show it with a copy button and a warning. The key reaches only that bot's conversations.
+
+`channel_id` (v2) binds the key to one of the bot's [channels](#channels-v2): the conversations it starts, and their tickets, are marked with the channel, and the key stops working while the channel is off. Issue one key per channel, for example one for the Discord bot and one for the website widget. A binding can't be changed; issue a new key.
+
+**Errors:** `404 BOT_NOT_FOUND`, `404 CHANNEL_NOT_FOUND`.
 
 #### `DELETE /api-keys/{id}`
 
 `integrations.write`. Revokes the key (`key_…`); it stops working everywhere within a minute. **204**. **Errors:** `404 KEY_NOT_FOUND`.
+
+### Channels (v2)
+
+Scope headers; these act on the bot. A channel is a place the bot talks to customers, such as a Discord server, a website's chat widget or a WhatsApp number. Platform admins keep the catalog of channel types; a business adds channels of an offered type.
+
+Channels tell the team where each ticket came from:
+- **Chat API keys.** A key issued with `channel_id` (`POST /api-keys`) marks every conversation it starts with the channel, and so every ticket opened for those conversations. `POST /conversations` may name another of the bot's channels instead.
+- **Dashboard tickets.** `POST /tickets` and `PATCH /tickets/{id}` set `channel_id` directly.
+- **Turning a channel off.** A channel switched off by its business (`enabled: false`) or by a platform admin (`disabled_by_platform`) stops the chat API keys bound to it, with `403 CHANNEL_DISABLED`, until it is back on. Its tickets keep their channel.
+
+**Channel:**
+
+```text
+{
+  id,                                      // chn_…
+  tenant_id, bot_id,
+  type, type_label,                        // a type from GET /channel-types, e.g. discord / "Discord"
+  name, description,                       // name is unique among the bot's channels
+  external_id,                             // the platform's own ID, e.g. a Discord server ID; free text
+  enabled,                                 // the business's switch
+  disabled_by_platform,                    // a platform admin's switch
+  active,                                  // enabled and not disabled_by_platform: its keys work
+  open_tickets, tickets,                   // tickets from the channel
+  api_keys,                                // active chat API keys bound to it
+  created_at, updated_at
+}
+```
+
+#### `GET /channel-types`
+
+`channels.read`. **200** `{data: [{id, label, description, icon, offered}]}`, in the platform's order: the types the bot may add channels of, plus any hidden type one of its channels still uses (`offered: false`; don't offer it for new channels).
+
+#### `GET /channels`
+
+`channels.read`. **200** `{data: [Channel]}`, oldest first. Use it for a channel filter on the Tickets page and a channel picker when issuing a chat API key.
+
+#### `POST /channels`
+
+`channels.write`.
+
+| Field | Rules |
+| --- | --- |
+| `type` | Required. An offered `id` from `GET /channel-types`. |
+| `name` | Required. 1–80 characters, unique among the bot's channels. |
+| `description` | Up to 300 characters. |
+| `external_id` | Up to 128 characters: the platform's own ID for it. |
+| `enabled` | Default `true`. |
+
+**201** the channel.
+
+**Errors:**
+- `400 INVALID_REQUEST`
+- `400 CHANNEL_TYPE_NOT_ALLOWED`: the type isn't offered.
+- `409 CHANNEL_EXISTS`: the bot has a channel with this name.
+
+#### `GET /channels/{id}`
+
+`channels.read`. **200** the channel. **Errors:** `404 CHANNEL_NOT_FOUND`.
+
+#### `PATCH /channels/{id}`
+
+`channels.write`. Any of the fields of `POST /channels`. Moving a channel to another `type` needs that type to be offered. `enabled: false` stops its chat API keys at once; it can't undo a platform admin's `disabled_by_platform`. **200** the channel.
+
+**Errors:** as for `POST /channels`, and `404 CHANNEL_NOT_FOUND`.
+
+#### `DELETE /channels/{id}`
+
+`channels.write`. Deletes the channel. Its conversations and tickets keep their `channel_id` and still show its name and type. **204**.
+
+**Errors:**
+- `404 CHANNEL_NOT_FOUND`
+- `409 CHANNEL_IN_USE`: active chat API keys are bound to it. Revoke them first.
 
 ### Bot configuration (workspace)
 
@@ -803,7 +890,9 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 
 ```text
 {
-  id, conversation_id?, channel?,          // channel: api | playground
+  id, conversation_id?,
+  channel?,                                // the conversation's kind: api (chat API) | playground
+  channel_id?, channel_name?, channel_type?, // the bot's channel it came from (v2), e.g. "Acme server", discord
   subject,
   status,                                  // open | closed
   priority,                                // low | normal | high | urgent
@@ -848,6 +937,8 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | `view` | `all` (default), `open` (every open ticket), `needs_reply`, `escalated` or `mine` (the caller's open tickets). |
 | `flag` | One of the flags above. |
 | `assignee` | `me`, `none`, or a member's user ID. |
+| `channel` | A channel `id`, or `none` for tickets without one (v2). |
+| `channel_type` | A channel type `id`, such as `discord` (v2). |
 | `status`, `priority` | One value each; `status` is `open` or `closed`. |
 | `q` | Up to 200 characters: matches the subject, or a ticket or conversation ID exactly. |
 | `limit` | 1–100, default 50. |
@@ -865,11 +956,13 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | `subject` | Up to 200 characters. Required without `conversation_id`; otherwise defaults to the conversation's title. |
 | `priority` | Default `normal`. |
 | `escalated` | `true` takes the conversation over at once. |
+| `channel_id` | One of the bot's channels (v2). With `conversation_id`, defaults to the conversation's channel. |
 
 Opening a ticket for a flagged conversation clears the flag. To take over a conversation from `GET /handoffs`, send its `conversation_id` with `escalated: true`. **201** the ticket.
 
 **Errors:**
 - `404 CONVERSATION_NOT_FOUND`
+- `404 CHANNEL_NOT_FOUND`
 - `409 TICKET_EXISTS` (the conversation already has an open ticket; `message` names it)
 
 #### `GET /tickets/{id}`
@@ -896,12 +989,14 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | `assignee_user_id` | A member whose role has `tickets.write` (agent or above); `""` unassigns. Use `GET /members` for the picker. |
 | `escalated` | `true` takes the conversation over (reopening a closed ticket); `false` hands it back to the AI. Can't be combined with `status: closed`. |
 | `assignee` | Legacy free text, up to 64 characters. |
+| `channel_id` | One of the bot's channels; `""` clears it (v2). |
 
 **200** the ticket.
 
 **Errors:**
 - `400 INVALID_ASSIGNEE`
 - `404 TICKET_NOT_FOUND`
+- `404 CHANNEL_NOT_FOUND`
 - `409 TICKET_EXISTS` (reopening would make a second open ticket for the conversation)
 
 #### `DELETE /tickets/{id}`
@@ -1333,9 +1428,10 @@ Read only, across businesses, most recently updated first, 100 per page.
 | `tenant` | A business ID. |
 | `view` | `all`, `open`, `needs_reply` or `escalated`. |
 | `status`, `priority` | One value each; `status` is `open` or `closed`. |
+| `channel_type` | A channel type `id`, such as `discord`. |
 | `before` | `next_before` from the previous page. |
 
-**200** `{data: [{id, tenant_id, tenant_name, bot_id, subject, status, priority, source, escalated, needs_reply, handed_off, created_at, updated_at}], next_before?}`. To open one, act in that business as a platform admin, using its scope headers with `GET /tickets/{id}`.
+**200** `{data: [{id, tenant_id, tenant_name, bot_id, subject, status, priority, source, channel_id?, channel_name?, channel_type?, escalated, needs_reply, handed_off, created_at, updated_at}], next_before?}`. To open one, act in that business as a platform admin, using its scope headers with `GET /tickets/{id}`.
 
 #### `GET /platform/tools`
 
@@ -1455,18 +1551,61 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 - `400 INVALID_REQUEST`
 - `404 TEMPLATE_NOT_FOUND`
 
+#### `GET /platform/channel-types` (v2)
+
+**200** `{data: [{id, label, description, icon, status, sort_order, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `discord`, `slack`, `telegram`, `whatsapp`, `email` and `custom`.
+
+#### `POST /platform/channel-types` (v2)
+
+| Field | Rules |
+| --- | --- |
+| `id` | Required. 2–32 lowercase letters, digits, `-` or `_`, starting with a letter, such as `line`. It can't change later. |
+| `label` | Required. 1–80 characters. |
+| `description` | Up to 300 characters. |
+| `icon` | Up to 200 characters: an icon name or URL for dashboards. |
+| `status` | `active` (default) or `hidden`. A hidden type isn't offered for new channels; channels already of it keep working. |
+| `sort_order` | -10,000 to 10,000. |
+
+**201** the type. **Errors:** `400 INVALID_REQUEST`, `409 CHANNEL_TYPE_EXISTS`.
+
+#### `PATCH /platform/channel-types/{id}` (v2)
+
+Any field of `POST` except `id`. Types aren't deleted; hide one instead. **200** the type. **Errors:** `400 INVALID_REQUEST`, `404 CHANNEL_TYPE_NOT_FOUND`.
+
+#### `GET /platform/channels` (v2)
+
+Every business's channels, newest first, up to 500.
+
+| Query | Rules |
+| --- | --- |
+| `tenant` | A business ID. |
+| `type` | A channel type `id`. |
+| `status` | `active`, or `disabled` (turned off by its business or a platform admin). |
+
+**200** `{data: [Channel + {tenant_name}]}`.
+
+#### `PATCH /platform/channels/{id}` (v2)
+
+`{disabled: true | false}`. A disabled channel stays listed for its business, its chat API keys answer `403 CHANNEL_DISABLED`, and the business can't turn it back on. Recorded in the business's activity log. **200** the channel. **Errors:** `404 CHANNEL_NOT_FOUND`.
+
 ### Chat API (for integrations)
 
 These endpoints are for websites, apps and messaging platforms, called from the integration's **server** with a chat key. Never call them from a browser. A dashboard doesn't call them, but it issues the keys (`POST /api-keys`) and should show integrators this section. A key reaches only conversations started through the chat API for its bot. Anything else returns `404 CONVERSATION_NOT_FOUND`.
 
 **Conversation:**
-- Fields: `{id, status, escalated, created_at, updated_at, messages}`.
+- Fields: `{id, status, channel_id?, escalated, created_at, updated_at, messages}`. `channel_id` names the bot's [channel](#channels-v2) the conversation started on.
 - `status` is `open`, or `handoff` once it has been flagged for the team.
 - `messages` holds up to the latest 200, oldest first. Each is `{id, role, content, author?, agent?, created_at}`, with `role` `user` or `assistant`. A person's reply has `author: "agent"` and `agent` naming them.
 
 #### `POST /conversations`
 
-No body. **201** an empty conversation.
+No body, or `{channel_id}` (v2). **201** an empty conversation, on the channel the body names or else the one the key is bound to. Its tickets carry the channel.
+
+**Errors:**
+- `404 CHANNEL_NOT_FOUND`: the body names a channel the bot doesn't have.
+- `403 CHANNEL_DISABLED`: that channel is turned off.
+
+A key bound to a channel that is turned off or deleted gets `403 CHANNEL_DISABLED` from every chat API endpoint.
 
 #### `GET /conversations/{id}`
 
@@ -1508,7 +1647,7 @@ No body. Flags the conversation for the team and adds a confirmation message. Th
 
 #### `POST /conversations/{id}/ticket`
 
-Optional `{subject, priority}`. Opens a ticket without escalating, or returns the open one. **200** `{id, subject, status, priority, escalated, created_at}`.
+Optional `{subject, priority}`. Opens a ticket without escalating, or returns the open one. **200** `{id, subject, status, priority, escalated, channel_id?, created_at}`; the ticket takes the conversation's channel.
 
 #### `POST /conversations/{id}/ticket/close`
 
@@ -1547,16 +1686,16 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Onboarding | `GET /business-types`, `POST /tenants` |
 | Accepting an invitation | `POST /invites/preview`, then `POST /invites/accept` |
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
-| Tickets | `GET /tickets` (views, flags, `assignee=me`, `counts` for badges), `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
+| Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace`, `GET /models`, `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
 | Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`) |
-| Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys`, `DELETE /api-keys/{id}`, and the chat API section as the integrator guide |
+| Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…`, and the chat API section as the integrator guide |
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
 | Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
 | Team | `GET /members`, `PATCH`/`DELETE /members/{user_id}`, `GET`/`POST /invites`, `DELETE /invites/{id}`, `GET /audit` |
-| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `DELETE /platform/tenants/{id}`, `POST …/restore`, `GET /platform/deleted-tenants`, `GET /platform/deletion-requests` with `POST …/approve` and `…/reject`, `GET`/`PATCH /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…` |
+| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `DELETE /platform/tenants/{id}`, `POST …/restore`, `GET /platform/deleted-tenants`, `GET /platform/deletion-requests` with `POST …/approve` and `…/reject`, `GET`/`PATCH /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…`, `GET`/`POST`/`PATCH /platform/channel-types…`, `GET`/`PATCH /platform/channels…` |
 
 ## 6. Errors
 
@@ -1581,22 +1720,24 @@ Every error has its HTTP status and this body:
 | 400 | `INVALID_TOOL`, `UNKNOWN_TOOL`, `TOOL_UNAVAILABLE` | Fix the tool definition, or the bot's tool selection. |
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /models` and `GET /prompt-templates`, and fill required variables. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
+| 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
 | 400 | `FEATURE_UNAVAILABLE` | The server lacks the service this needs. |
 | 400 | `ADDON_NOT_AVAILABLE` | The business's tokens are unlimited; it needs no extra tokens. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |
 | 402 | `INSUFFICIENT_BALANCE` | The balance is too low; ask a platform admin for a top-up or buy less. |
 | 403 | `FORBIDDEN` | The role lacks the permission; hide the action. |
 | 403 | `TENANT_SUSPENDED` | The business is suspended. |
+| 403 | `CHANNEL_DISABLED` | The chat key's channel, or the one named, is turned off; turn it on, or ask a platform admin. |
 | 403 | `INVITE_EMAIL_MISMATCH` | Sign in with the invited address. |
 | 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. |
 | 404 | `NOT_FOUND` | No such route. |
-| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
+| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |
-| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT` | Already exists. |
+| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS` | Already exists. |
 | 409 | `LAST_OWNER`, `OWN_ACCESS` | The change would leave no owner, or remove your own platform access. |
-| 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL` | State conflicts. |
+| 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE` | State conflicts. |
 | 410 | `INVITE_REVOKED`, `INVITE_EXPIRED` | A new invitation is needed. |
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Send `Content-Type: application/json`. |

@@ -20,6 +20,7 @@ import {
   Undo2,
   UserRound,
 } from 'lucide-react';
+import { useChannels } from '@/lib/api/endpoints/channels';
 import { useDeleteTicket, useReplyToTicket, useSummarizeTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
 import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -548,9 +549,15 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
 function Properties({ ticket: t }: { ticket: TDetail }) {
   const { can } = useScopeCtx();
   const update = useUpdateTicket();
+  const channels = useChannels();
   const writable = can('tickets.write');
   const patch = (p: TicketPatch) => update.mutate({ id: t.id, patch: p });
   const closed = t.status === 'closed';
+  // A deleted channel stays on its tickets by name.
+  const channelOptions = [
+    ...(channels.data ?? []).map((c) => ({ value: c.id, label: c.active ? `${c.name} · ${c.type_label}` : `${c.name} (off)` })),
+    ...(t.channel_id && channels.data && !channels.data.some((c) => c.id === t.channel_id) ? [{ value: t.channel_id, label: `${t.channel_name ?? t.channel_id} (deleted)` }] : []),
+  ];
 
   return (
     <div className="grid gap-6">
@@ -587,6 +594,19 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
           />
           {t.assignee && !t.assignee_user_id && <span className="text-[0.7rem] text-ink-faint">Set by an integration: {t.assignee}</span>}
         </div>
+        {(channelOptions.length > 0 || t.channel_id) && (
+          <label className="grid gap-1.5">
+            <span className="mono text-ink-faint">Channel</span>
+            <Select
+              size="sm"
+              value={t.channel_id ?? ''}
+              disabled={!writable || channels.isPending}
+              onChange={(e) => patch({ channel_id: e.target.value })}
+              placeholder="No channel"
+              options={channelOptions}
+            />
+          </label>
+        )}
         {t.conversation_id && (
           <div className="rounded-[12px] border border-line bg-surface-2/60 p-3">
             <Switch
@@ -618,7 +638,7 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
         <p className="mono text-ink-faint">Conversation</p>
         <DescList
           items={[
-            { label: 'Channel', value: t.channel ? <Badge tone="outline">{t.channel}</Badge> : 'None' },
+            { label: 'Source', value: t.channel ? <Badge tone="outline">{t.channel === 'api' ? 'Chat API' : t.channel === 'playground' ? 'Playground' : t.channel}</Badge> : 'Dashboard' },
             {
               label: 'ID',
               value: t.conversation_id ? (

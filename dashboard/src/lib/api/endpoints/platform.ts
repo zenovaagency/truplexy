@@ -7,6 +7,8 @@ import type {
   Limits,
   PlanId,
   PlatformBusiness,
+  PlatformChannel,
+  PlatformChannelType,
   PlatformBusinessDetail,
   PlatformModel,
   PlatformOverview,
@@ -163,6 +165,7 @@ export interface PlatformTicketQuery {
   view?: 'all' | 'open' | 'needs_reply' | 'escalated';
   status?: TicketStatus;
   priority?: TicketPriority;
+  channel_type?: string;
 }
 
 export function usePlatformTickets(params: PlatformTicketQuery) {
@@ -274,5 +277,60 @@ export function useSavePlatformTemplate() {
         : api<PlatformTemplate>('/platform/prompt-templates', { method: 'POST', body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('templates') }),
     meta: { success: 'Template saved' },
+  });
+}
+
+/* Channels -------------------------------------------------------------- */
+
+export function usePlatformChannelTypes() {
+  return useQuery({
+    queryKey: qk.platform('channel-types'),
+    queryFn: ({ signal }) => api<{ data: PlatformChannelType[] }>('/platform/channel-types', { signal }).then((r) => r.data),
+  });
+}
+
+export type ChannelTypeInput = Pick<PlatformChannelType, 'id' | 'label' | 'description' | 'icon' | 'status' | 'sort_order'>;
+
+export function useSavePlatformChannelType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ existing, body }: { existing: boolean; body: ChannelTypeInput }) => {
+      const { id, ...rest } = body;
+      return existing
+        ? api<PlatformChannelType>(`/platform/channel-types/${encodeURIComponent(id)}`, { method: 'PATCH', body: rest })
+        : api<PlatformChannelType>('/platform/channel-types', { method: 'POST', body });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.platform('channel-types') });
+      // Businesses' offered types follow the catalog.
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'bot' && q.queryKey[3] === 'channel-types' });
+    },
+    meta: { success: 'Channel type saved' },
+  });
+}
+
+export interface PlatformChannelQuery {
+  tenant?: string;
+  type?: string;
+  status?: 'active' | 'disabled';
+}
+
+export function usePlatformChannels(params: PlatformChannelQuery) {
+  return useQuery({
+    queryKey: qk.platform('channels', params),
+    queryFn: ({ signal }) => api<{ data: PlatformChannel[] }>('/platform/channels', { signal, query: { ...params } }).then((r) => r.data),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useTogglePlatformChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, disabled }: { id: string; disabled: boolean }) =>
+      api<PlatformChannel>(`/platform/channels/${id}`, { method: 'PATCH', body: { disabled } }),
+    onSuccess: (c) => {
+      qc.invalidateQueries({ queryKey: qk.platform('channels') });
+      qc.invalidateQueries({ queryKey: ['bot', c.tenant_id, c.bot_id, 'channels'] });
+    },
   });
 }

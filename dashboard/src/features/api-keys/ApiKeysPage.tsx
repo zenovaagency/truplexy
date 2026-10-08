@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { KeyRound, Lock, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useApiKeys, useBots, useRevokeApiKey } from '@/lib/api/endpoints/business';
+import { useChannelIcon, useChannels } from '@/lib/api/endpoints/channels';
 import type { ApiKey } from '@/lib/api/types';
 import { formatDate, formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
@@ -22,6 +23,7 @@ import {
   useConfirm,
   type Column,
 } from '@/components/ui';
+import { ChannelBadge } from '@/components/domain/ChannelBadge';
 import { PUBLIC_API } from '@/features/integrations/catalog';
 import { IssueKeyDialog } from './IssueKey';
 
@@ -88,6 +90,7 @@ export default function ApiKeysPage() {
         </span>
       ),
     },
+    { key: 'channel', header: 'Channel', hideBelowLg: true, cell: (k) => <KeyChannel apiKey={k} /> },
     { key: 'status', header: 'Status', cell: (k) => <Badge tone={k.status === 'active' ? 'live' : 'neutral'} dot>{k.status === 'active' ? 'Active' : 'Revoked'}</Badge> },
     { key: 'created', header: 'Created', hideBelowLg: true, cell: (k) => <span className="text-ink-muted">{formatDate(k.created_at)}</span> },
     { key: 'used', header: 'Last used', cell: (k) => <span className="text-ink-muted">{k.last_used_at ? formatRelative(k.last_used_at) : 'Never'}</span> },
@@ -257,4 +260,14 @@ func main() {
       {writable && <IssueKeyDialog open={params.get('new') === '1'} onOpenChange={(o) => !o && setParams({}, { replace: true })} />}
     </Page>
   );
+}
+
+/** The channel a key is bound to, read from its bot's channels. */
+function KeyChannel({ apiKey: k }: { apiKey: ApiKey }) {
+  const channels = useChannels(k.bot_id, Boolean(k.channel_id));
+  const iconOf = useChannelIcon();
+  if (!k.channel_id) return <span className="text-ink-faint">—</span>;
+  const c = channels.data?.find((x) => x.id === k.channel_id);
+  if (!c) return <span className="text-ink-faint">{channels.isPending ? '…' : 'Deleted channel'}</span>;
+  return <ChannelBadge name={c.name} icon={iconOf(c.type)} muted={!c.active} className="max-w-[180px] text-ink-muted" />;
 }

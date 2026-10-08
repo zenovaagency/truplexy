@@ -11,9 +11,11 @@ import {
   MessagesSquare,
   Pencil,
   Plus,
+  Radio,
   RefreshCw,
   RotateCcw,
   Search,
+  Shapes,
   ShieldCheck,
   Trash2,
   Users,
@@ -26,6 +28,8 @@ import {
   useApproveDeletion,
   useDeletedTenants,
   useDeleteTenant,
+  usePlatformChannels,
+  usePlatformChannelTypes,
   usePlatformDeletionRequests,
   usePlatformModels,
   usePlatformOverview,
@@ -40,13 +44,17 @@ import {
   useRefreshModelPricing,
   useRejectDeletion,
   useRestoreTenant,
+  useSavePlatformChannelType,
   useSavePlatformModel,
   useSavePlatformTemplate,
+  useTogglePlatformChannel,
   useTogglePlatformTool,
   useUpdatePlatformTenant,
   useUpdatePlatformUser,
+  type ChannelTypeInput,
   type DeletionRequestFilter,
   type ModelInput,
+  type PlatformChannelQuery,
   type PlatformTicketQuery,
   type TemplateInput,
 } from '@/lib/api/endpoints/platform';
@@ -56,6 +64,8 @@ import type {
   DeletionRequest,
   Limits,
   PlatformBusiness,
+  PlatformChannel,
+  PlatformChannelType,
   PlatformModel,
   PlatformTemplate,
   TemplateVariable,
@@ -101,6 +111,7 @@ import {
   type Tone,
 } from '@/components/ui';
 import { BarList, TrendChart } from '@/components/charts';
+import { ChannelBadge, ChannelStatusBadge, ChannelTypeIcon } from '@/components/domain/ChannelBadge';
 import { StatCard } from '@/components/domain/StatCard';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { PRIORITIES, PRIORITY, PriorityBadge, RoleBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
@@ -988,6 +999,8 @@ export function PlatformUsers() {
 
 export function PlatformTickets() {
   const tenants = usePlatformTenants();
+  const types = usePlatformChannelTypes();
+  const iconOf = (type?: string) => types.data?.find((t) => t.id === type)?.icon || type;
   const [f, setF] = useState<PlatformTicketQuery>({ view: 'open' });
   const q = usePlatformTickets(f);
   const rows = useMemo(() => q.data?.pages.flatMap((p) => p.data) ?? [], [q.data]);
@@ -1000,6 +1013,7 @@ export function PlatformTickets() {
           <Select size="sm" className="w-44" aria-label="Business" value={f.tenant ?? ''} onChange={(e) => setF({ ...f, tenant: e.target.value || undefined })} placeholder="All businesses" options={liveBusinesses(tenants.data).map((t) => ({ value: t.id, label: t.name }))} />
           <Select size="sm" className="w-40" aria-label="Status" value={f.status ?? ''} onChange={(e) => setF({ ...f, status: (e.target.value as TicketStatus) || undefined })} placeholder="Any status" options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))} />
           <Select size="sm" className="w-36" aria-label="Priority" value={f.priority ?? ''} onChange={(e) => setF({ ...f, priority: (e.target.value as TicketPriority) || undefined })} placeholder="Any priority" options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY[p].label }))} />
+          <Select size="sm" className="w-40" aria-label="Channel type" value={f.channel_type ?? ''} onChange={(e) => setF({ ...f, channel_type: e.target.value || undefined })} placeholder="Any channel" options={(types.data ?? []).map((t) => ({ value: t.id, label: t.label }))} />
         </div>
         {q.isPending ? (
           <SkeletonRows rows={6} className="p-4" />
@@ -1018,10 +1032,18 @@ export function PlatformTickets() {
                 cell: (t) => (
                   <span className="grid min-w-0">
                     <span className={cn('truncate text-ink', t.needs_reply ? 'font-bold' : 'font-medium')}>{t.subject}</span>
-                    <span className="truncate text-xs text-ink-faint">
-                      {t.tenant_name} · {t.bot_id}
-                      {t.escalated && ' · escalated'}
-                      {t.handed_off && ' · handed off'}
+                    <span className="flex min-w-0 items-center gap-1 text-xs text-ink-faint">
+                      <span className="truncate">
+                        {t.tenant_name} · {t.bot_id}
+                        {t.escalated && ' · escalated'}
+                        {t.handed_off && ' · handed off'}
+                      </span>
+                      {t.channel_name && (
+                        <>
+                          {' · '}
+                          <ChannelBadge name={t.channel_name} icon={iconOf(t.channel_type)} className="max-w-[160px]" />
+                        </>
+                      )}
                     </span>
                   </span>
                 ),
@@ -1097,6 +1119,102 @@ export function PlatformTools() {
               },
             ]}
           />
+        )}
+      </Card>
+    </Page>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Channels                                                            */
+/* ------------------------------------------------------------------ */
+
+export function PlatformChannels() {
+  const tenants = usePlatformTenants();
+  const types = usePlatformChannelTypes();
+  const [f, setF] = useState<PlatformChannelQuery>({});
+  const q = usePlatformChannels(f);
+  const toggle = useTogglePlatformChannel();
+  const confirm = useConfirm();
+  const iconOf = (type: string) => types.data?.find((t) => t.id === type)?.icon || type;
+
+  const setDisabled = (c: PlatformChannel, disabled: boolean) =>
+    disabled
+      ? confirm({
+          title: `Turn off “${c.name}”?`,
+          description: `${c.tenant_name}'s chat API keys for this channel stop working at once, and the business can't turn it back on. It's recorded in their activity log.`,
+          confirmLabel: 'Turn off channel',
+          tone: 'danger',
+          onConfirm: () => toggle.mutateAsync({ id: c.id, disabled: true }).then(() => notifySuccess('Channel turned off')),
+        })
+      : toggle.mutate({ id: c.id, disabled: false }, { onSuccess: () => notifySuccess(c.enabled ? 'Channel turned back on' : 'Allowed again. The business still has it switched off.') });
+
+  return (
+    <Page>
+      <PageHeader eyebrow="Platform" title="Channels" description="Every business's channels, newest first. Turn one off if it's abused; its keys stop working until you turn it back on." />
+      <Card flush>
+        <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
+          <Segmented
+            size="xs"
+            label="Status"
+            value={f.status ?? 'all'}
+            onChange={(v) => setF({ ...f, status: v === 'all' ? undefined : v })}
+            options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'disabled', label: 'Off' }]}
+          />
+          <Select size="sm" className="w-44" aria-label="Business" value={f.tenant ?? ''} onChange={(e) => setF({ ...f, tenant: e.target.value || undefined })} placeholder="All businesses" options={liveBusinesses(tenants.data).map((t) => ({ value: t.id, label: t.name }))} />
+          <Select size="sm" className="w-40" aria-label="Type" value={f.type ?? ''} onChange={(e) => setF({ ...f, type: e.target.value || undefined })} placeholder="Any type" options={(types.data ?? []).map((t) => ({ value: t.id, label: t.label }))} />
+        </div>
+        {q.isPending ? (
+          <SkeletonRows rows={5} className="p-4" />
+        ) : q.isError ? (
+          <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        ) : (
+          <div className={cn('transition-opacity', q.isPlaceholderData && 'opacity-60')}>
+            <DataTable
+              rows={q.data}
+              getKey={(c) => c.id}
+              empty={<EmptyState compact icon={<Radio />} title="No channels here" />}
+              columns={[
+                {
+                  key: 'name',
+                  header: 'Channel',
+                  cell: (c) => (
+                    <span className="flex items-center gap-3">
+                      <ChannelTypeIcon icon={iconOf(c.type)} size={32} />
+                      <span className="grid min-w-0">
+                        <span className="truncate font-semibold text-ink">{c.name}</span>
+                        <span className="truncate text-xs text-ink-faint">
+                          {c.tenant_name} · {c.bot_id} · {c.type_label}
+                        </span>
+                      </span>
+                    </span>
+                  ),
+                },
+                { key: 'status', header: 'Status', cell: (c) => <ChannelStatusBadge channel={c} /> },
+                { key: 'external', header: 'External ID', hideBelowLg: true, cell: (c) => <span className="block max-w-[180px] truncate font-mono text-xs text-ink-muted">{c.external_id || '—'}</span> },
+                { key: 'tickets', header: 'Tickets', align: 'right', cell: (c) => <span className="whitespace-nowrap tabular-nums"><span className="font-semibold text-ink">{formatNumber(c.open_tickets)}</span> <span className="text-ink-faint">open · {formatNumber(c.tickets)}</span></span> },
+                { key: 'keys', header: 'Keys', align: 'right', hideBelowLg: true, cell: (c) => <span className="tabular-nums text-ink-muted">{formatNumber(c.api_keys)}</span> },
+                { key: 'created', header: 'Added', align: 'right', hideBelowLg: true, cell: (c) => <span className="whitespace-nowrap text-ink-muted">{formatDate(c.created_at)}</span> },
+                {
+                  key: 'allowed',
+                  header: 'Allowed',
+                  align: 'right',
+                  cell: (c) => (
+                    <span className="flex items-center justify-end gap-1">
+                      <Switch checked={!c.disabled_by_platform} disabled={toggle.isPending} onCheckedChange={(v) => void setDisabled(c, !v)} />
+                      <Tip content="Open in its business">
+                        <Button asChild size="xs" icon variant="quiet" aria-label={`Open ${c.tenant_name}'s channels`}>
+                          <Link {...scopeLink({ tenant: c.tenant_id, bot: c.bot_id }, 'integrations')}>
+                            <ArrowUpRight />
+                          </Link>
+                        </Button>
+                      </Tip>
+                    </span>
+                  ),
+                },
+              ]}
+            />
+          </div>
         )}
       </Card>
     </Page>
@@ -1665,3 +1783,124 @@ function TemplateSheet({ template, onClose }: { template: PlatformTemplate | 'ne
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Channel types                                                       */
+/* ------------------------------------------------------------------ */
+
+const EMPTY_CHANNEL_TYPE: ChannelTypeInput = { id: '', label: '', description: '', icon: '', status: 'active', sort_order: 0 };
+const CHANNEL_TYPE_ID_RE = /^[a-z][a-z0-9_-]{1,31}$/;
+
+export function PlatformChannelTypes() {
+  const q = usePlatformChannelTypes();
+  const [edit, setEdit] = useState<PlatformChannelType | 'new' | null>(null);
+  return (
+    <Page>
+      <PageHeader
+        eyebrow="Platform"
+        title="Channel types"
+        description="The kinds of channel businesses can add to a bot. Hide a type to stop offering it; channels already of it keep working."
+        actions={<Button variant="accent" leading={<Plus />} onClick={() => setEdit('new')}>New type</Button>}
+      />
+      <Card flush>
+        {q.isPending ? (
+          <SkeletonRows rows={5} className="p-4" />
+        ) : q.isError ? (
+          <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        ) : (
+          <DataTable
+            rows={q.data}
+            getKey={(t) => t.id}
+            onRowClick={setEdit}
+            empty={<EmptyState compact icon={<Shapes />} title="No channel types" />}
+            columns={[
+              {
+                key: 'label',
+                header: 'Type',
+                cell: (t) => (
+                  <span className="flex items-center gap-3">
+                    <ChannelTypeIcon icon={t.icon || t.id} size={32} />
+                    <span className="grid min-w-0">
+                      <span className="truncate font-semibold text-ink">{t.label}</span>
+                      <span className="truncate font-mono text-xs text-ink-faint">{t.id}</span>
+                    </span>
+                  </span>
+                ),
+              },
+              { key: 'description', header: 'Description', hideBelowLg: true, cell: (t) => <span className="line-clamp-2 max-w-[360px] text-ink-muted">{t.description || '—'}</span> },
+              { key: 'status', header: 'Status', cell: (t) => <Badge tone={STATUS_TONE[t.status]} dot className="capitalize">{t.status}</Badge> },
+              { key: 'channels', header: 'Channels', align: 'right', cell: (t) => <span className="tabular-nums">{formatNumber(t.channels)}</span> },
+              { key: 'order', header: 'Order', align: 'right', hideBelowLg: true, cell: (t) => <span className="tabular-nums text-ink-muted">{t.sort_order}</span> },
+            ]}
+          />
+        )}
+      </Card>
+      <ChannelTypeSheet type={edit} onClose={() => setEdit(null)} />
+    </Page>
+  );
+}
+
+function ChannelTypeSheet({ type, onClose }: { type: PlatformChannelType | 'new' | null; onClose: () => void }) {
+  const save = useSavePlatformChannelType();
+  const existing = type && type !== 'new' ? type : null;
+  const [t, setT] = useState<ChannelTypeInput>(EMPTY_CHANNEL_TYPE);
+  useEffect(() => {
+    if (!type) return;
+    setT(existing ? { id: existing.id, label: existing.label, description: existing.description, icon: existing.icon, status: existing.status, sort_order: existing.sort_order } : EMPTY_CHANNEL_TYPE);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
+  const set = <K extends keyof ChannelTypeInput>(k: K, v: ChannelTypeInput[K]) => setT((x) => ({ ...x, [k]: v }));
+
+  const idOk = Boolean(existing) || CHANNEL_TYPE_ID_RE.test(t.id);
+  const orderOk = Number.isInteger(t.sort_order) && Math.abs(t.sort_order) <= 10_000;
+  const valid = idOk && orderOk && t.label.trim();
+
+  return (
+    <Sheet
+      open={Boolean(type)}
+      onOpenChange={(o) => !o && onClose()}
+      title={existing ? existing.label : 'New channel type'}
+      description={existing ? `${pluralize(existing.channels, 'channel')} use it. Types aren't deleted; hide one instead.` : 'Businesses can add channels of it once it is active.'}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="accent"
+            loading={save.isPending}
+            disabled={!valid}
+            onClick={() => save.mutate({ existing: Boolean(existing), body: { ...t, label: t.label.trim(), description: t.description.trim(), icon: t.icon.trim() } }, { onSuccess: onClose })}
+          >
+            Save type
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="ID" hint={existing ? "It can't change." : 'Lowercase letters, digits, - or _, starting with a letter.'} error={t.id && !idOk ? '2–32 characters: a-z, 0-9, - or _, starting with a letter.' : undefined}>
+            <Input value={t.id} disabled={Boolean(existing)} className="font-mono" placeholder="line" onChange={(e) => set('id', e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32))} />
+          </Field>
+          <Field label="Label" aside={`${t.label.length}/80`}>
+            <Input value={t.label} placeholder="LINE" onChange={(e) => set('label', e.target.value.slice(0, 80))} />
+          </Field>
+        </div>
+        <Field label="Description" optional aside={`${t.description.length}/300`}>
+          <Textarea rows={3} value={t.description} onChange={(e) => set('description', e.target.value.slice(0, 300))} />
+        </Field>
+        <Field label="Icon" optional hint="A name such as discord, whatsapp, telegram, website, email or custom, or an image URL." aside={`${t.icon.length}/200`}>
+          <div className="flex items-center gap-3">
+            <ChannelTypeIcon icon={t.icon || t.id} size={38} />
+            <Input value={t.icon} className="flex-1" placeholder="line" onChange={(e) => set('icon', e.target.value.slice(0, 200))} />
+          </div>
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Status" hint={t.status === 'hidden' ? "Not offered for new channels; existing ones keep working." : 'Offered to every business.'}>
+            <Select value={t.status} onChange={(e) => set('status', e.target.value as ChannelTypeInput['status'])} options={[{ value: 'active', label: 'Active' }, { value: 'hidden', label: 'Hidden' }]} />
+          </Field>
+          <Field label="Sort order" hint="Lower comes first." error={orderOk ? undefined : 'A whole number from -10,000 to 10,000.'}>
+            <Input type="number" min={-10000} max={10000} value={t.sort_order} onChange={(e) => set('sort_order', Number(e.target.value))} />
+          </Field>
+        </div>
+      </div>
+    </Sheet>
+  );
+}

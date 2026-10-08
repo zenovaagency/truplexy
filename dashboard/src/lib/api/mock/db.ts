@@ -3,6 +3,7 @@ import type {
   AuditEvent,
   BillingAddon,
   BotConfig,
+  Channel,
   BusinessTypeId,
   DeletionRequest,
   Invite,
@@ -10,6 +11,7 @@ import type {
   LedgerEntry,
   Limits,
   PlanId,
+  PlatformChannelType,
   PlatformModel,
   PlatformTemplate,
   PlaygroundConversation,
@@ -92,13 +94,19 @@ export type MockInvite = Invite & { tenant_id: string; token: string };
 export type MockAudit = AuditEvent & { tenant_id: string };
 export type MockDoc = KnowledgeDocument & { tenant_id: string; bot_id: string; content: string; sha256?: string };
 export type MockTool = Tool & { id: string; tenant_id: string; disabled: boolean; calls: number; errors: number };
+/** `channel_name` and `channel_type` are stored only once the channel is deleted; otherwise they're read from it. */
 export type MockTicket = Omit<Ticket, 'flags' | 'needs_reply'> & { tenant_id: string; bot_id: string };
+/** Counts, the type's label and `active` are worked out on the way out. */
+export type MockChannel = Omit<Channel, 'type_label' | 'active' | 'open_tickets' | 'tickets' | 'api_keys'>;
+export type MockChannelType = Omit<PlatformChannelType, 'channels'>;
 
 export interface MockConversation {
   id: string;
   tenant_id: string;
   bot_id: string;
   channel: string;
+  /** The bot's channel it started on. */
+  channel_id?: string;
   title: string;
   status: 'open' | 'handoff';
   created_at: string;
@@ -130,9 +138,11 @@ export interface MockDb {
   deletionRequests: DeletionRequest[];
   /** `restorable` is worked out on the way out. */
   deletions: Omit<TenantDeletion, 'restorable'>[];
+  channelTypes: MockChannelType[];
+  channels: MockChannel[];
 }
 
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

@@ -24,6 +24,8 @@ export type Permission =
   | 'tickets.delete'
   | 'integrations.read'
   | 'integrations.write'
+  | 'channels.read'
+  | 'channels.write'
   | 'bots.create'
   | 'members.write'
   | 'business.write'
@@ -203,12 +205,56 @@ export interface ApiKey {
   tenant_id: string;
   bot_id: string;
   key_prefix: string;
+  /** The channel the key is bound to (v2). */
+  channel_id?: string;
   status: 'active' | 'revoked';
   created_at: string;
   last_used_at?: string;
   /** The secret, only in the POST /api-keys response. */
   key?: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Channels                                                            */
+/* ------------------------------------------------------------------ */
+
+/** A channel type the bot may add, from GET /channel-types. */
+export interface ChannelType {
+  id: string;
+  label: string;
+  description: string;
+  /** An icon name or URL. */
+  icon: string;
+  /** False for a hidden type one of the bot's channels still uses; don't offer it for new channels. */
+  offered: boolean;
+}
+
+/** A place the bot talks to customers, such as a Discord server or a website's chat widget. */
+export interface Channel {
+  id: string;
+  tenant_id: string;
+  bot_id: string;
+  type: string;
+  type_label: string;
+  name: string;
+  description: string;
+  /** The platform's own ID, e.g. a Discord server ID. */
+  external_id: string;
+  /** The business's switch. */
+  enabled: boolean;
+  /** A platform admin's switch; the business can't undo it. */
+  disabled_by_platform: boolean;
+  /** enabled and not disabled_by_platform: its keys work. */
+  active: boolean;
+  open_tickets: number;
+  tickets: number;
+  /** Active chat API keys bound to it. */
+  api_keys: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ChannelInput = Pick<Channel, 'type' | 'name' | 'description' | 'external_id' | 'enabled'>;
 
 /* ------------------------------------------------------------------ */
 /* Bot configuration                                                   */
@@ -430,7 +476,12 @@ export type TicketView = 'all' | 'open' | 'needs_reply' | 'escalated' | 'mine';
 export interface Ticket {
   id: string;
   conversation_id?: string;
+  /** The conversation's kind. */
   channel?: 'api' | 'playground' | (string & {});
+  /** The bot's channel it came from (v2); kept after the channel is deleted. */
+  channel_id?: string;
+  channel_name?: string;
+  channel_type?: string;
   subject: string;
   status: TicketStatus;
   priority: TicketPriority;
@@ -511,6 +562,9 @@ export interface TicketQuery {
   view?: TicketView;
   flag?: TicketFlag;
   assignee?: string;
+  /** A channel id, or `none`. */
+  channel?: string;
+  channel_type?: string;
   status?: TicketStatus;
   priority?: TicketPriority;
   q?: string;
@@ -524,6 +578,8 @@ export interface TicketPatch {
   priority?: TicketPriority;
   assignee_user_id?: string;
   escalated?: boolean;
+  /** "" clears it. */
+  channel_id?: string;
 }
 
 export interface Handoff {
@@ -843,6 +899,9 @@ export interface PlatformTicket {
   status: TicketStatus;
   priority: TicketPriority;
   source: 'dashboard' | 'customer';
+  channel_id?: string;
+  channel_name?: string;
+  channel_type?: string;
   escalated: boolean;
   needs_reply: boolean;
   handed_off: boolean;
@@ -925,6 +984,22 @@ export interface PlatformTemplate {
   updated_at: string;
   bots: number;
 }
+
+export interface PlatformChannelType {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  /** A hidden type isn't offered for new channels; channels already of it keep working. */
+  status: 'active' | 'hidden';
+  sort_order: number;
+  /** Businesses' channels of the type. */
+  channels: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PlatformChannel = Channel & { tenant_name: string };
 
 /* ------------------------------------------------------------------ */
 /* Errors                                                              */

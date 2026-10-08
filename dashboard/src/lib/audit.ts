@@ -1,12 +1,13 @@
 import type { AuditEvent } from '@/lib/api/types';
 import { formatCurrency, humanize } from '@/lib/format';
 
-export type AuditCategory = 'members' | 'invites' | 'keys' | 'bots' | 'business' | 'plan' | 'billing' | 'webhook' | 'other';
+export type AuditCategory = 'members' | 'invites' | 'keys' | 'channels' | 'bots' | 'business' | 'plan' | 'billing' | 'webhook' | 'other';
 
 export const AUDIT_CATEGORY_LABEL: Record<AuditCategory, string> = {
   members: 'Members',
   invites: 'Invitations',
   keys: 'API keys',
+  channels: 'Channels',
   bots: 'Bots',
   business: 'Business',
   plan: 'Plan & limits',
@@ -19,6 +20,7 @@ const PREFIX: [string, AuditCategory][] = [
   ['member.', 'members'],
   ['invite.', 'invites'],
   ['api_key.', 'keys'],
+  ['channel.', 'channels'],
   ['bot.', 'bots'],
   ['business.', 'business'],
   ['plan.', 'plan'],
@@ -39,6 +41,11 @@ const VERB: Record<string, string> = {
   'invite.accepted': 'accepted an invitation',
   'api_key.created': 'issued API key',
   'api_key.revoked': 'revoked API key',
+  'channel.created': 'added channel',
+  'channel.updated': 'changed channel',
+  'channel.deleted': 'deleted channel',
+  'channel.disabled': 'turned off channel',
+  'channel.enabled': 'turned on channel',
   'bot.created': 'created bot',
   'business.created': 'created the business',
   'business.updated': 'updated business details',

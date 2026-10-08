@@ -7,9 +7,11 @@ import type {
   BotConfig,
   Business,
   BusinessTypeId,
+  Channel,
   LedgerEntry,
   Limits,
   Permission,
+  PlatformChannelType,
   PlaygroundMessage,
   PlaygroundRunResult,
   Role,
@@ -27,7 +29,7 @@ import type {
 import { quoteTokens } from '@/lib/billing';
 import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
 import { emit, topicFor } from './bus';
-import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
+import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 
 /* ------------------------------------------------------------------ */
@@ -219,8 +221,11 @@ function ticketOut(db: MockDb, t: MockTicket): Ticket {
   const needs = !done && !!t.last_customer_at && (!t.last_agent_at || t.last_customer_at > t.last_agent_at);
   const overdue = needs && Date.now() - new Date(t.last_customer_at!).getTime() > tenant.reply_target_hours * 3_600_000;
   const assignee = t.assignee_user_id ? userById(db, t.assignee_user_id) : undefined;
+  const ch = t.channel_id ? db.channels.find((x) => x.id === t.channel_id) : undefined;
   return {
     ...t,
+    channel_name: ch?.name ?? t.channel_name,
+    channel_type: ch?.type ?? t.channel_type,
     assignee_name: assignee?.name ?? t.assignee_name,
     needs_reply: needs,
     flags: {
@@ -243,7 +248,7 @@ function findTicket(c: Ctx) {
 function emitTicket(c: Ctx, t: MockTicket, event: 'ticket.created' | 'ticket.updated') {
   emit(t.tenant_id, t.bot_id, event, {
     conversation_id: t.conversation_id,
-    ticket: { id: t.id, subject: t.subject, status: t.status, priority: t.priority, escalated: t.escalated },
+    ticket: { id: t.id, subject: t.subject, status: t.status, priority: t.priority, escalated: t.escalated, channel_id: t.channel_id },
   });
   void c;
 }
@@ -619,10 +624,11 @@ route('POST', '/api-keys', 'integrations.write', (c) => {
   const name = str(c.body.name, 'name', 1, 80)!;
   const bot = c.db.bots.find((b) => b.tenant_id === c.tenant.id && b.id === c.body.bot_id);
   if (!bot) throw notFound('BOT_NOT_FOUND', 'Bot');
+  const channel = c.body.channel_id ? channelOf(c, c.body.channel_id, bot.id) : undefined;
   const secret = `tpx_${hex(48)}`;
-  const key: ApiKey = { id: newId('key'), name, tenant_id: c.tenant.id, bot_id: bot.id, key_prefix: secret.slice(0, 8), status: 'active', created_at: nowIso() };
+  const key: ApiKey = { id: newId('key'), name, tenant_id: c.tenant.id, bot_id: bot.id, key_prefix: secret.slice(0, 8), channel_id: channel?.id, status: 'active', created_at: nowIso() };
   c.db.apiKeys.push(key);
-  audit(c, 'api_key.created', key.id, { name, bot_id: bot.id });
+  audit(c, 'api_key.created', key.id, { name, bot_id: bot.id, ...(channel ? { channel: channel.name } : {}) });
   return created({ ...key, key: secret });
 });
 
@@ -631,6 +637,103 @@ route('DELETE', '/api-keys/:id', 'integrations.write', (c) => {
   if (!k) throw notFound('KEY_NOT_FOUND', 'Key');
   k.status = 'revoked';
   audit(c, 'api_key.revoked', k.id, { name: k.name });
+  return noContent();
+});
+
+/* Channels ------------------------------------------------------------- */
+
+function channelOut(db: MockDb, ch: MockChannel): Channel {
+  const tickets = db.tickets.filter((t) => t.channel_id === ch.id && t.tenant_id === ch.tenant_id);
+  return {
+    ...ch,
+    type_label: db.channelTypes.find((t) => t.id === ch.type)?.label ?? ch.type,
+    active: ch.enabled && !ch.disabled_by_platform,
+    open_tickets: tickets.filter((t) => t.status === 'open').length,
+    tickets: tickets.length,
+    api_keys: db.apiKeys.filter((k) => k.channel_id === ch.id && k.status === 'active').length,
+  };
+}
+
+const botChannels = (c: Ctx) => c.db.channels.filter((x) => x.tenant_id === c.tenant.id && x.bot_id === c.botId);
+
+/** One of the bot's channels, or 404 CHANNEL_NOT_FOUND. */
+function channelOf(c: Ctx, id: unknown, botId = c.botId) {
+  const ch = c.db.channels.find((x) => x.id === id && x.tenant_id === c.tenant.id && x.bot_id === botId);
+  if (!ch) throw notFound('CHANNEL_NOT_FOUND', 'Channel');
+  return ch;
+}
+
+const offeredType = (db: MockDb, id: unknown) => db.channelTypes.find((t) => t.id === id && t.status === 'active');
+
+/** Validates POST and PATCH /channels fields; `ch` is the channel being changed. */
+function applyChannel(c: Ctx, ch: Partial<MockChannel>, b: any, existing?: MockChannel) {
+  if (b.type !== undefined && (!existing || b.type !== existing.type)) {
+    if (!offeredType(c.db, b.type)) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `Channel type ${b.type} isn't offered.`);
+    ch.type = b.type;
+  }
+  if (b.name !== undefined) {
+    const name = str(b.name, 'name', 1, 80)!.trim();
+    if (!name) throw invalid('name must be 1–80 characters.');
+    if (botChannels(c).some((x) => x !== existing && x.name.toLowerCase() === name.toLowerCase())) throw err(409, 'CHANNEL_EXISTS', `The bot has a channel named ${name}.`);
+    ch.name = name;
+  }
+  if (b.description !== undefined) ch.description = str(b.description, 'description', 0, 300)!;
+  if (b.external_id !== undefined) ch.external_id = str(b.external_id, 'external_id', 0, 128)!;
+  if (b.enabled !== undefined) {
+    if (typeof b.enabled !== 'boolean') throw invalid('enabled must be true or false.');
+    ch.enabled = b.enabled;
+  }
+}
+
+route('GET', '/channel-types', 'channels.read', (c) => {
+  const used = new Set(botChannels(c).map((x) => x.type));
+  return {
+    data: c.db.channelTypes
+      .filter((t) => t.status === 'active' || used.has(t.id))
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((t) => ({ id: t.id, label: t.label, description: t.description, icon: t.icon, offered: t.status === 'active' })),
+  };
+});
+
+route('GET', '/channels', 'channels.read', (c) => ({
+  data: botChannels(c)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((x) => channelOut(c.db, x)),
+}));
+
+route('POST', '/channels', 'channels.write', (c) => {
+  const b = c.body ?? {};
+  if (b.type === undefined) throw invalid('type is required.');
+  if (b.name === undefined) throw invalid('name is required.');
+  const now = nowIso();
+  const ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, description: '', external_id: '', enabled: true, disabled_by_platform: false, created_at: now, updated_at: now } as MockChannel;
+  applyChannel(c, ch, b);
+  c.db.channels.push(ch);
+  audit(c, 'channel.created', ch.id, { name: ch.name, type: ch.type });
+  return created(channelOut(c.db, ch));
+});
+
+route('GET', '/channels/:id', 'channels.read', (c) => channelOut(c.db, channelOf(c, c.params.id)));
+
+route('PATCH', '/channels/:id', 'channels.write', (c) => {
+  const ch = channelOf(c, c.params.id);
+  const wasEnabled = ch.enabled;
+  applyChannel(c, ch, c.body ?? {}, ch);
+  ch.updated_at = nowIso();
+  const action = ch.enabled === wasEnabled ? 'channel.updated' : ch.enabled ? 'channel.enabled' : 'channel.disabled';
+  audit(c, action, ch.id, { name: ch.name });
+  return channelOut(c.db, ch);
+});
+
+route('DELETE', '/channels/:id', 'channels.write', (c) => {
+  const ch = channelOf(c, c.params.id);
+  const keys = c.db.apiKeys.filter((k) => k.channel_id === ch.id && k.status === 'active').length;
+  if (keys) throw err(409, 'CHANNEL_IN_USE', `${keys} active chat API key${keys === 1 ? ' is' : 's are'} bound to this channel. Revoke them first.`);
+  // Its tickets keep its name and type.
+  const label = c.db.channelTypes.find((t) => t.id === ch.type)?.label;
+  for (const t of c.db.tickets) if (t.channel_id === ch.id) Object.assign(t, { channel_name: ch.name, channel_type: ch.type });
+  c.db.channels = c.db.channels.filter((x) => x !== ch);
+  audit(c, 'channel.deleted', ch.id, { name: ch.name, type: label ?? ch.type });
   return noContent();
 });
 
@@ -1085,6 +1188,8 @@ route('GET', '/tickets', 'tickets.read', (c) => {
     .filter((t) => !assignee || (assignee === 'me' ? t.assignee_user_id === c.user.id : assignee === 'none' ? !t.assignee_user_id : t.assignee_user_id === assignee))
     .filter((t) => !status || t.status === status)
     .filter((t) => !q.get('priority') || t.priority === q.get('priority'))
+    .filter((t) => !q.get('channel') || (q.get('channel') === 'none' ? !t.channel_id : t.channel_id === q.get('channel')))
+    .filter((t) => !q.get('channel_type') || t.channel_type === q.get('channel_type'))
     .filter((t) => !s || t.subject.toLowerCase().includes(s) || t.id === s || t.conversation_id === s)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const limit = Math.min(100, Math.max(1, Number(q.get('limit') ?? 50)));
@@ -1108,6 +1213,7 @@ route('POST', '/tickets', 'tickets.write', (c) => {
     str(b.subject, 'subject', 1, 200);
   }
   if (b.priority && !['low', 'normal', 'high', 'urgent'].includes(b.priority)) throw invalid('Unknown priority.');
+  const channelId = b.channel_id ? channelOf(c, b.channel_id).id : conv?.channel_id;
   const now = nowIso();
   const lastCustomer = conv?.messages.filter((m) => m.author === 'customer').at(-1);
   const t: MockTicket = {
@@ -1116,6 +1222,7 @@ route('POST', '/tickets', 'tickets.write', (c) => {
     bot_id: c.botId,
     conversation_id: conv?.id,
     channel: conv?.channel,
+    channel_id: channelId,
     subject: b.subject || conv?.title || 'Untitled',
     status: 'open',
     priority: b.priority ?? 'normal',
@@ -1156,6 +1263,11 @@ route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
     t.priority = b.priority;
   }
   if (b.status !== undefined) applyStatus(t, b.status);
+  if (b.channel_id !== undefined && b.channel_id !== t.channel_id) {
+    t.channel_id = b.channel_id === '' ? undefined : channelOf(c, b.channel_id).id;
+    t.channel_name = undefined;
+    t.channel_type = undefined;
+  }
   if (b.assignee_user_id !== undefined) {
     if (b.assignee_user_id === '') {
       t.assignee_user_id = undefined;
@@ -1804,6 +1916,7 @@ route('GET', '/platform/tickets', 'platform', ({ db, query }) => {
     .filter(({ t }) => (view === 'open' ? t.status === 'open' : view === 'needs_reply' ? t.flags.needs_reply : view === 'escalated' ? t.escalated : true))
     .filter(({ t }) => !status || t.status === status)
     .filter(({ t }) => !query.get('priority') || t.priority === query.get('priority'))
+    .filter(({ t }) => !query.get('channel_type') || t.channel_type === query.get('channel_type'))
     .sort((a, b) => b.t.updated_at.localeCompare(a.t.updated_at));
   const before = query.get('before');
   const start = before ? Number(before) : 0;
@@ -1818,6 +1931,9 @@ route('GET', '/platform/tickets', 'platform', ({ db, query }) => {
       status: t.status,
       priority: t.priority,
       source: t.source,
+      channel_id: t.channel_id,
+      channel_name: t.channel_name,
+      channel_type: t.channel_type,
       escalated: t.escalated,
       needs_reply: t.needs_reply,
       handed_off: t.handed_off,
@@ -2060,6 +2176,76 @@ route('PATCH', '/platform/prompt-templates/:id', 'platform', ({ db, params, body
   const bumped = body.body !== undefined || body.variables !== undefined;
   Object.assign(existing, t, { updated_at: nowIso(), version: existing.version + (bumped ? 1 : 0) });
   return { ...existing, bots: templateBots(db, existing.id) };
+});
+
+/* Channel catalog and channels ----------------------------------------- */
+
+const CHANNEL_TYPE_ID_RE = /^[a-z][a-z0-9_-]{1,31}$/;
+
+const channelTypeOut = (db: MockDb, t: MockDb['channelTypes'][number]): PlatformChannelType => ({ ...t, channels: db.channels.filter((x) => x.type === t.id).length });
+
+function applyChannelType(t: Partial<MockDb['channelTypes'][number]>, b: any) {
+  if (b.label !== undefined) t.label = str(b.label, 'label', 1, 80)!;
+  if (b.description !== undefined) t.description = str(b.description, 'description', 0, 300)!;
+  if (b.icon !== undefined) t.icon = str(b.icon, 'icon', 0, 200)!;
+  if (b.status !== undefined) {
+    if (!['active', 'hidden'].includes(b.status)) throw invalid('status must be active or hidden.');
+    t.status = b.status;
+  }
+  if (b.sort_order !== undefined) {
+    if (!Number.isInteger(b.sort_order) || Math.abs(b.sort_order) > 10_000) throw invalid('sort_order must be a whole number from -10000 to 10000.');
+    t.sort_order = b.sort_order;
+  }
+}
+
+route('GET', '/platform/channel-types', 'platform', ({ db }) => ({
+  data: [...db.channelTypes].sort((a, b) => a.sort_order - b.sort_order).map((t) => channelTypeOut(db, t)),
+}));
+
+route('POST', '/platform/channel-types', 'platform', ({ db, body }) => {
+  const b = body ?? {};
+  if (typeof b.id !== 'string' || !CHANNEL_TYPE_ID_RE.test(b.id)) throw invalid('id must be 2–32 lowercase letters, digits, - or _, starting with a letter.');
+  if (b.label === undefined) throw invalid('label is required.');
+  if (db.channelTypes.some((t) => t.id === b.id)) throw err(409, 'CHANNEL_TYPE_EXISTS', `Channel type ${b.id} exists.`);
+  const now = nowIso();
+  const t = { id: b.id, label: '', description: '', icon: '', status: 'active', sort_order: 0, created_at: now, updated_at: now } as MockDb['channelTypes'][number];
+  applyChannelType(t, b);
+  db.channelTypes.push(t);
+  return created(channelTypeOut(db, t));
+});
+
+route('PATCH', '/platform/channel-types/:id', 'platform', ({ db, params, body }) => {
+  const t = db.channelTypes.find((x) => x.id === params.id);
+  if (!t) throw notFound('CHANNEL_TYPE_NOT_FOUND', 'Channel type');
+  if (body?.id !== undefined && body.id !== t.id) throw invalid("id can't change.");
+  applyChannelType(t, body ?? {});
+  t.updated_at = nowIso();
+  return channelTypeOut(db, t);
+});
+
+route('GET', '/platform/channels', 'platform', ({ db, query }) => {
+  const status = query.get('status');
+  if (status && !['active', 'disabled'].includes(status)) throw invalid('status must be active or disabled.');
+  return {
+    data: db.channels
+      .filter((x) => !db.tenants.find((t) => t.id === x.tenant_id)?.deleted_at)
+      .filter((x) => !query.get('tenant') || x.tenant_id === query.get('tenant'))
+      .filter((x) => !query.get('type') || x.type === query.get('type'))
+      .map((x) => ({ ...channelOut(db, x), tenant_name: db.tenants.find((t) => t.id === x.tenant_id)?.name ?? x.tenant_id }))
+      .filter((x) => !status || (status === 'active' ? x.active : !x.active))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 500),
+  };
+});
+
+route('PATCH', '/platform/channels/:id', 'platform', (c) => {
+  const ch = c.db.channels.find((x) => x.id === c.params.id);
+  if (!ch) throw notFound('CHANNEL_NOT_FOUND', 'Channel');
+  if (typeof c.body?.disabled !== 'boolean') throw invalid('disabled must be true or false.');
+  ch.disabled_by_platform = c.body.disabled;
+  ch.updated_at = nowIso();
+  audit({ ...c, tenant: c.db.tenants.find((x) => x.id === ch.tenant_id)! }, ch.disabled_by_platform ? 'channel.disabled' : 'channel.enabled', ch.id, { name: ch.name, by: 'platform' });
+  return { ...channelOut(c.db, ch), tenant_name: c.db.tenants.find((t) => t.id === ch.tenant_id)?.name ?? ch.tenant_id };
 });
 
 /* ------------------------------------------------------------------ */

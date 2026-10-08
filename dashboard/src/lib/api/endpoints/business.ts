@@ -204,8 +204,11 @@ export function useCreateApiKey() {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { bot_id: string; name: string }) => api<ApiKey>('/api-keys', { method: 'POST', body, scope }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tenant(scope, 'api-keys') }),
+    mutationFn: (body: { bot_id: string; name: string; channel_id?: string }) => api<ApiKey>('/api-keys', { method: 'POST', body, scope }),
+    onSuccess: (k) => {
+      qc.invalidateQueries({ queryKey: qk.tenant(scope, 'api-keys') });
+      if (k.channel_id) qc.invalidateQueries({ queryKey: qk.bot({ tenant: scope.tenant, bot: k.bot_id }, 'channels') });
+    },
   });
 }
 
@@ -214,7 +217,11 @@ export function useRevokeApiKey() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api<void>(`/api-keys/${id}`, { method: 'DELETE', scope }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tenant(scope, 'api-keys') }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.tenant(scope, 'api-keys') });
+      // Channels count their active keys, in every bot.
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'bot' && q.queryKey[1] === scope.tenant && q.queryKey[3] === 'channels' });
+    },
     meta: { success: 'Key revoked. It stops working within a minute.' },
   });
 }

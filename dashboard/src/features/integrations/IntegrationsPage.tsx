@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
+  BookOpen,
   CheckCircle2,
   CircleDot,
   KeyRound,
-  LayoutGrid,
   Lock,
   Pause,
+  Pencil,
   Play,
+  Plus,
+  Radio,
   RefreshCw,
   Search,
   Send,
@@ -18,10 +21,11 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useApiKeys } from '@/lib/api/endpoints/business';
+import { useChannelIcon, useChannels, useChannelTypes, useCreateChannel, useDeleteChannel, useUpdateChannel } from '@/lib/api/endpoints/channels';
 import { useDeleteWebhook, useRotateWebhookSecret, useSaveWebhook, useTestWebhook, useWebhook } from '@/lib/api/endpoints/bot';
-import type { Webhook, WebhookDelivery } from '@/lib/api/types';
+import type { Channel, ChannelInput, Webhook, WebhookDelivery } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
-import { formatDateTime, formatRelative } from '@/lib/format';
+import { formatDateTime, formatNumber, formatRelative, pluralize } from '@/lib/format';
 import { notifySuccess } from '@/lib/notify';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import {
@@ -30,6 +34,7 @@ import {
   Callout,
   Card,
   CodeBlock,
+  DataTable,
   DescList,
   EmptyState,
   ErrorState,
@@ -38,15 +43,20 @@ import {
   Page,
   PageHeader,
   SecretOnce,
+  Select,
   Sheet,
   Skeleton,
   SkeletonRows,
   SubNav,
   Switch,
+  Textarea,
+  Tip,
   useConfirm,
+  type Column,
 } from '@/components/ui';
+import { ChannelStatusBadge, ChannelTypeIcon } from '@/components/domain/ChannelBadge';
 import { IssueKeyForm } from '@/features/api-keys/IssueKey';
-import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, keysFor, type Integration, type IntegrationGroup } from './catalog';
+import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type Integration, type IntegrationGroup } from './catalog';
 import { ALL_LANGS, LangPicker, useLang, useLangPack } from './languages';
 import type { LangPack } from './snippets/types';
 
@@ -61,7 +71,8 @@ export default function IntegrationsPage() {
       />
       <SubNav
         items={[
-          { to: href('integrations'), label: 'Channels', icon: <LayoutGrid />, end: true },
+          { to: href('integrations'), label: 'Your channels', icon: <Radio />, end: true },
+          { to: href('integrations/guides'), label: 'Guides', icon: <BookOpen /> },
           {
             to: href('integrations/webhook'),
             label: (
@@ -81,14 +92,16 @@ export default function IntegrationsPage() {
 /* ------------------------------------------------------------------ */
 
 export function CatalogTab() {
-  const { can, scope } = useScopeCtx();
+  const { can, scope, href } = useScopeCtx();
   const keys = useApiKeys(can('integrations.read'));
+  const channels = useChannels();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [group, setGroup] = useState<IntegrationGroup | 'all' | 'connected'>('all');
   const open = INTEGRATIONS.find((i) => i.id === params.get('guide'));
 
-  const connected = (i: Integration) => keysFor(i, keys.data ?? [], scope.bot);
+  /** Its active channels when it has a channel type; otherwise keys named after it. */
+  const connected = (i: Integration): unknown[] => (i.channelType ? channelsFor(i, channels.data ?? []) : keysFor(i, keys.data ?? [], scope.bot));
   const list = useMemo(
     () =>
       INTEGRATIONS.filter(
@@ -97,7 +110,7 @@ export function CatalogTab() {
           (!q || `${i.name} ${i.blurb}`.toLowerCase().includes(q.toLowerCase())),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q, group, keys.data],
+    [q, group, keys.data, channels.data],
   );
   const groups = (Object.keys(GROUP_LABEL) as IntegrationGroup[]).filter((g) => list.some((i) => i.group === g));
   const connectedCount = INTEGRATIONS.filter((i) => connected(i).length).length;
@@ -157,7 +170,7 @@ export function CatalogTab() {
                     <div className="mt-auto flex items-center justify-between pt-3">
                       {n ? (
                         <Badge tone="live" dot>
-                          Connected{n > 1 ? ` · ${n} keys` : ''}
+                          Connected{n > 1 ? ` · ${n} ${i.channelType ? 'channels' : 'keys'}` : ''}
                         </Badge>
                       ) : (
                         <span className="text-xs text-ink-faint">Not connected</span>
@@ -168,7 +181,7 @@ export function CatalogTab() {
                 );
                 const cls = 'panel flex min-h-[148px] flex-col p-4 text-left transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md';
                 return i.id === 'webhooks' ? (
-                  <Link key={i.id} to="webhook" className={cls}>
+                  <Link key={i.id} to={href('integrations/webhook')} className={cls}>
                     {card}
                   </Link>
                 ) : (
@@ -206,10 +219,22 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 function GuideSheet({ integration: i, onClose }: { integration?: Integration; onClose: () => void }) {
   const { can, scope, href, bot } = useScopeCtx();
   const keys = useApiKeys(can('integrations.read'));
+  const channels = useChannels();
   const webhook = useWebhook();
-  const existing = i ? keysFor(i, keys.data ?? [], scope.bot) : [];
+  const ofType = i?.channelType ? (channels.data ?? []).filter((c) => c.type === i.channelType) : [];
+  // Keys bound to the integration's channels; integrations without a channel type match key names.
+  const existing = !i
+    ? []
+    : i.channelType
+      ? (keys.data ?? []).filter((k) => k.status === 'active' && k.channel_id && ofType.some((c) => c.id === k.channel_id))
+      : keysFor(i, keys.data ?? [], scope.bot);
   const [issued, setIssued] = useState(false);
+  const [channelId, setChannelId] = useState('');
   useEffect(() => setIssued(false), [i?.id]);
+  // Bind new keys to the first working channel of the type.
+  const firstActive = ofType.find((c) => c.active)?.id ?? '';
+  useEffect(() => setChannelId(firstActive), [i?.id, firstActive]);
+  const picked = ofType.find((c) => c.id === channelId);
   const [lang, setLang] = useLang(i?.langs ?? []);
   const pack = useLangPack(lang);
   const code = pack.data?.integrations[i?.id ?? ''];
@@ -242,7 +267,8 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
           )}
 
           <ol className="grid">
-            <Step n={1} title="Issue a chat key" done={existing.length > 0 || issued}>
+            <Step n={1} title={i.channelType ? 'Add the channel and issue its key' : 'Issue a chat key'} done={existing.length > 0 || issued}>
+              {i.channelType && <GuideChannel integration={i} channels={ofType} value={channelId} onChange={setChannelId} />}
               {existing.length > 0 && (
                 <ul className="grid gap-1.5">
                   {existing.map((k) => (
@@ -256,7 +282,7 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
                 </ul>
               )}
               {can('integrations.write') ? (
-                <IssueKeyForm compact defaultName={`${i.name} · Production`} onIssued={() => setIssued(true)} />
+                <IssueKeyForm compact defaultName={`${picked?.name ?? i.name} · Production`} defaultChannel={channelId} onIssued={() => setIssued(true)} />
               ) : (
                 <p className="flex items-center gap-2 text-[0.8125rem] text-ink-muted">
                   <Lock className="size-3.5" /> Ask an admin to issue a key for {i.name}.
@@ -334,6 +360,297 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
           </ol>
         </div>
       )}
+    </Sheet>
+  );
+}
+
+/** Step 1 of a guide: the channel its key is bound to, added on the spot if there is none. */
+function GuideChannel({ integration: i, channels, value, onChange }: { integration: Integration; channels: Channel[]; value: string; onChange: (id: string) => void }) {
+  const { can } = useScopeCtx();
+  const types = useChannelTypes();
+  const create = useCreateChannel();
+  const [name, setName] = useState('');
+  useEffect(() => setName(''), [i.id]);
+  const type = types.data?.find((t) => t.id === i.channelType && t.offered);
+
+  if (channels.length > 0) {
+    return (
+      <ul className="grid gap-1.5">
+        {channels.map((c) => (
+          <li key={c.id}>
+            <label
+              className={cn(
+                'flex items-center gap-2.5 rounded-[10px] border px-3 py-2 text-[0.8125rem]',
+                value === c.id ? 'border-accent bg-accent-soft/50' : 'border-line',
+                c.active ? 'cursor-pointer' : 'opacity-60',
+              )}
+            >
+              <input type="radio" name="guide-channel" className="accent-[var(--color-accent)]" checked={value === c.id} disabled={!c.active} onChange={() => onChange(c.id)} />
+              <span className="flex-1 truncate font-medium text-ink">{c.name}</span>
+              <span className="text-xs text-ink-faint">{pluralize(c.api_keys, 'key')}</span>
+              <ChannelStatusBadge channel={c} />
+            </label>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (types.isPending) return <Skeleton className="h-9 rounded-[10px]" />;
+  if (!type) return <p className="text-[0.8125rem] text-ink-muted">Truplexy doesn't offer {i.name} channels right now. You can still issue a key without one.</p>;
+  if (!can('channels.write'))
+    return (
+      <p className="flex items-center gap-2 text-[0.8125rem] text-ink-muted">
+        <Lock className="size-3.5" /> Ask an admin to add a {type.label} channel.
+      </p>
+    );
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        create.mutate({ type: type.id, name: name.trim() || i.name }, { onSuccess: (c) => onChange(c.id) });
+      }}
+    >
+      <Field label={`${type.label} channel`} hint="Name it after the server, site or number, so tickets show where they came from." className="min-w-[200px] flex-1">
+        <Input size="sm" value={name} onChange={(e) => setName(e.target.value.slice(0, 80))} placeholder={i.name} />
+      </Field>
+      <Button type="submit" size="sm" variant="soft" leading={<Plus />} loading={create.isPending}>
+        Add channel
+      </Button>
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Your channels                                                       */
+/* ------------------------------------------------------------------ */
+
+export function ChannelsTab() {
+  const { can, href, bot } = useScopeCtx();
+  const q = useChannels();
+  const iconOf = useChannelIcon();
+  const update = useUpdateChannel();
+  const del = useDeleteChannel();
+  const confirm = useConfirm();
+  const writable = can('channels.write');
+  const [edit, setEdit] = useState<Channel | 'new' | null>(null);
+
+  const onDelete = (c: Channel) =>
+    confirm({
+      title: `Delete “${c.name}”?`,
+      description: c.api_keys
+        ? `${pluralize(c.api_keys, 'active API key')} still ${c.api_keys === 1 ? 'uses' : 'use'} it. Revoke them under API keys first.`
+        : "Its conversations and tickets keep the channel's name and type.",
+      confirmLabel: 'Delete channel',
+      tone: 'danger',
+      onConfirm: () => del.mutateAsync(c.id),
+    });
+
+  const toggle = (c: Channel, enabled: boolean) =>
+    update.mutate({ id: c.id, patch: { enabled } }, { onSuccess: () => notifySuccess(enabled ? `${c.name} is on` : `${c.name} is off. Its keys stop working.`) });
+
+  const columns: Column<Channel>[] = [
+    {
+      key: 'name',
+      header: 'Channel',
+      cell: (c) => (
+        <span className="flex items-center gap-3">
+          <ChannelTypeIcon icon={iconOf(c.type)} size={32} />
+          <span className="grid min-w-0">
+            <span className="truncate font-semibold text-ink">{c.name}</span>
+            <span className="truncate text-xs text-ink-faint">
+              {c.type_label}
+              {c.external_id && (
+                <>
+                  {' · '}
+                  <span className="font-mono">{c.external_id}</span>
+                </>
+              )}
+            </span>
+          </span>
+        </span>
+      ),
+    },
+    { key: 'status', header: 'Status', cell: (c) => <ChannelStatusBadge channel={c} /> },
+    {
+      key: 'tickets',
+      header: 'Tickets',
+      align: 'right',
+      cell: (c) => (
+        <Link to={href(`tickets?view=all&channel=${c.id}`)} className="whitespace-nowrap tabular-nums hover:underline">
+          <span className="font-semibold text-ink">{formatNumber(c.open_tickets)}</span> <span className="text-ink-faint">open · {formatNumber(c.tickets)}</span>
+        </Link>
+      ),
+    },
+    { key: 'keys', header: 'Keys', align: 'right', hideBelowLg: true, cell: (c) => <span className="tabular-nums text-ink-muted">{formatNumber(c.api_keys)}</span> },
+    {
+      key: 'actions',
+      header: <span className="sr-only">Actions</span>,
+      align: 'right',
+      hideOnCard: !writable,
+      cell: (c) =>
+        writable ? (
+          <span className="flex items-center justify-end gap-1">
+            <Tip content={c.disabled_by_platform ? 'Turned off by Truplexy' : c.enabled ? 'Turn off: its keys stop working' : 'Turn on'}>
+              <span className="mr-1 inline-flex">
+                <Switch checked={c.active} disabled={c.disabled_by_platform || update.isPending} onCheckedChange={(v) => toggle(c, v)} />
+              </span>
+            </Tip>
+            <Tip content="Edit">
+              <Button size="xs" icon variant="quiet" onClick={() => setEdit(c)} aria-label={`Edit ${c.name}`}>
+                <Pencil />
+              </Button>
+            </Tip>
+            <Tip content="Delete">
+              <Button size="xs" icon variant="quiet" className="hover:text-danger" onClick={() => void onDelete(c)} aria-label={`Delete ${c.name}`}>
+                <Trash2 />
+              </Button>
+            </Tip>
+          </span>
+        ) : null,
+    },
+  ];
+
+  return (
+    <div className="grid gap-5">
+      <Card
+        flush
+        title={`Channels of ${bot.name}`}
+        description="Each place customers reach the assistant, such as a Discord server or your website's chat. Tickets show which channel they came from."
+        actions={
+          writable && (
+            <Button variant="accent" size="sm" leading={<Plus />} onClick={() => setEdit('new')}>
+              Add channel
+            </Button>
+          )
+        }
+      >
+        {q.isPending ? (
+          <SkeletonRows rows={3} className="p-4" />
+        ) : q.isError ? (
+          <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={q.data}
+            getKey={(c) => c.id}
+            empty={
+              <EmptyState
+                icon={<Radio />}
+                title="No channels yet"
+                description="Add one for each place you connect, then issue its API key, so you can tell tickets apart and switch a channel off on its own."
+                action={
+                  writable ? (
+                    <Button variant="accent" leading={<Plus />} onClick={() => setEdit('new')}>
+                      Add your first channel
+                    </Button>
+                  ) : (
+                    <Button asChild variant="soft">
+                      <Link to={href('integrations/guides')}>Browse the guides</Link>
+                    </Button>
+                  )
+                }
+              />
+            }
+          />
+        )}
+        {!writable && (
+          <p className="flex items-center gap-2 border-t border-line px-5 py-3 text-xs text-ink-faint">
+            <Lock className="size-3.5" /> Only admins and owners can add or change channels.
+          </p>
+        )}
+      </Card>
+      <Callout tone="neutral" icon={<KeyRound />} title="Bind a key to each channel">
+        Issue a chat API key with the channel picked, and every conversation it starts is marked with that channel. Turning the channel off stops its keys until you turn it back on.{' '}
+        <Link to={href('integrations/guides')} className="font-semibold text-accent hover:underline">
+          Setup guides →
+        </Link>
+      </Callout>
+      <ChannelSheet channel={edit} onClose={() => setEdit(null)} />
+    </div>
+  );
+}
+
+const EMPTY_CHANNEL: ChannelInput = { type: '', name: '', description: '', external_id: '', enabled: true };
+
+function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; onClose: () => void }) {
+  const types = useChannelTypes(Boolean(channel));
+  const create = useCreateChannel();
+  const update = useUpdateChannel();
+  const existing = channel && channel !== 'new' ? channel : null;
+  const [c, setC] = useState<ChannelInput>(EMPTY_CHANNEL);
+  useEffect(() => {
+    if (!channel) return;
+    setC(existing ? { type: existing.type, name: existing.name, description: existing.description, external_id: existing.external_id, enabled: existing.enabled } : EMPTY_CHANNEL);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel]);
+  const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setC((x) => ({ ...x, [k]: v }));
+
+  // Offered types, plus the channel's own type when it is hidden now.
+  const options = (types.data ?? [])
+    .filter((t) => t.offered || t.id === existing?.type)
+    .map((t) => ({ value: t.id, label: t.offered ? t.label : `${t.label} (no longer offered)` }));
+  const valid = Boolean(c.type && c.name.trim());
+  const saving = create.isPending || update.isPending;
+
+  const save = () => {
+    const body: ChannelInput = { ...c, name: c.name.trim(), description: c.description.trim(), external_id: c.external_id.trim() };
+    if (!existing) return create.mutate(body, { onSuccess: onClose });
+    // Send only what changed, so an unchanged hidden type isn't rejected.
+    const patch = Object.fromEntries(Object.entries(body).filter(([k, v]) => existing[k as keyof ChannelInput] !== v)) as Partial<ChannelInput>;
+    if (!Object.keys(patch).length) return onClose();
+    update.mutate({ id: existing.id, patch }, { onSuccess: () => (notifySuccess('Channel saved'), onClose()) });
+  };
+
+  return (
+    <Sheet
+      open={Boolean(channel)}
+      onOpenChange={(o) => !o && onClose()}
+      title={existing ? existing.name : 'Add a channel'}
+      description={existing ? `${existing.type_label} · added ${formatRelative(existing.created_at)}` : 'A place customers reach the assistant. Bind an API key to it afterwards.'}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="accent" loading={saving} disabled={!valid} onClick={save}>
+            {existing ? 'Save channel' : 'Add channel'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="grid gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) save();
+        }}
+      >
+        {existing?.disabled_by_platform && (
+          <Callout tone="danger" icon={<AlertTriangle />} title="Turned off by Truplexy">
+            Its keys don't work, and only Truplexy can turn it back on. Contact support if you think this is a mistake.
+          </Callout>
+        )}
+        <Field label="Type">
+          <Select value={c.type} onChange={(e) => set('type', e.target.value)} placeholder={types.isPending ? 'Loading…' : 'Pick a type'} options={options} />
+        </Field>
+        <Field label="Name" hint="Unique among this bot's channels, e.g. “Acme Discord” or “Storefront chat”." aside={`${c.name.length}/80`}>
+          <Input value={c.name} onChange={(e) => set('name', e.target.value.slice(0, 80))} />
+        </Field>
+        <Field label="Description" optional aside={`${c.description.length}/300`}>
+          <Textarea rows={3} value={c.description} onChange={(e) => set('description', e.target.value.slice(0, 300))} />
+        </Field>
+        <Field label="External ID" optional hint="The platform's own ID for it, such as a Discord server ID or a phone number." aside={`${c.external_id.length}/128`}>
+          <Input value={c.external_id} onChange={(e) => set('external_id', e.target.value.slice(0, 128))} className="font-mono text-xs" />
+        </Field>
+        <Switch
+          checked={c.enabled}
+          onCheckedChange={(v) => set('enabled', v)}
+          label="On"
+          description={c.enabled ? 'Keys bound to it work.' : "Keys bound to it are refused until it's back on."}
+        />
+        <button type="submit" hidden />
+      </form>
     </Sheet>
   );
 }

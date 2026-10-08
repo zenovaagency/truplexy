@@ -1,5 +1,5 @@
 import type { BillingAddon, BusinessType, LedgerEntry, Plan, TicketMessage, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
-import { DB_VERSION, hex, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
+import { DB_VERSION, hex, type MockChannel, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
 
 /* ------------------------------------------------------------------ */
 /* Deterministic randomness, so every seed tells the same story.        */
@@ -604,6 +604,72 @@ function deletionHistory(dana: Person, owen: Person, ops: Person): Pick<MockDb, 
 }
 
 /* ------------------------------------------------------------------ */
+/* Channels                                                            */
+/* ------------------------------------------------------------------ */
+
+/** The catalog the API starts with. */
+function channelTypes(): MockDb['channelTypes'] {
+  return (
+    [
+      ['website', 'Website', "A chat widget on the business's own site or app."],
+      ['discord', 'Discord', 'A bot in a Discord server, in channels or DMs.'],
+      ['slack', 'Slack', 'A Slack app answering in a workspace.'],
+      ['telegram', 'Telegram', 'A Telegram bot in private chats and groups.'],
+      ['whatsapp', 'WhatsApp', 'A WhatsApp Business number through the Meta Cloud API.'],
+      ['email', 'Email', 'A support address, through an inbound mail webhook.'],
+      ['custom', 'Custom', 'Anything else built on the chat API.'],
+    ] as const
+  ).map(([id, label, description], i) => ({ id, label, description, icon: id, status: 'active', sort_order: (i + 1) * 10, created_at: ago(120 * DAY), updated_at: ago(120 * DAY) }));
+}
+
+/**
+ * Sample channels, with the seeded keys bound to them and chat API
+ * conversations (and their tickets) spread across them. Uses its own
+ * sequence, so the rest of the sample data stays as it was.
+ */
+function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversation[], tickets: MockTicket[]): MockChannel[] {
+  const r = rng(7311);
+  const ch = (tenant_id: string, type: string, name: string, days: number, more: Partial<MockChannel> = {}): MockChannel => ({
+    id: id('chn', r),
+    tenant_id,
+    bot_id: 'support',
+    type,
+    name,
+    description: '',
+    external_id: '',
+    enabled: true,
+    disabled_by_platform: false,
+    created_at: ago(days * DAY),
+    updated_at: ago(days * DAY),
+    ...more,
+  });
+  const site = ch('acme', 'website', 'Storefront chat', 100, { description: 'The chat bubble on acme.example.', external_id: 'acme.example' });
+  const telegram = ch('acme', 'telegram', 'Acme Telegram', 60, { external_id: '@acmestore_bot' });
+  const whatsapp = ch('acme', 'whatsapp', 'WhatsApp support line', 70, { external_id: '+1 415 555 0134', enabled: false, description: 'Paused while the number moves to the new Meta account.' });
+  const nwDiscord = ch('northwind', 'discord', 'Northwind community', 30, { external_id: '1187340912665214976' });
+  const bloomSite = ch('bloom-clinic', 'website', 'Clinic website', 25, { disabled_by_platform: true, description: 'Booking page chat.' });
+  const channels = [site, telegram, whatsapp, nwDiscord, bloomSite];
+
+  // Bind the keys that are clearly for one of these.
+  const bind = (name: string, c: MockChannel) => {
+    const k = apiKeys.find((x) => x.name.startsWith(name));
+    if (k) k.channel_id = c.id;
+  };
+  bind('Website chat', site);
+  bind('Telegram', telegram);
+  bind('WhatsApp', whatsapp);
+  bind('Discord', nwDiscord);
+
+  const spread: Record<string, MockChannel[]> = { acme: [site, site, site, telegram, telegram, whatsapp], northwind: [nwDiscord], 'bloom-clinic': [bloomSite] };
+  for (const conv of conversations) {
+    const pool = conv.bot_id === 'support' && conv.channel === 'api' ? spread[conv.tenant_id] : undefined;
+    if (pool && r() < 0.85) conv.channel_id = pick(r, pool).id;
+  }
+  for (const t of tickets) t.channel_id = conversations.find((c) => c.id === t.conversation_id)?.channel_id;
+  return channels;
+}
+
+/* ------------------------------------------------------------------ */
 /* The seed                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -809,6 +875,8 @@ export function seedDb(): MockDb {
     { id: id('key', r), name: 'Discord community', tenant_id: 'northwind', bot_id: 'support', key_prefix: 'tpx_c3a8', status: 'active', created_at: ago(30 * DAY), last_used_at: ago(3 * HOUR) },
   ];
 
+  const channels = seedChannels(apiKeys, conversations, tickets);
+
   const audit: MockDb['audit'] = [];
   const addAudit = (tenant: string, actor: typeof alex, action: string, target: string, details: Record<string, unknown> | null, when: number) =>
     audit.push({ id: id('aud', r), tenant_id: tenant, actor: actor!.id, actor_email: actor!.email, action, target, details, created_at: ago(when) });
@@ -825,6 +893,9 @@ export function seedDb(): MockDb {
   addAudit('northwind', dana, 'business.created', 'northwind', { business_type: 'saas' }, 64 * DAY);
   addAudit('northwind', dana, 'invite.created', 'inv_' + hex(32), { email: 'alex@acme.example', role: 'admin' }, 41 * DAY);
   addAudit('northwind', dana, 'api_key.created', apiKeys[4]!.id, { name: 'Discord community' }, 30 * DAY);
+  addAudit('acme', priya, 'channel.created', channels[1]!.id, { name: channels[1]!.name, type: 'telegram' }, 60 * DAY);
+  addAudit('acme', priya, 'channel.disabled', channels[2]!.id, { name: channels[2]!.name }, 9 * DAY);
+  addAudit('bloom-clinic', ops, 'channel.disabled', channels[4]!.id, { name: channels[4]!.name, by: 'platform' }, 4 * DAY);
   addAudit('harbor-realty', ops, 'business.suspended', 'harbor-realty', { reason: 'Payment overdue' }, 5 * DAY);
   addAudit('northwind', dana, 'business.deletion_requested', 'northwind', { reason: 'We are moving support to another tool.' }, 2 * DAY);
   addAudit('old-bakery', owen, 'business.deletion_requested', 'old-bakery', { reason: 'The bakery has closed.' }, 8 * DAY);
@@ -970,5 +1041,7 @@ Hand over when: {{escalation_policy}}
     templates,
     playground: {},
     ...deletionHistory(dana!, owen!, ops!),
+    channelTypes: channelTypes(),
+    channels,
   };
 }

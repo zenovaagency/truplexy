@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowRightLeft, Filter, Hand, Inbox, MessagesSquare, Plus, Search, X } from 'lucide-react';
+import { useChannelIcon, useChannels } from '@/lib/api/endpoints/channels';
 import { useCreateTicket, useHandoffs, usePrefetchTicket, useTickets } from '@/lib/api/endpoints/tickets';
 import type { TicketCounts, TicketFlag, TicketPriority, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -27,6 +28,7 @@ import {
   Tip,
 } from '@/components/ui';
 import { PRIORITIES, PRIORITY, PriorityBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
+import { ChannelBadge } from '@/components/domain/ChannelBadge';
 import { FLAG_LABEL, TicketFlags, useAssignees } from './shared';
 import { TicketDetail } from './TicketDetail';
 
@@ -49,6 +51,7 @@ function useTicketFilters() {
     priority: (params.get('priority') as TicketPriority) || undefined,
     assignee: params.get('assignee') || undefined,
     flag: (params.get('flag') as TicketFlag) || undefined,
+    channel: params.get('channel') || undefined,
     q: params.get('q') || undefined,
   };
   const set = (patch: Partial<Record<keyof TicketQuery, string | undefined>>) =>
@@ -71,9 +74,11 @@ export default function TicketsPage() {
   const { filters, set, params, setParams } = useTicketFilters();
   const [search, setSearch] = useState(filters.q ?? '');
   const q = useDebounce(search, 350);
-  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.priority || filters.assignee || filters.flag));
+  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.priority || filters.assignee || filters.flag || filters.channel));
   const assignees = useAssignees();
   const handoffs = useHandoffs();
+  const channels = useChannels();
+  const iconOf = useChannelIcon();
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
@@ -81,7 +86,7 @@ export default function TicketsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.priority, filters.assignee, filters.flag, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.priority, filters.assignee, filters.flag, filters.channel, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = useTickets(query);
   const prefetch = usePrefetchTicket();
   const tickets = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
@@ -89,7 +94,7 @@ export default function TicketsPage() {
   const qs = params.toString() ? `?${params.toString()}` : '';
   const open = (id: string) => nav(href(`tickets/${id}`) + qs);
 
-  const extraFilters = [filters.status, filters.priority, filters.assignee, filters.flag].filter(Boolean).length;
+  const extraFilters = [filters.status, filters.priority, filters.assignee, filters.flag, filters.channel].filter(Boolean).length;
   const newOpen = params.get('new') === '1';
 
   // j / k move through the queue; Esc closes the ticket.
@@ -157,9 +162,13 @@ export default function TicketsPage() {
               options={[{ value: 'me', label: 'Assigned to me' }, { value: 'none', label: 'Unassigned' }, ...assignees.map((m) => ({ value: m.user_id, label: m.name }))]} />
             <Select size="sm" aria-label="Flag" value={filters.flag ?? ''} onChange={(e) => set({ flag: e.target.value || undefined })} placeholder="Any flag"
               options={(Object.keys(FLAG_LABEL) as TicketFlag[]).map((f) => ({ value: f, label: FLAG_LABEL[f] }))} />
+            {Boolean(channels.data?.length || filters.channel) && (
+              <Select size="sm" className="col-span-2" aria-label="Channel" value={filters.channel ?? ''} onChange={(e) => set({ channel: e.target.value || undefined })} placeholder="Any channel"
+                options={[{ value: 'none', label: 'No channel' }, ...(channels.data ?? []).map((c) => ({ value: c.id, label: `${c.name} · ${c.type_label}` }))]} />
+            )}
             {extraFilters > 0 && (
               <button type="button" className="col-span-2 inline-flex items-center gap-1 justify-self-start text-xs font-semibold text-accent hover:underline"
-                onClick={() => set({ status: undefined, priority: undefined, assignee: undefined, flag: undefined })}>
+                onClick={() => set({ status: undefined, priority: undefined, assignee: undefined, flag: undefined, channel: undefined })}>
                 <X className="size-3" /> Clear filters
               </button>
             )}
@@ -203,6 +212,7 @@ export default function TicketsPage() {
                       <TicketStatusBadge status={t.status} />
                       {t.priority !== 'normal' && <PriorityBadge priority={t.priority} />}
                       <TicketFlags ticket={t} />
+                      {t.channel_name && <ChannelBadge name={t.channel_name} icon={iconOf(t.channel_type)} className="max-w-[140px] text-[0.7rem] text-ink-faint" />}
                       <span className="ml-auto flex items-center gap-1.5 text-[0.7rem] text-ink-faint">
                         {t.assignee_name ? <Avatar name={t.assignee_name} size={18} /> : 'Unassigned'}
                       </span>
@@ -307,13 +317,16 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
   defaultSubject?: string;
 }) {
   const create = useCreateTicket();
+  const channels = useChannels(undefined, open && !conversationId);
   const [subject, setSubject] = useState(defaultSubject ?? '');
   const [priority, setPriority] = useState<TicketPriority>('normal');
+  const [channel, setChannel] = useState('');
   const [escalated, setEscalated] = useState(Boolean(conversationId));
   useEffect(() => {
     if (open) {
       setSubject(defaultSubject ?? '');
       setPriority('normal');
+      setChannel('');
       setEscalated(Boolean(conversationId));
     }
   }, [open, defaultSubject, conversationId]);
@@ -321,7 +334,7 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     create.mutate(
-      { subject: subject.trim() || undefined, priority, conversation_id: conversationId, escalated: conversationId ? escalated : undefined },
+      { subject: subject.trim() || undefined, priority, conversation_id: conversationId, escalated: conversationId ? escalated : undefined, channel_id: channel || undefined },
       { onSuccess: (t) => (onOpenChange(false), onCreated(t.id)) },
     );
   };
@@ -348,6 +361,11 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
         <Field label="Priority">
           <Select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY[p].label }))} />
         </Field>
+        {!conversationId && Boolean(channels.data?.length) && (
+          <Field label="Channel" optional hint="Where the customer reached you, if it's one of this bot's channels.">
+            <Select value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="No channel" options={(channels.data ?? []).map((c) => ({ value: c.id, label: `${c.name} · ${c.type_label}` }))} />
+          </Field>
+        )}
         {conversationId && (
           <Switch checked={escalated} onCheckedChange={setEscalated} label="Take over now" description="The assistant stops replying in this conversation until you hand it back." />
         )}

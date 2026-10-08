@@ -11,7 +11,7 @@ import {
   siZendesk,
 } from 'simple-icons';
 import { Code2, Globe, Mail, MessageSquare, Users, Webhook, type LucideIcon } from 'lucide-react';
-import type { ApiKey } from '@/lib/api/types';
+import type { ApiKey, Channel } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import type { Lang } from './snippets/types';
 
@@ -33,7 +33,9 @@ export interface Integration {
   path?: string;
   color: string;
   glyph?: LucideIcon;
-  /** Words in a key name that mean this integration is set up. */
+  /** The channel type this integration adds (see GET /channel-types). */
+  channelType?: string;
+  /** Words in a key name that mean this integration is set up, for integrations with no channel type. */
   match: string[];
   /** Setup on the platform's side, in order. */
   steps: string[];
@@ -50,6 +52,7 @@ const brand = (hex: string) => `#${hex}`;
 export const INTEGRATIONS: Integration[] = [
   {
     id: 'web',
+    channelType: 'website',
     name: 'Website chat',
     group: 'messaging',
     blurb: 'A chat bubble on your own site or app, talking to your server.',
@@ -65,6 +68,7 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'whatsapp',
+    channelType: 'whatsapp',
     name: 'WhatsApp',
     group: 'messaging',
     blurb: 'Answer customers on WhatsApp Business through the Meta Cloud API.',
@@ -80,6 +84,7 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'telegram',
+    channelType: 'telegram',
     name: 'Telegram',
     group: 'messaging',
     blurb: 'A Telegram bot that answers in private chats and groups.',
@@ -94,6 +99,7 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'discord',
+    channelType: 'discord',
     name: 'Discord',
     group: 'messaging',
     blurb: 'A support bot for your community server, in channels or DMs.',
@@ -138,6 +144,7 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'email',
+    channelType: 'email',
     name: 'Email',
     group: 'messaging',
     blurb: 'Draft answers to support emails from an inbound mail webhook.',
@@ -225,6 +232,7 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'slack',
+    channelType: 'slack',
     name: 'Slack',
     group: 'internal',
     blurb: 'Get escalations in Slack and reply to customers from a thread.',
@@ -256,6 +264,7 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'api',
+    channelType: 'custom',
     name: 'REST API',
     group: 'developer',
     blurb: 'Build any channel you like on the chat API.',
@@ -281,6 +290,11 @@ export const INTEGRATIONS: Integration[] = [
     steps: [],
   },
 ];
+
+/** The bot's active channels of the integration's type. */
+export function channelsFor(i: Integration, channels: Channel[]) {
+  return i.channelType ? channels.filter((c) => c.type === i.channelType && c.active) : [];
+}
 
 /** Active chat keys for this bot that look like they belong to an integration. */
 export function keysFor(i: Integration, keys: ApiKey[], botId: string) {
