@@ -156,7 +156,14 @@ header {
 .handoff:hover { background: var(--tx-accent); color: var(--tx-accent-ink); }
 .handoff:disabled { opacity: 0.5; cursor: default; }
 
-.composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--tx-line); }
+.composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px 6px; border-top: 1px solid var(--tx-line); }
+.brand {
+  display: block; padding: 2px 12px 9px; text-align: center;
+  font-size: 11px; line-height: 1.4; color: var(--tx-muted); text-decoration: none;
+}
+.brand strong { font-weight: 700; }
+.brand:hover, .brand:focus-visible { color: var(--tx-ink); }
+.brand:hover strong { color: var(--tx-accent); }
 textarea {
   flex: 1; resize: none; border: 1px solid var(--tx-line); border-radius: 14px;
   padding: 10px 14px; max-height: 128px; min-height: 44px; line-height: 1.4;

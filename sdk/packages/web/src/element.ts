@@ -7,6 +7,9 @@ import type { ChatMessage, ChatState } from './types';
 
 export const TAG = 'truplexy-chat';
 
+/** Where "Powered by Truplexy" links to; the UTM tags show widget referrals in the site's analytics. */
+export const BRAND_URL = 'https://zenovasolution.xyz/?utm_source=chat-widget&utm_medium=referral';
+
 const ICONS = {
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3 21l1.5-5.2A8.5 8.5 0 1 1 21 12z"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -73,6 +76,7 @@ export class TruplexyChatElement extends Base {
     form: HTMLFormElement;
     input: HTMLTextAreaElement;
     send: HTMLButtonElement;
+    brand: HTMLAnchorElement;
   };
 
   /** The headless client behind the widget, for advanced use. */
@@ -200,6 +204,7 @@ export class TruplexyChatElement extends Base {
     <textarea rows="1" maxlength="4000" enterkeyhint="send"></textarea>
     <button class="send" type="submit" disabled>${ICONS.send}</button>
   </form>
+  <a class="brand" href="${BRAND_URL}" target="_blank" rel="noopener"></a>
 </section>`;
     const q = <T extends Element>(s: string) => root.querySelector(s) as unknown as T;
     this.$ = {
@@ -221,6 +226,7 @@ export class TruplexyChatElement extends Base {
       form: q('form'),
       input: q('textarea'),
       send: q('.send'),
+      brand: q('.brand'),
     };
     // The typing indicator lives in the log, after the messages.
     this.$.log.append(this.$.typing);
@@ -311,6 +317,11 @@ export class TruplexyChatElement extends Base {
     $.restart.setAttribute('aria-label', this.label('newConversation'));
     $.restart.title = this.label('newConversation');
     $.handoff.textContent = this.label('handoff');
+    // The name stands out in any language: "Powered by **Truplexy**".
+    const [before, ...after] = this.label('poweredBy').split('Truplexy');
+    const name = document.createElement('strong');
+    name.textContent = 'Truplexy';
+    $.brand.replaceChildren(before, ...(after.length ? [name, after.join('Truplexy')] : []));
     $.launcher.setAttribute('aria-label', this.label(this.isOpen ? 'close' : 'open'));
     const accent = this.getAttribute('accent');
     if (accent) this.style.setProperty('--truplexy-accent', accent);
