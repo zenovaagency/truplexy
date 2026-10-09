@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, hasCode } from '@/lib/api/client';
 import type { ApiKey, AuditEvent, Bot, Business, BusinessTypeId, DeletionRequest, Invite, Member, Role } from '@/lib/api/types';
+import { imageForm, refreshImages } from '@/lib/api/endpoints/account';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -26,6 +27,48 @@ export function useUpdateTenant() {
       qc.invalidateQueries({ queryKey: qk.me });
     },
     meta: { success: 'Business details saved' },
+  });
+}
+
+/** The business's logo (v2). Shown in the switcher, so `me` refreshes too. */
+export function useSetTenantLogo() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => api<{ logo_url: string }>('/tenant/logo', { method: 'PUT', body: imageForm(file), scope }),
+    onSuccess: () => refreshImages(qc),
+    meta: { success: 'Logo updated' },
+  });
+}
+
+export function useRemoveTenantLogo() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ logo_url: null }>('/tenant/logo', { method: 'DELETE', scope }),
+    onSuccess: () => refreshImages(qc),
+    meta: { success: 'Logo removed' },
+  });
+}
+
+/** A bot's picture (v2), in the requesting business. */
+export function useSetBotAvatar() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => api<{ avatar_url: string }>(`/bots/${encodeURIComponent(id)}/avatar`, { method: 'PUT', body: imageForm(file), scope }),
+    onSuccess: () => refreshImages(qc),
+    meta: { success: 'Picture updated' },
+  });
+}
+
+export function useRemoveBotAvatar() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<{ avatar_url: null }>(`/bots/${encodeURIComponent(id)}/avatar`, { method: 'DELETE', scope }),
+    onSuccess: () => refreshImages(qc),
+    meta: { success: 'Picture removed' },
   });
 }
 

@@ -53,6 +53,8 @@ export type PlanId = 'free' | 'starter' | 'pro' | 'enterprise' | (string & {});
 export interface BotRef {
   id: string;
   name: string;
+  /** Public URL of the bot's picture (v2); absent when it has none. */
+  avatar_url?: string;
 }
 
 export interface Membership {
@@ -63,10 +65,12 @@ export interface Membership {
   status: 'active' | 'suspended';
   role: Role;
   bots: BotRef[];
+  /** Public URL of the business's logo (v2); absent when it has none. */
+  logo_url?: string;
 }
 
 export interface Me {
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; avatar_url?: string };
   platform_admin: boolean;
   memberships: Membership[];
   roles: Record<Role, Permission[]>;
@@ -135,12 +139,15 @@ export interface Business {
   balance: number;
   /** Only on deleted businesses, which only platform admins see. */
   deleted_at?: string;
+  /** Public URL of the logo (v2); absent when there is none. */
+  logo_url?: string;
 }
 
 export interface Member {
   user_id: string;
   email: string;
   name: string;
+  avatar_url?: string;
   role: Role;
   joined_at: string;
 }
@@ -197,6 +204,7 @@ export interface Bot {
   name: string;
   kb_version: number;
   created_at: string;
+  avatar_url?: string;
 }
 
 export interface ApiKey {

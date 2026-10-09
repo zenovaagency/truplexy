@@ -1,8 +1,9 @@
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, LogOut, Monitor, Moon, RotateCcw, Shield, ShieldCheck, Sun, UserCog } from 'lucide-react';
-import { useMe } from '@/lib/api/endpoints/account';
+import { FlaskConical, ImagePlus, LogOut, Monitor, Moon, RotateCcw, Shield, ShieldCheck, Sun, UserCog } from 'lucide-react';
+import { useMe, useRemoveMyAvatar, useSetMyAvatar } from '@/lib/api/endpoints/account';
+import { ImageUploader } from '@/components/domain/ImageUploader';
 import type { Role } from '@/lib/api/types';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { notifyInfo } from '@/lib/notify';
@@ -12,6 +13,8 @@ import { ScopeContext } from '@/lib/session/scope-context';
 import { useTheme, type ThemePref } from '@/lib/theme';
 import {
   Avatar,
+  Button,
+  Dialog,
   Menu,
   MenuCheckItem,
   MenuContent,
@@ -38,9 +41,13 @@ export function UserMenu() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const [pictureOpen, setPictureOpen] = useState(false);
+  const setAvatar = useSetMyAvatar();
+  const removeAvatar = useRemoveMyAvatar();
 
   const name = me.data?.user.name || user?.name || user?.email || 'You';
   const email = me.data?.user.email || user?.email;
+  const avatarUrl = me.data?.user.avatar_url;
 
   const previewAs = async (role: Role) => {
     if (!scopeCtx) return;
@@ -69,13 +76,14 @@ export function UserMenu() {
     });
 
   return (
+    <>
     <Menu>
       <MenuTrigger className="rounded-full outline-offset-2 [@media(pointer:coarse)]:min-h-0" aria-label="Account menu">
-        <Avatar name={name} email={email} size={32} />
+        <Avatar name={name} email={email} src={avatarUrl} size={32} />
       </MenuTrigger>
       <MenuContent className="w-[272px]">
         <div className="flex items-center gap-3 px-2.5 py-2">
-          <Avatar name={name} email={email} size={36} />
+          <Avatar name={name} email={email} src={avatarUrl} size={36} />
           <div className="grid min-w-0">
             <p className="truncate text-[0.8125rem] font-semibold text-ink">{name}</p>
             <p className="truncate text-xs text-ink-faint">{email}</p>
@@ -88,6 +96,11 @@ export function UserMenu() {
           </p>
         )}
         <MenuSeparator />
+
+        <MenuItem onSelect={() => setPictureOpen(true)}>
+          <ImagePlus />
+          Profile picture
+        </MenuItem>
 
         <MenuSub>
           <MenuSubTrigger>
@@ -161,5 +174,22 @@ export function UserMenu() {
         </MenuItem>
       </MenuContent>
     </Menu>
+    <Dialog
+      open={pictureOpen}
+      onOpenChange={setPictureOpen}
+      title="Profile picture"
+      description="Teammates see it next to your name. It is public, so pick one you are happy to share."
+      footer={<Button onClick={() => setPictureOpen(false)}>Done</Button>}
+    >
+      <ImageUploader
+        name={name}
+        email={email}
+        src={avatarUrl}
+        busy={setAvatar.isPending || removeAvatar.isPending}
+        onUpload={(file) => setAvatar.mutate(file)}
+        onRemove={() => removeAvatar.mutate()}
+      />
+    </Dialog>
+    </>
   );
 }

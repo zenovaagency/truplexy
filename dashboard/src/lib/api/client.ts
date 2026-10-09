@@ -72,7 +72,9 @@ function buildUrl(path: string, query?: Query) {
 async function send(path: string, opts: RequestOptions, token: string | null) {
   const headers = new Headers();
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (opts.body !== undefined) headers.set('Content-Type', 'application/json');
+  // Files go as they are; the browser sets the multipart boundary itself.
+  const raw = opts.body instanceof Blob || opts.body instanceof FormData;
+  if (opts.body !== undefined && !raw) headers.set('Content-Type', 'application/json');
   if (opts.scope) {
     headers.set('X-Truplexy-Tenant', opts.scope.tenant);
     headers.set('X-Truplexy-Bot', opts.scope.bot);
@@ -80,7 +82,7 @@ async function send(path: string, opts: RequestOptions, token: string | null) {
   const req = new Request(buildUrl(path, opts.query), {
     method: opts.method ?? (opts.body !== undefined ? 'POST' : 'GET'),
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: opts.body === undefined ? undefined : raw ? (opts.body as Blob | FormData) : JSON.stringify(opts.body),
     signal: opts.signal,
   });
   try {

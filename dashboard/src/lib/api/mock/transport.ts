@@ -25,10 +25,39 @@ const sleep = (ms: number, signal?: AbortSignal | null) =>
     });
   });
 
+/** Demo mode keeps pictures as small data URLs, so they survive a reload without filling storage. */
+async function readImage(req: Request, contentType: string): Promise<{ type: string; bytes: number; width: number; height: number; url: string } | null> {
+  let blob: Blob | null = null;
+  if (/^multipart\/form-data/.test(contentType)) {
+    const f = (await req.formData()).get('file');
+    blob = f instanceof Blob ? f : null;
+  } else {
+    blob = await req.blob();
+  }
+  if (!blob || !blob.size) return null;
+  let bmp: ImageBitmap | null = null;
+  try {
+    bmp = await createImageBitmap(blob);
+  } catch {
+    return { type: blob.type, bytes: blob.size, width: 0, height: 0, url: '' };
+  }
+  const side = 128;
+  const scale = Math.min(1, side / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bmp.width * scale));
+  canvas.height = Math.max(1, Math.round(bmp.height * scale));
+  canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const out = { type: blob.type, bytes: blob.size, width: bmp.width, height: bmp.height, url: canvas.toDataURL('image/webp', 0.85) };
+  bmp.close();
+  return out;
+}
+
 export async function mockTransport(req: Request): Promise<Response> {
   const url = new URL(req.url, window.location.origin);
   const path = url.pathname.startsWith(basePath) ? url.pathname.slice(basePath.length) || '/' : url.pathname;
-  const text = req.method === 'GET' ? '' : await req.text();
+  const contentType = req.headers.get('Content-Type') ?? '';
+  const isImage = /^multipart\/form-data/.test(contentType) || /^image\//.test(contentType);
+  const text = req.method === 'GET' || isImage ? '' : await req.text();
   const requestId = `req_${crypto.randomUUID().replace(/-/g, '')}`;
 
   const slow = path === '/playground/run' ? 900 + Math.random() * 900 : path === '/knowledge/search' ? 400 : 0;
@@ -37,7 +66,9 @@ export async function mockTransport(req: Request): Promise<Response> {
   const headers = { 'Content-Type': 'application/json', 'X-Request-ID': requestId };
   try {
     let body: unknown = undefined;
-    if (text) {
+    if (isImage) {
+      body = { __image: await readImage(req, contentType) };
+    } else if (text) {
       try {
         body = JSON.parse(text);
       } catch {

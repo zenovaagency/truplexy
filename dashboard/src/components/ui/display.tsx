@@ -151,8 +151,23 @@ export function Spinner({ className }: { className?: string }) {
 
 const AVATAR_BG = ['#2338e6', '#6a2bff', '#0b6e86', '#15803d', '#9a4b00', '#c026d3', '#1f7bff', '#be123c'];
 
-export function Avatar({ name, email, size = 28, className }: { name?: string | null; email?: string | null; size?: number; className?: string }) {
+export function Avatar({ name, email, src, size = 28, className }: { name?: string | null; email?: string | null; src?: string | null; size?: number; className?: string }) {
   const seed = (email || name || '?').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const [failed, setFailed] = useState<string | null>(null);
+  if (src && failed !== src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        loading="lazy"
+        onError={() => setFailed(src)}
+        className={cn('inline-block shrink-0 rounded-full bg-surface-2 object-cover', className)}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
   return (
     <span
       className={cn('inline-grid shrink-0 place-items-center rounded-full font-semibold text-white select-none', className)}

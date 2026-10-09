@@ -203,7 +203,7 @@ The API stays a pure JSON API. These jobs fall to the frontend:
   - To export, read `GET /workspace` and each document with `GET /knowledge/documents/{id}`, which includes `content`.
   - To import, `PUT /workspace`, then `POST /knowledge/documents` for each article. Expect `409 DUPLICATE_DOCUMENT` for content already present.
 - **Template preview.** Render a prompt template's body in the browser to preview it (see [Models and prompt templates](#models-and-prompt-templates)).
-- **An integration guide for customers' developers.** The chat API section below is the source; publish it however you like. For websites, the SDK in `sdk/` already wraps it: a chat widget, plus a server route that holds the chat key (`sdk/PROTOCOL.md`, guide at `/docs/web-sdk`).
+- **An integration guide for customers' developers.** The chat API section below is the source; publish it however you like.
 
 ## 2. Roles and permissions
 
@@ -230,6 +230,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | --- | --- | --- | --- |
 | `GET` | `/health` | anyone | Check that the API is running |
 | `GET` | `/me` | account | The signed-in person and their businesses |
+| `PUT` | `/me/avatar` | account | v2: Set your own picture |
+| `DELETE` | `/me/avatar` | account | v2: Remove your own picture |
 | `GET` | `/business-types` | account | Kinds of business and their starting assistants |
 | `GET` | `/plans` | account | Plans and their limits |
 | `POST` | `/tenants` | account | Create a business |
@@ -335,6 +337,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/conversations/{id}` | chat key | A conversation with its latest messages |
 | `POST` | `/conversations/{id}/messages` | chat key | Send a customer message, get the reply |
 | `POST` | `/conversations/{id}/escalate` | chat key | Hand the conversation to a person |
+| `POST` | `/conversations/{id}/resume` | chat key | Hand the conversation back to the AI |
 | `POST` | `/conversations/{id}/handoff` | chat key | Accept an offered handoff |
 | `POST` | `/conversations/{id}/ticket` | chat key | Open a ticket without escalating |
 | `POST` | `/conversations/{id}/ticket/close` | chat key | Close the conversation's ticket |
@@ -550,6 +553,20 @@ Scope headers; these act on the business. With the admin key, the endpoints cove
 #### `DELETE /api-keys/{id}`
 
 `integrations.write`. Revokes the key (`key_…`); it stops working everywhere within a minute. **204**. **Errors:** `404 KEY_NOT_FOUND`.
+
+### Profile images (v2)
+
+Users, businesses and bots can have a picture. Responses carry its public URL, and leave the field out when there is none: `avatar_url` on the person in `GET /me`, on `GET /members` and on each bot in `GET /bots` and in `GET /me` memberships; `logo_url` on the business in `GET /tenant`, platform business lists and `GET /me` memberships. A URL changes whenever the picture does, so it is safe to cache for a long time.
+
+| Method | Path | Access | Does |
+| --- | --- | --- | --- |
+| `PUT` / `DELETE` | `/me/avatar` | account | The signed-in person's own picture |
+| `PUT` / `DELETE` | `/tenant/logo` | `business.write` | The business's logo |
+| `PUT` / `DELETE` | `/bots/{id}/avatar` | `bot.write` | A bot's picture, in the requesting business |
+
+`PUT` takes a PNG, JPEG or WebP image of 16-4096 pixels per side, up to `AVATAR_MAX_BYTES` (512 KiB unless configured), as `multipart/form-data` with the file in a field named `file`, or as the raw body with an `image/png`, `image/jpeg` or `image/webp` content type. The file type is read from the bytes. **200** `{avatar_url}` or `{logo_url}`, the new public URL. `DELETE` removes the file and answers **200** with the field `null`.
+
+**Errors:** `400 INVALID_REQUEST` (no file), `400 INVALID_IMAGE` (unreadable, or a size out of range), `413 IMAGE_TOO_LARGE`, `415 UNSUPPORTED_IMAGE_TYPE` (including SVG and GIF), `404 BOT_NOT_FOUND`, `404 TENANT_NOT_FOUND`, `404 USER_NOT_FOUND` (call `GET /me` once first), `502 STORAGE_ERROR`, `503 NOT_CONFIGURED` (the server has no public bucket).
 
 ### Channels (v2)
 
@@ -987,7 +1004,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | `status` | `open` or `closed`. |
 | `priority` | `low`, `normal`, `high` or `urgent`. |
 | `assignee_user_id` | A member whose role has `tickets.write` (agent or above); `""` unassigns. Use `GET /members` for the picker. |
-| `escalated` | `true` takes the conversation over (reopening a closed ticket); `false` hands it back to the AI. Can't be combined with `status: closed`. |
+| `escalated` | `true` takes the conversation over (reopening a closed ticket); `false` hands it back to the AI. Can't be combined with `status: closed`. Integrations calling with a chat key use [`POST /conversations/{id}/resume`](#post-conversationsidresume) instead. |
 | `assignee` | Legacy free text, up to 64 characters. |
 | `channel_id` | One of the bot's channels; `""` clears it (v2). |
 
@@ -1639,6 +1656,10 @@ After an error the message stays stored, marked unanswered, and is left out of t
 #### `POST /conversations/{id}/escalate`
 
 No body. Opens an escalated ticket, or escalates the open one, so the AI goes silent until the team hands the conversation back. It is safe to repeat. **200** the conversation (`escalated: true`).
+
+#### `POST /conversations/{id}/resume`
+
+No body. Ends the open ticket's escalation, so the AI replies in the conversation again. The ticket stays open; to close it as well, call `/ticket/close` instead. This is the chat-key counterpart of `PATCH /tickets/{id}` with `{"escalated": false}`, which accepts only a signed-in person or the admin key. It is safe to repeat, and a conversation nobody took over is returned unchanged. It isn't sent to the webhook. **200** the conversation (`escalated: false`).
 
 #### `POST /conversations/{id}/handoff`
 
