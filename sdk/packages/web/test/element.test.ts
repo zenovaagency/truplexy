@@ -31,6 +31,19 @@ describe('<truplexy-chat>', () => {
     el.remove();
   });
 
+  it('links to Truplexy under the message box, in any language', () => {
+    const el = mount({ demo: true });
+    const brand = el.shadowRoot!.querySelector<HTMLAnchorElement>('.brand')!;
+    expect(brand.textContent).toBe('Powered by Truplexy');
+    expect(brand.querySelector('strong')!.textContent).toBe('Truplexy');
+    expect(brand.href).toMatch(/^https:\/\/zenovasolution\.xyz\/\?utm_source=chat-widget/);
+    expect(brand.target).toBe('_blank');
+    expect(brand.rel).toContain('noopener');
+    el.labels = { poweredBy: 'Desarrollado por Truplexy' };
+    expect(brand.textContent).toBe('Desarrollado por Truplexy');
+    el.remove();
+  });
+
   it('renders inline, always open', () => {
     const host = document.createElement('div');
     document.body.append(host);

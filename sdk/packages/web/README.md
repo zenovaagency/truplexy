@@ -51,7 +51,7 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | `demo` | Canned replies, no server | off |
 | `storage-key` | localStorage key for the conversation | `truplexy:<endpoint>` |
 
-The `labels` property replaces any string, for translations (see `DEFAULT_LABELS`).
+The `labels` property replaces any string, for translations (see `DEFAULT_LABELS`). The panel ends with a small "Powered by Truplexy" link to zenovasolution.xyz; translate it with the `poweredBy` label.
 
 **Styling.** CSS variables on the element:
 
