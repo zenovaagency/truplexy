@@ -1,6 +1,6 @@
 {
   "name": "@truplexy/react",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The Truplexy chat widget for React, Next.js, Remix and Gatsby.",
   "license": "MIT",
   "type": "module",
@@ -32,7 +32,7 @@
     "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {
-    "@truplexy/web": "^0.1.1"
+    "@truplexy/web": "^0.1.2"
   },
   "peerDependencies": {
     "react": ">=18"

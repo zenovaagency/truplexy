@@ -1,6 +1,6 @@
 {
   "name": "@truplexy/vue",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The Truplexy chat widget for Vue 3 and Nuxt.",
   "license": "MIT",
   "type": "module",
@@ -32,7 +32,7 @@
     "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {
-    "@truplexy/web": "^0.1.1"
+    "@truplexy/web": "^0.1.2"
   },
   "peerDependencies": {
     "vue": ">=3.3"
