@@ -158,12 +158,21 @@ header {
 
 .composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px 6px; border-top: 1px solid var(--tx-line); }
 .brand {
-  display: block; padding: 2px 12px 9px; text-align: center;
-  font-size: 11px; line-height: 1.4; color: var(--tx-muted); text-decoration: none;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 2px 12px 9px; font-size: 11px; line-height: 1.4;
+  color: var(--tx-muted); text-decoration: none;
 }
-.brand strong { font-weight: 700; }
+.brand img { display: block; height: 16px; width: auto; opacity: 0.85; transition: opacity 0.15s; }
 .brand:hover, .brand:focus-visible { color: var(--tx-ink); }
-.brand:hover strong { color: var(--tx-accent); }
+.brand:hover img, .brand:focus-visible img { opacity: 1; }
+/* Dark-text wordmark on light themes, light-text wordmark on dark ones. */
+.wordmark-on-dark { display: none !important; }
+:host([theme='dark']) .wordmark-on-light { display: none !important; }
+:host([theme='dark']) .wordmark-on-dark { display: block !important; }
+@media (prefers-color-scheme: dark) {
+  :host([theme='auto']) .wordmark-on-light { display: none !important; }
+  :host([theme='auto']) .wordmark-on-dark { display: block !important; }
+}
 textarea {
   flex: 1; resize: none; border: 1px solid var(--tx-line); border-radius: 14px;
   padding: 10px 14px; max-height: 128px; min-height: 44px; line-height: 1.4;

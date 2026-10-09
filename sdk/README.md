@@ -12,7 +12,7 @@ Add the Truplexy chat to any website: a ready-made widget, plus one small route 
 
 | Package | For | Size |
 | --- | --- | --- |
-| [`@truplexy/web`](packages/web) | The `<truplexy-chat>` element, any framework or plain HTML, plus the headless `TruplexyClient`. No dependencies. CDN build: `dist/truplexy.min.js`. | ≈12 KB gzipped |
+| [`@truplexy/web`](packages/web) | The `<truplexy-chat>` element, any framework or plain HTML, plus the headless `TruplexyClient`. No dependencies. CDN build: `dist/truplexy.min.js`. | ≈19 KB gzipped (incl. the inline wordmark) |
 | [`@truplexy/react`](packages/react) | `<TruplexyChat>` and `useTruplexyChat()` for React 18/19, Next.js, Remix, Gatsby | wrapper |
 | [`@truplexy/vue`](packages/vue) | `<TruplexyChat>`, `TruplexyPlugin` and `useTruplexyChat()` for Vue 3 and Nuxt | wrapper |
 | [`@truplexy/server`](packages/server) | The route: a Fetch-API handler for Next.js, Nuxt, SvelteKit, Remix, Astro, Hono, Workers, Vercel/Netlify functions, and `createNodeHandler()` for Express | no deps |
@@ -53,7 +53,7 @@ npm install
 npm run build        # all packages (server, web, react, vue)
 npm test             # vitest: sessions, handler, client state, markdown safety, the element, plugin sync
 npm run typecheck
-npm run size         # fails if the CDN widget passes 15 KB gzipped
+npm run size         # fails if the CDN widget passes 20 KB gzipped
 npm run playground   # http://localhost:4300: the CDN widget + the real route against a mock API
 TRUPLEXY_CHAT_KEY=tpx_… npm run playground   # the same, against the real API
 ```
