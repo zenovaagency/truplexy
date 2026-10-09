@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from 'react-router';
 import { Bot, Check, ChevronsUpDown, Plus, Settings2 } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
-import { useTenant } from '@/lib/api/endpoints/business';
+import { useBots, useTenant } from '@/lib/api/endpoints/business';
 import { cn } from '@/lib/cn';
 import { ROLE_LABEL } from '@/lib/permissions';
 import { scopeLink, useScopeCtx } from '@/lib/session/scope-context';
@@ -23,6 +23,10 @@ export function ScopeSwitcher() {
   const { scope, businessName, bot, bots, can, membership, isPlatformAdmin } = useScopeCtx();
   const me = useMe();
   const tenant = useTenant();
+  // /bots is the source of truth for pictures; /me's bot list may omit them.
+  const botList = useBots();
+  const botAvatar = (id: string, fallback?: string) => botList.data?.find((x) => x.id === id)?.avatar_url ?? fallback;
+  const currentBotAvatar = botAvatar(bot.id, bot.avatar_url);
   const logoUrl = membership?.logo_url ?? tenant.data?.logo_url;
   const nav = useNavigate();
   const tab = useCurrentTab();
@@ -77,8 +81,8 @@ export function ScopeSwitcher() {
 
       <Menu>
         <MenuTrigger className={cn(triggerCls, 'text-ink-muted')} aria-label={`Bot: ${bot.name}`}>
-          {bot.avatar_url ? (
-            <Avatar name={bot.name} src={bot.avatar_url} size={24} className="rounded-[7px]" />
+          {currentBotAvatar ? (
+            <Avatar name={bot.name} src={currentBotAvatar}size={24} className="rounded-[7px]" />
           ) : (
             <Bot className="size-4 shrink-0 text-ink-faint" />
           )}
@@ -89,7 +93,11 @@ export function ScopeSwitcher() {
           <MenuLabel>Bots in {businessName}</MenuLabel>
           {bots.map((b) => (
             <MenuItem key={b.id} onSelect={() => go(scopeLink({ tenant: scope.tenant, bot: b.id }, tab))}>
-              {b.avatar_url ? <Avatar name={b.name} src={b.avatar_url} size={22} className="rounded-[7px]" /> : <Bot />}
+              {botAvatar(b.id, b.avatar_url) ? (
+                <Avatar name={b.name} src={botAvatar(b.id, b.avatar_url)} size={22} className="rounded-[7px]" />
+              ) : (
+                <Bot />
+              )}
               <span className="grid min-w-0 flex-1">
                 <span className="truncate">{b.name}</span>
                 <span className="font-mono text-[0.68rem] font-normal text-ink-faint">{b.id}</span>

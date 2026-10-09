@@ -82,7 +82,7 @@ export function ScopeLayout() {
     enabled: visiting,
   });
 
-  const bots = membership?.bots ?? visitBots.data?.map((b) => ({ id: b.id, name: b.name }));
+  const bots = membership?.bots ?? visitBots.data?.map((b) => ({ id: b.id, name: b.name, avatar_url: b.avatar_url }));
   // Unknown bot: the business's first bot, on the same page.
   const currentBot = bots?.find((b) => b.id === wantedBot) ?? bots?.[0];
   const botId = currentBot?.id ?? '';
