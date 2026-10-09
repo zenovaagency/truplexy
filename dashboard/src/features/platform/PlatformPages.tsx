@@ -293,7 +293,7 @@ export function PlatformBusinesses() {
       header: 'Business',
       cell: (b) => (
         <span className="flex items-center gap-3">
-          <Avatar name={b.name} size={30} className="rounded-[9px]" />
+          <Avatar name={b.name} src={b.logo_url} size={30} className="rounded-[9px]" />
           <span className="grid min-w-0">
             <span className="truncate font-semibold text-ink">{b.name}</span>
             <span className="truncate font-mono text-xs text-ink-faint">{b.id}</span>

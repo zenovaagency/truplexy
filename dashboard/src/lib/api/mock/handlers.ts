@@ -104,6 +104,7 @@ function businessOf(db: MockDb, t: MockTenant): Business {
     plan: t.plan,
     status: t.status,
     created_at: t.created_at,
+    logo_url: t.logo_url,
     reply_target_hours: t.reply_target_hours,
     limits: limitsOf(t),
     limit_overrides: t.limit_overrides,
@@ -357,7 +358,7 @@ route('GET', '/health', 'public', () => ({ status: 'ok' }));
 /* Account ------------------------------------------------------------ */
 
 route('GET', '/me', 'account', ({ db, user }) => ({
-  user: { id: user.id, email: user.email, name: user.name },
+  user: { id: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url },
   platform_admin: user.platform_admin,
   memberships: db.memberships
     .filter((m) => m.user_id === user.id && !db.tenants.find((t) => t.id === m.tenant_id)?.deleted_at)
@@ -370,7 +371,8 @@ route('GET', '/me', 'account', ({ db, user }) => ({
         plan: t.plan,
         status: t.status,
         role: m.role,
-        bots: db.bots.filter((b) => b.tenant_id === t.id).map((b) => ({ id: b.id, name: b.name })),
+        bots: db.bots.filter((b) => b.tenant_id === t.id).map((b) => ({ id: b.id, name: b.name, avatar_url: b.avatar_url })),
+        logo_url: t.logo_url,
       };
     }),
   roles: DEFAULT_ROLE_PERMISSIONS,
@@ -435,6 +437,53 @@ route('POST', '/invites/accept', 'account', (c) => {
   }
   inv.status = 'accepted';
   return out;
+});
+
+/* Profile images (v2) ------------------------------------------------ */
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+/** The checks the API makes on an uploaded picture. Returns the data URL to store. */
+function pictureOf(c: Ctx): string {
+  const img = c.body.__image as { type: string; bytes: number; width: number; height: number; url: string } | null | undefined;
+  if (!img) throw invalid('Send the image as multipart/form-data in a field named file.');
+  if (!IMAGE_TYPES.includes(img.type)) throw err(415, 'UNSUPPORTED_IMAGE_TYPE', 'Use a PNG, JPEG or WebP image.');
+  if (img.bytes > 512 * 1024) throw err(413, 'IMAGE_TOO_LARGE', 'The image is larger than 512 KiB.');
+  if (!img.url || Math.min(img.width, img.height) < 16 || Math.max(img.width, img.height) > 4096) throw err(400, 'INVALID_IMAGE', 'The image is unreadable or its size is out of range.');
+  return img.url;
+}
+
+route('PUT', '/me/avatar', 'account', (c) => {
+  c.user.avatar_url = pictureOf(c);
+  return { avatar_url: c.user.avatar_url };
+});
+route('DELETE', '/me/avatar', 'account', (c) => {
+  delete c.user.avatar_url;
+  return { avatar_url: null };
+});
+
+route('PUT', '/tenant/logo', 'business.write', (c) => {
+  c.tenant.logo_url = pictureOf(c);
+  audit(c, 'business.logo_updated', c.tenant.id);
+  return { logo_url: c.tenant.logo_url };
+});
+route('DELETE', '/tenant/logo', 'business.write', (c) => {
+  delete c.tenant.logo_url;
+  audit(c, 'business.logo_removed', c.tenant.id);
+  return { logo_url: null };
+});
+
+route('PUT', '/bots/:id/avatar', 'bot.write', (c) => {
+  const bot = c.db.bots.find((b) => b.tenant_id === c.tenant.id && b.id === c.params.id);
+  if (!bot) throw notFound('BOT_NOT_FOUND', 'Bot');
+  bot.avatar_url = pictureOf(c);
+  return { avatar_url: bot.avatar_url };
+});
+route('DELETE', '/bots/:id/avatar', 'bot.write', (c) => {
+  const bot = c.db.bots.find((b) => b.tenant_id === c.tenant.id && b.id === c.params.id);
+  if (!bot) throw notFound('BOT_NOT_FOUND', 'Bot');
+  delete bot.avatar_url;
+  return { avatar_url: null };
 });
 
 /* Business ----------------------------------------------------------- */
@@ -514,7 +563,7 @@ route('GET', '/members', 'members.read', (c) => ({
     .filter((m) => m.tenant_id === c.tenant.id)
     .map((m) => {
       const u = userById(c.db, m.user_id)!;
-      return { user_id: u.id, email: u.email, name: u.name, role: m.role, joined_at: m.joined_at };
+      return { user_id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: m.role, joined_at: m.joined_at };
     })
     .sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role) || a.joined_at.localeCompare(b.joined_at)),
 }));

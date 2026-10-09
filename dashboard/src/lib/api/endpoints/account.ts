@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type { Business, BusinessType, BusinessTypeId, InvitePreview, Me, Plan } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
@@ -9,6 +9,36 @@ export const fetchMe = (signal?: AbortSignal) => api<Me>('/me', { signal });
 
 export function useMe(enabled = true) {
   return useQuery({ queryKey: qk.me, queryFn: ({ signal }) => fetchMe(signal), enabled, staleTime: 60_000 });
+}
+
+/** Your own picture (v2). PNG, JPEG or WebP, sent as multipart with the file in `file`. */
+export function imageForm(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return form;
+}
+
+/** Pictures show up in `me`, members and bot lists, and the platform consoles. */
+export function refreshImages(qc: QueryClient) {
+  return Promise.all([qc.invalidateQueries({ queryKey: qk.me }), qc.invalidateQueries({ queryKey: ['tenant'] }), qc.invalidateQueries({ queryKey: ['platform'] })]);
+}
+
+export function useSetMyAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => api<{ avatar_url: string }>('/me/avatar', { method: 'PUT', body: imageForm(file) }),
+    onSuccess: () => refreshImages(qc),
+    meta: { success: 'Picture updated' },
+  });
+}
+
+export function useRemoveMyAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ avatar_url: null }>('/me/avatar', { method: 'DELETE' }),
+    onSuccess: () => refreshImages(qc),
+    meta: { success: 'Picture removed' },
+  });
 }
 
 export function useHealth() {

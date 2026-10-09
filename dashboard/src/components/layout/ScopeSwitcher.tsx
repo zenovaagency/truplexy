@@ -30,9 +30,13 @@ export function ScopeSwitcher() {
     <div className="flex min-w-0 items-center gap-0.5">
       <Menu>
         <MenuTrigger className={triggerCls} aria-label={`Business: ${businessName}`}>
-          <span className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-[image:var(--gradient-brand)] text-[0.65rem] font-bold text-white">
-            {businessName.slice(0, 1).toUpperCase()}
-          </span>
+          {membership?.logo_url ? (
+            <Avatar name={businessName} src={membership.logo_url} size={24} className="rounded-[7px]" />
+          ) : (
+            <span className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-[image:var(--gradient-brand)] text-[0.65rem] font-bold text-white">
+              {businessName.slice(0, 1).toUpperCase()}
+            </span>
+          )}
           <span className="max-w-[9rem] truncate sm:max-w-[14rem]">{businessName}</span>
           {!membership && isPlatformAdmin && <span className="chip hidden bg-warn-soft text-warn sm:inline-flex">Visiting</span>}
           <ChevronsUpDown className="size-3.5 shrink-0 text-ink-faint" />
@@ -45,7 +49,7 @@ export function ScopeSwitcher() {
               onSelect={() => m.bots[0] && go(scopeLink({ tenant: m.tenant_id, bot: m.bots[0].id }, tab))}
               disabled={!m.bots.length}
             >
-              <Avatar name={m.name} size={22} className="rounded-[7px]" />
+              <Avatar name={m.name} src={m.logo_url} size={22} className="rounded-[7px]" />
               <span className="grid min-w-0 flex-1">
                 <span className="truncate">{m.name}</span>
                 <span className="text-[0.7rem] font-normal text-ink-faint">

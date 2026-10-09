@@ -49,6 +49,8 @@ const VERB: Record<string, string> = {
   'bot.created': 'created bot',
   'business.created': 'created the business',
   'business.updated': 'updated business details',
+  'business.logo_updated': 'changed the business logo',
+  'business.logo_removed': 'removed the business logo',
   'business.suspended': 'suspended the business',
   'business.reactivated': 'reactivated the business',
   'business.deletion_requested': 'asked to delete the business',

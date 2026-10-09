@@ -9,6 +9,7 @@ import {
   CreditCard,
   DatabaseBackup,
   Download,
+  ImagePlus,
   LogOut,
   Lock,
   Plus,
@@ -20,7 +21,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { api, hasCode } from '@/lib/api/client';
 import { useBusinessTypes, usePlans } from '@/lib/api/endpoints/account';
-import { useBots, useCreateBot, useDeletionRequest, useLeaveTenant, useRequestDeletion, useTenant, useUpdateTenant, useWithdrawDeletion } from '@/lib/api/endpoints/business';
+import { useBots, useCreateBot, useDeletionRequest, useLeaveTenant, useRemoveBotAvatar, useRemoveTenantLogo, useRequestDeletion, useSetBotAvatar, useSetTenantLogo, useTenant, useUpdateTenant, useWithdrawDeletion } from '@/lib/api/endpoints/business';
 import { useAddonQuote, useBilling, useBillingLedger, useBuyTokens } from '@/lib/api/endpoints/billing';
 import { useWorkspace } from '@/lib/api/endpoints/bot';
 import { useDocuments } from '@/lib/api/endpoints/knowledge';
@@ -28,12 +29,14 @@ import type { Billing, BotConfig, BusinessTypeId, DocumentList, KnowledgeDocumen
 import { formatMonth, LEDGER_KIND, ordinal, quoteTokens } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber, formatPerM, isoDay } from '@/lib/format';
+import { ImageUploader } from '@/components/domain/ImageUploader';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { useDebounce } from '@/hooks';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
 import { scopeLink, useScopeCtx } from '@/lib/session/scope-context';
 import {
+  Avatar,
   Badge,
   Button,
   Callout,
@@ -81,6 +84,8 @@ export function BusinessTab() {
   const t = useTenant();
   const types = useBusinessTypes();
   const update = useUpdateTenant();
+  const setLogo = useSetTenantLogo();
+  const removeLogo = useRemoveTenantLogo();
   const writable = can('business.write');
   const [name, setName] = useState('');
   const [type, setType] = useState<BusinessTypeId>('other');
@@ -106,6 +111,17 @@ export function BusinessTab() {
           Only admins and owners can change business details.
         </Callout>
       )}
+      <Card title="Logo" description="Shown in the business switcher and in lists across Truplexy. It is public.">
+        <ImageUploader
+          name={b.name}
+          src={b.logo_url}
+          rounded="rounded-[16px]"
+          disabled={!writable}
+          busy={setLogo.isPending || removeLogo.isPending}
+          onUpload={(file) => setLogo.mutate(file)}
+          onRemove={() => removeLogo.mutate()}
+        />
+      </Card>
       <Card title="Business details">
         <form
           className="grid gap-5"
@@ -557,6 +573,9 @@ export function BotsTab() {
   const { can, scope, bot: current } = useScopeCtx();
   const bots = useBots();
   const create = useCreateBot();
+  const setAvatar = useSetBotAvatar();
+  const removeAvatar = useRemoveBotAvatar();
+  const [pictureFor, setPictureFor] = useState<string | null>(null);
   const t = useTenant();
   const nav = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -597,9 +616,13 @@ export function BotsTab() {
           <ul className="divide-y divide-line">
             {bots.data.map((b) => (
               <li key={b.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
-                <span className="grid size-10 place-items-center rounded-[12px] bg-accent-soft text-accent">
-                  <Bot className="size-5" />
-                </span>
+                {b.avatar_url ? (
+                  <Avatar name={b.name} src={b.avatar_url} size={40} className="rounded-[12px]" />
+                ) : (
+                  <span className="grid size-10 place-items-center rounded-[12px] bg-accent-soft text-accent">
+                    <Bot className="size-5" />
+                  </span>
+                )}
                 <div className="grid min-w-0 flex-1">
                   <span className="flex items-center gap-2 font-semibold text-ink">
                     {b.name} {b.id === current.id && <Badge tone="live" dot>Current</Badge>}
@@ -608,6 +631,11 @@ export function BotsTab() {
                     <code className="font-mono">{b.id}</code> · created {formatDate(b.created_at)} · knowledge v{b.kb_version}
                   </span>
                 </div>
+                {can('bot.write') && (
+                  <Button size="xs" variant="ghost" leading={<ImagePlus />} onClick={() => setPictureFor(b.id)}>
+                    Picture
+                  </Button>
+                )}
                 {b.id !== current.id && (
                   <Button size="xs" asChild>
                     <Link {...scopeLink({ tenant: scope.tenant, bot: b.id })}>Switch to it</Link>
@@ -621,6 +649,28 @@ export function BotsTab() {
           <p className="border-t border-line px-5 py-3 text-xs text-warn">Your plan's bot limit is reached. See Plan &amp; usage.</p>
         )}
       </Card>
+
+      <Dialog
+        open={pictureFor !== null}
+        onOpenChange={(o) => !o && setPictureFor(null)}
+        title="Bot picture"
+        description="Shown next to the bot in lists and the dashboard. It is public."
+        footer={<Button onClick={() => setPictureFor(null)}>Done</Button>}
+      >
+        {(() => {
+          const b = bots.data?.find((x) => x.id === pictureFor);
+          return b ? (
+            <ImageUploader
+              name={b.name}
+              src={b.avatar_url}
+              rounded="rounded-[16px]"
+              busy={setAvatar.isPending || removeAvatar.isPending}
+              onUpload={(file) => setAvatar.mutate({ id: b.id, file })}
+              onRemove={() => removeAvatar.mutate(b.id)}
+            />
+          ) : null;
+        })()}
+      </Dialog>
 
       <Dialog
         open={open && can('bots.create')}

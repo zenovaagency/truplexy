@@ -118,7 +118,7 @@ export function MembersTab() {
       header: 'Person',
       cell: (m) => (
         <span className="flex items-center gap-3">
-          <Avatar name={m.name} email={m.email} size={32} />
+          <Avatar name={m.name} email={m.email} src={m.avatar_url} size={32} />
           <span className="grid min-w-0">
             <span className="flex items-center gap-1.5 truncate font-semibold text-ink">
               {m.name}

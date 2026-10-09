@@ -33,6 +33,8 @@ export interface MockUser {
   platform_admin: boolean;
   created_at: string;
   last_seen_at?: string;
+  /** A small data URL in demo mode. */
+  avatar_url?: string;
 }
 
 export interface MockTenant {
@@ -54,6 +56,7 @@ export interface MockTenant {
   ledger: LedgerEntry[];
   /** Set while the business is deleted and not purged yet. */
   deleted_at?: string;
+  logo_url?: string;
 }
 
 export interface MockMembership {
@@ -69,6 +72,7 @@ export interface MockBot {
   name: string;
   kb_version: number;
   created_at: string;
+  avatar_url?: string;
 }
 
 /** The stored bot also holds its system prompt, which the API never sends to businesses. */
