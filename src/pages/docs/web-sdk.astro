@@ -45,7 +45,6 @@ const attributes = [
   ['open', 'Present: the chat starts open.', 'Closed'],
   ['show-sources', 'Present: answers link the help articles they came from.', 'Off'],
   ['demo', 'Present: canned replies with no server, for previews.', 'Off'],
-  ['details', '`ask` shows a name and email form before the first message; `off` skips it.', 'ask'],
   ['details', '`ask` shows a name and email form before the first message, and opens a ticket for it. `off` skips the form.', 'ask'],
   ['storage-key', 'Where the visitor’s conversation is saved, to keep two widgets apart.', 'truplexy:<endpoint>'],
 ];
@@ -345,7 +344,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
             <table>
               <thead><tr><th>action</th><th>Calls</th><th>Returns</th></tr></thead>
               <tbody>
-                <tr><td><code>message</code></td><td><code>POST /conversations</code> when there’s no valid session, then <code>POST /conversations/:id/ticket</code> for that new conversation, then <code>POST /conversations/:id/messages</code></td><td><code>{'{session, message, reply, status, sources, ticket?}'}</code></td></tr>
+                <tr><td><code>message</code></td><td><code>PUT /customer</code> and <code>POST /conversations</code> when there’s no valid session, then <code>POST /conversations/:id/ticket</code> for that new conversation, then <code>POST /conversations/:id/messages</code></td><td><code>{'{session, message, reply, status, sources, ticket?}'}</code></td></tr>
                 <tr><td><code>history</code></td><td><code>GET /conversations/:id</code></td><td><code>{'{session, conversation}'}</code>, or <code>{'{session: null}'}</code></td></tr>
                 <tr><td><code>handoff</code></td><td><code>POST /conversations/:id/handoff</code></td><td><code>{'{session, conversation}'}</code></td></tr>
                 <tr><td><code>profile</code></td><td><code>GET /profile</code></td><td><code>{'{business: {name, logo_url}, bot: {id, name, avatar_url}}'}</code></td></tr>
@@ -356,7 +355,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
           <CodeBlock name="session token" lang="txt" code={tokenFormat} />
           <ul>
             <li>Trim <code>text</code>; refuse it when empty, over 4000 characters, or starting with <code>[Context only</code>.</li>
-            <li>With <code>customer: {'{name, email}'}</code>, refuse a missing name, one over 80 characters, or an invalid email. For a new conversation, send <code>[Context only] Customer: name &lt;email&gt;</code> first and open the ticket with <code>{'{subject: "Chat with name"}'}</code>. Pass on only the ticket’s <code>id, subject, status</code>, and keep chatting if either call fails.</li>
+            <li>With <code>customer: {'{name, email}'}</code>, refuse a missing name, one over 80 characters, or an invalid email. For a new conversation, record the person with <code>PUT /customer</code> and <code>{'{name, contacts: [{type: "email", value}]}'}</code>, and start the conversation with the returned <code>customer_id</code>, then send <code>[Context only] Customer: name &lt;email&gt;</code> first and open the ticket with <code>{'{subject: "Chat with name"}'}</code>. Pass on only the ticket’s <code>id, subject, status</code>, and keep chatting if either call fails.</li>
             <li>In <code>profile</code>, pass on only the names and pictures. The widget shows them in its header and falls back to its defaults if the call fails.</li>
             <li>Never pass on <code>bot_topic</code>: it carries every customer’s messages. <code>conversation_topic</code> is safe for the browser.</li>
             <li>In <code>history</code> and <code>handoff</code>, drop user messages starting with <code>[Context only</code>, and pass on only <code>id, role, content, author, agent, created_at</code>.</li>

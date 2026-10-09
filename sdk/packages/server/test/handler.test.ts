@@ -108,30 +108,47 @@ describe('createHandler', () => {
     expect(api.calls[3].body).toEqual({ message: 'hi' });
   });
 
-  it('asks for a ticket named after the visitor, and tells the model who they are', async () => {
+  it('links the visitor as a customer, tells the model who they are and opens their ticket', async () => {
     const api = fakeApi({
-      'POST /conversations': () => [201, { id: CONV }],
+      'PUT /customer': () => [201, { id: 'cus_1', name: 'Ada Lovelace', secret: 'x' }],
+      'POST /conversations': () => [201, { id: CONV, customer_id: 'cus_1' }],
       [`POST /conversations/${CONV}/ticket`]: (body) => [200, { id: 'tkt_2', subject: (body as { subject: string }).subject, status: 'open', secret: 'x' }],
       [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi Ada!'),
     });
-    const handler = createHandler({ ...base, fetch: api.fetch, context: () => 'Pro plan' });
+    const handler = createHandler({ ...base, fetch: api.fetch, channelId: 'chn_x', context: () => 'Pro plan' });
     const data = await (await handler(post({ action: 'message', text: 'hi', customer: { name: '  Ada Lovelace ', email: 'ada@example.com' } }))).json();
-    expect(api.calls[1].body).toEqual({ message: '[Context only] Customer: Ada Lovelace <ada@example.com>. Pro plan' });
-    expect(api.calls[2].body).toEqual({ subject: 'Chat with Ada Lovelace' });
+    expect(api.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'PUT /customer',
+      'POST /conversations',
+      `POST /conversations/${CONV}/messages`,
+      `POST /conversations/${CONV}/ticket`,
+      `POST /conversations/${CONV}/messages`,
+    ]);
+    expect(api.calls[0].body).toEqual({ name: 'Ada Lovelace', contacts: [{ type: 'email', value: 'ada@example.com' }] });
+    expect(api.calls[1].body).toEqual({ channel_id: 'chn_x', customer_id: 'cus_1' });
+    expect(api.calls[2].body).toEqual({ message: '[Context only] Customer: Ada Lovelace <ada@example.com>. Pro plan' });
+    expect(api.calls[3].body).toEqual({ subject: 'Chat with Ada Lovelace' });
     expect(data.ticket).toEqual({ id: 'tkt_2', subject: 'Chat with Ada Lovelace', status: 'open' });
   });
 
-  it('refuses unusable customer details, and skips the ticket when told to', async () => {
+  it('refuses unusable customer details', async () => {
     const handler = createHandler({ ...base, fetch: fakeApi({}).fetch });
     for (const customer of [{ name: '', email: 'a@b.co' }, { name: 'Ada', email: 'not-an-email' }, { name: 'x'.repeat(81), email: 'a@b.co' }, { name: 'Ada' }, 'Ada']) {
       expect((await handler(post({ action: 'message', text: 'hi', customer }))).status).toBe(400);
     }
-    const api = fakeApi({ 'POST /conversations': () => [201, { id: CONV }], [`POST /conversations/${CONV}/messages`]: reply('answered', 'ok') });
-    const quiet = createHandler({ ...base, fetch: api.fetch, tickets: false });
-    const data = await (await quiet(post({ action: 'message', text: 'hi', customer: { name: 'Ada', email: 'ada@example.com' } }))).json();
-    // The conversation, the who-is-this context message and the visitor's message; no ticket call.
-    expect(api.calls.map((c) => c.path)).toEqual(['/conversations', `/conversations/${CONV}/messages`, `/conversations/${CONV}/messages`]);
-    expect(data.ticket).toBeUndefined();
+  });
+
+  it('still opens the ticket and chats when the customer cannot be saved', async () => {
+    const api = fakeApi({
+      'POST /conversations': () => [201, { id: CONV }],
+      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_3', subject: 'Chat with Ada', status: 'open' }],
+      [`POST /conversations/${CONV}/messages`]: reply('answered', 'ok'),
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch });
+    const data = await (await handler(post({ action: 'message', text: 'hi', customer: { name: 'Ada', email: 'ada@example.com' } }))).json();
+    expect(api.calls[1].body).toBeUndefined();
+    expect(data.reply).toBe('ok');
+    expect(data.ticket?.id).toBe('tkt_3');
   });
 
   it('still chats when the ticket cannot be opened', async () => {
