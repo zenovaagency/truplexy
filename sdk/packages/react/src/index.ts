@@ -106,7 +106,7 @@ export const TruplexyChat = forwardRef<TruplexyChatHandle, TruplexyChatProps>(fu
   });
 });
 
-const EMPTY: ChatState = { profile: null, messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
+const EMPTY: ChatState = { profile: null, customer: null, ticket: null, needsDetails: false, messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
 const noop = () => () => {};
 
 /**
@@ -142,6 +142,9 @@ export function useTruplexyChat(options: ClientOptions = {}) {
     ...state,
     send: useCallback((text: string) => client?.send(text) ?? Promise.resolve(), [client]),
     retry: useCallback((id: string) => client?.retry(id) ?? Promise.resolve(), [client]),
+    /** Saves the visitor's name and email; false when they aren't usable. Then call `send()` again. */
+    setCustomer: useCallback((name: string, email: string) => client?.setCustomer(name, email) ?? false, [client]),
+    cancelDetails: useCallback(() => client?.cancelDetails(), [client]),
     handoff: useCallback(() => client?.handoff() ?? Promise.resolve(), [client]),
     reset: useCallback(() => client?.reset(), [client]),
     /** Whether your chat UI is visible: clears unread and polls faster while open. */

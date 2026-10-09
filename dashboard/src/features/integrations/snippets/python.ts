@@ -163,9 +163,40 @@ def public(conv: dict) -> dict:
     return {"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
 
 
+EMAIL = re.compile(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+")
+
+
+def parse_customer(raw) -> tuple[str, str] | None:
+    """(name, email) from the widget's details form, None when absent. Raises ValueError when unusable."""
+    if raw is None:
+        return None
+    name = str(raw.get("name", "")).strip() if isinstance(raw, dict) else ""
+    email = str(raw.get("email", "")).strip() if isinstance(raw, dict) else ""
+    if not name or len(name) > 80 or len(email) > 254 or not EMAIL.fullmatch(email):
+        raise ValueError
+    return name, email
+
+
+async def start_conversation(customer) -> tuple[str, dict | None]:
+    """Starts the conversation, tells the assistant who is chatting and opens a ticket for the team. The chat works without either."""
+    conv = (await api("POST", "/conversations"))["id"]
+    ticket = None
+    try:
+        if customer:
+            await api("POST", f"/conversations/{conv}/messages", {"message": f"[Context only] Customer: {customer[0]} <{customer[1]}>"})
+    except Upstream:
+        pass
+    try:
+        t = await api("POST", f"/conversations/{conv}/ticket", {"subject": f"Chat with {customer[0]}" if customer else "Website chat"})
+        ticket = {"id": t["id"], "subject": t.get("subject"), "status": t.get("status")}
+    except Upstream:
+        pass
+    return conv, ticket
+
+
 # Messages the visitor sees. Never pass on the API's own message.
 ERRORS = {
-    "INVALID_REQUEST": (400, "Messages must be 1–4000 characters."),
+    "INVALID_REQUEST": (400, "Check your message, name and email."),
     "CHANNEL_DISABLED": (503, "Chat is turned off right now."),
     "PLAN_LIMIT_REACHED": (503, "The assistant can't reply right now. Please try again later."),
     "LLM_RATE_LIMITED": (429, "The assistant is busy. Please try again in a moment."),
@@ -189,9 +220,15 @@ async def truplexy(request: Request):
             text = str(body.get("text", "")).strip()
             if not 0 < len(text) <= 4000 or text.startswith("[Context only"):
                 return error("INVALID_REQUEST")
-            conv = conv or (await api("POST", "/conversations"))["id"]
+            try:
+                customer = parse_customer(body.get("customer"))
+            except ValueError:
+                return error("INVALID_REQUEST")
+            ticket = None
+            if not conv:
+                conv, ticket = await start_conversation(customer)
             r = await api("POST", f"/conversations/{conv}/messages", {"message": text})
-            return {"session": sign(conv), "message": r["message"], "reply": r["reply"], "status": r["status"], "sources": r.get("sources", [])}
+            return {"session": sign(conv), "message": r["message"], "reply": r["reply"], "status": r["status"], "sources": r.get("sources", []), **({"ticket": ticket} if ticket else {})}
         if action == "history":
             if not conv:
                 return {"session": None}

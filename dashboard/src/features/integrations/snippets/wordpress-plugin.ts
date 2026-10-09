@@ -207,8 +207,31 @@ function truplexy_chat_route(WP_REST_Request $request) {
                 if (!truplexy_chat_allow()) {
                     return truplexy_chat_error('RATE_LIMITED');
                 }
+                $customer = $in['customer'] ?? null;
+                if ($customer !== null) {
+                    $name = is_array($customer) ? trim((string) ($customer['name'] ?? '')) : '';
+                    $email = is_array($customer) ? trim((string) ($customer['email'] ?? '')) : '';
+                    if ($name === '' || mb_strlen($name) > 80 || strlen($email) > 254 || !is_email($email)) {
+                        return truplexy_chat_error('INVALID_REQUEST');
+                    }
+                }
+                $ticket = null;
                 if (!$conv) {
                     $conv = truplexy_chat_api('POST', '/conversations')['id'];
+                    // Tell the assistant who is chatting and open a ticket for the team. The chat works without either.
+                    try {
+                        if ($customer !== null) {
+                            truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => '[Context only] Customer: ' . $name . ' <' . $email . '>']);
+                        }
+                    } catch (Truplexy_Chat_Error $e) {
+                        error_log('[truplexy-chat] ' . $e->api_code);
+                    }
+                    try {
+                        $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", ['subject' => $customer !== null ? 'Chat with ' . $name : 'Website chat']);
+                        $ticket = ['id' => $t['id'] ?? null, 'subject' => $t['subject'] ?? null, 'status' => $t['status'] ?? null];
+                    } catch (Truplexy_Chat_Error $e) {
+                        error_log('[truplexy-chat] ' . $e->api_code);
+                    }
                     // REST requests from the widget carry no nonce, so read the login cookie directly. Used only for context.
                     $user_id = (int) wp_validate_auth_cookie('', 'logged_in');
                     $context = (string) apply_filters('truplexy_chat_context', '', $request, $user_id);
@@ -223,7 +246,7 @@ function truplexy_chat_route(WP_REST_Request $request) {
                     'reply'   => $r['reply'] ?? null,
                     'status'  => $r['status'] ?? 'answered',
                     'sources' => $r['sources'] ?? [],
-                ];
+                ] + ($ticket ? ['ticket' => $ticket] : []);
 
             case 'history':
                 if (!$conv) {

@@ -30,6 +30,8 @@ export const TruplexyChat = defineComponent({
     showSources: Boolean,
     demo: Boolean,
     storageKey: String,
+    /** `off` skips asking for the visitor's name and email. */
+    details: String as PropType<'ask' | 'off'>,
     labels: Object as PropType<Partial<Labels>>,
   },
   emits: {
@@ -93,6 +95,7 @@ export const TruplexyChat = defineComponent({
         'show-sources': props.showSources ? '' : undefined,
         demo: props.demo ? '' : undefined,
         'storage-key': props.storageKey,
+        details: props.details,
       });
   },
 });
@@ -104,7 +107,7 @@ export const TruplexyPlugin = {
   },
 };
 
-const EMPTY: ChatState = { profile: null, messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
+const EMPTY: ChatState = { profile: null, customer: null, ticket: null, needsDetails: false, messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
 
 /**
  * The chat without any UI, for building your own.
@@ -133,6 +136,9 @@ export function useTruplexyChat(options: ClientOptions = {}) {
     state,
     send: (text: string) => client?.send(text) ?? Promise.resolve(),
     retry: (id: string) => client?.retry(id) ?? Promise.resolve(),
+    /** Saves the visitor's name and email; false when they aren't usable. Then call `send()` again. */
+    setCustomer: (name: string, email: string) => client?.setCustomer(name, email) ?? false,
+    cancelDetails: () => client?.cancelDetails(),
     handoff: () => client?.handoff() ?? Promise.resolve(),
     reset: () => client?.reset(),
     /** Whether your chat UI is visible: clears unread and polls faster while open. */

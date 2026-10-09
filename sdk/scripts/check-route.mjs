@@ -42,6 +42,14 @@ const first = await post({ action: 'message', session: null, text: '  how do ret
 check('message starts a conversation', first.status === 200 && typeof first.data.session === 'string' && typeof first.data.reply === 'string', first.text);
 check('message passes status and sources', first.data.status === 'answered' && Array.isArray(first.data.sources) && first.data.sources.length === 1, first.text);
 const session = first.data.session;
+check('the first message opens a ticket', typeof first.data.ticket?.id === 'string', first.text);
+
+const named = await post({ action: 'message', session: null, text: 'hello', customer: { name: ' Ada Lovelace ', email: 'ada@example.com' } });
+check('message takes the visitor name and email', named.status === 200 && named.data.ticket?.subject === 'Chat with Ada Lovelace', named.text);
+for (const customer of [{ name: '', email: 'ada@example.com' }, { name: 'Ada', email: 'nope' }, 'Ada']) {
+  const bad = await post({ action: 'message', session: null, text: 'hello', customer });
+  check(`unusable details are refused (${JSON.stringify(customer)})`, bad.status === 400 && bad.data.error?.code === 'INVALID_REQUEST', bad.text);
+}
 
 let conv;
 if (secret) {

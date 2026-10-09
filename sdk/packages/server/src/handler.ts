@@ -28,6 +28,11 @@ export interface HandlerOptions {
    * once, as a `[Context only]` message, when a conversation starts.
    */
   context?: (request: Request) => string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Open a ticket when a conversation starts, named after the visitor. Default
+   * true. The ticket lets your team see who is chatting and follow up.
+   */
+  tickets?: boolean;
   /** Called with server-side failures. Defaults to `console.error`. Never receives the chat key. */
   onError?: (error: TruplexyError) => void;
   /** A custom fetch, for tests or proxies. */
@@ -50,6 +55,9 @@ export class TruplexyError extends Error {
 }
 
 const MAX_BODY = 16 * 1024;
+const MAX_NAME = 80;
+const MAX_EMAIL = 254;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TEXT = 4000;
 const CONTEXT_PREFIX = '[Context only';
 
@@ -124,12 +132,20 @@ export function createHandler(options: HandlerOptions = {}): Handler {
       const conversationId = await verifySession(body.session, secret, ttl);
       const session = (id: string) => signSession(id, secret);
 
+      // Who is chatting, from the widget's details form. Both fields or neither.
+      const customer = parseCustomer(body.customer);
+      let ticket: Ticket | undefined;
+
       const start = async () => {
         const conv = await api<Conversation>('/conversations', options.channelId ? { channel_id: options.channelId } : undefined);
-        const context = (await options.context?.(request))?.trim();
-        if (context) {
+        const lines = [customer && `Customer: ${customer.name} <${customer.email}>`, (await options.context?.(request))?.trim()].filter(Boolean);
+        if (lines.length) {
           // Background only: stored as history, never answered. A failure here mustn't stop the chat.
-          await api(`/conversations/${conv.id}/messages`, { message: `${CONTEXT_PREFIX}] ${context}`.slice(0, MAX_TEXT) }).catch(report);
+          await api(`/conversations/${conv.id}/messages`, { message: `${CONTEXT_PREFIX}] ${lines.join('. ')}`.slice(0, MAX_TEXT) }).catch(report);
+        }
+        if (options.tickets !== false) {
+          // The ticket makes the chat visible to the team. Chat still works if it fails.
+          ticket = await api<Ticket>(`/conversations/${conv.id}/ticket`, { subject: customer ? `Chat with ${customer.name}` : 'Website chat' }).then(publicTicket, (e) => (report(e), undefined));
         }
         return conv.id;
       };
@@ -150,7 +166,7 @@ export function createHandler(options: HandlerOptions = {}): Handler {
             id = await start();
             result = await ask();
           }
-          return json({ session: await session(id), message: result.message, reply: result.reply, status: result.status, sources: result.sources ?? [] });
+          return json({ session: await session(id), message: result.message, reply: result.reply, status: result.status, sources: result.sources ?? [], ...(ticket && { ticket }) });
         }
 
         case 'history': {
@@ -236,6 +252,26 @@ function createApi(chatKey: string, base: string, doFetch: typeof fetch) {
     if (known) throw new TruplexyError(code, known[0], known[1], requestId);
     throw new TruplexyError('UPSTREAM_ERROR', 502, 'Chat is unavailable right now.', requestId);
   };
+}
+
+interface Ticket {
+  id: string;
+  subject?: string;
+  status?: string;
+}
+
+const publicTicket = (t: Ticket): Ticket => ({ id: t.id, subject: t.subject, status: t.status });
+
+/** `{name, email}` from the widget, or undefined. Throws when it is present but not usable. */
+function parseCustomer(raw: unknown): { name: string; email: string } | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const c = raw as { name?: unknown; email?: unknown };
+  const name = typeof c.name === 'string' ? c.name.trim() : '';
+  const email = typeof c.email === 'string' ? c.email.trim() : '';
+  if (!name || name.length > MAX_NAME || !email || email.length > MAX_EMAIL || !EMAIL.test(email)) {
+    throw new TruplexyError('INVALID_REQUEST', 400, 'Enter your name and a valid email address.');
+  }
+  return { name, email };
 }
 
 interface Profile {

@@ -2,13 +2,13 @@ import { defineTruplexyChat, TAG, TruplexyChatElement } from './element';
 import type { Labels } from './labels';
 
 export { TruplexyChatElement, defineTruplexyChat, ATTRIBUTES, TAG } from './element';
-export { TruplexyClient, type ClientOptions, type ClientEvents } from './client';
+export { TruplexyClient, checkCustomer, type ClientOptions, type ClientEvents } from './client';
 export { fetchTransport, TruplexyRequestError, DEFAULT_ENDPOINT, type FetchTransportOptions } from './transport';
 export { demoTransport } from './demo';
 export { localStore, type SessionStore, type Saved } from './store';
 export { renderMarkdown } from './markdown';
 export { DEFAULT_LABELS, type Labels } from './labels';
-export type { ChatMessage, ChatProfile, ChatState, ChatError, ReplyStatus, Source, Transport } from './types';
+export type { ChatMessage, ChatProfile, Customer, TicketRef, ChatState, ChatError, ReplyStatus, Source, Transport } from './types';
 
 defineTruplexyChat();
 
@@ -35,6 +35,8 @@ export interface MountOptions {
   /** Canned replies, no server: for previews. */
   demo?: boolean;
   storageKey?: string;
+  /** `off` skips asking for the visitor's name and email on the first message. Default `ask`. */
+  details?: 'ask' | 'off';
   labels?: Partial<Labels>;
   /** Where to put the element. Default `document.body`. */
   target?: Element | string;
@@ -115,4 +117,5 @@ export interface TruplexyChatAttributes {
   'show-sources'?: boolean | '';
   demo?: boolean | '';
   'storage-key'?: string;
+  details?: 'ask' | 'off';
 }

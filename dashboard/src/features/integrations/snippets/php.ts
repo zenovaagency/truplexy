@@ -203,10 +203,35 @@ function public_conversation(array $conv): array {
     return ['status' => $conv['status'], 'escalated' => $conv['escalated'], 'messages' => $messages];
 }
 
+/** [name, email] from the widget's details form, or null when absent. Refuses unusable details. */
+function parse_customer(mixed $raw): ?array {
+    if ($raw === null) return null;
+    $name = is_array($raw) ? trim((string) ($raw['name'] ?? '')) : '';
+    $email = is_array($raw) ? trim((string) ($raw['email'] ?? '')) : '';
+    if ($name === '' || mb_strlen($name) > 80 || strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('INVALID_REQUEST');
+    return [$name, $email];
+}
+
+/** Starts the conversation, tells the assistant who is chatting and opens a ticket for the team. The chat works without either. */
+function start_conversation(?array $customer): array {
+    $conv = api('POST', '/conversations')['id'];
+    $ticket = null;
+    try {
+        if ($customer) api('POST', "/conversations/$conv/messages", ['message' => '[Context only] Customer: ' . $customer[0] . ' <' . $customer[1] . '>']);
+    } catch (UpstreamError) {
+    }
+    try {
+        $t = api('POST', "/conversations/$conv/ticket", ['subject' => $customer ? 'Chat with ' . $customer[0] : 'Website chat']);
+        $ticket = ['id' => $t['id'], 'subject' => $t['subject'] ?? null, 'status' => $t['status'] ?? null];
+    } catch (UpstreamError) {
+    }
+    return [$conv, $ticket];
+}
+
 /** Messages the visitor sees. Never pass on the API's own message. */
 function fail(string $code, string $requestId = ''): never {
     $known = [
-        'INVALID_REQUEST' => [400, 'Messages must be 1–4000 characters.'],
+        'INVALID_REQUEST' => [400, 'Check your message, name and email.'],
         'CHANNEL_DISABLED' => [503, 'Chat is turned off right now.'],
         'PLAN_LIMIT_REACHED' => [503, "The assistant can't reply right now. Please try again later."],
         'LLM_RATE_LIMITED' => [429, 'The assistant is busy. Please try again in a moment.'],
@@ -228,9 +253,11 @@ try {
         case 'message':
             $text = trim((string) ($in['text'] ?? ''));
             if ($text === '' || mb_strlen($text) > 4000 || str_starts_with($text, '[Context only')) fail('INVALID_REQUEST');
-            $conv ??= api('POST', '/conversations')['id'];
+            $customer = parse_customer($in['customer'] ?? null);
+            $ticket = null;
+            if (!$conv) [$conv, $ticket] = start_conversation($customer);
             $r = api('POST', "/conversations/$conv/messages", ['message' => $text]);
-            echo json_encode(['session' => sign_session($conv), 'message' => $r['message'], 'reply' => $r['reply'], 'status' => $r['status'], 'sources' => $r['sources'] ?? []]);
+            echo json_encode(['session' => sign_session($conv), 'message' => $r['message'], 'reply' => $r['reply'], 'status' => $r['status'], 'sources' => $r['sources'] ?? []] + ($ticket ? ['ticket' => $ticket] : []));
             break;
         case 'history':
             echo json_encode($conv ? ['session' => sign_session($conv), 'conversation' => public_conversation(api('GET', "/conversations/$conv"))] : ['session' => null]);

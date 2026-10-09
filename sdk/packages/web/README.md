@@ -49,6 +49,7 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | `open` | Start open | closed |
 | `show-sources` | Link the articles answers came from | off |
 | `demo` | Canned replies, no server | off |
+| `details` | `ask`: a name and email form before the first message (and a ticket for the conversation); `off`: skip it | `ask` |
 | `storage-key` | localStorage key for the conversation | `truplexy:<endpoint>` |
 
 The `labels` property replaces any string, for translations (see `DEFAULT_LABELS`). The panel ends with a small "Powered by Truplexy" link to zenovasolution.xyz; translate it with the `poweredBy` label.
