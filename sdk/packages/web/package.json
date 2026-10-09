@@ -1,6 +1,6 @@
 {
   "name": "@truplexy/web",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The Truplexy chat widget: one <truplexy-chat> element for any website or framework, plus a headless client for custom UIs.",
   "license": "MIT",
   "type": "module",
