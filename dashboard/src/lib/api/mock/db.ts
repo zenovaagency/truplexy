@@ -4,6 +4,7 @@ import type {
   BillingAddon,
   BotConfig,
   Channel,
+  Customer,
   BusinessTypeId,
   DeletionRequest,
   Invite,
@@ -102,6 +103,8 @@ export type MockTool = Tool & { id: string; tenant_id: string; disabled: boolean
 export type MockTicket = Omit<Ticket, 'flags' | 'needs_reply'> & { tenant_id: string; bot_id: string };
 /** Counts, the type's label and `active` are worked out on the way out. */
 export type MockChannel = Omit<Channel, 'type_label' | 'active' | 'open_tickets' | 'tickets' | 'api_keys'>;
+/** Counts are worked out on the way out. */
+export type MockCustomer = Omit<Customer, 'conversations' | 'tickets' | 'open_tickets'>;
 export type MockChannelType = Omit<PlatformChannelType, 'channels'>;
 
 export interface MockConversation {
@@ -111,6 +114,8 @@ export interface MockConversation {
   channel: string;
   /** The bot's channel it started on. */
   channel_id?: string;
+  /** The customer it was started for (v2). */
+  customer_id?: string;
   title: string;
   status: 'open' | 'handoff';
   created_at: string;
@@ -144,9 +149,10 @@ export interface MockDb {
   deletions: Omit<TenantDeletion, 'restorable'>[];
   channelTypes: MockChannelType[];
   channels: MockChannel[];
+  customers: MockCustomer[];
 }
 
-export const DB_VERSION = 7;
+export const DB_VERSION = 8;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

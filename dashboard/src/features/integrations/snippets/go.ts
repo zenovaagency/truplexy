@@ -360,6 +360,19 @@ func parseCustomer(raw any) (name, email string, ok bool) {
 	return name, email, true
 }
 
+// customerID records who is chatting as a customer, so the conversation and its ticket are linked to them. "" when it can't.
+func customerID(name, email string) string {
+	if name == "" {
+		return ""
+	}
+	c, err := widgetCall("PUT", "/customer", map[string]any{"name": name, "contacts": []map[string]string{{"type": "email", "value": email}}})
+	if err != nil {
+		return ""
+	}
+	id, _ := c["id"].(string)
+	return id
+}
+
 // openTicket tells the assistant who is chatting and opens a ticket for the team. The chat works without either.
 func openTicket(conv, name, email string) map[string]any {
 	subject := "Website chat"
@@ -421,7 +434,11 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		var ticket map[string]any
 		if conv == "" {
-			c, err := widgetCall("POST", "/conversations", nil)
+			var opening any
+			if id := customerID(name, email); id != "" {
+				opening = map[string]string{"customer_id": id}
+			}
+			c, err := widgetCall("POST", "/conversations", opening)
 			if err != nil {
 				fail(err)
 				return

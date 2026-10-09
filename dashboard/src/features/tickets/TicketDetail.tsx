@@ -21,14 +21,17 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useChannels } from '@/lib/api/endpoints/channels';
+import { useCustomer } from '@/lib/api/endpoints/customers';
+import { contactOf, customerLabel } from '@/lib/customers';
 import { useDeleteTicket, useReplyToTicket, useSummarizeTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
 import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
-import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
+import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime, pluralize } from '@/lib/format';
 import { notifySuccess } from '@/lib/notify';
 import { shareUrl, useScopeCtx } from '@/lib/session/scope-context';
 import { useCopy, useMediaQuery } from '@/hooks';
 import {
+  Avatar,
   Badge,
   Button,
   Callout,
@@ -546,6 +549,41 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
 
 /* ------------------------------------------------------------------ */
 
+/** Who the ticket is from. Shown to anyone who can read customers; a deleted customer shows by ID. */
+function CustomerSection({ id }: { id: string }) {
+  const { can, href } = useScopeCtx();
+  const readable = can('customers.read');
+  const q = useCustomer(id, readable);
+  if (!readable) return null;
+  const c = q.data;
+  return (
+    <section className="grid gap-3">
+      <p className="mono text-ink-faint">Customer</p>
+      {q.isPending ? (
+        <Skeleton className="h-12 rounded-[12px]" />
+      ) : c ? (
+        <div className="flex items-center gap-3 rounded-[12px] border border-line bg-surface-2/60 p-3">
+          <Avatar name={c.name} email={contactOf(c, 'email')} size={32} />
+          <div className="grid min-w-0 flex-1">
+            <span className="truncate text-[0.8125rem] font-semibold text-ink">{customerLabel(c)}</span>
+            {c.name && contactOf(c, 'email') && (
+              <a href={`mailto:${contactOf(c, 'email')}`} className="truncate text-xs text-ink-faint hover:underline">
+                {contactOf(c, 'email')}
+              </a>
+            )}
+            {contactOf(c, 'phone') && <span className="truncate text-xs text-ink-faint">{contactOf(c, 'phone')}</span>}
+          </div>
+          <Link to={href(`tickets?view=all&customer=${c.id}`)} className="whitespace-nowrap text-xs font-semibold text-accent hover:underline">
+            {pluralize(c.tickets, 'ticket')}
+          </Link>
+        </div>
+      ) : (
+        <p className="text-[0.8125rem] text-ink-faint">This customer was deleted.</p>
+      )}
+    </section>
+  );
+}
+
 function Properties({ ticket: t }: { ticket: TDetail }) {
   const { can } = useScopeCtx();
   const update = useUpdateTicket();
@@ -562,6 +600,7 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
   return (
     <div className="grid gap-6">
       {t.conversation_id && (t.summary || t.escalated) && <SummarySection ticket={t} />}
+      {t.customer_id && <CustomerSection id={t.customer_id} />}
       <section className="grid gap-3">
         <label className="grid gap-1.5">
           <span className="mono text-ink-faint">Status</span>

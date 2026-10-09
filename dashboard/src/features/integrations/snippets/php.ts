@@ -212,9 +212,15 @@ function parse_customer(mixed $raw): ?array {
     return [$name, $email];
 }
 
-/** Starts the conversation, tells the assistant who is chatting and opens a ticket for the team. The chat works without either. */
+/** Starts the conversation for the customer, tells the assistant who is chatting and opens a ticket for the team. The chat works without any of that. */
 function start_conversation(?array $customer): array {
-    $conv = api('POST', '/conversations')['id'];
+    // Record who is chatting as a customer, so the conversation and its ticket are linked to them.
+    $customerId = null;
+    try {
+        if ($customer) $customerId = api('PUT', '/customer', ['name' => $customer[0], 'contacts' => [['type' => 'email', 'value' => $customer[1]]]])['id'] ?? null;
+    } catch (UpstreamError) {
+    }
+    $conv = api('POST', '/conversations', $customerId ? ['customer_id' => $customerId] : null)['id'];
     $ticket = null;
     try {
         if ($customer) api('POST', "/conversations/$conv/messages", ['message' => '[Context only] Customer: ' . $customer[0] . ' <' . $customer[1] . '>']);
