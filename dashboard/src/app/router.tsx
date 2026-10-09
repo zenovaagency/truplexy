@@ -106,6 +106,7 @@ const platformRoutes: RouteObject[] = [
   { path: 'businesses', ...lazyRoute(pages.platform, (m) => m.PlatformBusinesses) },
   { path: 'deletions', ...lazyRoute(pages.platform, (m) => m.PlatformDeletions) },
   { path: 'users', ...lazyRoute(pages.platform, (m) => m.PlatformUsers) },
+  { path: 'customers', ...lazyRoute(pages.platform, (m) => m.PlatformCustomers) },
   { path: 'tickets', ...lazyRoute(pages.platform, (m) => m.PlatformTickets) },
   { path: 'channels', ...lazyRoute(pages.platform, (m) => m.PlatformChannels) },
   { path: 'tools', ...lazyRoute(pages.platform, (m) => m.PlatformTools) },

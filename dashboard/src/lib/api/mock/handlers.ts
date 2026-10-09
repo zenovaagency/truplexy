@@ -2116,6 +2116,20 @@ route('GET', '/platform/tickets', 'platform', ({ db, query }) => {
   };
 });
 
+route('GET', '/platform/customers', 'platform', ({ db, query }) => {
+  const s = (query.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  const list = db.customers
+    .filter((x) => !db.tenants.find((t) => t.id === x.tenant_id)?.deleted_at)
+    .filter((x) => !query.get('tenant') || x.tenant_id === query.get('tenant'))
+    .filter((x) => !s || [x.name, ...x.contacts.map((k) => k.value)].some((f) => f.toLowerCase().startsWith(s) || f.toLowerCase().split(/\s+/).some((w) => w.startsWith(s))))
+    .sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at));
+  const start = Number(query.get('cursor') ?? 0);
+  return {
+    data: list.slice(start, start + 50).map((x) => ({ ...customerOut(db, x), tenant_name: db.tenants.find((t) => t.id === x.tenant_id)?.name ?? x.tenant_id })),
+    next_cursor: start + 50 < list.length ? String(start + 50) : undefined,
+  };
+});
+
 route('GET', '/platform/tools', 'platform', ({ db, query }) => ({
   data: db.tools
     .filter((t) => !query.get('tenant') || t.tenant_id === query.get('tenant'))

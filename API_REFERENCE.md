@@ -321,6 +321,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/platform/deletion-requests/{id}/reject` | platform | Reject a request (v2) |
 | `GET` | `/platform/users` | platform | Everyone who has signed in (v2) |
 | `PATCH` | `/platform/users/{id}` | platform | Grant or revoke platform admin (v2) |
+| `GET` | `/platform/customers` | platform | Customers across businesses (v2) |
 | `GET` | `/platform/tickets` | platform | Tickets across businesses (v2) |
 | `GET` | `/platform/tools` | platform | API tools across businesses (v2) |
 | `PATCH` | `/platform/tools/{id}` | platform | Turn a tool off or on (v2) |
@@ -1517,6 +1518,18 @@ Read only, across businesses, most recently updated first, 100 per page.
 | `before` | `next_before` from the previous page. |
 
 **200** `{data: [{id, tenant_id, tenant_name, bot_id, subject, status, priority, source, channel_id?, channel_name?, channel_type?, escalated, needs_reply, handed_off, created_at, updated_at}], next_before?}`. To open one, act in that business as a platform admin, using its scope headers with `GET /tickets/{id}`.
+
+#### `GET /platform/customers`
+
+Read only, across businesses (not deleted ones) and their bots, most recently seen first, 50 per page.
+
+| Query | Rules |
+| --- | --- |
+| `tenant` | A business ID. |
+| `q` | Matches the start of the name or of any contact value (or any word of them). |
+| `cursor` | `next_cursor` from the previous page. |
+
+**200** `{data: [Customer + {tenant_name}], next_cursor?}`. To open or edit one, act in that business as a platform admin, using its scope headers with `GET /customers/{id}`.
 
 #### `GET /platform/tools`
 

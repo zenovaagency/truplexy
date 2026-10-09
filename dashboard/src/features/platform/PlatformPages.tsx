@@ -18,6 +18,7 @@ import {
   Shapes,
   ShieldCheck,
   Trash2,
+  UserRound,
   Users,
   Wallet,
   Wrench,
@@ -30,6 +31,7 @@ import {
   useDeleteTenant,
   usePlatformChannels,
   usePlatformChannelTypes,
+  usePlatformCustomers,
   usePlatformDeletionRequests,
   usePlatformModels,
   usePlatformOverview,
@@ -75,6 +77,8 @@ import type {
 } from '@/lib/api/types';
 import { planUsage } from '@/lib/billing';
 import { cn } from '@/lib/cn';
+import { contactOf, customerLabel } from '@/lib/customers';
+import { ContactChip } from '@/features/customers/CustomersPage';
 import { dayRange, formatCompact, formatCurrency, formatDate, formatMs, formatNumber, formatRelative, formatPerM, pluralize } from '@/lib/format';
 import { scopeLink } from '@/lib/session/scope-context';
 import { BUILTIN_VARIABLES, renderTemplate, templateKeys } from '@/lib/template';
@@ -1058,6 +1062,95 @@ export function PlatformTickets() {
                 cell: (t) => (
                   <Button asChild size="xs" leading={<ArrowUpRight />}>
                     <Link {...scopeLink({ tenant: t.tenant_id, bot: t.bot_id }, `tickets/${t.id}`)}>Open</Link>
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        )}
+      </Card>
+    </Page>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Customers                                                           */
+/* ------------------------------------------------------------------ */
+
+export function PlatformCustomers() {
+  const tenants = usePlatformTenants();
+  const [search, setSearch] = useState('');
+  const [tenant, setTenant] = useState('');
+  const q = usePlatformCustomers({ tenant: tenant || undefined, q: useDebounce(search.trim(), 300) || undefined });
+  const rows = useMemo(() => q.data?.pages.flatMap((p) => p.data) ?? [], [q.data]);
+  return (
+    <Page>
+      <PageHeader eyebrow="Platform" title="Customers" description="Every business's customers, most recently seen first. Open one to see or edit it inside its business." />
+      <Card flush>
+        <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
+          <SearchBox value={search} onChange={setSearch} placeholder="Search name, email or phone" />
+          <Select size="sm" className="w-44" aria-label="Business" value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="All businesses" options={liveBusinesses(tenants.data).map((t) => ({ value: t.id, label: t.name }))} />
+        </div>
+        {q.isPending ? (
+          <SkeletonRows rows={6} className="p-4" />
+        ) : q.isError ? (
+          <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        ) : (
+          <DataTable
+            rows={rows}
+            getKey={(c) => c.id}
+            empty={<EmptyState compact icon={<UserRound />} title={search || tenant ? 'No customers match' : 'No customers yet'} />}
+            footer={<LoadMore hasMore={q.hasNextPage} loading={q.isFetchingNextPage} onLoad={() => q.fetchNextPage()} shown={rows.length} />}
+            columns={[
+              {
+                key: 'name',
+                header: 'Customer',
+                cell: (c) => (
+                  <span className="flex items-center gap-3">
+                    <Avatar name={c.name} email={contactOf(c, 'email')} size={32} />
+                    <span className="grid min-w-0">
+                      <span className="truncate font-semibold text-ink">{customerLabel(c)}</span>
+                      <span className="truncate text-xs text-ink-faint">
+                        {c.tenant_name} · {c.bot_id}
+                      </span>
+                    </span>
+                  </span>
+                ),
+              },
+              {
+                key: 'contacts',
+                header: 'Contacts',
+                hideBelowLg: true,
+                cell: (c) =>
+                  c.contacts.length ? (
+                    <span className="flex flex-wrap gap-1">
+                      {c.contacts.slice(0, 3).map((k) => (
+                        <ContactChip key={`${k.type}:${k.value}`} contact={k} />
+                      ))}
+                      {c.contacts.length > 3 && <span className="text-xs text-ink-faint">+{c.contacts.length - 3}</span>}
+                    </span>
+                  ) : (
+                    <span className="text-ink-faint">—</span>
+                  ),
+              },
+              {
+                key: 'tickets',
+                header: 'Tickets',
+                align: 'right',
+                cell: (c) => (
+                  <span className="whitespace-nowrap tabular-nums">
+                    <span className="font-semibold text-ink">{formatNumber(c.open_tickets)}</span> <span className="text-ink-faint">open · {formatNumber(c.tickets)}</span>
+                  </span>
+                ),
+              },
+              { key: 'seen', header: 'Last seen', align: 'right', cell: (c) => <span className="whitespace-nowrap text-ink-muted">{formatRelative(c.last_seen_at)}</span> },
+              {
+                key: 'open',
+                header: <span className="sr-only">Open</span>,
+                align: 'right',
+                cell: (c) => (
+                  <Button asChild size="xs" leading={<ArrowUpRight />}>
+                    <Link {...scopeLink({ tenant: c.tenant_id, bot: c.bot_id }, 'customers')}>Open</Link>
                   </Button>
                 ),
               },

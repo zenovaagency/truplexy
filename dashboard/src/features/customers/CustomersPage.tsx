@@ -182,7 +182,7 @@ export default function CustomersPage() {
 }
 
 /** A contact as `type value`, with the value cut short in tables. */
-function ContactChip({ contact: k }: { contact: Contact }) {
+export function ContactChip({ contact: k }: { contact: Contact }) {
   return (
     <span className="inline-flex max-w-[200px] items-center gap-1 rounded-full border border-line bg-surface-2/60 px-2 py-0.5 text-xs">
       <span className="text-ink-faint">{k.type}</span>

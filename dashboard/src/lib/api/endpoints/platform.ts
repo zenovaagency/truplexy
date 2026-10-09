@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type {
   Business,
@@ -9,6 +9,7 @@ import type {
   PlatformBusiness,
   PlatformChannel,
   PlatformChannelType,
+  PlatformCustomer,
   PlatformBusinessDetail,
   PlatformModel,
   PlatformOverview,
@@ -175,6 +176,22 @@ export function usePlatformTickets(params: PlatformTicketQuery) {
       api<{ data: PlatformTicket[]; next_before?: string }>('/platform/tickets', { signal, query: { ...params, before: pageParam } }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_before,
+  });
+}
+
+export interface PlatformCustomerQuery {
+  tenant?: string;
+  q?: string;
+}
+
+export function usePlatformCustomers(params: PlatformCustomerQuery) {
+  return useInfiniteQuery({
+    queryKey: qk.platform('customers', params),
+    queryFn: ({ pageParam, signal }) =>
+      api<{ data: PlatformCustomer[]; next_cursor?: string }>('/platform/customers', { signal, query: { ...params, cursor: pageParam } }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next_cursor,
+    placeholderData: keepPreviousData,
   });
 }
 
