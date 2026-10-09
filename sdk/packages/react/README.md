@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         {children}
-        <TruplexyChat endpoint="/api/truplexy" heading="Support" onStatus={(s) => console.log(s)} />
+        <TruplexyChat endpoint="/api/truplexy" onStatus={(s) => console.log(s)} />
       </body>
     </html>
   );

@@ -47,6 +47,7 @@ export function demoTransport(): Transport {
         });
         return { session, conversation: snapshot() };
       }
+      if (action === 'profile') return { business: { name: 'Acme Shop', logo_url: 'https://cdn.test/acme.png' }, bot: { id: 'support', name: 'Shop assistant' } };
       if (action === 'history') return conv.messages.length ? { session, conversation: snapshot() } : { session: null };
       return {};
     },

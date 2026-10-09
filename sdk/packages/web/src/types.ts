@@ -32,7 +32,15 @@ export interface ChatError {
   requestId?: string;
 }
 
+/** The business and bot behind the chat key, as your server route's `profile` action returns it. Any field can be missing. */
+export interface ChatProfile {
+  business?: { name?: string; logo_url?: string };
+  bot?: { id?: string; name?: string; avatar_url?: string };
+}
+
 export interface ChatState {
+  /** The business's name and logo and the bot's name and picture; null until loaded, or when the server can't provide them. */
+  profile: ChatProfile | null;
   messages: ChatMessage[];
   /** Waiting for the assistant's reply. */
   sending: boolean;
@@ -52,7 +60,7 @@ export interface ChatState {
 
 /** How the client reaches your server route. The default posts JSON to `endpoint`. */
 export interface Transport {
-  request<T = any>(action: 'message' | 'history' | 'handoff' | 'live', body: Record<string, unknown>): Promise<T>;
+  request<T = any>(action: 'message' | 'history' | 'handoff' | 'live' | 'profile', body: Record<string, unknown>): Promise<T>;
   /** Push updates without realtime or polling (used by demo mode). */
   listen?(onChange: () => void): () => void;
 }

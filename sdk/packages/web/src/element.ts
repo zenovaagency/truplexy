@@ -148,7 +148,22 @@ export class TruplexyChatElement extends Base {
   private label<K extends keyof Labels>(key: K): string {
     // `heading`, not `title`: a title attribute would show as a tooltip over the whole widget.
     const attr = key === 'title' ? this.getAttribute('heading') : key === 'subtitle' || key === 'greeting' || key === 'placeholder' ? this.getAttribute(key) : null;
-    return attr ?? this._labels[key] ?? DEFAULT_LABELS[key];
+    // Without your own title, the header shows the business's name from Truplexy.
+    const profile = key === 'title' ? this.profileTitle() : undefined;
+    return attr ?? this._labels[key] ?? profile ?? DEFAULT_LABELS[key];
+  }
+
+  private shownProfile: ChatState['profile'] = null;
+
+  private profileTitle(): string | undefined {
+    const p = this._client?.getState().profile;
+    return p?.business?.name?.trim() || p?.bot?.name?.trim() || undefined;
+  }
+
+  /** The header picture: the `avatar` attribute, else the business logo, else the bot's picture. */
+  private avatarUrl(): string | undefined {
+    const p = this._client?.getState().profile;
+    return this.getAttribute('avatar') || p?.business?.logo_url || p?.bot?.avatar_url || undefined;
   }
 
   private connect(): TruplexyClient {
@@ -162,7 +177,14 @@ export class TruplexyChatElement extends Base {
     this.nodes.clear();
     this.$.log.replaceChildren(this.$.greeting);
     this.unsubscribe = [
-      client.subscribe((s) => this.render(s)),
+      client.subscribe((s) => {
+        // The profile arrives after the first render: redraw the header with it.
+        if (s.profile !== this.shownProfile) {
+          this.shownProfile = s.profile;
+          this.renderChrome();
+        }
+        this.render(s);
+      }),
       client.on('message', (messages) => this.fire('message', { messages })),
       client.on('status', (status) => this.fire('status', { status })),
       client.on('error', (error) => this.fire('error', { error })),
@@ -301,11 +323,12 @@ export class TruplexyChatElement extends Base {
     const subtitle = this.label('subtitle');
     $.subtitle.textContent = subtitle;
     $.subtitle.hidden = !subtitle;
-    const avatar = this.getAttribute('avatar');
+    const avatar = this.avatarUrl();
     if (avatar) {
       const img = document.createElement('img');
       img.src = avatar;
       img.alt = '';
+      img.onerror = () => ($.avatar.innerHTML = ICONS.bot);
       $.avatar.replaceChildren(img);
     } else $.avatar.innerHTML = ICONS.bot;
     const greeting = this.label('greeting');

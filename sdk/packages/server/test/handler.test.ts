@@ -145,6 +145,24 @@ describe('createHandler', () => {
     expect(await (await handler(post({ action: 'history', session: 'forged' }))).json()).toEqual({ session: null });
   });
 
+  it('reads the profile with the chat key and passes on only names and pictures', async () => {
+    const api = fakeApi({
+      'GET /profile': () => [
+        200,
+        { business: { name: 'Acme Shop', logo_url: 'https://cdn.test/l.png', plan: 'pro' }, bot: { id: 'support', name: 'Shop assistant', avatar_url: 'https://cdn.test/b.png', kb_version: 3 } },
+      ],
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch });
+    const res = await handler(post({ action: 'profile' }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      business: { name: 'Acme Shop', logo_url: 'https://cdn.test/l.png' },
+      bot: { id: 'support', name: 'Shop assistant', avatar_url: 'https://cdn.test/b.png' },
+    });
+    expect(api.calls).toHaveLength(1);
+    expect(api.calls[0]).toMatchObject({ path: '/profile', method: 'GET', auth: `Bearer ${KEY}` });
+  });
+
   it('hands out only the conversation topic', async () => {
     const api = fakeApi({
       'POST /realtime/token': (body) => {

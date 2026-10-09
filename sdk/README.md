@@ -37,7 +37,7 @@ export const maxDuration = 60;
 // app/layout.tsx
 import { TruplexyChat } from "@truplexy/react";
 // …inside <body>:
-<TruplexyChat endpoint="/api/truplexy" heading="Support" />
+<TruplexyChat endpoint="/api/truplexy" />
 ```
 
 ## How it works

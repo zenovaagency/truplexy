@@ -10,7 +10,7 @@ The widget talks to a route on **your** server, which holds the chat key. Add th
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js"
-        data-endpoint="/api/truplexy" data-heading="Support" defer></script>
+        data-endpoint="/api/truplexy" defer></script>
 ```
 
 Every `data-*` attribute becomes an element attribute. Add `data-manual` to mount it yourself with `Truplexy.init({...})`.
@@ -26,7 +26,7 @@ import "@truplexy/web"; // registers <truplexy-chat>; safe to import during serv
 ```
 
 ```html
-<truplexy-chat endpoint="/api/truplexy" heading="Support"></truplexy-chat>
+<truplexy-chat endpoint="/api/truplexy"></truplexy-chat>
 ```
 
 Or from code: `import { mount } from "@truplexy/web"; mount({ endpoint: "/api/truplexy" })`.
@@ -38,11 +38,11 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | Attribute | What it does | Default |
 | --- | --- | --- |
 | `endpoint` | Your server route | `/api/truplexy` |
-| `heading`, `subtitle` | Header text | "Support", "Ask us anything…" |
+| `heading`, `subtitle` | Header text | your business name (read from Truplexy), "Ask us anything…" |
 | `greeting` | First message (Markdown); empty hides it | "Hi there! How can we help you today?" |
 | `placeholder` | Message box hint | "Write a message…" |
 | `accent` | Any CSS colour | `#2338e6` |
-| `avatar` | Header image URL | a bot icon |
+| `avatar` | Header image URL | your business logo (read from Truplexy), else a bot icon |
 | `theme` | `light`, `dark`, `auto` | `light` |
 | `position` | `right`, `left` | `right` |
 | `mode` | `floating`, or `inline` for a chat box in the page | `floating` |

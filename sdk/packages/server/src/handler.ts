@@ -182,6 +182,12 @@ export function createHandler(options: HandlerOptions = {}): Handler {
           }
         }
 
+        case 'profile': {
+          // The business and bot name and picture, read with the chat key. Needs no session.
+          const p = await api<Profile>('/profile', undefined, 'GET');
+          return json(publicProfile(p));
+        }
+
         default:
           throw new TruplexyError('INVALID_REQUEST', 400, 'Unknown action.');
       }
@@ -229,6 +235,19 @@ function createApi(chatKey: string, base: string, doFetch: typeof fetch) {
     const known = PASSED_ON[code];
     if (known) throw new TruplexyError(code, known[0], known[1], requestId);
     throw new TruplexyError('UPSTREAM_ERROR', 502, 'Chat is unavailable right now.', requestId);
+  };
+}
+
+interface Profile {
+  business?: { name?: string; logo_url?: string };
+  bot?: { id?: string; name?: string; avatar_url?: string };
+}
+
+/** Only the names and pictures: nothing else the API might add later. */
+function publicProfile(p: Profile) {
+  return {
+    business: { name: p.business?.name, logo_url: p.business?.logo_url },
+    bot: { id: p.bot?.id, name: p.bot?.name, avatar_url: p.bot?.avatar_url },
   };
 }
 

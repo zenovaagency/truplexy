@@ -1,6 +1,6 @@
 {
   "name": "@truplexy/server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The server route for the Truplexy chat widget. Keeps your chat key on the server, for Next.js, Nuxt, SvelteKit, Remix, Astro, Express, Cloudflare Workers and any Fetch-API runtime.",
   "license": "MIT",
   "type": "module",

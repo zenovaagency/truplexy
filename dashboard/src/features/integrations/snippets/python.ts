@@ -198,6 +198,14 @@ async def truplexy(request: Request):
             return {"session": sign(conv), "conversation": public(await api("GET", f"/conversations/{conv}"))}
         if action == "handoff" and conv:
             return {"session": sign(conv), "conversation": public(await api("POST", f"/conversations/{conv}/handoff"))}
+        if action == "profile":
+            # The business and bot name and picture; the widget shows them in its header.
+            p = await api("GET", "/profile")
+            business, bot = p.get("business", {}), p.get("bot", {})
+            return {
+                "business": {"name": business.get("name"), "logo_url": business.get("logo_url")},
+                "bot": {"id": bot.get("id"), "name": bot.get("name"), "avatar_url": bot.get("avatar_url")},
+            }
         if action == "live":
             if not conv:
                 return {}

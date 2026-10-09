@@ -33,12 +33,12 @@ const serverTabs: Tab[] = [
 
 const attributes = [
   ['endpoint', 'Your route from step 2.', '/api/truplexy'],
-  ['heading', 'The title in the header.', 'Support'],
+  ['heading', 'The title in the header.', 'Your business name, read from Truplexy'],
   ['subtitle', 'The line under the title.', 'Ask us anything…'],
   ['greeting', 'The first message visitors see. Markdown works. An empty value hides it.', 'Hi there! How can we help you today?'],
   ['placeholder', 'The message box hint.', 'Write a message…'],
   ['accent', 'Any CSS colour, for the button, header and visitor bubbles.', '#2338e6'],
-  ['avatar', 'An image URL for the header.', 'A bot icon'],
+  ['avatar', 'An image URL for the header.', 'Your business logo, read from Truplexy, else a bot icon'],
   ['theme', '`light`, `dark`, or `auto` to follow the visitor’s device.', 'light'],
   ['position', '`right` or `left`.', 'right'],
   ['mode', '`floating` (a button and panel) or `inline` (a chat box where you put the element).', 'floating'],
@@ -346,6 +346,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
                 <tr><td><code>message</code></td><td><code>POST /conversations</code> when there’s no valid session, then <code>POST /conversations/:id/messages</code></td><td><code>{'{session, message, reply, status, sources}'}</code></td></tr>
                 <tr><td><code>history</code></td><td><code>GET /conversations/:id</code></td><td><code>{'{session, conversation}'}</code>, or <code>{'{session: null}'}</code></td></tr>
                 <tr><td><code>handoff</code></td><td><code>POST /conversations/:id/handoff</code></td><td><code>{'{session, conversation}'}</code></td></tr>
+                <tr><td><code>profile</code></td><td><code>GET /profile</code></td><td><code>{'{business: {name, logo_url}, bot: {id, name, avatar_url}}'}</code></td></tr>
                 <tr><td><code>live</code></td><td><code>POST /realtime/token</code></td><td><code>{'{url, publishable_key, conversation_topic}'}</code>, or <code>{'{}'}</code></td></tr>
               </tbody>
             </table>
@@ -353,6 +354,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
           <CodeBlock name="session token" lang="txt" code={tokenFormat} />
           <ul>
             <li>Trim <code>text</code>; refuse it when empty, over 4000 characters, or starting with <code>[Context only</code>.</li>
+            <li>In <code>profile</code>, pass on only the names and pictures. The widget shows them in its header and falls back to its defaults if the call fails.</li>
             <li>Never pass on <code>bot_topic</code>: it carries every customer’s messages. <code>conversation_topic</code> is safe for the browser.</li>
             <li>In <code>history</code> and <code>handoff</code>, drop user messages starting with <code>[Context only</code>, and pass on only <code>id, role, content, author, agent, created_at</code>.</li>
             <li>Errors are <code>{'{error: {code, message, request_id}}'}</code> with a message you write. Never forward the API’s own message.</li>

@@ -416,6 +416,20 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(map[string]any{"session": signSession(conv), "conversation": publicConversation(c)})
 
+	case "profile":
+		// The business and bot name and picture; the widget shows them in its header.
+		p, err := widgetCall("GET", "/profile", nil)
+		if err != nil {
+			fail(err)
+			return
+		}
+		business, _ := p["business"].(map[string]any)
+		bot, _ := p["bot"].(map[string]any)
+		reply(map[string]any{
+			"business": map[string]any{"name": business["name"], "logo_url": business["logo_url"]},
+			"bot":      map[string]any{"id": bot["id"], "name": bot["name"], "avatar_url": bot["avatar_url"]},
+		})
+
 	case "live":
 		out := map[string]any{}
 		if conv != "" {
