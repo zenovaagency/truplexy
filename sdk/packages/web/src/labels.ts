@@ -1,0 +1,23 @@
+/** Every string the widget shows. Pass any of them as `labels` to translate or reword. */
+export const DEFAULT_LABELS = {
+  title: 'Support',
+  subtitle: 'Ask us anything. We usually reply in seconds.',
+  greeting: 'Hi there! How can we help you today?',
+  placeholder: 'Write a message…',
+  send: 'Send',
+  open: 'Open chat',
+  close: 'Close chat',
+  typing: 'Typing…',
+  handoff: 'Talk to a person',
+  handoffDone: "We've let the team know. Someone will reply right here.",
+  escalated: 'A person from the team has joined and will reply here.',
+  retry: 'Retry',
+  notSent: 'Not sent.',
+  sources: 'Sources',
+  newConversation: 'New conversation',
+  team: 'Support',
+  you: 'You',
+  poweredBy: 'Powered by Truplexy',
+};
+
+export type Labels = typeof DEFAULT_LABELS;

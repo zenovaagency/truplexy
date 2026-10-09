@@ -57,8 +57,8 @@ import {
 import { ChannelStatusBadge, ChannelTypeIcon } from '@/components/domain/ChannelBadge';
 import { IssueKeyForm } from '@/features/api-keys/IssueKey';
 import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type Integration, type IntegrationGroup } from './catalog';
-import { ALL_LANGS, LangPicker, useLang, useLangPack } from './languages';
-import type { LangPack } from './snippets/types';
+import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
+import { WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
 
 export default function IntegrationsPage() {
   const { href, bot } = useScopeCtx();
@@ -239,6 +239,7 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
   const pack = useLangPack(lang);
   const code = pack.data?.integrations[i?.id ?? ''];
   const hook = code && pack.data && (code.receiver ?? (code.deliver || code.escalation ? pack.data.receiver(code) : null));
+  const where = i?.widget ? 'your site' : i?.name;
 
   return (
     <Sheet
@@ -253,13 +254,22 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
           <div className="flex items-center gap-3 rounded-[14px] border border-line bg-surface-2/50 p-3.5">
             <IntegrationIcon i={i} size={44} />
             <p className="text-[0.8125rem] text-ink-muted">
-              <span className="font-semibold text-ink">How it works:</span> {i.name} sends each message to your server, your server asks Truplexy with a chat key, and sends the reply back. When your team replies from Tickets, Truplexy signs a webhook to your server so it can deliver the message.
+              <span className="font-semibold text-ink">How it works:</span>{' '}
+              {i.widget ? (
+                <>
+                  The Truplexy widget on your site sends each message to one route on your server, which asks Truplexy with a chat key. When your team replies from Tickets, the reply shows up in the widget by itself.
+                </>
+              ) : (
+                <>
+                  {i.name} sends each message to your server, your server asks Truplexy with a chat key, and sends the reply back. When your team replies from Tickets, Truplexy signs a webhook to your server so it can deliver the message.
+                </>
+              )}
             </p>
           </div>
           <Callout tone="warn" icon={<ShieldCheck />} title="Keys stay on your server">
             Never put a chat key in a website, mobile app or theme file. Anyone could copy it.
           </Callout>
-          {i.langs.length > 0 && (
+          {i.langs.length > 0 && i.id !== 'web' && (
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <span className="text-[0.8125rem] text-ink-muted">Your server's language</span>
               <LangPicker langs={i.langs} value={lang} onChange={setLang} />
@@ -294,13 +304,15 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
               </p>
             </Step>
 
-            <Step n={2} title={i.teamSide ? `Set up ${i.name}` : `Receive ${i.name} messages`}>
-              <ol className="grid list-decimal gap-1.5 pl-5 text-[0.8125rem] text-ink-muted marker:text-ink-faint">
+            <Step n={2} title={i.id === 'web' ? 'Add the route to your server' : i.widget ? 'Install the plugin' : i.teamSide ? `Set up ${i.name}` : `Receive ${i.name} messages`}>
+              <ol className={cn('grid gap-1.5 text-[0.8125rem] text-ink-muted marker:text-ink-faint', i.steps.length > 1 && 'list-decimal pl-5')}>
                 {i.steps.map((s) => (
                   <li key={s}>{s}</li>
                 ))}
               </ol>
-              {code && pack.data ? (
+              {i.id === 'web' ? (
+                <WebServerCode lang={lang} setLang={setLang} pack={pack.data} code={code} packError={pack.isError} />
+              ) : code && pack.data ? (
                 <>
                   <CodeBlock
                     key={lang}
@@ -316,51 +328,119 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
               )}
             </Step>
 
-            <Step n={3} title={i.teamSide ? 'Bring escalations to your team' : "Send your team's replies back"} done={Boolean(webhook.data?.enabled)}>
-              <p className="text-[0.8125rem] text-ink-muted">
-                {i.teamSide ? (
-                  <>
-                    When a ticket is escalated, Truplexy calls your webhook with <code className="font-mono text-xs">ticket.updated</code>. Verify the signature, then post it for your team.
-                  </>
-                ) : (
-                  <>
-                    When someone replies from Tickets, Truplexy calls your webhook with <code className="font-mono text-xs">message.created</code>. Verify the signature, then deliver it.
-                  </>
-                )}
-              </p>
-              {webhook.data ? (
-                <p className="flex items-center gap-2 text-[0.8125rem]">
-                  <span className={cn('size-2 rounded-full', webhook.data.enabled ? 'bg-live' : 'bg-warn')} />
-                  <span className="truncate font-mono text-xs text-ink">{webhook.data.url}</span>
-                  <Link to={href('integrations/webhook')} className="ml-auto shrink-0 text-xs font-semibold text-accent hover:underline">Manage</Link>
-                </p>
-              ) : (
-                <Button asChild size="xs" variant="soft" className="justify-self-start">
-                  <Link to={href('integrations/webhook')}>Set up the webhook</Link>
-                </Button>
-              )}
-              {hook && pack.data && (
-                <CodeBlock
-                  key={lang}
-                  samples={[
-                    { label: code?.receiver ? `${code.file ?? pack.data.files.server} · webhook` : pack.data.files.webhook, code: hook },
-                    { label: pack.data.files.verify, code: pack.data.verify },
-                  ]}
-                />
-              )}
-            </Step>
+            {i.id === 'web' && (
+              <Step n={3} title="Add the widget to your site">
+                <WebWidgetCode />
+              </Step>
+            )}
 
-            <Step n={4} title="Try it">
+            {i.widget ? (
+              <Step n={i.id === 'web' ? 4 : 3} title="Your team's replies">
+                <p className="text-[0.8125rem] text-ink-muted">
+                  Nothing to set up. When someone replies from Tickets, the widget shows it live, or within a few seconds where live updates aren't available. Visitors keep their conversation when they reload or come back later.
+                </p>
+              </Step>
+            ) : (
+              <Step n={3} title={i.teamSide ? 'Bring escalations to your team' : "Send your team's replies back"} done={Boolean(webhook.data?.enabled)}>
+                <p className="text-[0.8125rem] text-ink-muted">
+                  {i.teamSide ? (
+                    <>
+                      When a ticket is escalated, Truplexy calls your webhook with <code className="font-mono text-xs">ticket.updated</code>. Verify the signature, then post it for your team.
+                    </>
+                  ) : (
+                    <>
+                      When someone replies from Tickets, Truplexy calls your webhook with <code className="font-mono text-xs">message.created</code>. Verify the signature, then deliver it.
+                    </>
+                  )}
+                </p>
+                {webhook.data ? (
+                  <p className="flex items-center gap-2 text-[0.8125rem]">
+                    <span className={cn('size-2 rounded-full', webhook.data.enabled ? 'bg-live' : 'bg-warn')} />
+                    <span className="truncate font-mono text-xs text-ink">{webhook.data.url}</span>
+                    <Link to={href('integrations/webhook')} className="ml-auto shrink-0 text-xs font-semibold text-accent hover:underline">Manage</Link>
+                  </p>
+                ) : (
+                  <Button asChild size="xs" variant="soft" className="justify-self-start">
+                    <Link to={href('integrations/webhook')}>Set up the webhook</Link>
+                  </Button>
+                )}
+                {hook && pack.data && (
+                  <CodeBlock
+                    key={lang}
+                    samples={[
+                      { label: code?.receiver ? `${code.file ?? pack.data.files.server} · webhook` : pack.data.files.webhook, code: hook },
+                      { label: pack.data.files.verify, code: pack.data.verify },
+                    ]}
+                  />
+                )}
+              </Step>
+            )}
+
+            <Step n={i.id === 'web' ? 5 : 4} title="Try it">
               <ul className="grid gap-1.5 text-[0.8125rem] text-ink-muted">
-                <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Send a message on {i.name}. The reply should arrive within a few seconds.</li>
+                <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Send a message on {where}. The reply should arrive within a few seconds.</li>
                 <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Ask for a person. The conversation shows up under Tickets → Handoffs.</li>
-                <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Take it over and reply from the ticket. Your reply should appear on {i.name}.</li>
+                <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Take it over and reply from the ticket. Your reply should appear on {where}.</li>
               </ul>
+              {i.widget && (
+                <a href={WEB_SDK_DOCS} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-accent hover:underline">
+                  <BookOpen className="size-3.5" /> Website SDK docs: every option, event and framework
+                </a>
+              )}
             </Step>
           </ol>
         </div>
       )}
     </Sheet>
+  );
+}
+
+/** Website chat, step 2: the widget's route, in the person's framework or any server language. */
+function WebServerCode({ lang, setLang, pack, code, packError }: { lang: Lang; setLang: (l: Lang) => void; pack?: LangPack; code?: IntegrationCode; packError: boolean }) {
+  const recipes = useWebRecipes();
+  const [pick, setPick] = useRecipe('web-server', 'nextjs');
+  const list = recipes.data?.SERVER_RECIPES ?? [];
+  const recipe = list.find((r) => r.id === pick);
+  return (
+    <>
+      <RecipePicker label="Your server" recipes={list} value={pick} onChange={setPick} other="Another language" />
+      {pick === 'other' ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <span className="text-[0.8125rem] text-ink-muted">Language</span>
+            <LangPicker langs={['node', 'python', 'php', 'go']} value={lang} onChange={setLang} />
+          </div>
+          {code && pack ? <CodeBlock key={lang} samples={[{ label: code.file ?? pack.files.server, code: code.handler }]} /> : <CodeLoading error={packError} />}
+          <p className="text-xs text-ink-faint">
+            Another language? The route is one POST endpoint;{' '}
+            <a href={`${WEB_SDK_DOCS}#protocol`} target="_blank" rel="noreferrer" className="text-accent hover:underline">the protocol</a> describes it in full.
+          </p>
+        </>
+      ) : recipe ? (
+        <RecipeCode recipe={recipe} />
+      ) : (
+        <CodeLoading error={recipes.isError} />
+      )}
+    </>
+  );
+}
+
+/** Website chat, step 3: the widget, in the person's frontend framework. */
+function WebWidgetCode() {
+  const recipes = useWebRecipes();
+  const [pick, setPick] = useRecipe('web-widget', 'html');
+  const list = recipes.data?.WIDGET_RECIPES ?? [];
+  const recipe = list.find((r) => r.id === pick) ?? list[0];
+  return (
+    <>
+      <RecipePicker label="Your site" recipes={list} value={recipe?.id ?? pick} onChange={setPick} />
+      {recipe ? <RecipeCode recipe={recipe} /> : <CodeLoading error={recipes.isError} />}
+      <p className="text-xs text-ink-faint">
+        Set <code className="font-mono">endpoint</code> to your route from step 2. Change the look with <code className="font-mono">heading</code>,{' '}
+        <code className="font-mono">greeting</code>, <code className="font-mono">accent</code>, <code className="font-mono">theme</code> and{' '}
+        <code className="font-mono">position</code>.
+      </p>
+    </>
   );
 }
 

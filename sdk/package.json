@@ -1,0 +1,29 @@
+{
+  "name": "truplexy-sdk",
+  "private": true,
+  "type": "module",
+  "description": "Truplexy website SDK: the chat widget, framework wrappers and the server proxy.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/server",
+    "packages/web",
+    "packages/react",
+    "packages/vue"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --workspaces",
+    "size": "node scripts/size.mjs",
+    "playground": "node playground/server.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "happy-dom": "^20.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

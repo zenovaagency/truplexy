@@ -1,0 +1,95 @@
+---
+import { Code } from 'astro:components';
+
+/**
+ * A highlighted code block with a file name and a copy button. Highlighting
+ * happens at build time (Shiki), so the page ships no highlighter.
+ */
+interface Props {
+  code: string;
+  /** File name, or "Terminal". The language is guessed from its extension. */
+  name?: string;
+  lang?: string;
+}
+const { code, name, lang } = Astro.props;
+
+const byExt: Record<string, string> = {
+  ts: 'ts', tsx: 'tsx', js: 'js', mjs: 'js', jsx: 'jsx', vue: 'vue', svelte: 'svelte', astro: 'astro',
+  html: 'html', php: 'php', py: 'python', go: 'go', json: 'json', css: 'css', sh: 'bash',
+};
+const ext = name?.split('.').pop()?.toLowerCase() ?? '';
+const language = (lang ?? (name === 'Terminal' ? 'bash' : byExt[ext])) || 'txt';
+---
+
+<figure class="code-block">
+  <figcaption>
+    <span>{name ?? language}</span>
+    <button type="button" data-copy aria-label={`Copy ${name ?? 'code'}`}>Copy</button>
+  </figcaption>
+  <Code code={code} lang={language as never} theme="github-dark-default" wrap={false} />
+</figure>
+
+<style>
+  .code-block {
+    margin: 0;
+    overflow: hidden;
+    border-radius: 14px;
+    border: 1px solid #1f2433;
+    background: #0d1117;
+  }
+  figcaption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 6px 6px 14px;
+    border-bottom: 1px solid rgb(255 255 255 / 0.08);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: rgb(255 255 255 / 0.6);
+  }
+  figcaption span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  button {
+    flex: none;
+    border: 0;
+    border-radius: 7px;
+    padding: 4px 10px;
+    background: transparent;
+    font: inherit;
+    color: rgb(255 255 255 / 0.7);
+    cursor: pointer;
+  }
+  button:hover,
+  button:focus-visible {
+    background: rgb(255 255 255 / 0.1);
+    color: #fff;
+  }
+  .code-block :global(pre) {
+    margin: 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.65;
+    background: transparent !important;
+  }
+</style>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+    button.addEventListener('click', async () => {
+      const code = button.closest('figure')?.querySelector('pre')?.innerText ?? '';
+      try {
+        await navigator.clipboard.writeText(code);
+        button.textContent = 'Copied';
+      } catch {
+        button.textContent = 'Press Ctrl+C';
+      }
+      setTimeout(() => (button.textContent = 'Copy'), 1600);
+    });
+  }
+</script>

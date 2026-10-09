@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Truplexy SDK playground</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; max-width: 720px; margin: 48px auto; padding: 0 16px; color: #0e1222; }
+      code { background: #eef0ff; padding: 1px 6px; border-radius: 5px; }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+      button, select { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd0e0; background: #fff; cursor: pointer; }
+      #log { font: 13px/1.4 ui-monospace, monospace; background: #f4f5fa; border-radius: 10px; padding: 12px; min-height: 80px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>Truplexy SDK playground</h1>
+    <p>
+      The widget below is the CDN build (<code>truplexy.min.js</code>) talking to <code>/api/truplexy</code>, served by
+      <code>@truplexy/server</code>. Try: "how do returns work", "I want a person", or "limit".
+    </p>
+    <div class="row">
+      <button onclick="Truplexy.open()">Open</button>
+      <button onclick="Truplexy.send('How do returns work?')">Send a question</button>
+      <button onclick="Truplexy.reset()">New conversation</button>
+      <select onchange="Truplexy.element.setAttribute('theme', this.value)">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="auto">Auto</option>
+      </select>
+      <select onchange="Truplexy.element.setAttribute('position', this.value)">
+        <option value="right">Right</option>
+        <option value="left">Left</option>
+      </select>
+    </div>
+    <h2>Events</h2>
+    <div id="log"></div>
+
+    <script src="/truplexy.min.js" data-endpoint="/api/truplexy" data-heading="Acme support" data-show-sources defer></script>
+    <script>
+      const log = document.getElementById('log');
+      for (const name of ['open', 'close', 'message', 'status', 'error']) {
+        document.addEventListener(`truplexy:${name}`, (e) => {
+          log.textContent = `truplexy:${name} ${JSON.stringify(e.detail)}\n` + log.textContent;
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -70,19 +70,19 @@ app.post("/truplexy-webhook", express.raw({ type: "application/json" }), async (
 
   integrations: {
     web: {
-      handler: `// POST /chat  { visitorId, text } from your widget
-app.post("/chat", express.json(), async (req, res) => {
-  const { visitorId, text } = req.body;
-  const { reply, status, conversationId } = await ask(\`web:\${visitorId}\`, text);
-  res.json({ reply, status, conversationId });
-});
+      file: 'server.js',
+      standalone: true,
+      handler: `// server.js: npm i express @truplexy/server
+import express from "express";
+import { createNodeHandler } from "@truplexy/server/node";
 
-// The widget's "Talk to a person" button
-app.post("/chat/handoff", express.json(), async (req, res) => {
-  res.json(await handoff(req.body.conversationId));
-});`,
-      deliver: `// Push the reply to the open widget, e.g. over your own WebSocket.
-sockets.get(thread)?.send(JSON.stringify({ from: agent, text }));`,
+const app = express();
+
+// The widget talks to this route. It reads TRUPLEXY_CHAT_KEY from the environment,
+// keeps a signed session per visitor and never sends the key to the browser.
+app.post("/api/truplexy", createNodeHandler());
+
+app.listen(3000);`,
     },
 
     whatsapp: {

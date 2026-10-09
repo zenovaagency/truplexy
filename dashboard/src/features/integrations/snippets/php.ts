@@ -1,77 +1,13 @@
 import { indent, PUBLIC_API, type IntegrationCode, type LangPack } from './types';
+import { WORDPRESS_PLUGIN } from './wordpress-plugin';
 
 /** PHP 8.1+: one script per endpoint, curl for HTTP. */
 
 const answerNow = `http_response_code(200);
 if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();   // answer at once, keep working`;
 
-/** A WordPress plugin: the chat route, and team replies kept for the widget to poll. */
-const wordpress = (prefix: string, name: string): IntegrationCode => ({
-  file: 'truplexy-chat.php',
-  standalone: true,
-  handler: `<?php
-/** Plugin Name: ${name} */
-// In wp-config.php:  define('TRUPLEXY_CHAT_KEY', 'tpx_…');  define('TRUPLEXY_WEBHOOK_SECRET', 'whsec_…');
-add_action('wp_enqueue_scripts', fn () => wp_enqueue_script('truplexy-chat', plugins_url('chat.js', __FILE__), [], '1.0', true));
-
-add_action('rest_api_init', function () {
-    // chat.js posts { visitorId, text } here.
-    register_rest_route('truplexy/v1', '/chat', [
-        'methods' => 'POST',
-        'permission_callback' => '__return_true',
-        'callback' => function (WP_REST_Request $r) {
-            $visitor = sanitize_key($r['visitorId']);
-            $conv = get_transient("${prefix}:$visitor");
-            if (!$conv) {
-                $conv = truplexy_call('/conversations')['id'];
-                update_option("truplexy_visitor_$conv", $visitor, false);   // so team replies find the visitor
-            }
-            set_transient("${prefix}:$visitor", $conv, MONTH_IN_SECONDS);
-            return truplexy_call("/conversations/$conv/messages", ['message' => wp_strip_all_tags($r['text'])]);
-        },
-    ]);
-    // chat.js polls for your team's replies.
-    register_rest_route('truplexy/v1', '/replies', [
-        'methods' => 'GET',
-        'permission_callback' => '__return_true',
-        'callback' => function (WP_REST_Request $r) {
-            $key = '${prefix}-replies:' . sanitize_key($r['visitorId']);
-            $replies = get_transient($key) ?: [];
-            delete_transient($key);
-            return $replies;
-        },
-    ]);
-});
-
-function truplexy_call(string $path, ?array $body = null): array {
-    $res = wp_remote_post('${PUBLIC_API}' . $path, [
-        'timeout' => 50,
-        'headers' => ['Authorization' => 'Bearer ' . TRUPLEXY_CHAT_KEY, 'Content-Type' => 'application/json'],
-        'body' => wp_json_encode($body ?? new stdClass()),
-    ]);
-    return json_decode(wp_remote_retrieve_body($res), true) ?? [];
-}`,
-  receiver: `<?php
-// In the same plugin: point the Truplexy webhook at https://your-site.com/wp-json/truplexy/v1/webhook
-add_action('rest_api_init', fn () => register_rest_route('truplexy/v1', '/webhook', [
-    'methods' => 'POST',
-    'permission_callback' => '__return_true',
-    'callback' => function (WP_REST_Request $r) {
-        if (!verify_truplexy($r->get_body(), $r->get_header('x-truplexy-signature') ?? '', TRUPLEXY_WEBHOOK_SECRET)) {
-            return new WP_REST_Response(null, 401);
-        }
-        $event = $r->get_json_params();
-        if ($event['type'] === 'message.created') {   // your team replied
-            $visitor = get_option('truplexy_visitor_' . $event['data']['conversation_id']);
-            $key = "${prefix}-replies:$visitor";
-            $replies = get_transient($key) ?: [];
-            $replies[] = ['from' => $event['data']['message']['agent'] ?? 'Support', 'text' => $event['data']['message']['content']];
-            set_transient($key, $replies, DAY_IN_SECONDS);
-        }
-        return new WP_REST_Response(null, 200);
-    },
-]));`,
-});
+/** The Truplexy Chat plugin: the widget's route, a settings page, and the widget on every page. */
+const wordpress: IntegrationCode = { file: 'truplexy-chat.php', standalone: true, handler: WORDPRESS_PLUGIN };
 
 /** Meta's Messenger and Instagram webhooks share a shape. */
 const meta = (route: string, prefix: string, tokenEnv: string, skipEcho: boolean): IntegrationCode => ({
@@ -197,18 +133,125 @@ if ($event['type'] === 'ticket.updated' && !empty($data['ticket']['escalated']))
 
   integrations: {
     web: {
-      handler: `<?php // chat.php — POST { visitorId, text } from your widget
-require __DIR__ . '/truplexy.php';
-header('Content-Type: application/json');
+      file: 'chat.php',
+      standalone: true,
+      handler: `<?php // chat.php — the route the Truplexy widget talks to. Set the widget's endpoint to this URL.
+// PHP 8.1+ with curl. TRUPLEXY_CHAT_KEY lives in your server's environment, never in a page.
+const TRUPLEXY_API = '${PUBLIC_API}';
 
-$in = json_decode(file_get_contents('php://input'), true);
-if (($_GET['action'] ?? '') === 'handoff') {   // the widget's "Talk to a person" button
-    echo json_encode(handoff($in['conversationId']));
-    exit;
+/* Sessions: a signed conversation ID the visitor's browser keeps. No database needed. */
+function session_secret(): string {
+    return getenv('TRUPLEXY_SESSION_SECRET') ?: (string) getenv('TRUPLEXY_CHAT_KEY');
 }
-echo json_encode(ask('web:' . $in['visitorId'], $in['text']));`,
-      deliver: `// Keep the reply for the visitor's widget, which polls for new messages.
-store_reply($thread, ['from' => $agent, 'text' => $text]);`,
+
+function b64(string $bytes): string {
+    return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+}
+
+function unb64(string $text): string|false {
+    return preg_match('/^[A-Za-z0-9_-]*$/', $text) ? base64_decode(strtr($text, '-_', '+/') . str_repeat('=', (4 - strlen($text) % 4) % 4), true) : false;
+}
+
+function sign_session(string $conv): string {
+    $payload = $conv . '.' . time();
+    return b64($payload) . '.' . b64(hash_hmac('sha256', $payload, session_secret(), true));
+}
+
+function verify_session(mixed $token): ?string {
+    if (!is_string($token) || substr_count($token, '.') !== 1) return null;
+    [$p, $s] = explode('.', $token);
+    $payload = unb64($p);
+    $signature = unb64($s);
+    if ($payload === false || $signature === false) return null;
+    if (!hash_equals(hash_hmac('sha256', $payload, session_secret(), true), $signature)) return null;
+    if (!preg_match('/^(conv_[0-9a-f]{32})\\.(\\d{1,12})$/', $payload, $m)) return null;
+    $age = time() - (int) $m[2];
+    return ($age >= -300 && $age <= 30 * 86400) ? $m[1] : null;
+}
+
+class UpstreamError extends Exception {
+    public function __construct(public string $apiCode, public string $requestId = '') {
+        parent::__construct($apiCode);
+    }
+}
+
+function api(string $method, string $path, ?array $body = null): array {
+    $ch = curl_init(TRUPLEXY_API . $path);
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . getenv('TRUPLEXY_CHAT_KEY')],
+    ]);
+    if ($method !== 'GET') curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body ?? new stdClass()));
+    $raw = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $data = json_decode((string) $raw, true) ?? [];
+    if ($raw === false || $status >= 300) {
+        throw new UpstreamError($status === 401 ? 'NOT_CONFIGURED' : ($data['error']['code'] ?? 'UPSTREAM_ERROR'), $data['error']['request_id'] ?? '');
+    }
+    return $data;
+}
+
+/** What the visitor may see: no background "[Context only" messages. */
+function public_conversation(array $conv): array {
+    $messages = [];
+    foreach ($conv['messages'] ?? [] as $m) {
+        if ($m['role'] === 'user' && str_starts_with($m['content'], '[Context only')) continue;
+        $messages[] = array_intersect_key($m, array_flip(['id', 'role', 'content', 'author', 'agent', 'created_at']));
+    }
+    return ['status' => $conv['status'], 'escalated' => $conv['escalated'], 'messages' => $messages];
+}
+
+/** Messages the visitor sees. Never pass on the API's own message. */
+function fail(string $code, string $requestId = ''): never {
+    $known = [
+        'INVALID_REQUEST' => [400, 'Messages must be 1–4000 characters.'],
+        'CHANNEL_DISABLED' => [503, 'Chat is turned off right now.'],
+        'PLAN_LIMIT_REACHED' => [503, "The assistant can't reply right now. Please try again later."],
+        'LLM_RATE_LIMITED' => [429, 'The assistant is busy. Please try again in a moment.'],
+        'LLM_TIMEOUT' => [504, 'The reply took too long. Please try again.'],
+    ];
+    if (!isset($known[$code])) $code = 'UPSTREAM_ERROR';
+    [$status, $message] = $known[$code] ?? [502, 'Chat is unavailable right now.'];
+    http_response_code($status);
+    exit(json_encode(['error' => ['code' => $code, 'message' => $message, 'request_id' => $requestId]]));
+}
+
+header('Content-Type: application/json');
+$in = json_decode(file_get_contents('php://input'), true) ?: [];
+$action = $in['action'] ?? '';
+$conv = verify_session($in['session'] ?? null);
+
+try {
+    switch ($action) {
+        case 'message':
+            $text = trim((string) ($in['text'] ?? ''));
+            if ($text === '' || mb_strlen($text) > 4000 || str_starts_with($text, '[Context only')) fail('INVALID_REQUEST');
+            $conv ??= api('POST', '/conversations')['id'];
+            $r = api('POST', "/conversations/$conv/messages", ['message' => $text]);
+            echo json_encode(['session' => sign_session($conv), 'message' => $r['message'], 'reply' => $r['reply'], 'status' => $r['status'], 'sources' => $r['sources'] ?? []]);
+            break;
+        case 'history':
+            echo json_encode($conv ? ['session' => sign_session($conv), 'conversation' => public_conversation(api('GET', "/conversations/$conv"))] : ['session' => null]);
+            break;
+        case 'handoff':
+            if (!$conv) fail('INVALID_REQUEST');
+            echo json_encode(['session' => sign_session($conv), 'conversation' => public_conversation(api('POST', "/conversations/$conv/handoff"))]);
+            break;
+        case 'live':
+            // Only the conversation's own topic: bot_topic carries every customer's messages.
+            $live = $conv ? api('POST', '/realtime/token', ['conversation_id' => $conv]) : [];
+            echo json_encode((object) array_intersect_key($live, array_flip(['url', 'publishable_key', 'conversation_topic'])));
+            break;
+        default:
+            fail('INVALID_REQUEST');
+    }
+} catch (UpstreamError $e) {
+    if ($action === 'history' && $e->apiCode === 'CONVERSATION_NOT_FOUND') exit(json_encode(['session' => null]));
+    if ($action === 'live') exit('{}');
+    fail($e->apiCode, $e->requestId);
+}`,
     },
 
     whatsapp: {
@@ -310,8 +353,8 @@ function valid_proxy_signature(string $query, string $secret): bool {
 store_reply($thread, ['from' => $agent, 'text' => $text]);`,
     },
 
-    woocommerce: wordpress('woo', 'Truplexy Chat for WooCommerce'),
-    wordpress: wordpress('wp', 'Truplexy Chat'),
+    woocommerce: wordpress,
+    wordpress,
 
     hubspot: {
       file: 'hubspot.php',

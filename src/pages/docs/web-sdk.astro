@@ -1,0 +1,552 @@
+---
+import Base from '../../layouts/Base.astro';
+import Nav from '../../components/chrome/Nav.astro';
+import Footer from '../../components/chrome/Footer.astro';
+import Button from '../../components/ui/Button.astro';
+import CodeBlock from '../../components/docs/CodeBlock.astro';
+import CodeTabs, { type Tab } from '../../components/docs/CodeTabs.astro';
+import { SITE } from '../../data/site';
+// One source for the install recipes: the dashboard's Website chat guide shows the same ones.
+import { SERVER_RECIPES, WIDGET_RECIPES } from '../../../dashboard/src/features/integrations/snippets/web-sdk';
+
+const serverTabs: Tab[] = [
+  ...SERVER_RECIPES,
+  {
+    id: 'wordpress',
+    label: 'WordPress',
+    files: [],
+    html: `<ol>
+<li>In the dashboard, open <strong>Integrations → Guides → WordPress</strong> and copy the plugin file.</li>
+<li>Save it as <code>wp-content/plugins/truplexy-chat/truplexy-chat.php</code> and activate it under Plugins.</li>
+<li>Add <code>define('TRUPLEXY_CHAT_KEY', 'tpx_…');</code> to <code>wp-config.php</code>.</li>
+<li>Style the chat under <strong>Settings → Truplexy Chat</strong>.</li>
+</ol>
+<p>The plugin is the route <em>and</em> the widget: it adds <code>/wp-json/truplexy/v1/chat</code> and the chat button to every page, so you can skip step 3. It works for WooCommerce stores too.</p>`,
+  },
+  {
+    id: 'other',
+    label: 'Python, PHP, Go…',
+    files: [],
+    html: `<p>The route is one POST endpoint, so any server language can host it. The dashboard's Website chat guide has complete, tested versions for <strong>Python (FastAPI)</strong>, <strong>PHP</strong> and <strong>Go</strong>: pick <em>Another language</em> under step 2. To write your own, follow <a href="#protocol">the protocol</a>.</p>`,
+  },
+];
+
+const attributes = [
+  ['endpoint', 'Your route from step 2.', '/api/truplexy'],
+  ['heading', 'The title in the header.', 'Support'],
+  ['subtitle', 'The line under the title.', 'Ask us anything…'],
+  ['greeting', 'The first message visitors see. Markdown works. An empty value hides it.', 'Hi there! How can we help you today?'],
+  ['placeholder', 'The message box hint.', 'Write a message…'],
+  ['accent', 'Any CSS colour, for the button, header and visitor bubbles.', '#2338e6'],
+  ['avatar', 'An image URL for the header.', 'A bot icon'],
+  ['theme', '`light`, `dark`, or `auto` to follow the visitor’s device.', 'light'],
+  ['position', '`right` or `left`.', 'right'],
+  ['mode', '`floating` (a button and panel) or `inline` (a chat box where you put the element).', 'floating'],
+  ['open', 'Present: the chat starts open.', 'Closed'],
+  ['show-sources', 'Present: answers link the help articles they came from.', 'Off'],
+  ['demo', 'Present: canned replies with no server, for previews.', 'Off'],
+  ['storage-key', 'Where the visitor’s conversation is saved, to keep two widgets apart.', 'truplexy:<endpoint>'],
+];
+
+const cssVars = [
+  ['--truplexy-accent', 'Button, header and visitor bubbles'],
+  ['--truplexy-accent-ink', 'Text on the accent colour'],
+  ['--truplexy-background', 'Panel background'],
+  ['--truplexy-surface', 'Assistant bubbles'],
+  ['--truplexy-ink', 'Text'],
+  ['--truplexy-muted', 'Secondary text'],
+  ['--truplexy-line', 'Borders'],
+  ['--truplexy-radius', 'Panel corner radius'],
+  ['--truplexy-font', 'Font family (system UI by default)'],
+  ['--truplexy-width', 'Panel width (380px)'],
+  ['--truplexy-height', 'Panel height (600px)'],
+  ['--truplexy-offset-x', 'Distance from the side (20px)'],
+  ['--truplexy-offset-y', 'Distance from the bottom (20px)'],
+  ['--truplexy-z-index', 'Stacking order'],
+];
+
+const events = [
+  ['truplexy:open', 'The chat opened.', 'null'],
+  ['truplexy:close', 'The chat closed.', 'null'],
+  ['truplexy:message', 'New replies arrived, from the assistant or your team.', '{ messages }'],
+  ['truplexy:status', 'How the assistant handled the visitor’s message: answered, handoff_offered, escalated…', '{ status }'],
+  ['truplexy:error', 'A message failed to send.', '{ error: { code, message, requestId } }'],
+];
+
+const serverOptions = [
+  ['chatKey', 'The chat key.', 'TRUPLEXY_CHAT_KEY'],
+  ['sessionSecret', 'Signs visitor sessions. Changing it starts everyone afresh.', 'TRUPLEXY_SESSION_SECRET, then the chat key'],
+  ['sessionTtl', 'Seconds a visitor keeps their conversation after their last message.', '30 days'],
+  ['channelId', 'Start conversations on this channel instead of the key’s.', 'The key’s channel'],
+  ['allowedOrigins', 'Sites allowed to call the route from another origin, e.g. ["https://www.example.com"].', 'Same origin only'],
+  ['authorize(request)', 'Runs first. Return false (403) or a Response to refuse: rate limits, sign-in.', 'Allow all'],
+  ['context(request)', 'Background for the assistant, sent once privately when a conversation starts.', 'None'],
+  ['onError(error)', 'Server-side failures, for your logs. Never includes the key.', 'console.error'],
+  ['apiBase', 'The Truplexy API.', 'TRUPLEXY_API_BASE, then production'],
+];
+
+const errors = [
+  ['NOT_CONFIGURED', 'The route has no chat key, or Truplexy refused it (revoked or mistyped). Check TRUPLEXY_CHAT_KEY and redeploy.'],
+  ['CHANNEL_DISABLED', 'The key’s channel is switched off. Turn it on under Integrations → Your channels.'],
+  ['PLAN_LIMIT_REACHED', 'This month’s AI replies or tokens are used up. Upgrade or add tokens under Settings → Plan.'],
+  ['LLM_TIMEOUT', 'The reply took too long. Give your function at least 60 seconds (maxDuration on Vercel).'],
+  ['FORBIDDEN_ORIGIN', 'The widget is on a site not in allowedOrigins.'],
+  ['NETWORK', 'The widget couldn’t reach endpoint: check the URL, and that the route accepts POST.'],
+  ['UPSTREAM_ERROR', 'Truplexy didn’t answer. Retry; the server log has a request_id for support.'],
+];
+
+const contextExample = `import { createHandler } from "@truplexy/server";
+import { getUser, rateLimit } from "./your-app";
+
+export const POST = createHandler({
+  // 20 messages a minute per visitor; refuse the rest.
+  authorize: async (request) => rateLimit(request.headers.get("x-forwarded-for"), 20),
+
+  // Who the visitor is, so the assistant can say "your order" and mean it.
+  context: async (request) => {
+    const user = await getUser(request);
+    return user ? \`Signed in as \${user.name} (\${user.email}), \${user.plan} plan.\` : null;
+  },
+});`;
+
+const jsApi = `// Any framework: open the chat from your own "Contact us" button.
+import { truplexy } from "@truplexy/web"; // also exported by @truplexy/react and @truplexy/vue
+
+truplexy.open();
+truplexy.send("I need help with my order");
+
+// Or the element itself:
+const chat = document.querySelector("truplexy-chat");
+chat.addEventListener("truplexy:status", (e) => {
+  if (e.detail.status === "handoff_offered") analytics.track("asked_for_a_person");
+});
+
+// With the script tag, the same calls live on window.Truplexy:
+Truplexy.open();`;
+
+const labelsExample = `const chat = document.querySelector("truplexy-chat");
+chat.labels = {
+  title: "Soporte",
+  greeting: "¡Hola! ¿En qué podemos ayudarte?",
+  placeholder: "Escribe un mensaje…",
+  handoff: "Hablar con una persona",
+  escalated: "Una persona del equipo se ha unido y responderá aquí.",
+};`;
+
+const cssExample = `truplexy-chat {
+  --truplexy-accent: #0f766e;
+  --truplexy-radius: 12px;
+  --truplexy-font: "Inter", sans-serif;
+}
+
+/* Deeper changes: the widget exposes parts. */
+truplexy-chat::part(launcher) { box-shadow: none; }`;
+
+const headlessReact = `import { useTruplexyChat } from "@truplexy/react";
+
+export function SupportChat() {
+  const chat = useTruplexyChat({ endpoint: "/api/truplexy" });
+  return (
+    <div>
+      {chat.messages.map((m) => (
+        <p key={m.id} className={m.role}>
+          {m.agent && <b>{m.agent}: </b>}
+          {m.content}
+        </p>
+      ))}
+      {chat.sending && <p>Typing…</p>}
+      {chat.offerHandoff && <button onClick={chat.handoff}>Talk to a person</button>}
+      <form onSubmit={(e) => { e.preventDefault(); chat.send(e.currentTarget.text.value); e.currentTarget.reset(); }}>
+        <input name="text" />
+      </form>
+    </div>
+  );
+}`;
+
+const headlessVanilla = `import { TruplexyClient } from "@truplexy/web";
+
+const chat = new TruplexyClient({ endpoint: "/api/truplexy" });
+chat.subscribe((state) => render(state.messages, state.sending));
+await chat.start();          // restores the visitor's conversation
+await chat.send("Hello");    // state updates as the reply arrives
+chat.setOpen(true);          // your UI is visible: clears unread, polls faster`;
+
+const tokenFormat = `payload = "<conversation_id>.<issued_at>"      // Unix seconds
+token   = base64url(payload) + "." + base64url(HMAC_SHA256(secret, payload))
+secret  = TRUPLEXY_SESSION_SECRET, or the chat key`;
+
+const toc = [
+  ['how', 'How it works'],
+  ['key', '1. Issue a chat key'],
+  ['route', '2. Add the route'],
+  ['widget', '3. Add the widget'],
+  ['customise', 'Customise'],
+  ['api', 'JavaScript API'],
+  ['headless', 'Build your own UI'],
+  ['server', 'Server options'],
+  ['security', 'Security'],
+  ['protocol', 'Protocol'],
+  ['troubleshooting', 'Troubleshooting'],
+];
+
+/** `code` spans inside table text. */
+const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/`([^`]+)`/g, '<code>$1</code>');
+---
+
+<Base
+  title="Website chat SDK — Truplexy"
+  description="Add Truplexy's AI support chat to any website in minutes: React, Next.js, Vue, Nuxt, Svelte, Angular, Astro, WordPress or plain HTML. Your chat key stays on your server."
+>
+  <Nav />
+  <main id="main" class="relative overflow-x-clip">
+    <section class="relative pb-14 pt-[calc(var(--nav-h)+clamp(3rem,6vw,5rem))]" aria-labelledby="docs-title">
+      <div class="aurora" aria-hidden="true"></div>
+      <div class="container-t relative">
+        <div class="max-w-[760px]">
+          <p class="eyebrow">Developers</p>
+          <h1 id="docs-title" class="display mt-5 text-balance text-[clamp(2.2rem,1.5rem+2.6vw,3.4rem)]">Add Truplexy chat to any website</h1>
+          <p class="lede mt-5 max-w-[640px] text-pretty">
+            A ready-made chat widget, one small route on your server, and you’re live. It works with React, Next.js, Vue, Nuxt, Svelte, Angular, Astro, WordPress
+            and plain HTML. Your chat key never reaches the browser.
+          </p>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <Button href={`${SITE.dashboardUrl}/`}>Get a chat key</Button>
+            <button type="button" class="btn btn-md btn-ghost" data-demo-open>
+              <span class="btn-roll"><span class="btn-text">Try the demo chat</span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="container-t pb-[var(--section-y)]">
+      <div class="grid gap-12 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav class="hidden lg:block" aria-label="On this page">
+          <ul class="sticky top-[calc(var(--nav-h)+2rem)] grid gap-1 border-l border-line text-[0.875rem]">
+            {toc.map(([id, label]) => (
+              <li><a href={`#${id}`} class="-ml-px block border-l border-transparent py-1 pl-4 text-ink-muted transition-colors hover:border-ink hover:text-ink">{label}</a></li>
+            ))}
+          </ul>
+        </nav>
+
+        <article class="docs min-w-0 max-w-[820px]">
+          <h2 id="how">How it works</h2>
+          <div class="flow" role="img" aria-label="The widget on your site talks to a route on your server, which calls Truplexy with your chat key. Team replies come back to the widget live.">
+            <div class="node">
+              <p class="mono">Your site</p>
+              <p class="node-title">The widget</p>
+              <p>Chat button, messages, handoff. No keys.</p>
+            </div>
+            <span class="arrow" aria-hidden="true"></span>
+            <div class="node node-accent">
+              <p class="mono">Your server</p>
+              <p class="node-title">One route</p>
+              <p>Holds the chat key. Signs each visitor’s session.</p>
+            </div>
+            <span class="arrow" aria-hidden="true"></span>
+            <div class="node">
+              <p class="mono">Truplexy</p>
+              <p class="node-title">The assistant</p>
+              <p>Answers, tickets, handoff to your team.</p>
+            </div>
+          </div>
+          <p>
+            Visitors keep their conversation when they reload or come back, without accounts or a database: your route gives each one a signed session. When your team
+            replies from Tickets, the reply appears in the widget live.
+          </p>
+
+          <h2 id="key">1. Issue a chat key</h2>
+          <ol>
+            <li>In the <a href={SITE.dashboardUrl}>dashboard</a>, open <strong>Integrations → Guides → Website chat</strong>.</li>
+            <li>Add a <strong>Website</strong> channel, so tickets show they came from your site, and issue its chat key.</li>
+            <li>Store it on your server as <code>TRUPLEXY_CHAT_KEY</code>, in <code>.env</code> or your host’s settings. Never put it in front-end code.</li>
+          </ol>
+
+          <h2 id="route">2. Add the route to your server</h2>
+          <p>The widget talks only to this route. It’s one line for most frameworks.</p>
+          <CodeTabs group="server" label="Your server" tabs={serverTabs} />
+
+          <h2 id="widget">3. Add the widget to your site</h2>
+          <p>Point <code>endpoint</code> at your route. Then reload: the chat button appears bottom right.</p>
+          <CodeTabs group="widget" label="Your site" tabs={WIDGET_RECIPES} />
+
+          <h2 id="customise">Customise</h2>
+          <h3>Attributes</h3>
+          <p>Set them on <code>&lt;truplexy-chat&gt;</code>, as <code>data-*</code> on the script tag (<code>data-show-sources</code>), or as props in React and Vue (<code>showSources</code>).</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Attribute</th><th>What it does</th><th>Default</th></tr></thead>
+              <tbody>
+                {attributes.map(([name, what, def]) => (
+                  <tr><td><code>{name}</code></td><td set:html={inline(what)} /><td class="faint">{def}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3>Colours and size</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>CSS variable</th><th>Controls</th></tr></thead>
+              <tbody>
+                {cssVars.map(([name, what]) => <tr><td><code>{name}</code></td><td>{what}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <CodeBlock name="styles.css" code={cssExample} />
+          <h3>Other languages</h3>
+          <p>Every string can be replaced through the <code>labels</code> property, or the <code>labels</code> prop in React and Vue.</p>
+          <CodeBlock name="labels.js" code={labelsExample} />
+
+          <h2 id="api">JavaScript API</h2>
+          <p>The element has <code>open()</code>, <code>close()</code>, <code>toggle()</code>, <code>send(text)</code> and <code>reset()</code>, and fires events that bubble to <code>document</code>.</p>
+          <CodeBlock name="app.js" code={jsApi} />
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Event</th><th>When</th><th><code>detail</code></th></tr></thead>
+              <tbody>
+                {events.map(([name, when, detail]) => <tr><td><code>{name}</code></td><td>{when}</td><td><code>{detail}</code></td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <p>In React, pass <code>onMessage</code>, <code>onStatus</code>, <code>onError</code>, <code>onOpen</code> and <code>onClose</code>. In Vue, listen with <code>@message</code>, <code>@status</code> and so on.</p>
+
+          <h2 id="headless">Build your own UI</h2>
+          <p>Prefer your own design? The same client runs without the widget: sessions, handoff and live team replies included.</p>
+          <CodeBlock name="SupportChat.tsx" code={headlessReact} />
+          <CodeBlock name="chat.js" code={headlessVanilla} />
+          <p class="faint">Vue has the same thing as <code>useTruplexyChat()</code> from <code>@truplexy/vue</code>.</p>
+
+          <h2 id="server">Server options</h2>
+          <p><code>createHandler(options)</code> returns a standard <code>(request: Request) =&gt; Response</code> handler. <code>createNodeHandler(options)</code> from <code>@truplexy/server/node</code> wraps it for Express-style servers.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Option</th><th>What it does</th><th>Default</th></tr></thead>
+              <tbody>
+                {serverOptions.map(([name, what, def]) => <tr><td><code>{name}</code></td><td>{what}</td><td class="faint">{def}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <CodeBlock name="app/api/truplexy/route.ts" code={contextExample} />
+
+          <h2 id="security">Security</h2>
+          <ul>
+            <li><strong>The key stays on your server.</strong> The browser only ever sees your route and its own signed session.</li>
+            <li><strong>Visitors can’t read each other’s chats.</strong> A session names one conversation and is signed; a changed or expired one starts a new conversation.</li>
+            <li><strong>Background stays private.</strong> <code>context</code> messages are never shown to the visitor, and visitors can’t write their own.</li>
+            <li><strong>Rate-limit the route</strong> as you would a contact form. Every message uses AI replies from your plan.</li>
+            <li><strong>Different origin?</strong> If the widget and the route are on different domains, list the site in <code>allowedOrigins</code>.</li>
+          </ul>
+
+          <h2 id="protocol">Protocol</h2>
+          <p>For a route in a language without an SDK: one <code>POST</code> endpoint taking JSON <code>{'{'}action, session, text{'}'}</code>. Your server calls the Truplexy chat API with the chat key.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>action</th><th>Calls</th><th>Returns</th></tr></thead>
+              <tbody>
+                <tr><td><code>message</code></td><td><code>POST /conversations</code> when there’s no valid session, then <code>POST /conversations/:id/messages</code></td><td><code>{'{session, message, reply, status, sources}'}</code></td></tr>
+                <tr><td><code>history</code></td><td><code>GET /conversations/:id</code></td><td><code>{'{session, conversation}'}</code>, or <code>{'{session: null}'}</code></td></tr>
+                <tr><td><code>handoff</code></td><td><code>POST /conversations/:id/handoff</code></td><td><code>{'{session, conversation}'}</code></td></tr>
+                <tr><td><code>live</code></td><td><code>POST /realtime/token</code></td><td><code>{'{url, publishable_key, conversation_topic}'}</code>, or <code>{'{}'}</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <CodeBlock name="session token" lang="txt" code={tokenFormat} />
+          <ul>
+            <li>Trim <code>text</code>; refuse it when empty, over 4000 characters, or starting with <code>[Context only</code>.</li>
+            <li>Never pass on <code>bot_topic</code>: it carries every customer’s messages. <code>conversation_topic</code> is safe for the browser.</li>
+            <li>In <code>history</code> and <code>handoff</code>, drop user messages starting with <code>[Context only</code>, and pass on only <code>id, role, content, author, agent, created_at</code>.</li>
+            <li>Errors are <code>{'{error: {code, message, request_id}}'}</code> with a message you write. Never forward the API’s own message.</li>
+          </ul>
+
+          <h2 id="troubleshooting">Troubleshooting</h2>
+          <p>The widget shows a short message; the error’s <code>code</code> is in the <code>truplexy:error</code> event and in your server’s log.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Code</th><th>Fix</th></tr></thead>
+              <tbody>
+                {errors.map(([code, fix]) => <tr><td><code>{code}</code></td><td>{fix}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <p>Still stuck? Email <a href={`mailto:${SITE.email}`}>{SITE.email}</a> with the <code>request_id</code>.</p>
+        </article>
+      </div>
+    </div>
+  </main>
+  <Footer />
+
+  <truplexy-chat
+    demo
+    heading="Truplexy demo"
+    subtitle="Canned replies. Nothing leaves this page."
+    greeting="Hi! I'm the widget in **demo mode**. Ask where order 12345 is, about returns, or to talk to a person."
+  ></truplexy-chat>
+</Base>
+
+<script>
+  // The real widget, built from the SDK's source, in demo mode.
+  import { truplexy } from '../../../sdk/packages/web/src/index';
+
+  for (const button of document.querySelectorAll('[data-demo-open]')) button.addEventListener('click', () => truplexy.open());
+</script>
+
+<style>
+  .docs {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+  }
+  .docs > :global(* + *) {
+    margin-top: 1rem;
+  }
+  .docs h2 {
+    margin-top: 3.5rem;
+    scroll-margin-top: calc(var(--nav-h) + 1.5rem);
+    font-size: clamp(1.45rem, 1.2rem + 0.8vw, 1.85rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--color-ink);
+  }
+  .docs h2:first-child {
+    margin-top: 0;
+  }
+  .docs h3 {
+    margin-top: 2rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+  .docs strong {
+    color: var(--color-ink);
+  }
+  .docs a {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+  .docs a:hover {
+    text-decoration: underline;
+  }
+  .docs ol,
+  .docs ul {
+    padding-left: 1.3rem;
+  }
+  .docs ol {
+    list-style: decimal;
+  }
+  .docs ul {
+    list-style: disc;
+  }
+  .docs li + li {
+    margin-top: 0.4rem;
+  }
+  .docs :not(pre) > code,
+  .docs td code {
+    font-family: var(--font-mono);
+    font-size: 0.84em;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+    overflow-wrap: anywhere;
+  }
+  .faint {
+    color: var(--color-ink-faint);
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--color-line);
+    border-radius: 14px;
+    background: var(--color-surface);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-ink-faint);
+    background: var(--color-surface-2);
+  }
+  td {
+    padding: 10px 14px;
+    border-top: 1px solid var(--color-line);
+    vertical-align: top;
+  }
+  td:first-child {
+    white-space: nowrap;
+  }
+  .flow {
+    display: grid;
+    gap: 10px;
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .flow {
+      grid-template-columns: 1fr 28px 1fr 28px 1fr;
+      align-items: center;
+    }
+  }
+  .node {
+    height: 100%;
+    padding: 16px 18px;
+    border: 1px solid var(--color-line);
+    border-radius: 16px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  .node .mono {
+    color: var(--color-ink-faint);
+    font-size: 0.68rem;
+  }
+  .node-title {
+    margin: 6px 0 4px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+  .node-accent {
+    border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-line));
+    background: var(--color-accent-soft);
+  }
+  .arrow {
+    justify-self: center;
+    width: 2px;
+    height: 22px;
+    background: linear-gradient(var(--color-blue), var(--color-indigo));
+    position: relative;
+  }
+  .arrow::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -2px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--color-indigo);
+    border-bottom: 2px solid var(--color-indigo);
+    transform: translateX(-50%) rotate(45deg);
+  }
+  @media (min-width: 720px) {
+    .arrow {
+      width: 22px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--color-blue), var(--color-indigo));
+    }
+    .arrow::after {
+      left: auto;
+      right: -1px;
+      bottom: auto;
+      top: 50%;
+      transform: translateY(-50%) rotate(-45deg);
+    }
+  }
+</style>

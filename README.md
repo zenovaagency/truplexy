@@ -31,6 +31,12 @@ services: `dashboard` on `app.` hosts (`app.zenovasolution.xyz`), `site` on ever
 - `src/components/home/*` — one file per homepage section, in page order in `src/pages/index.astro`.
 - `src/islands/*` — the interactive parts: the hero card stack (sample conversation playback) and the unified inbox.
 
+## Website SDK
+
+`sdk/` holds the website chat SDK: the `<truplexy-chat>` widget (`@truplexy/web`), React and Vue wrappers, the server route (`@truplexy/server`) and a WordPress plugin. It is its own npm workspace. Run `cd sdk && npm install && npm test`, and see `sdk/README.md`.
+
+Its install guide is `src/pages/docs/web-sdk.astro` (`/docs/web-sdk`). That page reads the framework recipes from `dashboard/src/features/integrations/snippets/web-sdk.ts`, the same file the dashboard's Website chat guide uses. Its live demo widget is built from `sdk/packages/web/src`.
+
 ## Before launch
 
 Search for `PLACEHOLDER`:

@@ -203,7 +203,7 @@ The API stays a pure JSON API. These jobs fall to the frontend:
   - To export, read `GET /workspace` and each document with `GET /knowledge/documents/{id}`, which includes `content`.
   - To import, `PUT /workspace`, then `POST /knowledge/documents` for each article. Expect `409 DUPLICATE_DOCUMENT` for content already present.
 - **Template preview.** Render a prompt template's body in the browser to preview it (see [Models and prompt templates](#models-and-prompt-templates)).
-- **An integration guide for customers' developers.** The chat API section below is the source; publish it however you like.
+- **An integration guide for customers' developers.** The chat API section below is the source; publish it however you like. For websites, the SDK in `sdk/` already wraps it: a chat widget, plus a server route that holds the chat key (`sdk/PROTOCOL.md`, guide at `/docs/web-sdk`).
 
 ## 2. Roles and permissions
 
