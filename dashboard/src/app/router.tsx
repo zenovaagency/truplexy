@@ -26,6 +26,7 @@ const businessRoutes: RouteObject[] = [
     { path: 'tickets/handoffs', ...lazyRoute(pages.tickets, (m) => m.HandoffsPage) },
     { path: 'tickets/:ticketId?', ...lazyRoute(pages.tickets, (m) => m.default) },
   ]),
+  gated('customers.read', 'customers', [{ path: 'customers', ...lazyRoute(pages.customers, (m) => m.default) }]),
   gated('knowledge.read', 'the knowledge base', [
     {
       path: 'knowledge',

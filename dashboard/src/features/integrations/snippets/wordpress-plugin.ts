@@ -217,7 +217,16 @@ function truplexy_chat_route(WP_REST_Request $request) {
                 }
                 $ticket = null;
                 if (!$conv) {
-                    $conv = truplexy_chat_api('POST', '/conversations')['id'];
+                    // Record who is chatting as a customer, so the conversation and its ticket are linked to them.
+                    $customer_id = null;
+                    try {
+                        if ($customer !== null) {
+                            $customer_id = truplexy_chat_api('PUT', '/customer', ['name' => $name, 'contacts' => [['type' => 'email', 'value' => $email]]])['id'] ?? null;
+                        }
+                    } catch (Truplexy_Chat_Error $e) {
+                        error_log('[truplexy-chat] ' . $e->api_code);
+                    }
+                    $conv = truplexy_chat_api('POST', '/conversations', $customer_id ? ['customer_id' => $customer_id] : null)['id'];
                     // Tell the assistant who is chatting and open a ticket for the team. The chat works without either.
                     try {
                         if ($customer !== null) {

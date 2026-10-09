@@ -26,6 +26,8 @@ export type Permission =
   | 'integrations.write'
   | 'channels.read'
   | 'channels.write'
+  | 'customers.read'
+  | 'customers.write'
   | 'bots.create'
   | 'members.write'
   | 'business.write'
@@ -490,6 +492,8 @@ export interface Ticket {
   channel_id?: string;
   channel_name?: string;
   channel_type?: string;
+  /** The customer it is from (v2), taken from its conversation. */
+  customer_id?: string;
   subject: string;
   status: TicketStatus;
   priority: TicketPriority;
@@ -573,6 +577,8 @@ export interface TicketQuery {
   /** A channel id, or `none`. */
   channel?: string;
   channel_type?: string;
+  /** A customer id: only tickets from them. */
+  customer?: string;
   status?: TicketStatus;
   priority?: TicketPriority;
   q?: string;
@@ -588,6 +594,62 @@ export interface TicketPatch {
   escalated?: boolean;
   /** "" clears it. */
   channel_id?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Customers (v2)                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One way to reach or recognise a customer. `type` is any lowercase word:
+ * email, phone, discord, telegram, or your own user ID type. A type and value
+ * belong to one customer per bot. Emails are lowercased and phones lose their
+ * spaces, dashes and brackets; other values are kept as sent.
+ */
+export interface Contact {
+  type: string;
+  value: string;
+  /** Free text up to 60 characters, such as "work". */
+  label?: string;
+  /** Each type has one primary contact: the first added, unless another is marked. */
+  primary: boolean;
+}
+
+/** A person the bot talks to. */
+export interface Customer {
+  id: string;
+  tenant_id: string;
+  bot_id: string;
+  name: string;
+  /** Up to 20, including several of one type. */
+  contacts: Contact[];
+  /** A JSON object kept about them, up to 4 KB. */
+  metadata: Record<string, unknown>;
+  first_seen_at: string;
+  last_seen_at: string;
+  conversations: number;
+  tickets: number;
+  open_tickets: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields of POST and PATCH /customers. */
+export interface CustomerInput {
+  name?: string;
+  /** On PATCH this replaces the whole list; leave it out to keep the contacts. */
+  contacts?: { type: string; value: string; label?: string; primary?: boolean }[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface CustomerList {
+  data: Customer[];
+  next_cursor?: string;
+}
+
+export interface CustomerDetail extends Customer {
+  recent_conversations: { id: string; created_at: string; updated_at: string }[];
+  recent_tickets: { id: string; subject: string; status: TicketStatus; created_at: string; updated_at: string }[];
 }
 
 export interface Handoff {

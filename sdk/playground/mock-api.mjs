@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
  */
 export function mockApi(base) {
   const conversations = new Map();
+  const customers = new Map();
   const id = (prefix) => prefix + randomBytes(16).toString('hex');
   const now = () => new Date().toISOString();
   const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'X-Request-ID': id('req_') } });
@@ -27,8 +28,24 @@ export function mockApi(base) {
     const body = init.body ? JSON.parse(init.body) : {};
     await new Promise((r) => setTimeout(r, 150));
 
+    // PUT /customer finds or creates the customer by external_id, else email.
+    if (path === '/customer' && init.method === 'PUT') {
+      const sent = (body.contacts ?? []).map((c) => ({ type: String(c.type), value: c.type === 'email' ? String(c.value).toLowerCase() : String(c.value) }));
+      if (!sent.length) return json(400, { error: { code: 'INVALID_REQUEST', message: 'Send at least one contact.' } });
+      const has = (c, k) => c.contacts.some((x) => x.type === k.type && x.value === k.value);
+      const matches = [...customers.values()].filter((c) => sent.some((k) => has(c, k)));
+      if (new Set(matches.map((c) => c.id)).size > 1) return json(409, { error: { code: 'CUSTOMER_CONFLICT', message: 'These contacts belong to different customers.' } });
+      let customer = matches[0];
+      const created = !customer;
+      customer ??= { id: id('cus_'), contacts: [], first_seen_at: now(), conversations: 0, tickets: 0, open_tickets: 0, created_at: now() };
+      for (const k of sent) if (!has(customer, k)) customer.contacts.push({ ...k, primary: !customer.contacts.some((x) => x.type === k.type) });
+      Object.assign(customer, { name: body.name ?? customer.name ?? '', metadata: body.metadata ?? customer.metadata ?? {}, last_seen_at: now(), updated_at: now() });
+      customers.set(customer.id, customer);
+      return json(created ? 201 : 200, customer);
+    }
     if (path === '/conversations' && init.method === 'POST') {
-      const conv = { id: id('conv_'), status: 'open', escalated: false, created_at: now(), updated_at: now(), messages: [] };
+      if (body.customer_id && !customers.has(body.customer_id)) return json(404, { error: { code: 'CUSTOMER_NOT_FOUND', message: 'No such customer.' } });
+      const conv = { id: id('conv_'), status: 'open', escalated: false, customer_id: body.customer_id, created_at: now(), updated_at: now(), messages: [] };
       conversations.set(conv.id, conv);
       return json(201, conv);
     }
@@ -37,7 +54,7 @@ export function mockApi(base) {
     if (ticketMatch && init.method === 'POST') {
       const conv = conversations.get(ticketMatch[1]);
       if (!conv) return notFound();
-      conv.ticket ??= { id: id('tkt_'), subject: body.subject ?? 'Chat', status: 'open', priority: 'normal', escalated: false, created_at: now() };
+      conv.ticket ??= { id: id('tkt_'), subject: body.subject ?? 'Chat', customer_id: conv.customer_id, status: 'open', priority: 'normal', escalated: false, created_at: now() };
       return json(200, conv.ticket);
     }
     if (path === '/profile') {

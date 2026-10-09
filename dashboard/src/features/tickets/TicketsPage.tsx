@@ -29,6 +29,8 @@ import {
 } from '@/components/ui';
 import { PRIORITIES, PRIORITY, PriorityBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 import { ChannelBadge } from '@/components/domain/ChannelBadge';
+import { useCustomer } from '@/lib/api/endpoints/customers';
+import { customerLabel } from '@/lib/customers';
 import { FLAG_LABEL, TicketFlags, useAssignees } from './shared';
 import { TicketDetail } from './TicketDetail';
 
@@ -52,6 +54,7 @@ function useTicketFilters() {
     assignee: params.get('assignee') || undefined,
     flag: (params.get('flag') as TicketFlag) || undefined,
     channel: params.get('channel') || undefined,
+    customer: params.get('customer') || undefined,
     q: params.get('q') || undefined,
   };
   const set = (patch: Partial<Record<keyof TicketQuery, string | undefined>>) =>
@@ -74,11 +77,12 @@ export default function TicketsPage() {
   const { filters, set, params, setParams } = useTicketFilters();
   const [search, setSearch] = useState(filters.q ?? '');
   const q = useDebounce(search, 350);
-  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.priority || filters.assignee || filters.flag || filters.channel));
+  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.priority || filters.assignee || filters.flag || filters.channel || filters.customer));
   const assignees = useAssignees();
   const handoffs = useHandoffs();
   const channels = useChannels();
   const iconOf = useChannelIcon();
+  const customer = useCustomer(filters.customer, can('customers.read'));
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
@@ -86,7 +90,7 @@ export default function TicketsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.priority, filters.assignee, filters.flag, filters.channel, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.priority, filters.assignee, filters.flag, filters.channel, filters.customer, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = useTickets(query);
   const prefetch = usePrefetchTicket();
   const tickets = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
@@ -94,7 +98,7 @@ export default function TicketsPage() {
   const qs = params.toString() ? `?${params.toString()}` : '';
   const open = (id: string) => nav(href(`tickets/${id}`) + qs);
 
-  const extraFilters = [filters.status, filters.priority, filters.assignee, filters.flag, filters.channel].filter(Boolean).length;
+  const extraFilters = [filters.status, filters.priority, filters.assignee, filters.flag, filters.channel, filters.customer].filter(Boolean).length;
   const newOpen = params.get('new') === '1';
 
   // j / k move through the queue; Esc closes the ticket.
@@ -166,9 +170,18 @@ export default function TicketsPage() {
               <Select size="sm" className="col-span-2" aria-label="Channel" value={filters.channel ?? ''} onChange={(e) => set({ channel: e.target.value || undefined })} placeholder="Any channel"
                 options={[{ value: 'none', label: 'No channel' }, ...(channels.data ?? []).map((c) => ({ value: c.id, label: `${c.name} · ${c.type_label}` }))]} />
             )}
+            {filters.customer && (
+              <span className="col-span-2 inline-flex min-w-0 max-w-full items-center gap-1.5 justify-self-start rounded-full border border-line bg-surface-2/60 py-1 pl-2.5 pr-1.5 text-xs">
+                <span className="text-ink-faint">From</span>
+                <span className="truncate font-semibold text-ink">{customer.data ? customerLabel(customer.data) : filters.customer}</span>
+                <button type="button" className="grid size-4 shrink-0 place-items-center rounded-full text-ink-faint hover:text-ink" aria-label="Show tickets from everyone" onClick={() => set({ customer: undefined })}>
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
             {extraFilters > 0 && (
               <button type="button" className="col-span-2 inline-flex items-center gap-1 justify-self-start text-xs font-semibold text-accent hover:underline"
-                onClick={() => set({ status: undefined, priority: undefined, assignee: undefined, flag: undefined, channel: undefined })}>
+                onClick={() => set({ status: undefined, priority: undefined, assignee: undefined, flag: undefined, channel: undefined, customer: undefined })}>
                 <X className="size-3" /> Clear filters
               </button>
             )}

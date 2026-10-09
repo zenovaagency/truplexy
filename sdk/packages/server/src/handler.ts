@@ -28,11 +28,6 @@ export interface HandlerOptions {
    * once, as a `[Context only]` message, when a conversation starts.
    */
   context?: (request: Request) => string | null | undefined | Promise<string | null | undefined>;
-  /**
-   * Open a ticket when a conversation starts, named after the visitor. Default
-   * true. The ticket lets your team see who is chatting and follow up.
-   */
-  tickets?: boolean;
   /** Called with server-side failures. Defaults to `console.error`. Never receives the chat key. */
   onError?: (error: TruplexyError) => void;
   /** A custom fetch, for tests or proxies. */
@@ -137,16 +132,18 @@ export function createHandler(options: HandlerOptions = {}): Handler {
       let ticket: Ticket | undefined;
 
       const start = async () => {
-        const conv = await api<Conversation>('/conversations', options.channelId ? { channel_id: options.channelId } : undefined);
+        // Record who is chatting as a customer of the bot, so the conversation and its ticket are linked to them.
+        // The chat works without it if that fails.
+        const known = customer && (await api<{ id: string }>('/customer', { name: customer.name, contacts: [{ type: 'email', value: customer.email }] }, 'PUT').catch((e) => (report(e), undefined)));
+        const opening = { ...(options.channelId && { channel_id: options.channelId }), ...(known && { customer_id: known.id }) };
+        const conv = await api<Conversation>('/conversations', Object.keys(opening).length ? opening : undefined);
         const lines = [customer && `Customer: ${customer.name} <${customer.email}>`, (await options.context?.(request))?.trim()].filter(Boolean);
         if (lines.length) {
           // Background only: stored as history, never answered. A failure here mustn't stop the chat.
           await api(`/conversations/${conv.id}/messages`, { message: `${CONTEXT_PREFIX}] ${lines.join('. ')}`.slice(0, MAX_TEXT) }).catch(report);
         }
-        if (options.tickets !== false) {
-          // The ticket makes the chat visible to the team. Chat still works if it fails.
-          ticket = await api<Ticket>(`/conversations/${conv.id}/ticket`, { subject: customer ? `Chat with ${customer.name}` : 'Website chat' }).then(publicTicket, (e) => (report(e), undefined));
-        }
+        // Every conversation gets a ticket, which carries the customer. Chat still works if it fails.
+        ticket = await api<Ticket>(`/conversations/${conv.id}/ticket`, { subject: customer ? `Chat with ${customer.name}` : 'Website chat' }).then(publicTicket, (e) => (report(e), undefined));
         return conv.id;
       };
 

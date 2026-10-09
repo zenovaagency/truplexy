@@ -8,6 +8,7 @@ import type {
   Business,
   BusinessTypeId,
   Channel,
+  Customer,
   LedgerEntry,
   Limits,
   Permission,
@@ -29,7 +30,7 @@ import type {
 import { quoteTokens } from '@/lib/billing';
 import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
 import { emit, topicFor } from './bus';
-import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
+import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 
 /* ------------------------------------------------------------------ */
@@ -789,6 +790,124 @@ route('DELETE', '/channels/:id', 'channels.write', (c) => {
   return noContent();
 });
 
+/* Customers ------------------------------------------------------------ */
+
+function customerOut(db: MockDb, cu: MockCustomer): Customer {
+  const tickets = db.tickets.filter((t) => t.customer_id === cu.id && t.tenant_id === cu.tenant_id);
+  return {
+    ...cu,
+    conversations: db.conversations.filter((x) => x.customer_id === cu.id && x.tenant_id === cu.tenant_id).length,
+    tickets: tickets.length,
+    open_tickets: tickets.filter((t) => t.status === 'open').length,
+  };
+}
+
+const botCustomers = (c: Ctx) => c.db.customers.filter((x) => x.tenant_id === c.tenant.id && x.bot_id === c.botId);
+
+function customerOf(c: Ctx, id: unknown) {
+  const cu = botCustomers(c).find((x) => x.id === id);
+  if (!cu) throw notFound('CUSTOMER_NOT_FOUND', 'Customer');
+  return cu;
+}
+
+const CONTACT_LIMIT = 20;
+
+/** Cleans a contacts array the way the API does: types lowercase, emails lowercased, phones stripped, one primary per type. */
+function contactsOf(raw: unknown): MockCustomer['contacts'] {
+  if (!Array.isArray(raw)) throw invalid('contacts must be an array.');
+  if (raw.length > CONTACT_LIMIT) throw invalid(`A customer has at most ${CONTACT_LIMIT} contacts.`);
+  const out: MockCustomer['contacts'] = [];
+  for (const r of raw) {
+    const type = str(r?.type, 'contact type', 2, 32)!.trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_-]*$/.test(type)) throw invalid('A contact type is a lowercase word of 2–32 characters, such as email, phone or discord.');
+    let value = str(r?.value, 'contact value', 1, 254)!.trim();
+    if (type === 'email') {
+      value = value.toLowerCase();
+      if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value)) throw invalid('An email contact must be a bare address such as ann@example.com.');
+    } else if (type === 'phone') {
+      value = value.replace(/[\s\-.()]/g, '');
+      if (!/^\+?\d{5,20}$/.test(value)) throw invalid('A phone contact must be 5–20 digits, with an optional leading +.');
+    }
+    if (!value) throw invalid('A contact needs a value.');
+    if (out.some((x) => x.type === type && x.value === value)) throw invalid(`${type} ${value} is listed twice.`);
+    const label = r?.label === undefined ? undefined : str(r.label, 'contact label', 0, 60)!.trim() || undefined;
+    out.push({ type, value, ...(label && { label }), primary: r?.primary === true });
+  }
+  // One primary per type: the last one marked, else the first of the type.
+  for (const type of new Set(out.map((x) => x.type))) {
+    const same = out.filter((x) => x.type === type);
+    const keep = same.filter((x) => x.primary).at(-1) ?? same[0]!;
+    for (const x of same) x.primary = x === keep;
+  }
+  return out;
+}
+
+/** Validates POST and PATCH /customers fields; `existing` is the customer being changed. */
+function applyCustomer(c: Ctx, cu: Partial<MockCustomer>, b: any, existing?: MockCustomer) {
+  if (b.name !== undefined) cu.name = str(b.name, 'name', 0, 120)!.replace(/\s+/g, ' ').trim();
+  if (b.contacts !== undefined) cu.contacts = contactsOf(b.contacts);
+  if (b.metadata !== undefined) {
+    if (!b.metadata || typeof b.metadata !== 'object' || Array.isArray(b.metadata)) throw invalid('metadata must be a JSON object.');
+    if (JSON.stringify(b.metadata).length > 4096) throw invalid('metadata is at most 4 KB.');
+    cu.metadata = b.metadata;
+  }
+  const next = { ...existing, ...cu };
+  if (!next.name && !next.contacts?.length) throw invalid('A customer needs a name or at least one contact.');
+  for (const k of next.contacts ?? []) {
+    if (botCustomers(c).some((x) => x !== existing && x.contacts.some((y) => y.type === k.type && y.value === k.value))) {
+      throw err(409, 'CUSTOMER_EXISTS', `The bot already has a customer with ${k.type} ${k.value}.`);
+    }
+  }
+}
+
+route('GET', '/customers', 'customers.read', (c) => {
+  const s = (c.query.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  const filtered = botCustomers(c)
+    .filter((x) => !s || [x.name, ...x.contacts.map((k) => k.value)].some((f) => f.toLowerCase().startsWith(s) || f.toLowerCase().split(/\s+/).some((w) => w.startsWith(s))))
+    .sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at));
+  const limit = Math.min(200, Math.max(1, Number(c.query.get('limit') ?? 50)));
+  const start = Number(c.query.get('cursor') ?? 0);
+  return {
+    data: filtered.slice(start, start + limit).map((x) => customerOut(c.db, x)),
+    next_cursor: start + limit < filtered.length ? String(start + limit) : undefined,
+  };
+});
+
+route('POST', '/customers', 'customers.write', (c) => {
+  const now = nowIso();
+  const cu = { id: newId('cus'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', contacts: [], metadata: {}, first_seen_at: now, last_seen_at: now, created_at: now, updated_at: now } as MockCustomer;
+  applyCustomer(c, cu, c.body ?? {});
+  c.db.customers.push(cu);
+  return created(customerOut(c.db, cu));
+});
+
+route('GET', '/customers/:id', 'customers.read', (c) => {
+  const cu = customerOf(c, c.params.id);
+  const latest = <T extends { updated_at: string }>(rows: T[]) => rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10);
+  return {
+    ...customerOut(c.db, cu),
+    recent_conversations: latest(c.db.conversations.filter((x) => x.customer_id === cu.id)).map((x) => ({ id: x.id, created_at: x.created_at, updated_at: x.updated_at })),
+    recent_tickets: latest(botTickets(c).filter((t) => t.customer_id === cu.id)).map((t) => ({ id: t.id, subject: t.subject, status: t.status, created_at: t.created_at, updated_at: t.updated_at })),
+  };
+});
+
+route('PATCH', '/customers/:id', 'customers.write', (c) => {
+  const cu = customerOf(c, c.params.id);
+  const b = c.body ?? {};
+  if (!['name', 'contacts', 'metadata'].some((k) => b[k] !== undefined)) throw invalid('Send at least one field to change.');
+  const patch: Partial<MockCustomer> = {};
+  applyCustomer(c, patch, b, cu);
+  Object.assign(cu, patch, { updated_at: nowIso() });
+  return customerOut(c.db, cu);
+});
+
+route('DELETE', '/customers/:id', 'customers.write', (c) => {
+  const cu = customerOf(c, c.params.id);
+  // Their conversations and tickets keep the customer_id.
+  c.db.customers = c.db.customers.filter((x) => x !== cu);
+  return noContent();
+});
+
 /* Workspace ---------------------------------------------------------- */
 
 function workspaceOf(c: Ctx) {
@@ -1242,6 +1361,7 @@ route('GET', '/tickets', 'tickets.read', (c) => {
     .filter((t) => !q.get('priority') || t.priority === q.get('priority'))
     .filter((t) => !q.get('channel') || (q.get('channel') === 'none' ? !t.channel_id : t.channel_id === q.get('channel')))
     .filter((t) => !q.get('channel_type') || t.channel_type === q.get('channel_type'))
+    .filter((t) => !q.get('customer') || t.customer_id === q.get('customer'))
     .filter((t) => !s || t.subject.toLowerCase().includes(s) || t.id === s || t.conversation_id === s)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const limit = Math.min(100, Math.max(1, Number(q.get('limit') ?? 50)));

@@ -1,5 +1,5 @@
 import type { BillingAddon, BusinessType, LedgerEntry, Plan, TicketMessage, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
-import { DB_VERSION, hex, type MockChannel, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
+import { DB_VERSION, hex, type MockChannel, type MockCustomer, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
 
 /* ------------------------------------------------------------------ */
 /* Deterministic randomness, so every seed tells the same story.        */
@@ -662,6 +662,66 @@ function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversatio
   return channels;
 }
 
+/**
+ * Sample customers for the bots with chat API conversations, linked to
+ * those conversations and their tickets. Own sequence, like the channels.
+ */
+function seedCustomers(conversations: MockConversation[], tickets: MockTicket[]): MockCustomer[] {
+  const r = rng(5519);
+  const people: Record<string, [string, string, string?][]> = {
+    acme: [
+      ['Maya Fernandez', 'maya.fernandez@example.com', '+1 415 555 0142'],
+      ['Tom Becker', 'tom.becker@example.com'],
+      ['Aiko Tanaka', 'aiko@example.jp', '+81 90 5550 1187'],
+      ['Chidi Okafor', 'chidi.okafor@example.com'],
+      ['Sofia Rossi', 'sofia.rossi@example.it'],
+      ['Liam Walsh', 'liam.walsh@example.ie', '+353 85 555 0199'],
+      ['Priyanka Nair', 'priyanka.nair@example.in'],
+      ['Jonas Weber', 'jonas.weber@example.de'],
+      ['Hannah Cole', 'hannah.cole@example.com'],
+      ['Diego Alvarez', 'diego.alvarez@example.mx', '+52 55 5550 1123'],
+    ],
+    northwind: [
+      ['Ravi Patel', 'ravi.patel@example.com'],
+      ['Elena Petrova', 'elena@example.ru'],
+      ['Sam Okoye', 'sam.okoye@example.com'],
+    ],
+  };
+  const customers: MockCustomer[] = [];
+  for (const [tenant, list] of Object.entries(people)) {
+    list.forEach(([name, email, phone], i) => {
+      const seen = Date.now() - Math.floor(r() * 20 * DAY) - 15 * MIN;
+      const first = seen - Math.floor((2 + r() * 60) * DAY);
+      customers.push({
+        id: id('cus', r),
+        tenant_id: tenant,
+        bot_id: 'support',
+        name,
+        contacts: [
+          { type: 'email', value: email, primary: true },
+          ...(phone ? [{ type: 'phone', value: phone.replace(/[\s\-()]/g, ''), primary: true }] : []),
+          ...(i % 3 === 0 ? [{ type: 'user_id', value: `user_${1000 + Math.floor(r() * 9000)}`, primary: true }] : []),
+          ...(i % 4 === 1 ? [{ type: 'discord', value: String(80351110224678912n + BigInt(i) * 1117n), primary: true }] : []),
+        ],
+        metadata: i % 3 === 0 ? { plan: pick(r, ['free', 'pro', 'business']), signed_up_via: 'storefront' } : {},
+        first_seen_at: new Date(first).toISOString(),
+        last_seen_at: new Date(seen).toISOString(),
+        created_at: new Date(first).toISOString(),
+        updated_at: new Date(seen).toISOString(),
+      });
+    });
+  }
+  const by = (tenant: string) => customers.filter((c) => c.tenant_id === tenant);
+  for (const conv of conversations) {
+    if (conv.bot_id !== 'support' || conv.channel !== 'api') continue;
+    const pool = by(conv.tenant_id);
+    // Some visitors never gave their details.
+    if (pool.length && r() < 0.8) conv.customer_id = pick(r, pool).id;
+  }
+  for (const t of tickets) t.customer_id = conversations.find((c) => c.id === t.conversation_id)?.customer_id;
+  return customers;
+}
+
 /* ------------------------------------------------------------------ */
 /* The seed                                                            */
 /* ------------------------------------------------------------------ */
@@ -869,6 +929,7 @@ export function seedDb(): MockDb {
   ];
 
   const channels = seedChannels(apiKeys, conversations, tickets);
+  const customers = seedCustomers(conversations, tickets);
 
   const audit: MockDb['audit'] = [];
   const addAudit = (tenant: string, actor: typeof alex, action: string, target: string, details: Record<string, unknown> | null, when: number) =>
@@ -1036,5 +1097,6 @@ Hand over when: {{escalation_policy}}
     ...deletionHistory(dana!, owen!, ops!),
     channelTypes: channelTypes(),
     channels,
+    customers,
   };
 }

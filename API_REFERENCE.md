@@ -211,8 +211,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 
 | Permission | Viewer | Agent | Editor | Admin | Owner |
 | --- | :-: | :-: | :-: | :-: | :-: |
-| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `playground.run`, `tickets.write` | | ✓ | ✓ | ✓ | ✓ |
+| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read`, `customers.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `playground.run`, `tickets.write`, `customers.write` | | ✓ | ✓ | ✓ | ✓ |
 | `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read` | | | ✓ | ✓ | ✓ |
 | `integrations.write`, `channels.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
 | `owners.manage`, `business.delete` | | | | | ✓ |
@@ -261,6 +261,11 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/channels/{id}` | `channels.read` | A channel (v2) |
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
+| `GET` | `/customers` | `customers.read` | List and search the bot's customers (v2) |
+| `POST` | `/customers` | `customers.write` | Add a customer (v2) |
+| `GET` | `/customers/{id}` | `customers.read` | A customer with their latest conversations and tickets (v2) |
+| `PATCH` | `/customers/{id}` | `customers.write` | Change a customer (v2) |
+| `DELETE` | `/customers/{id}` | `customers.write` | Delete a customer (v2) |
 | `GET` | `/workspace` | `bot.read` | The bot's configuration and versions |
 | `PUT` | `/workspace` | `bot.write` | Save the bot's configuration |
 | `GET` | `/models` | `bot.read` | Models the bot may use (v2) |
@@ -342,7 +347,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/conversations/{id}/ticket` | chat key | Open a ticket without escalating |
 | `POST` | `/conversations/{id}/ticket/close` | chat key | Close the conversation's ticket |
 | `POST` | `/conversations/{id}/replies` | chat key | Record a reply written on the integration's platform |
-| `GET` | `/profile` | chat key | The business and bot name and picture (v2) |
+| `GET` | `/profile` | chat key | The business and bot names and pictures, for a widget header (v2) |
+| `PUT` | `/customer` | chat key | Find or create the customer your platform knows, by any contact: email, phone, platform user ID (v2) |
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
 | `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
@@ -568,6 +574,66 @@ Users, businesses and bots can have a picture. Responses carry its public URL, a
 `PUT` takes a PNG, JPEG or WebP image of 16-4096 pixels per side, up to `AVATAR_MAX_BYTES` (512 KiB unless configured), as `multipart/form-data` with the file in a field named `file`, or as the raw body with an `image/png`, `image/jpeg` or `image/webp` content type. The file type is read from the bytes. **200** `{avatar_url}` or `{logo_url}`, the new public URL. `DELETE` removes the file and answers **200** with the field `null`.
 
 **Errors:** `400 INVALID_REQUEST` (no file), `400 INVALID_IMAGE` (unreadable, or a size out of range), `413 IMAGE_TOO_LARGE`, `415 UNSUPPORTED_IMAGE_TYPE` (including SVG and GIF), `404 BOT_NOT_FOUND`, `404 TENANT_NOT_FOUND`, `404 USER_NOT_FOUND` (call `GET /me` once first), `502 STORAGE_ERROR`, `503 NOT_CONFIGURED` (the server has no public bucket).
+
+### Customers (v2)
+
+Scope headers; these act on the bot. A customer is a person the bot talks to, known by their **contacts**: an email, a phone number, a Discord ID, or their user ID on any other platform. Integrations identify them through the chat API (`PUT /customer`) and start their conversations with `customer_id`; staff add and edit them here. A conversation started for a customer, and the tickets opened for it, carry `customer_id`, so the team sees who a ticket is from. Customers belong to one bot: another bot, or business, never sees them.
+
+**Customer:**
+
+```text
+{
+  id,                                      // cus_…
+  tenant_id, bot_id,
+  name,
+  contacts: [{ type, value, label?, primary }],   // see below; in the order they were added
+  metadata,                                // a JSON object you keep about them, up to 4 KB
+  first_seen_at, last_seen_at,             // last_seen_at moves on PUT /customer and when a conversation is started for them
+  conversations, tickets, open_tickets,    // counts
+  created_at, updated_at
+}
+```
+
+Fields of `POST` and `PATCH`:
+
+| Field | Rules |
+| --- | --- |
+| `name` | Up to 120 characters; whitespace is collapsed. |
+| `contacts` | Up to 20 contacts (below). On `PATCH` the list replaces all of the customer's contacts; `[]` removes them. |
+| `metadata` | A JSON object of up to 4 KB. On `PATCH` it replaces the stored object. |
+
+A customer needs a name or at least one contact. On `PATCH`, fields left out keep their value.
+
+**Contacts.** Each is `{type, value, label?, primary?}`:
+- `type` is any lowercase word of 2–32 letters, digits, hyphens or underscores, starting with a letter. Use `email` and `phone` for those, and a platform's name for its user IDs, such as `discord`, `telegram`, `whatsapp` or `slack`; use `app` or any word you like for your own user ID.
+- `value` is 1–254 characters. An `email` is lowercased and must be an address such as `ann@example.com`. A `phone` loses spaces, dashes, dots and parentheses and must be 5–20 digits, optionally starting with `+`. Other values are stored as sent, case included.
+- `label` is up to 60 characters of free text, such as "work".
+- `primary` marks the customer's main contact of its type. Mark at most one per type; the first of a type is primary when none is marked. A customer may have several contacts of a type, such as two emails.
+- A contact belongs to one customer of the bot: the same `type` and `value` can't be on two of them (`409 CUSTOMER_EXISTS`), but another bot or business may use it. Deleting a customer frees their contacts.
+
+#### `GET /customers`
+
+`customers.read`. Query: `q` (matches the start of the name or of any contact's value, up to 100 characters), `limit` (1–200, default 50), `cursor`. **200** `{data: [Customer], next_cursor?}`, most recently seen first. Pass `next_cursor` as `cursor` for the next page.
+
+#### `POST /customers`
+
+`customers.write`. **201** the customer.
+
+**Errors:**
+- `400 INVALID_REQUEST`
+- `409 CUSTOMER_EXISTS`: another customer of the bot already has one of the contacts.
+
+#### `GET /customers/{id}`
+
+`customers.read`. **200** the customer plus `recent_conversations: [{id, created_at, updated_at}]` and `recent_tickets: [{id, subject, status, created_at, updated_at}]`, the latest 10 of each. Use `GET /tickets?customer={id}` for all of their tickets. **Errors:** `404 CUSTOMER_NOT_FOUND`.
+
+#### `PATCH /customers/{id}`
+
+`customers.write`. Any of the fields above, at least one. **200** the customer. **Errors:** as for `POST /customers`, and `404 CUSTOMER_NOT_FOUND`.
+
+#### `DELETE /customers/{id}`
+
+`customers.write`. Deletes the customer and their contacts. Their conversations and tickets keep their `customer_id`, and the contacts can be used again. **204**. **Errors:** `404 CUSTOMER_NOT_FOUND`.
 
 ### Channels (v2)
 
@@ -911,6 +977,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   id, conversation_id?,
   channel?,                                // the conversation's kind: api (chat API) | playground
   channel_id?, channel_name?, channel_type?, // the bot's channel it came from (v2), e.g. "Acme server", discord
+  customer_id?,                              // the customer it is from (v2), taken from its conversation
   subject,
   status,                                  // open | closed
   priority,                                // low | normal | high | urgent
@@ -957,6 +1024,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | `assignee` | `me`, `none`, or a member's user ID. |
 | `channel` | A channel `id`, or `none` for tickets without one (v2). |
 | `channel_type` | A channel type `id`, such as `discord` (v2). |
+| `customer` | A customer `id` (`cus_…`): only tickets from that customer (v2). |
 | `status`, `priority` | One value each; `status` is `open` or `closed`. |
 | `q` | Up to 200 characters: matches the subject, or a ticket or conversation ID exactly. |
 | `limit` | 1–100, default 50. |
@@ -1610,31 +1678,37 @@ Every business's channels, newest first, up to 500.
 These endpoints are for websites, apps and messaging platforms, called from the integration's **server** with a chat key. Never call them from a browser. A dashboard doesn't call them, but it issues the keys (`POST /api-keys`) and should show integrators this section. A key reaches only conversations started through the chat API for its bot. Anything else returns `404 CONVERSATION_NOT_FOUND`.
 
 **Conversation:**
-- Fields: `{id, status, channel_id?, escalated, created_at, updated_at, messages}`. `channel_id` names the bot's [channel](#channels-v2) the conversation started on.
+- Fields: `{id, status, channel_id?, customer_id?, escalated, created_at, updated_at, messages}`. `channel_id` names the bot's [channel](#channels-v2) the conversation started on; `customer_id` the [customer](#customers-v2) it was started for.
 - `status` is `open`, or `handoff` once it has been flagged for the team.
 - `messages` holds up to the latest 200, oldest first. Each is `{id, role, content, author?, agent?, created_at}`, with `role` `user` or `assistant`. A person's reply has `author: "agent"` and `agent` naming them.
 
-#### `GET /profile`
+#### `GET /profile` (v2)
 
-v2. Reads the business and bot behind the key, so a widget can show the right name and picture without anyone copying them over. It accepts per-bot chat keys and `CHAT_API_KEY`, and reads only that key's own business and bot. It returns no plan, team or balance data.
+How the key's business and bot present themselves, for a widget's header. **200**:
 
-**200**
-```json
+```text
 {
-  "business": { "name": "Acme Shop", "logo_url": "https://…" },
-  "bot": { "id": "support", "name": "Shop assistant", "avatar_url": "https://…" }
+  business: { name, logo_url? },
+  bot:      { id, name, avatar_url? }
 }
 ```
 
-`logo_url` and `avatar_url` are left out when there is no picture; see [Profile images](#profile-images-v2). The widget SDK reads this through its server route's `profile` action.
+`bot.name` is the name saved in the bot's configuration, which customers see. `logo_url` and `avatar_url` are left out when there is no picture ([profile images](#profile-images-v2)). Nothing about the plan, team or account is returned. Unlike other chat endpoints it may be cached: `Cache-Control: private, max-age=60`.
+
+#### `PUT /customer` (v2)
+
+Finds or creates the [customer](#customers-v2) your platform knows, so their conversations and tickets are linked to them. Send `{contacts, name?, metadata?}` with at least one contact, for example `{"contacts": [{"type": "discord", "value": "80351110224678912"}, {"type": "email", "value": "ann@example.com"}]}` (rules as for `POST /customers`). The bot's customer who has any of the contacts is found, gets the contacts they lack added, has the `name` and `metadata` you send updated, and is marked seen; if there is none, one is created. Contacts they already have keep their primary flags. **201** a new customer, **200** an existing one, as the customer object. Pass its `id` as `customer_id` to `POST /conversations`.
+
+**Errors:** `400 INVALID_REQUEST`; `409 CUSTOMER_CONFLICT`: the contacts belong to different customers, so nothing is changed (edit or delete one of the customers in the dashboard); `409 CUSTOMER_EXISTS`: a contact was taken by another customer while the request ran, so retry.
 
 #### `POST /conversations`
 
-No body, or `{channel_id}` (v2). **201** an empty conversation, on the channel the body names or else the one the key is bound to. Its tickets carry the channel.
+No body, or `{channel_id, customer_id}` (v2). **201** an empty conversation, on the channel the body names or else the one the key is bound to, and for the customer the body names. Its tickets carry the channel and the customer.
 
 **Errors:**
 - `404 CHANNEL_NOT_FOUND`: the body names a channel the bot doesn't have.
 - `403 CHANNEL_DISABLED`: that channel is turned off.
+- `404 CUSTOMER_NOT_FOUND`: the body names a customer the bot doesn't have (get one from `PUT /customer`).
 
 A key bound to a channel that is turned off or deleted gets `403 CHANNEL_DISABLED` from every chat API endpoint.
 
@@ -1721,7 +1795,8 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Onboarding | `GET /business-types`, `POST /tenants` |
 | Accepting an invitation | `POST /invites/preview`, then `POST /invites/accept` |
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
-| Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
+| Customers | `GET /customers` (search with `q`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, and `GET /tickets?customer=` for all of their tickets |
+| Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace`, `GET /models`, `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |

@@ -178,8 +178,15 @@ def parse_customer(raw) -> tuple[str, str] | None:
 
 
 async def start_conversation(customer) -> tuple[str, dict | None]:
-    """Starts the conversation, tells the assistant who is chatting and opens a ticket for the team. The chat works without either."""
-    conv = (await api("POST", "/conversations"))["id"]
+    """Starts the conversation for the customer, tells the assistant who is chatting and opens a ticket for the team. The chat works without any of that."""
+    # Record who is chatting as a customer, so the conversation and its ticket are linked to them.
+    customer_id = None
+    try:
+        if customer:
+            customer_id = (await api("PUT", "/customer", {"name": customer[0], "contacts": [{"type": "email", "value": customer[1]}]}))["id"]
+    except Upstream:
+        pass
+    conv = (await api("POST", "/conversations", {"customer_id": customer_id} if customer_id else None))["id"]
     ticket = None
     try:
         if customer:

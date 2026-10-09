@@ -30,6 +30,7 @@ import type { Permission } from '@/lib/api/types';
 export const pages = {
   overview: () => import('@/features/overview/OverviewPage'),
   tickets: () => import('@/features/tickets/TicketsPage'),
+  customers: () => import('@/features/customers/CustomersPage'),
   knowledge: () => import('@/features/knowledge/KnowledgePage'),
   draft: () => import('@/features/llm/draft'),
   llm: () => import('@/features/llm/LlmPage'),
@@ -67,6 +68,7 @@ export const BUSINESS_NAV: NavSection[] = [
     items: [
       { id: 'overview', label: 'Overview', path: 'overview', icon: LayoutDashboard, permission: 'usage.read', key: 'o', prefetch: pages.overview, keywords: ['dashboard', 'stats', 'usage', 'metrics'] },
       { id: 'tickets', label: 'Tickets', path: 'tickets', icon: Inbox, permission: 'tickets.read', key: 't', prefetch: pages.tickets, keywords: ['inbox', 'support', 'conversations', 'handoffs'] },
+      { id: 'customers', label: 'Customers', path: 'customers', icon: UserRound, permission: 'customers.read', key: 'c', prefetch: pages.customers, keywords: ['people', 'contacts', 'visitors', 'email', 'users'] },
       { id: 'knowledge', label: 'Knowledge base', path: 'knowledge', icon: BookOpen, permission: 'knowledge.read', key: 'k', prefetch: pages.knowledge, keywords: ['documents', 'articles', 'upload', 'rag'] },
     ],
   },
