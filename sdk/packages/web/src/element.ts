@@ -1,5 +1,6 @@
 import { TruplexyClient } from './client';
 import { demoTransport } from './demo';
+import { WORDMARK_ON_DARK, WORDMARK_ON_LIGHT } from './brand';
 import { DEFAULT_LABELS, type Labels } from './labels';
 import { renderMarkdown } from './markdown';
 import { STYLES } from './styles';
@@ -317,11 +318,18 @@ export class TruplexyChatElement extends Base {
     $.restart.setAttribute('aria-label', this.label('newConversation'));
     $.restart.title = this.label('newConversation');
     $.handoff.textContent = this.label('handoff');
-    // The name stands out in any language: "Powered by **Truplexy**".
+    // The wordmark takes the place of the name in any language: "Powered by [Truplexy]".
     const [before, ...after] = this.label('poweredBy').split('Truplexy');
-    const name = document.createElement('strong');
-    name.textContent = 'Truplexy';
-    $.brand.replaceChildren(before, ...(after.length ? [name, after.join('Truplexy')] : []));
+    const logo = (variant: 'light' | 'dark', { src, width, height }: typeof WORDMARK_ON_LIGHT) => {
+      const img = document.createElement('img');
+      img.className = `wordmark-on-${variant}`;
+      img.src = src;
+      img.width = width / 2;
+      img.height = height / 2;
+      img.alt = 'Truplexy';
+      return img;
+    };
+    $.brand.replaceChildren(before, ...(after.length ? [logo('light', WORDMARK_ON_LIGHT), logo('dark', WORDMARK_ON_DARK), after.join('Truplexy')] : []));
     $.launcher.setAttribute('aria-label', this.label(this.isOpen ? 'close' : 'open'));
     const accent = this.getAttribute('accent');
     if (accent) this.style.setProperty('--truplexy-accent', accent);

@@ -34,13 +34,17 @@ describe('<truplexy-chat>', () => {
   it('links to Truplexy under the message box, in any language', () => {
     const el = mount({ demo: true });
     const brand = el.shadowRoot!.querySelector<HTMLAnchorElement>('.brand')!;
-    expect(brand.textContent).toBe('Powered by Truplexy');
-    expect(brand.querySelector('strong')!.textContent).toBe('Truplexy');
+    expect(brand.textContent!.trim()).toBe('Powered by');
+    expect(brand.getAttribute('aria-label')).toBeNull();
+    const logos = brand.querySelectorAll('img');
+    expect([...logos].map((i) => i.className)).toEqual(['wordmark-on-light', 'wordmark-on-dark']);
+    expect([...logos].every((i) => i.alt === 'Truplexy' && i.src.startsWith('data:image/png;base64,'))).toBe(true);
     expect(brand.href).toMatch(/^https:\/\/zenovasolution\.xyz\/\?utm_source=chat-widget/);
     expect(brand.target).toBe('_blank');
     expect(brand.rel).toContain('noopener');
     el.labels = { poweredBy: 'Desarrollado por Truplexy' };
-    expect(brand.textContent).toBe('Desarrollado por Truplexy');
+    expect(brand.textContent!.trim()).toBe('Desarrollado por');
+    expect(brand.querySelectorAll('img')).toHaveLength(2);
     el.remove();
   });
 

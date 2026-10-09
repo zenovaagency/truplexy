@@ -1,6 +1,6 @@
 # @truplexy/web
 
-The Truplexy chat widget as one custom element, `<truplexy-chat>`, for any website or framework. It has no dependencies, renders in a Shadow DOM and weighs about 12 KB gzipped. The package also includes `TruplexyClient`, the same chat without any UI.
+The Truplexy chat widget as one custom element, `<truplexy-chat>`, for any website or framework. It has no dependencies, renders in a Shadow DOM and weighs about 19 KB gzipped. The package also includes `TruplexyClient`, the same chat without any UI.
 
 The widget talks to a route on **your** server, which holds the chat key. Add that route first with [`@truplexy/server`](https://www.npmjs.com/package/@truplexy/server) (or see the [protocol](https://zenovasolution.xyz/docs/web-sdk#protocol)).
 
