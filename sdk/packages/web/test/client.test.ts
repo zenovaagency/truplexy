@@ -21,6 +21,61 @@ function fake(handlers: Partial<Record<Action, (body: any) => any>>) {
 }
 
 describe('TruplexyClient', () => {
+  it('asks for name and email before the first message, sends them, and remembers them with the ticket', async () => {
+    const ticket = { id: 'tkt_1', subject: 'Chat with Ada', status: 'open' };
+    let saved: any = { session: null, messages: [], seen: 0 };
+    const store = { load: () => saved, save: (s: any) => (saved = s), clear: () => (saved = { session: null, messages: [], seen: 0 }) };
+    const { transport, calls } = fake({
+      message: (b) => ({ session: 'S1', message: { id: 'msg_u' }, reply: `re: ${b.text}`, status: 'answered', sources: [], ...(!b.session && { ticket }) }),
+      live: () => ({}),
+    });
+    const client = new TruplexyClient({ transport, store });
+    await client.start();
+
+    await client.send('hello');
+    expect(client.getState().needsDetails).toBe(true);
+    expect(client.getState().messages).toEqual([]);
+    expect(calls.some((c) => c.action === 'message')).toBe(false);
+
+    expect(client.setCustomer('  ', 'ada@example.com')).toBe(false);
+    expect(client.setCustomer('Ada', 'not-an-email')).toBe(false);
+    expect(client.setCustomer(' Ada Lovelace ', ' ada@example.com ')).toBe(true);
+    expect(client.getState().needsDetails).toBe(false);
+
+    await client.send('hello');
+    expect(calls.find((c) => c.action === 'message')!.body).toEqual({ text: 'hello', session: null, customer: { name: 'Ada Lovelace', email: 'ada@example.com' } });
+    expect(client.getState().ticket).toEqual(ticket);
+    expect(saved).toMatchObject({ session: 'S1', customer: { name: 'Ada Lovelace', email: 'ada@example.com' }, ticket });
+
+    // A second visit: the browser already knows who this is, and which ticket.
+    const again = new TruplexyClient({ transport, store });
+    await again.start();
+    expect(again.getState().customer).toEqual({ name: 'Ada Lovelace', email: 'ada@example.com' });
+    expect(again.getState().ticket).toEqual(ticket);
+    await again.send('more');
+    expect(again.getState().needsDetails).toBe(false);
+
+    // A new conversation keeps the visitor but not the old ticket.
+    again.reset();
+    expect(again.getState().customer?.name).toBe('Ada Lovelace');
+    expect(again.getState().ticket).toBeNull();
+    await again.send('fresh start');
+    expect(again.getState().needsDetails).toBe(false);
+    client.destroy();
+    again.destroy();
+  });
+
+  it('lets the visitor change their mind about giving details', async () => {
+    const { transport } = fake({ live: () => ({}) });
+    const client = new TruplexyClient({ transport, store: false });
+    await client.start();
+    await client.send('hi');
+    expect(client.getState().needsDetails).toBe(true);
+    client.cancelDetails();
+    expect(client.getState().needsDetails).toBe(false);
+    client.destroy();
+  });
+
   it('loads the business and bot profile, and works without one', async () => {
     const profile = { business: { name: 'Acme Shop', logo_url: 'https://cdn.test/l.png' }, bot: { id: 'support', name: 'Shop assistant' } };
     const withProfile = new TruplexyClient({ transport: fake({ profile: () => profile }).transport, store: false });
@@ -43,7 +98,7 @@ describe('TruplexyClient', () => {
       message: (b) => ({ session: 'S1', message: { id: 'msg_u' }, reply: `re: ${b.text}`, status: 'answered', sources: [] }),
       live: () => ({}),
     });
-    const client = new TruplexyClient({ transport, store: false });
+    const client = new TruplexyClient({ transport, store: false, details: 'off' });
     await client.start();
     await client.send(' hi ');
     await client.send('again');
@@ -72,7 +127,7 @@ describe('TruplexyClient', () => {
       }),
       live: () => ({}),
     });
-    const client = new TruplexyClient({ transport, store: false });
+    const client = new TruplexyClient({ transport, store: false, details: 'off' });
     await client.start();
     await client.send('person');
     expect(client.getState().offerHandoff).toBe(true);
@@ -95,7 +150,7 @@ describe('TruplexyClient', () => {
       },
       live: () => ({}),
     });
-    const client = new TruplexyClient({ transport, store: false });
+    const client = new TruplexyClient({ transport, store: false, details: 'off' });
     const errors: unknown[] = [];
     client.on('error', (e) => errors.push(e));
     await client.start();
@@ -131,7 +186,7 @@ describe('TruplexyClient', () => {
       }),
       live: () => ({}),
     });
-    const client = new TruplexyClient({ transport, store });
+    const client = new TruplexyClient({ transport, store, details: 'off' });
     await client.start();
     const s = client.getState();
     expect(s.messages.map((m) => m.id)).toEqual(['m1', 'm2', 'm3']);
@@ -155,7 +210,7 @@ describe('TruplexyClient', () => {
       message: () => ({ session: 'new', reply: 'hey', status: 'answered' }),
       live: () => ({}),
     });
-    const client = new TruplexyClient({ transport, store });
+    const client = new TruplexyClient({ transport, store, details: 'off' });
     await client.start();
     expect(client.getState().messages).toEqual([]);
     await client.send('hello');
@@ -182,7 +237,7 @@ describe('TruplexyClient', () => {
         return () => {};
       },
     };
-    const client = new TruplexyClient({ transport, store: false });
+    const client = new TruplexyClient({ transport, store: false, details: 'off' });
     const arrived: string[] = [];
     client.on('message', (ms) => arrived.push(...ms.map((m) => m.content)));
     await client.start();

@@ -1,7 +1,7 @@
 import { listenRealtime } from './realtime';
-import { localStore, type SessionStore } from './store';
+import { localStore, type Saved, type SessionStore } from './store';
 import { DEFAULT_ENDPOINT, fetchTransport, TruplexyRequestError, type FetchTransportOptions } from './transport';
-import type { ChatError, ChatMessage, ChatProfile, ChatState, ReplyStatus, Transport, WireConversation, WireLive, WireReply } from './types';
+import type { ChatError, ChatMessage, ChatProfile, ChatState, Customer, ReplyStatus, Transport, WireConversation, WireLive, WireReply } from './types';
 
 export interface ClientOptions extends FetchTransportOptions {
   /** Replaces the default fetch transport, e.g. to call your server another way. */
@@ -12,6 +12,17 @@ export interface ClientOptions extends FetchTransportOptions {
   storageKey?: string;
   /** Listen for team replies (realtime, else polling). Default true. */
   live?: boolean;
+  /** `ask` (default) wants the visitor's name and email before the first message; `off` skips it. */
+  details?: 'ask' | 'off';
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** The cleaned-up details, or null when the name or email isn't usable (name up to 80 characters). */
+export function checkCustomer(name: string, email: string): Customer | null {
+  const n = name.trim();
+  const e = email.trim();
+  return n && n.length <= 80 && e.length <= 254 && EMAIL.test(e) ? { name: n, email: e } : null;
 }
 
 export interface ClientEvents {
@@ -26,6 +37,9 @@ const CONTEXT_PREFIX = '[Context only';
 
 const initialState = (): ChatState => ({
   profile: null,
+  customer: null,
+  ticket: null,
+  needsDetails: false,
   messages: [],
   sending: false,
   offerHandoff: false,
@@ -61,6 +75,7 @@ export class TruplexyClient {
   private readonly transport: Transport;
   private readonly store: SessionStore;
   private readonly live: boolean;
+  private readonly askDetails: boolean;
   private session: string | null = null;
   private seen = 0;
   private open = false;
@@ -79,6 +94,7 @@ export class TruplexyClient {
     const key = options.storageKey ?? `truplexy:${options.endpoint || DEFAULT_ENDPOINT}`;
     this.store = options.store === false ? localStoreInMemory() : (options.store ?? localStore(key));
     this.live = options.live !== false;
+    this.askDetails = options.details !== 'off';
   }
 
   getState(): ChatState {
@@ -103,7 +119,7 @@ export class TruplexyClient {
       const saved = this.store.load();
       this.session = saved.session;
       this.seen = saved.seen;
-      this.update({ messages: saved.messages.filter((m) => !m.pending) });
+      this.update({ messages: saved.messages.filter((m) => !m.pending), customer: saved.customer ?? null, ticket: saved.ticket ?? null });
       if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
       void this.loadProfile();
       if (this.session) {
@@ -129,9 +145,27 @@ export class TruplexyClient {
   async send(text: string): Promise<void> {
     const content = text.trim().slice(0, 4000);
     if (!content || this.state.sending) return;
+    // A new conversation needs to know who is writing. Hold the message until the visitor says.
+    if (this.askDetails && !this.state.customer && !this.session) {
+      this.update({ needsDetails: true });
+      return;
+    }
     const local: ChatMessage = { id: `local_${++this.seq}`, role: 'user', content, createdAt: new Date().toISOString(), pending: true };
     this.update({ messages: [...this.state.messages, local], offerHandoff: false, error: null });
     await this.deliver(local);
+  }
+
+  /** Saves the visitor's name and email in the browser. Returns false when they aren't usable. */
+  setCustomer(name: string, email: string): boolean {
+    const customer = checkCustomer(name, email);
+    if (!customer) return false;
+    this.update({ customer, needsDetails: false });
+    return true;
+  }
+
+  /** Withdraws the request for details (the visitor changed their mind). */
+  cancelDetails(): void {
+    if (this.state.needsDetails) this.update({ needsDetails: false });
   }
 
   /** Sends a failed message again. */
@@ -174,7 +208,7 @@ export class TruplexyClient {
           this.session = null;
           this.seen = 0;
           this.disconnectLive();
-          this.update({ messages: this.state.messages.filter((m) => m.pending || m.error), escalated: false, handoff: false, offerHandoff: false });
+          this.update({ ticket: null, messages: this.state.messages.filter((m) => m.pending || m.error), escalated: false, handoff: false, offerHandoff: false });
         } else {
           this.session = r.session;
           this.apply(r.conversation);
@@ -205,7 +239,8 @@ export class TruplexyClient {
     this.store.clear();
     this.session = null;
     this.seen = 0;
-    this.state = { ...initialState(), profile: this.state.profile, ready: true };
+    // The visitor stays known: a new conversation doesn't ask again.
+    this.state = { ...initialState(), profile: this.state.profile, customer: this.state.customer, ready: true };
     this.update({});
   }
 
@@ -225,7 +260,11 @@ export class TruplexyClient {
     this.update({ sending: true });
     const hadSession = Boolean(this.session);
     try {
-      const r = await this.transport.request<WireReply>('message', { text: local.content, session: this.session });
+      const r = await this.transport.request<WireReply>('message', {
+        text: local.content,
+        session: this.session,
+        ...(this.state.customer && { customer: this.state.customer }),
+      });
       this.session = r.session;
       const messages = this.state.messages.map((m) =>
         m.id === local.id ? { ...m, id: r.message?.id ?? m.id, createdAt: r.message?.created_at ?? m.createdAt, pending: undefined } : m,
@@ -240,6 +279,7 @@ export class TruplexyClient {
         offerHandoff: r.status === 'handoff_offered',
         handoff: this.state.handoff || r.status === 'handoff',
         escalated: this.state.escalated || r.status === 'escalated',
+        ...(r.ticket && { ticket: r.ticket }),
       });
       this.emit('status', r.status);
       if (!hadSession) this.connectLive();
@@ -284,7 +324,7 @@ export class TruplexyClient {
     if (this.open) this.seen = count;
     next.unread = Math.max(0, count - this.seen);
     this.state = next;
-    this.store.save({ session: this.session, messages: next.messages, seen: this.seen });
+    this.store.save({ session: this.session, messages: next.messages, seen: this.seen, customer: next.customer, ticket: next.ticket });
     for (const listener of this.listeners) listener(next);
     if (count > before && this.state.ready) {
       this.emit('message', next.messages.filter((m) => m.role === 'assistant').slice(before - count));
@@ -376,10 +416,10 @@ export class TruplexyClient {
 }
 
 function localStoreInMemory(): SessionStore {
-  let saved = { session: null as string | null, messages: [] as ChatMessage[], seen: 0 };
+  let saved: Saved = { session: null, messages: [], seen: 0, customer: null, ticket: null };
   return {
     load: () => saved,
     save: (s) => (saved = s),
-    clear: () => (saved = { session: null, messages: [], seen: 0 }),
+    clear: () => (saved = { session: null, messages: [], seen: 0, customer: null, ticket: null }),
   };
 }

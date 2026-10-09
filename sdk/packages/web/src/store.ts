@@ -1,10 +1,14 @@
-import type { ChatMessage } from './types';
+import type { ChatMessage, Customer, TicketRef } from './types';
 
 export interface Saved {
   session: string | null;
   messages: ChatMessage[];
   /** How many assistant messages the visitor has seen. */
   seen: number;
+  /** Kept across conversations, so the visitor is asked only once. */
+  customer?: Customer | null;
+  /** The ticket of the current conversation. */
+  ticket?: TicketRef | null;
 }
 
 export interface SessionStore {
@@ -13,7 +17,16 @@ export interface SessionStore {
   clear(): void;
 }
 
-const EMPTY: Saved = { session: null, messages: [], seen: 0 };
+const EMPTY: Saved = { session: null, messages: [], seen: 0, customer: null, ticket: null };
+
+const customerOf = (v: unknown): Customer | null => {
+  const c = v as Partial<Customer> | null;
+  return c && typeof c.name === 'string' && typeof c.email === 'string' && c.name && c.email ? { name: c.name, email: c.email } : null;
+};
+const ticketOf = (v: unknown): TicketRef | null => {
+  const t = v as Partial<TicketRef> | null;
+  return t && typeof t.id === 'string' && t.id ? { id: t.id, ...(typeof t.subject === 'string' && { subject: t.subject }), ...(typeof t.status === 'string' && { status: t.status }) } : null;
+};
 const KEEP = 100;
 
 /** localStorage when it works (it can throw in private windows or with storage blocked), memory otherwise. */
@@ -36,6 +49,8 @@ export function localStore(key: string): SessionStore {
             session: typeof saved.session === 'string' ? saved.session : null,
             messages: Array.isArray(saved.messages) ? saved.messages.filter((m) => m && typeof m.content === 'string') : [],
             seen: typeof saved.seen === 'number' ? saved.seen : 0,
+            customer: customerOf(saved.customer),
+            ticket: ticketOf(saved.ticket),
           };
         }
       } catch {

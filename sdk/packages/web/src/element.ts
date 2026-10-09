@@ -35,6 +35,7 @@ export const ATTRIBUTES = [
   'show-sources',
   'demo',
   'storage-key',
+  'details',
 ] as const;
 
 // Server rendering has no HTMLElement; the class is only defined in browsers.
@@ -74,6 +75,14 @@ export class TruplexyChatElement extends Base {
     notice: HTMLElement;
     actions: HTMLElement;
     handoff: HTMLButtonElement;
+    details: HTMLFormElement;
+    detailsTitle: HTMLElement;
+    detailsHint: HTMLElement;
+    detailsName: HTMLInputElement;
+    detailsEmail: HTMLInputElement;
+    detailsError: HTMLElement;
+    detailsStart: HTMLButtonElement;
+    detailsCancel: HTMLButtonElement;
     form: HTMLFormElement;
     input: HTMLTextAreaElement;
     send: HTMLButtonElement;
@@ -130,7 +139,7 @@ export class TruplexyChatElement extends Base {
 
   attributeChangedCallback(name: string, old: string | null, value: string | null) {
     if (!this.built || old === value) return;
-    if (name === 'endpoint' || name === 'demo' || name === 'storage-key') {
+    if (name === 'endpoint' || name === 'demo' || name === 'storage-key' || name === 'details') {
       if (this.isConnected) {
         this.teardown();
         this.connect();
@@ -170,8 +179,12 @@ export class TruplexyChatElement extends Base {
     if (this._client) return this._client;
     const demo = this.hasAttribute('demo');
     const endpoint = this.getAttribute('endpoint') || undefined;
+    // details="off" skips the name and email form.
+    const details = this.getAttribute('details') === 'off' ? ('off' as const) : ('ask' as const);
     const client = new TruplexyClient(
-      demo ? { transport: demoTransport(), store: false } : { endpoint, storageKey: this.getAttribute('storage-key') || undefined },
+      demo
+        ? { transport: demoTransport(), store: false, details }
+        : { endpoint, storageKey: this.getAttribute('storage-key') || undefined, details },
     );
     this._client = client;
     this.nodes.clear();
@@ -223,6 +236,14 @@ export class TruplexyChatElement extends Base {
   <div class="msg assistant typing" hidden><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div></div>
   <p class="notice" role="status" hidden></p>
   <div class="actions" hidden><button class="handoff" part="handoff" type="button"></button></div>
+  <form class="details" part="details" hidden novalidate>
+    <p class="details-title"></p>
+    <p class="details-hint"></p>
+    <input class="details-name" name="name" type="text" autocomplete="name" maxlength="80" required>
+    <input class="details-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+    <p class="details-error" role="alert" hidden></p>
+    <div class="details-buttons"><button class="details-cancel" type="button"></button><button class="details-start" type="submit"></button></div>
+  </form>
   <form class="composer" part="composer">
     <textarea rows="1" maxlength="4000" enterkeyhint="send"></textarea>
     <button class="send" type="submit" disabled>${ICONS.send}</button>
@@ -246,7 +267,15 @@ export class TruplexyChatElement extends Base {
       notice: q('.notice'),
       actions: q('.actions'),
       handoff: q('.handoff'),
-      form: q('form'),
+      details: q('.details'),
+      detailsTitle: q('.details-title'),
+      detailsHint: q('.details-hint'),
+      detailsName: q('.details-name'),
+      detailsEmail: q('.details-email'),
+      detailsError: q('.details-error'),
+      detailsStart: q('.details-start'),
+      detailsCancel: q('.details-cancel'),
+      form: q('.composer'),
       input: q('textarea'),
       send: q('.send'),
       brand: q('.brand'),
@@ -271,6 +300,11 @@ export class TruplexyChatElement extends Base {
       e.preventDefault();
       this.submit();
     });
+    this.$.details.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.submitDetails();
+    });
+    this.$.detailsCancel.addEventListener('click', () => this.cancelDetails());
     this.$.input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
@@ -292,6 +326,35 @@ export class TruplexyChatElement extends Base {
     this.grow();
     this.$.send.disabled = true;
     void client.send(text);
+    // A new conversation first asks who is writing; the message waits for the answer.
+    if (client.getState().needsDetails) this.pendingText = text;
+  }
+
+  private pendingText = '';
+  private askedDetails = false;
+
+  private submitDetails() {
+    const $ = this.$;
+    const client = this.connect();
+    if (!client.setCustomer($.detailsName.value, $.detailsEmail.value)) {
+      $.detailsError.textContent = this.label('invalidDetails');
+      $.detailsError.hidden = false;
+      ($.detailsName.value.trim() ? $.detailsEmail : $.detailsName).focus();
+      return;
+    }
+    $.detailsError.hidden = true;
+    const text = this.pendingText;
+    this.pendingText = '';
+    if (text) void client.send(text);
+  }
+
+  private cancelDetails() {
+    this._client?.cancelDetails();
+    this.$.input.value = this.pendingText;
+    this.pendingText = '';
+    this.grow();
+    this.$.send.disabled = !this.$.input.value.trim();
+    this.$.input.focus();
   }
 
   private grow() {
@@ -341,6 +404,14 @@ export class TruplexyChatElement extends Base {
     $.restart.setAttribute('aria-label', this.label('newConversation'));
     $.restart.title = this.label('newConversation');
     $.handoff.textContent = this.label('handoff');
+    $.detailsTitle.textContent = this.label('detailsTitle');
+    $.detailsHint.textContent = this.label('detailsHint');
+    $.detailsName.placeholder = this.label('name');
+    $.detailsName.setAttribute('aria-label', this.label('name'));
+    $.detailsEmail.placeholder = this.label('email');
+    $.detailsEmail.setAttribute('aria-label', this.label('email'));
+    $.detailsStart.textContent = this.label('startChat');
+    $.detailsCancel.textContent = this.label('cancel');
     // The wordmark takes the place of the name in any language: "Powered by [Truplexy]".
     const [before, ...after] = this.label('poweredBy').split('Truplexy');
     const logo = (variant: 'light' | 'dark', { src, width, height }: typeof WORDMARK_ON_LIGHT) => {
@@ -392,6 +463,11 @@ export class TruplexyChatElement extends Base {
     $.notice.textContent = notice;
     $.notice.hidden = !notice;
     $.send.disabled = !$.input.value.trim() || state.sending;
+    // Name and email replace the message box until the visitor has given them.
+    $.details.hidden = !state.needsDetails;
+    $.form.hidden = state.needsDetails;
+    if (state.needsDetails && !this.askedDetails) requestAnimationFrame(() => $.detailsName.focus({ preventScroll: true }));
+    this.askedDetails = state.needsDetails;
     $.badge.hidden = state.unread === 0 || this.isOpen;
     $.badge.textContent = state.unread > 9 ? '9+' : String(state.unread);
 

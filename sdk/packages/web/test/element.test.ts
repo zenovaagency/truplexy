@@ -29,7 +29,7 @@ describe('<truplexy-chat>', () => {
   });
 
   it('opens, sends a message in demo mode and fires events', async () => {
-    const el = mount({ demo: true });
+    const el = mount({ demo: true, details: 'off' });
     const events: string[] = [];
     for (const name of ['open', 'close', 'status', 'message']) el.addEventListener(`truplexy:${name}`, () => events.push(name));
     el.open();
@@ -41,6 +41,38 @@ describe('<truplexy-chat>', () => {
     expect(bubbles[1]).toContain('#12345');
     el.close();
     expect(events).toEqual(['open', 'message', 'status', 'close']);
+    el.remove();
+  });
+
+  it('asks for name and email on the first message, then sends it with them', async () => {
+    const el = mount({ demo: true });
+    const root = el.shadowRoot!;
+    const details = root.querySelector('.details') as HTMLFormElement;
+    const composer = root.querySelector('.composer') as HTMLFormElement;
+    expect(details.hidden).toBe(true);
+    el.open();
+    const input = root.querySelector('textarea')!;
+    input.value = 'where is order 12345';
+    composer.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    expect(details.hidden).toBe(false);
+    expect(composer.hidden).toBe(true);
+
+    // An unusable email is refused and the form stays.
+    (root.querySelector('.details-name') as HTMLInputElement).value = 'Ada Lovelace';
+    (root.querySelector('.details-email') as HTMLInputElement).value = 'nope';
+    details.dispatchEvent(new Event('submit', { cancelable: true }));
+    expect((root.querySelector('.details-error') as HTMLElement).hidden).toBe(false);
+    expect(details.hidden).toBe(false);
+
+    (root.querySelector('.details-email') as HTMLInputElement).value = 'ada@example.com';
+    details.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick(1500);
+    expect(details.hidden).toBe(true);
+    expect(composer.hidden).toBe(false);
+    const bubbles = [...root.querySelectorAll('.msg:not(.greeting):not(.typing) .bubble')].map((b) => b.textContent);
+    expect(bubbles[0]).toBe('where is order 12345');
+    expect(el.client!.getState().ticket).toMatchObject({ subject: 'Chat with Ada Lovelace' });
     el.remove();
   });
 

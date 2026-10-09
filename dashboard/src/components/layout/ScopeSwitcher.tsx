@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router';
 import { Bot, Check, ChevronsUpDown, Plus, Settings2 } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
+import { useTenant } from '@/lib/api/endpoints/business';
 import { cn } from '@/lib/cn';
 import { ROLE_LABEL } from '@/lib/permissions';
 import { scopeLink, useScopeCtx } from '@/lib/session/scope-context';
@@ -21,6 +22,8 @@ const triggerCls =
 export function ScopeSwitcher() {
   const { scope, businessName, bot, bots, can, membership, isPlatformAdmin } = useScopeCtx();
   const me = useMe();
+  const tenant = useTenant();
+  const logoUrl = membership?.logo_url ?? tenant.data?.logo_url;
   const nav = useNavigate();
   const tab = useCurrentTab();
   const go = (link: ReturnType<typeof scopeLink>) => nav(link.to, { state: link.state });
@@ -30,8 +33,8 @@ export function ScopeSwitcher() {
     <div className="flex min-w-0 items-center gap-0.5">
       <Menu>
         <MenuTrigger className={triggerCls} aria-label={`Business: ${businessName}`}>
-          {membership?.logo_url ? (
-            <Avatar name={businessName} src={membership.logo_url} size={24} className="rounded-[7px]" />
+          {logoUrl ? (
+            <Avatar name={businessName} src={logoUrl} size={24} className="rounded-[7px]" />
           ) : (
             <span className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-[image:var(--gradient-brand)] text-[0.65rem] font-bold text-white">
               {businessName.slice(0, 1).toUpperCase()}
@@ -74,7 +77,11 @@ export function ScopeSwitcher() {
 
       <Menu>
         <MenuTrigger className={cn(triggerCls, 'text-ink-muted')} aria-label={`Bot: ${bot.name}`}>
-          <Bot className="size-4 shrink-0 text-ink-faint" />
+          {bot.avatar_url ? (
+            <Avatar name={bot.name} src={bot.avatar_url} size={24} className="rounded-[7px]" />
+          ) : (
+            <Bot className="size-4 shrink-0 text-ink-faint" />
+          )}
           <span className="max-w-[7rem] truncate sm:max-w-[12rem]">{bot.name}</span>
           <ChevronsUpDown className="size-3.5 shrink-0 text-ink-faint" />
         </MenuTrigger>
@@ -82,7 +89,7 @@ export function ScopeSwitcher() {
           <MenuLabel>Bots in {businessName}</MenuLabel>
           {bots.map((b) => (
             <MenuItem key={b.id} onSelect={() => go(scopeLink({ tenant: scope.tenant, bot: b.id }, tab))}>
-              <Bot />
+              {b.avatar_url ? <Avatar name={b.name} src={b.avatar_url} size={22} className="rounded-[7px]" /> : <Bot />}
               <span className="grid min-w-0 flex-1">
                 <span className="truncate">{b.name}</span>
                 <span className="font-mono text-[0.68rem] font-normal text-ink-faint">{b.id}</span>

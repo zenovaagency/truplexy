@@ -32,6 +32,14 @@ export function mockApi(base) {
       conversations.set(conv.id, conv);
       return json(201, conv);
     }
+    // POST /conversations/:id/ticket opens (or returns) the conversation's ticket.
+    const ticketMatch = path.match(/^\/conversations\/([^/]+)\/ticket$/);
+    if (ticketMatch && init.method === 'POST') {
+      const conv = conversations.get(ticketMatch[1]);
+      if (!conv) return notFound();
+      conv.ticket ??= { id: id('tkt_'), subject: body.subject ?? 'Chat', status: 'open', priority: 'normal', escalated: false, created_at: now() };
+      return json(200, conv.ticket);
+    }
     if (path === '/profile') {
       return json(200, { business: { name: 'Acme Shop' }, bot: { id: 'support', name: 'Shop assistant' } });
     }

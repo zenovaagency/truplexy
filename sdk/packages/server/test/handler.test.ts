@@ -59,6 +59,7 @@ describe('createHandler', () => {
   it('starts a conversation on the first message and signs a session', async () => {
     const api = fakeApi({
       'POST /conversations': () => [201, { id: CONV }],
+      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_1', subject: 'Website chat', status: 'open', priority: 'normal', escalated: false }],
       [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi!'),
     });
     const handler = createHandler({ ...base, fetch: api.fetch });
@@ -67,8 +68,9 @@ describe('createHandler', () => {
     expect(res.status).toBe(200);
     expect(data).toMatchObject({ reply: 'Hi!', status: 'answered', sources: [] });
     expect(await verifySession(data.session, KEY, 60)).toBe(CONV);
-    expect(api.calls.map((c) => c.path)).toEqual(['/conversations', `/conversations/${CONV}/messages`]);
-    expect(api.calls[1].body).toEqual({ message: 'hello' });
+    expect(api.calls.map((c) => c.path)).toEqual(['/conversations', `/conversations/${CONV}/ticket`, `/conversations/${CONV}/messages`]);
+    expect(api.calls[2].body).toEqual({ message: 'hello' });
+    expect(data.ticket).toEqual({ id: 'tkt_1', subject: 'Website chat', status: 'open' });
     expect(api.calls.every((c) => c.auth === `Bearer ${KEY}`)).toBe(true);
   });
 
@@ -102,7 +104,42 @@ describe('createHandler', () => {
     await handler(post({ action: 'message', text: 'hi' }));
     expect(api.calls[0].body).toEqual({ channel_id: 'chn_x' });
     expect(api.calls[1].body).toEqual({ message: '[Context only] Signed in as Ada, Pro plan' });
-    expect(api.calls[2].body).toEqual({ message: 'hi' });
+    expect(api.calls[2].path).toBe(`/conversations/${CONV}/ticket`);
+    expect(api.calls[3].body).toEqual({ message: 'hi' });
+  });
+
+  it('asks for a ticket named after the visitor, and tells the model who they are', async () => {
+    const api = fakeApi({
+      'POST /conversations': () => [201, { id: CONV }],
+      [`POST /conversations/${CONV}/ticket`]: (body) => [200, { id: 'tkt_2', subject: (body as { subject: string }).subject, status: 'open', secret: 'x' }],
+      [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi Ada!'),
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch, context: () => 'Pro plan' });
+    const data = await (await handler(post({ action: 'message', text: 'hi', customer: { name: '  Ada Lovelace ', email: 'ada@example.com' } }))).json();
+    expect(api.calls[1].body).toEqual({ message: '[Context only] Customer: Ada Lovelace <ada@example.com>. Pro plan' });
+    expect(api.calls[2].body).toEqual({ subject: 'Chat with Ada Lovelace' });
+    expect(data.ticket).toEqual({ id: 'tkt_2', subject: 'Chat with Ada Lovelace', status: 'open' });
+  });
+
+  it('refuses unusable customer details, and skips the ticket when told to', async () => {
+    const handler = createHandler({ ...base, fetch: fakeApi({}).fetch });
+    for (const customer of [{ name: '', email: 'a@b.co' }, { name: 'Ada', email: 'not-an-email' }, { name: 'x'.repeat(81), email: 'a@b.co' }, { name: 'Ada' }, 'Ada']) {
+      expect((await handler(post({ action: 'message', text: 'hi', customer }))).status).toBe(400);
+    }
+    const api = fakeApi({ 'POST /conversations': () => [201, { id: CONV }], [`POST /conversations/${CONV}/messages`]: reply('answered', 'ok') });
+    const quiet = createHandler({ ...base, fetch: api.fetch, tickets: false });
+    const data = await (await quiet(post({ action: 'message', text: 'hi', customer: { name: 'Ada', email: 'ada@example.com' } }))).json();
+    // The conversation, the who-is-this context message and the visitor's message; no ticket call.
+    expect(api.calls.map((c) => c.path)).toEqual(['/conversations', `/conversations/${CONV}/messages`, `/conversations/${CONV}/messages`]);
+    expect(data.ticket).toBeUndefined();
+  });
+
+  it('still chats when the ticket cannot be opened', async () => {
+    const api = fakeApi({ 'POST /conversations': () => [201, { id: CONV }], [`POST /conversations/${CONV}/messages`]: reply('answered', 'ok') });
+    const handler = createHandler({ ...base, fetch: api.fetch });
+    const data = await (await handler(post({ action: 'message', text: 'hi' }))).json();
+    expect(data.reply).toBe('ok');
+    expect(data.ticket).toBeUndefined();
   });
 
   it('refuses context-looking and oversized messages', async () => {

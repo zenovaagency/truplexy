@@ -38,7 +38,26 @@ export interface ChatProfile {
   bot?: { id?: string; name?: string; avatar_url?: string };
 }
 
+/** Who is chatting. Asked once, kept in the visitor's browser. */
+export interface Customer {
+  name: string;
+  email: string;
+}
+
+/** The ticket opened for the visitor's conversation. */
+export interface TicketRef {
+  id: string;
+  subject?: string;
+  status?: string;
+}
+
 export interface ChatState {
+  /** The visitor's name and email, once given. Saved in the browser. */
+  customer: Customer | null;
+  /** The ticket opened for this conversation, kept with the session in the browser. */
+  ticket: TicketRef | null;
+  /** The first message is waiting for the visitor's name and email: call `setCustomer()`, then `send()` again. */
+  needsDetails: boolean;
   /** The business's name and logo and the bot's name and picture; null until loaded, or when the server can't provide them. */
   profile: ChatProfile | null;
   messages: ChatMessage[];
@@ -78,6 +97,7 @@ export interface WireReply {
   reply: string | null;
   status: ReplyStatus;
   sources?: Source[];
+  ticket?: TicketRef;
 }
 
 export interface WireLive {

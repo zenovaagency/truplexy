@@ -27,6 +27,9 @@ export function demoTransport(): Transport {
     async request(action, body): Promise<any> {
       if (action === 'message') {
         const text = String(body.text ?? '');
+        const customer = body.customer as { name?: string } | undefined;
+        // The first message opens a ticket, named after the visitor.
+        const ticket = conv.messages.length ? undefined : { id: 'tkt_demo', subject: customer?.name ? `Chat with ${customer.name}` : 'Website chat', status: 'open' };
         const message = add('user', text);
         await wait(500 + Math.min(900, text.length * 12));
         if (conv.escalated) {
@@ -35,7 +38,7 @@ export function demoTransport(): Transport {
         }
         const [status, reply] = answer(text);
         add('assistant', reply);
-        return { session, message, reply, status, sources: [] };
+        return { session, message, reply, status, sources: [], ...(ticket && { ticket }) };
       }
       if (action === 'handoff') {
         await wait(400);

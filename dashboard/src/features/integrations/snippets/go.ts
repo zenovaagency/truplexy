@@ -340,6 +340,40 @@ func publicConversation(conv map[string]any) map[string]any {
 	return map[string]any{"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
 }
 
+var emailRe = regexp.MustCompile(\`^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$\`)
+
+// parseCustomer reads the widget's details form. A missing form is fine; an unusable one is not.
+func parseCustomer(raw any) (name, email string, ok bool) {
+	if raw == nil {
+		return "", "", true
+	}
+	m, isMap := raw.(map[string]any)
+	if !isMap {
+		return "", "", false
+	}
+	name, _ = m["name"].(string)
+	email, _ = m["email"].(string)
+	name, email = strings.TrimSpace(name), strings.TrimSpace(email)
+	if name == "" || utf8.RuneCountInString(name) > 80 || len(email) > 254 || !emailRe.MatchString(email) {
+		return "", "", false
+	}
+	return name, email, true
+}
+
+// openTicket tells the assistant who is chatting and opens a ticket for the team. The chat works without either.
+func openTicket(conv, name, email string) map[string]any {
+	subject := "Website chat"
+	if name != "" {
+		widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": "[Context only] Customer: " + name + " <" + email + ">"})
+		subject = "Chat with " + name
+	}
+	t, err := widgetCall("POST", "/conversations/"+conv+"/ticket", map[string]string{"subject": subject})
+	if err != nil {
+		return nil
+	}
+	return map[string]any{"id": t["id"], "subject": t["subject"], "status": t["status"]}
+}
+
 type widgetError struct {
 	status  int
 	message string
@@ -347,7 +381,7 @@ type widgetError struct {
 
 // Messages the visitor sees. Never pass on the API's own message.
 var widgetErrors = map[string]widgetError{
-	"INVALID_REQUEST":    {400, "Messages must be 1–4000 characters."},
+	"INVALID_REQUEST":    {400, "Check your message, name and email."},
 	"CHANNEL_DISABLED":   {503, "Chat is turned off right now."},
 	"PLAN_LIMIT_REACHED": {503, "The assistant can't reply right now. Please try again later."},
 	"LLM_RATE_LIMITED":   {429, "The assistant is busy. Please try again in a moment."},
@@ -355,7 +389,10 @@ var widgetErrors = map[string]widgetError{
 }
 
 func widgetHandler(w http.ResponseWriter, r *http.Request) {
-	var in struct{ Action, Session, Text string }
+	var in struct {
+		Action, Session, Text string
+		Customer              any
+	}
 	json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in)
 	conv := verifySession(in.Session)
 	w.Header().Set("Content-Type", "application/json")
@@ -377,6 +414,12 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 			fail(&upstreamError{code: "INVALID_REQUEST"})
 			return
 		}
+		name, email, ok := parseCustomer(in.Customer)
+		if !ok {
+			fail(&upstreamError{code: "INVALID_REQUEST"})
+			return
+		}
+		var ticket map[string]any
 		if conv == "" {
 			c, err := widgetCall("POST", "/conversations", nil)
 			if err != nil {
@@ -384,13 +427,18 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			conv, _ = c["id"].(string)
+			ticket = openTicket(conv, name, email)
 		}
 		res, err := widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": text})
 		if err != nil {
 			fail(err)
 			return
 		}
-		reply(map[string]any{"session": signSession(conv), "message": res["message"], "reply": res["reply"], "status": res["status"], "sources": res["sources"]})
+		out := map[string]any{"session": signSession(conv), "message": res["message"], "reply": res["reply"], "status": res["status"], "sources": res["sources"]}
+		if ticket != nil {
+			out["ticket"] = ticket
+		}
+		reply(out)
 
 	case "history", "handoff":
 		if conv == "" {
