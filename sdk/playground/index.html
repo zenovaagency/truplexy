@@ -9,19 +9,22 @@
       code { background: #eef0ff; padding: 1px 6px; border-radius: 5px; }
       .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
       button, select { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd0e0; background: #fff; cursor: pointer; }
-      #log { font: 13px/1.4 ui-monospace, monospace; background: #f4f5fa; border-radius: 10px; padding: 12px; min-height: 80px; white-space: pre-wrap; }
+      #log, #profile { font: 13px/1.4 ui-monospace, monospace; background: #f4f5fa; border-radius: 10px; padding: 12px; min-height: 80px; white-space: pre-wrap; }
     </style>
   </head>
   <body>
     <h1>Truplexy SDK playground</h1>
     <p>
       The widget below is the CDN build (<code>truplexy.min.js</code>) talking to <code>/api/truplexy</code>, served by
-      <code>@truplexy/server</code>. Try: "how do returns work", "I want a person", or "limit".
+      <code>@truplexy/server</code>. The header name and logo come from <code>GET /profile</code> (the route's
+      <code>profile</code> action), so no <code>heading</code> or <code>avatar</code> is set. Try: "how do returns work", "I want a person", or "limit".
     </p>
     <div class="row">
       <button onclick="Truplexy.open()">Open</button>
       <button onclick="Truplexy.send('How do returns work?')">Send a question</button>
       <button onclick="Truplexy.reset()">New conversation</button>
+      <button onclick="Truplexy.element.setAttribute('heading', 'Acme support'); Truplexy.element.setAttribute('avatar', 'https://placehold.co/64/2338e6/fff?text=S')">Override heading and avatar</button>
+      <button onclick="Truplexy.element.removeAttribute('heading'); Truplexy.element.removeAttribute('avatar')">Use the profile</button>
       <select onchange="Truplexy.element.setAttribute('theme', this.value)">
         <option value="light">Light</option>
         <option value="dark">Dark</option>
@@ -32,11 +35,18 @@
         <option value="left">Left</option>
       </select>
     </div>
+    <h2>Profile</h2>
+    <p>What the widget read from the route (<code>action: "profile"</code>):</p>
+    <div id="profile">Loading…</div>
     <h2>Events</h2>
     <div id="log"></div>
 
-    <script src="/truplexy.min.js" data-endpoint="/api/truplexy" data-heading="Acme support" data-show-sources defer></script>
+    <script src="/truplexy.min.js" data-endpoint="/api/truplexy" data-show-sources defer></script>
     <script>
+      fetch('/api/truplexy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'profile' }) })
+        .then((r) => r.json())
+        .then((p) => (document.getElementById('profile').textContent = JSON.stringify(p, null, 2).replace(/data:image[^"]*/, 'data:image/svg+xml,…')))
+        .catch(() => (document.getElementById('profile').textContent = 'No profile.'));
       const log = document.getElementById('log');
       for (const name of ['open', 'close', 'message', 'status', 'error']) {
         document.addEventListener(`truplexy:${name}`, (e) => {
