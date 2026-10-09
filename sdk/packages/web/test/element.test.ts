@@ -15,6 +15,19 @@ describe('<truplexy-chat>', () => {
     el.remove();
   });
 
+  it('takes the header name and logo from the profile unless you set your own', async () => {
+    const el = mount({ demo: true });
+    await tick(5);
+    const root = el.shadowRoot!;
+    expect(root.querySelector('.title')!.textContent).toBe('Acme Shop');
+    expect(root.querySelector('.avatar img')!.getAttribute('src')).toBe('https://cdn.test/acme.png');
+    el.setAttribute('heading', 'Mine');
+    el.setAttribute('avatar', 'https://mine.test/a.png');
+    expect(root.querySelector('.title')!.textContent).toBe('Mine');
+    expect(root.querySelector('.avatar img')!.getAttribute('src')).toBe('https://mine.test/a.png');
+    el.remove();
+  });
+
   it('opens, sends a message in demo mode and fires events', async () => {
     const el = mount({ demo: true });
     const events: string[] = [];

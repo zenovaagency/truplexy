@@ -8,7 +8,7 @@ export { demoTransport } from './demo';
 export { localStore, type SessionStore, type Saved } from './store';
 export { renderMarkdown } from './markdown';
 export { DEFAULT_LABELS, type Labels } from './labels';
-export type { ChatMessage, ChatState, ChatError, ReplyStatus, Source, Transport } from './types';
+export type { ChatMessage, ChatProfile, ChatState, ChatError, ReplyStatus, Source, Transport } from './types';
 
 defineTruplexyChat();
 

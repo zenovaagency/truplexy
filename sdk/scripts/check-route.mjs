@@ -30,6 +30,14 @@ const post = async (body) => {
   return { status: res.status, data, text };
 };
 
+const profile = await post({ action: 'profile' });
+check(
+  'profile returns the business and bot name',
+  profile.status === 200 && typeof profile.data.business?.name === 'string' && typeof profile.data.bot?.name === 'string',
+  profile.text,
+);
+check('profile has only names and pictures', JSON.stringify(Object.keys(profile.data).sort()) === '["bot","business"]', profile.text);
+
 const first = await post({ action: 'message', session: null, text: '  how do returns work  ' });
 check('message starts a conversation', first.status === 200 && typeof first.data.session === 'string' && typeof first.data.reply === 'string', first.text);
 check('message passes status and sources', first.data.status === 'answered' && Array.isArray(first.data.sources) && first.data.sources.length === 1, first.text);

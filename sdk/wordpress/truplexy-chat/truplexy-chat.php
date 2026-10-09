@@ -233,6 +233,14 @@ function truplexy_chat_route(WP_REST_Request $request) {
                 }
                 return ['session' => truplexy_chat_sign($conv), 'conversation' => truplexy_chat_public(truplexy_chat_api('POST', "/conversations/$conv/handoff"))];
 
+            case 'profile':
+                // The business and bot name and picture; the widget shows them in its header.
+                $p = truplexy_chat_api('GET', '/profile');
+                return [
+                    'business' => ['name' => $p['business']['name'] ?? null, 'logo_url' => $p['business']['logo_url'] ?? null],
+                    'bot'      => ['id' => $p['bot']['id'] ?? null, 'name' => $p['bot']['name'] ?? null, 'avatar_url' => $p['bot']['avatar_url'] ?? null],
+                ];
+
             case 'live':
                 if (!$conv) {
                     return new stdClass();
@@ -352,7 +360,7 @@ function truplexy_chat_settings_page() {
                 </tr>
                 <tr>
                     <th scope="row"><label for="truplexy-heading">Heading</label></th>
-                    <td><input id="truplexy-heading" class="regular-text" name="<?php echo esc_attr($field('heading')); ?>" value="<?php echo esc_attr($s['heading']); ?>" placeholder="Support"></td>
+                    <td><input id="truplexy-heading" class="regular-text" name="<?php echo esc_attr($field('heading')); ?>" value="<?php echo esc_attr($s['heading']); ?>" placeholder="Your business name"></td>
                 </tr>
                 <tr>
                     <th scope="row"><label for="truplexy-subtitle">Subtitle</label></th>

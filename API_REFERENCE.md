@@ -342,6 +342,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/conversations/{id}/ticket` | chat key | Open a ticket without escalating |
 | `POST` | `/conversations/{id}/ticket/close` | chat key | Close the conversation's ticket |
 | `POST` | `/conversations/{id}/replies` | chat key | Record a reply written on the integration's platform |
+| `GET` | `/profile` | chat key | The business and bot name and picture (v2) |
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
 | `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
@@ -1612,6 +1613,20 @@ These endpoints are for websites, apps and messaging platforms, called from the 
 - Fields: `{id, status, channel_id?, escalated, created_at, updated_at, messages}`. `channel_id` names the bot's [channel](#channels-v2) the conversation started on.
 - `status` is `open`, or `handoff` once it has been flagged for the team.
 - `messages` holds up to the latest 200, oldest first. Each is `{id, role, content, author?, agent?, created_at}`, with `role` `user` or `assistant`. A person's reply has `author: "agent"` and `agent` naming them.
+
+#### `GET /profile`
+
+v2. Reads the business and bot behind the key, so a widget can show the right name and picture without anyone copying them over. It accepts per-bot chat keys and `CHAT_API_KEY`, and reads only that key's own business and bot. It returns no plan, team or balance data.
+
+**200**
+```json
+{
+  "business": { "name": "Acme Shop", "logo_url": "https://…" },
+  "bot": { "id": "support", "name": "Shop assistant", "avatar_url": "https://…" }
+}
+```
+
+`logo_url` and `avatar_url` are left out when there is no picture; see [Profile images](#profile-images-v2). The widget SDK reads this through its server route's `profile` action.
 
 #### `POST /conversations`
 

@@ -239,6 +239,14 @@ try {
             if (!$conv) fail('INVALID_REQUEST');
             echo json_encode(['session' => sign_session($conv), 'conversation' => public_conversation(api('POST', "/conversations/$conv/handoff"))]);
             break;
+        case 'profile':
+            // The business and bot name and picture; the widget shows them in its header.
+            $p = api('GET', '/profile');
+            echo json_encode([
+                'business' => ['name' => $p['business']['name'] ?? null, 'logo_url' => $p['business']['logo_url'] ?? null],
+                'bot' => ['id' => $p['bot']['id'] ?? null, 'name' => $p['bot']['name'] ?? null, 'avatar_url' => $p['bot']['avatar_url'] ?? null],
+            ]);
+            break;
         case 'live':
             // Only the conversation's own topic: bot_topic carries every customer's messages.
             $live = $conv ? api('POST', '/realtime/token', ['conversation_id' => $conv]) : [];

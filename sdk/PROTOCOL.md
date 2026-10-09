@@ -15,11 +15,13 @@ Every request is `POST <your route>` with a JSON object body:
 | `message` | `text` | `POST /conversations` if there's no valid session, then `POST /conversations/{id}/messages` with `{message: text}` | `{session, message, reply, status, sources}`, the API's fields plus a new session |
 | `history` | n/a | `GET /conversations/{id}` | `{session, conversation: {status, escalated, messages}}`, or `{session: null}` when there's no valid session or the API says `CONVERSATION_NOT_FOUND` |
 | `handoff` | n/a | `POST /conversations/{id}/handoff` | `{session, conversation}` |
+| `profile` | n/a | `GET /profile`, which needs no session | `{business: {name, logo_url}, bot: {id, name, avatar_url}}`; leave out any field the API doesn't send |
 | `live` | n/a | `POST /realtime/token` with `{conversation_id: id}` | `{url, publishable_key, conversation_topic}`, or `{}` when there's no session or the API answers 503 |
 
 Rules:
 
 - **Validate `text`**: trim it; it must be 1–4000 characters and must not start with `[Context only`, which the API treats as background rather than a question.
+- **Forward only names and pictures** from `/profile`: the fields above and nothing else. The widget shows them in its header, so a failure here (an older API answering 404, say) can simply return the error: the widget keeps its defaults.
 - **Never forward `bot_topic`** from `/realtime/token`. It carries every customer's conversations. `conversation_topic` is safe for the browser.
 - **Hide background messages**: in `history` and `handoff`, drop `user` messages whose `content` starts with `[Context only`, and pass on only `id, role, content, author, agent, created_at` for each message.
 - **Return a fresh `session`** in every successful response that has a conversation. The expiry then slides with activity.

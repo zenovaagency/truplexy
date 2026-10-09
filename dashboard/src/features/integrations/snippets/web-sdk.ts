@@ -198,7 +198,6 @@ export const WIDGET_RECIPES: Recipe[] = [
 <script
   src="${CDN_URL}"
   data-endpoint="/api/truplexy"
-  data-heading="Support"
   defer
 ></script>`,
       },
@@ -218,7 +217,7 @@ export default function App() {
   return (
     <>
       {/* …your app… */}
-      <TruplexyChat endpoint="/api/truplexy" heading="Support" />
+      <TruplexyChat endpoint="/api/truplexy" />
     </>
   );
 }`,
@@ -240,7 +239,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         {children}
-        <TruplexyChat endpoint="/api/truplexy" heading="Support" />
+        <TruplexyChat endpoint="/api/truplexy" />
       </body>
     </html>
   );
@@ -263,7 +262,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>{/* Meta, Links… */}</head>
       <body>
         {children}
-        <TruplexyChat endpoint="/api/truplexy" heading="Support" />
+        <TruplexyChat endpoint="/api/truplexy" />
         {/* ScrollRestoration, Scripts… */}
       </body>
     </html>
@@ -285,7 +284,7 @@ import { TruplexyChat } from "@truplexy/vue";
 
 <template>
   <RouterView />
-  <TruplexyChat endpoint="/api/truplexy" heading="Support" />
+  <TruplexyChat endpoint="/api/truplexy" />
 </template>`,
       },
     ],
@@ -304,7 +303,7 @@ import { TruplexyChat } from "@truplexy/vue";
 <template>
   <NuxtPage />
   <ClientOnly>
-    <TruplexyChat endpoint="/api/truplexy" heading="Support" />
+    <TruplexyChat endpoint="/api/truplexy" />
   </ClientOnly>
 </template>`,
       },
@@ -324,7 +323,7 @@ import { TruplexyChat } from "@truplexy/vue";
 </script>
 
 {@render children()}
-<truplexy-chat endpoint="/api/truplexy" heading="Support"></truplexy-chat>`,
+<truplexy-chat endpoint="/api/truplexy"></truplexy-chat>`,
       },
     ],
   },
@@ -345,7 +344,7 @@ import "@truplexy/web";
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: \`
     <router-outlet />
-    <truplexy-chat endpoint="/api/truplexy" heading="Support"></truplexy-chat>
+    <truplexy-chat endpoint="/api/truplexy"></truplexy-chat>
   \`,
 })
 export class AppComponent {}`,
@@ -360,7 +359,7 @@ export class AppComponent {}`,
       {
         name: 'src/layouts/Layout.astro',
         code: `<slot />
-<truplexy-chat endpoint="/api/truplexy" heading="Support"></truplexy-chat>
+<truplexy-chat endpoint="/api/truplexy"></truplexy-chat>
 
 <script>
   import "@truplexy/web";
@@ -390,7 +389,7 @@ export default function App() {
   return (
     <>
       {/* …your app… */}
-      <truplexy-chat endpoint="/api/truplexy" heading="Support" />
+      <truplexy-chat endpoint="/api/truplexy" />
     </>
   );
 }`,

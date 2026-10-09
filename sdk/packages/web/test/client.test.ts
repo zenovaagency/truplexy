@@ -5,7 +5,7 @@ import type { Transport } from '../src/types';
 
 const msg = (id: string, role: 'user' | 'assistant', content: string, extra = {}) => ({ id, role, content, created_at: '2026-10-09T10:00:00Z', ...extra });
 
-type Action = 'message' | 'history' | 'handoff' | 'live';
+type Action = 'message' | 'history' | 'handoff' | 'live' | 'profile';
 
 function fake(handlers: Partial<Record<Action, (body: any) => any>>) {
   const calls: { action: string; body: any }[] = [];
@@ -21,6 +21,23 @@ function fake(handlers: Partial<Record<Action, (body: any) => any>>) {
 }
 
 describe('TruplexyClient', () => {
+  it('loads the business and bot profile, and works without one', async () => {
+    const profile = { business: { name: 'Acme Shop', logo_url: 'https://cdn.test/l.png' }, bot: { id: 'support', name: 'Shop assistant' } };
+    const withProfile = new TruplexyClient({ transport: fake({ profile: () => profile }).transport, store: false });
+    await withProfile.start();
+    await vi.waitFor(() => expect(withProfile.getState().profile).toEqual(profile));
+    withProfile.reset();
+    expect(withProfile.getState().profile).toEqual(profile);
+    withProfile.destroy();
+
+    const failing = new TruplexyClient({ transport: fake({}).transport, store: false });
+    await failing.start();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(failing.getState().profile).toBeNull();
+    expect(failing.getState().ready).toBe(true);
+    failing.destroy();
+  });
+
   it('sends without a session first, then with the one it got back', async () => {
     const { transport, calls } = fake({
       message: (b) => ({ session: 'S1', message: { id: 'msg_u' }, reply: `re: ${b.text}`, status: 'answered', sources: [] }),

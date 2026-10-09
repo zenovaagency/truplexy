@@ -32,6 +32,9 @@ export function mockApi(base) {
       conversations.set(conv.id, conv);
       return json(201, conv);
     }
+    if (path === '/profile') {
+      return json(200, { business: { name: 'Acme Shop' }, bot: { id: 'support', name: 'Shop assistant' } });
+    }
     if (path === '/realtime/token') return json(503, { error: { code: 'REALTIME_NOT_CONFIGURED', message: 'off' } });
 
     const [, , convId, action] = path.split('/');

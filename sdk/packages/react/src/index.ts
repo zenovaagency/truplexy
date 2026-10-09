@@ -106,7 +106,7 @@ export const TruplexyChat = forwardRef<TruplexyChatHandle, TruplexyChatProps>(fu
   });
 });
 
-const EMPTY: ChatState = { messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
+const EMPTY: ChatState = { profile: null, messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
 const noop = () => () => {};
 
 /**

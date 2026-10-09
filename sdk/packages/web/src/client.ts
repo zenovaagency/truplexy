@@ -1,7 +1,7 @@
 import { listenRealtime } from './realtime';
 import { localStore, type SessionStore } from './store';
 import { DEFAULT_ENDPOINT, fetchTransport, TruplexyRequestError, type FetchTransportOptions } from './transport';
-import type { ChatError, ChatMessage, ChatState, ReplyStatus, Transport, WireConversation, WireLive, WireReply } from './types';
+import type { ChatError, ChatMessage, ChatProfile, ChatState, ReplyStatus, Transport, WireConversation, WireLive, WireReply } from './types';
 
 export interface ClientOptions extends FetchTransportOptions {
   /** Replaces the default fetch transport, e.g. to call your server another way. */
@@ -25,6 +25,7 @@ export interface ClientEvents {
 const CONTEXT_PREFIX = '[Context only';
 
 const initialState = (): ChatState => ({
+  profile: null,
   messages: [],
   sending: false,
   offerHandoff: false,
@@ -104,6 +105,7 @@ export class TruplexyClient {
       this.seen = saved.seen;
       this.update({ messages: saved.messages.filter((m) => !m.pending) });
       if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
+      void this.loadProfile();
       if (this.session) {
         await this.sync();
         this.connectLive();
@@ -111,6 +113,16 @@ export class TruplexyClient {
       this.update({ ready: true });
     })();
     return this.started;
+  }
+
+  /** Reads the business and bot name and picture from your server. Failing is fine: the widget keeps its defaults. */
+  private async loadProfile(): Promise<void> {
+    try {
+      const profile = await this.transport.request<ChatProfile>('profile', {});
+      if (!this.destroyed && profile && typeof profile === 'object' && (profile.business || profile.bot)) this.update({ profile });
+    } catch {
+      // Older server route, or the API is unreachable: no profile.
+    }
   }
 
   /** Sends a visitor message. Resolves when the reply (if any) is in. */
@@ -193,7 +205,7 @@ export class TruplexyClient {
     this.store.clear();
     this.session = null;
     this.seen = 0;
-    this.state = { ...initialState(), ready: true };
+    this.state = { ...initialState(), profile: this.state.profile, ready: true };
     this.update({});
   }
 

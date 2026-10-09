@@ -17,7 +17,7 @@ import { TruplexyChat } from "@truplexy/vue";
 
 <template>
   <RouterView />
-  <TruplexyChat endpoint="/api/truplexy" heading="Support" @status="(s) => console.log(s)" />
+  <TruplexyChat endpoint="/api/truplexy" @status="(s) => console.log(s)" />
 </template>
 ```
 
@@ -34,7 +34,7 @@ import { TruplexyChat } from "@truplexy/vue";
 <template>
   <NuxtPage />
   <ClientOnly>
-    <TruplexyChat endpoint="/api/truplexy" heading="Support" />
+    <TruplexyChat endpoint="/api/truplexy" />
   </ClientOnly>
 </template>
 ```
