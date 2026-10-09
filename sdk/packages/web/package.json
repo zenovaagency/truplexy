@@ -1,0 +1,37 @@
+{
+  "name": "@truplexy/web",
+  "version": "0.1.0",
+  "description": "The Truplexy chat widget: one <truplexy-chat> element for any website or framework, plus a headless client for custom UIs.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/truplexy.min.js",
+  "jsdelivr": "./dist/truplexy.min.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./truplexy.min.js": "./dist/truplexy.min.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "truplexy",
+    "chat",
+    "widget",
+    "support",
+    "web-component",
+    "custom-element",
+    "livechat"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p . --noEmit"
+  }
+}

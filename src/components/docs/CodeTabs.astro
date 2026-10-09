@@ -1,0 +1,150 @@
+---
+import CodeBlock from './CodeBlock.astro';
+
+/**
+ * One tab per framework. The choice is remembered per `group`, so a reader
+ * who picks Next.js once sees Next.js on every visit. Works without JS:
+ * every panel is visible until the script takes over.
+ */
+export interface Tab {
+  id: string;
+  label: string;
+  install?: string;
+  files: { name: string; code: string }[];
+  note?: string;
+  /** Prose instead of code, for tabs like WordPress. */
+  html?: string;
+}
+interface Props {
+  group: string;
+  tabs: Tab[];
+  label: string;
+}
+const { group, tabs, label } = Astro.props;
+---
+
+<div class="tabs" data-tabs={group}>
+  <div class="tablist" role="tablist" aria-label={label}>
+    {tabs.map((t, i) => (
+      <button type="button" role="tab" id={`${group}-tab-${t.id}`} aria-controls={`${group}-panel-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-tab={t.id}>
+        {t.label}
+      </button>
+    ))}
+  </div>
+  {tabs.map((t) => (
+    <div class="panel" role="tabpanel" id={`${group}-panel-${t.id}`} aria-labelledby={`${group}-tab-${t.id}`} data-panel={t.id}>
+      {t.html && <div class="prose-sm" set:html={t.html} />}
+      {t.install && <CodeBlock name="Terminal" code={t.install} />}
+      {t.files.map((f) => <CodeBlock name={f.name} code={f.code} />)}
+      {t.note && <p class="note">{t.note}</p>}
+    </div>
+  ))}
+</div>
+
+<style>
+  .tabs {
+    display: grid;
+    gap: 14px;
+  }
+  .tablist {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 4px;
+    border: 1px solid var(--color-line);
+    border-radius: 12px;
+    background: var(--color-surface-2);
+  }
+  .tablist button {
+    flex: none;
+    border: 0;
+    border-radius: 8px;
+    padding: 7px 12px;
+    background: transparent;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-ink-faint);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tablist button:hover {
+    color: var(--color-ink);
+  }
+  .tablist button[aria-selected='true'] {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel {
+    display: grid;
+    gap: 12px;
+  }
+  :global(.js) .panel[hidden] {
+    display: none;
+  }
+  .note {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-ink-faint);
+  }
+  .prose-sm :global(p),
+  .prose-sm :global(ol) {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .prose-sm :global(ol) {
+    padding-left: 1.3rem;
+  }
+  .prose-sm :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+  }
+</style>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-tabs]')) {
+    const key = `truplexy-docs:${root.dataset.tabs}`;
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role=tab]')];
+    const panels = [...root.querySelectorAll<HTMLElement>('[role=tabpanel]')];
+    const select = (id: string, focus = false) => {
+      const tab = tabs.find((t) => t.dataset.tab === id) ?? tabs[0];
+      for (const t of tabs) {
+        const on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+      }
+      for (const p of panels) p.hidden = p.dataset.panel !== tab.dataset.tab;
+      if (focus) tab.focus();
+      return tab.dataset.tab!;
+    };
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(key);
+    } catch {}
+    select(saved ?? tabs[0].dataset.tab!);
+    root.querySelector('[role=tablist]')!.addEventListener('click', (e) => {
+      const tab = (e.target as HTMLElement).closest<HTMLButtonElement>('[role=tab]');
+      if (!tab) return;
+      const id = select(tab.dataset.tab!);
+      try {
+        localStorage.setItem(key, id);
+      } catch {}
+    });
+    root.querySelector('[role=tablist]')!.addEventListener('keydown', (e) => {
+      const ev = e as KeyboardEvent;
+      const i = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+      const next = ev.key === 'ArrowRight' ? i + 1 : ev.key === 'ArrowLeft' ? i - 1 : -2;
+      if (next === -2) return;
+      ev.preventDefault();
+      select(tabs[(next + tabs.length) % tabs.length].dataset.tab!, true);
+    });
+  }
+</script>

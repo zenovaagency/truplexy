@@ -94,31 +94,123 @@ async def on_event(event: dict):
 
   integrations: {
     web: {
-      handler: `from fastapi import FastAPI
-from pydantic import BaseModel
-from truplexy import ask, handoff
+      file: 'app.py',
+      standalone: true,
+      handler: `# app.py — the route the Truplexy widget talks to: POST /api/truplexy
+# pip install fastapi uvicorn httpx. TRUPLEXY_CHAT_KEY stays on this server.
+import base64, hashlib, hmac, os, re, time
 
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+API = "${PUBLIC_API}"
+KEY = os.environ["TRUPLEXY_CHAT_KEY"]
+SECRET = (os.environ.get("TRUPLEXY_SESSION_SECRET") or KEY).encode()
+TTL = 30 * 24 * 3600
+http = httpx.AsyncClient(base_url=API, headers={"Authorization": f"Bearer {KEY}"}, timeout=60)
 app = FastAPI()
 
 
-class ChatIn(BaseModel):
-    visitor_id: str
-    text: str
+# Sessions: a signed conversation ID the visitor's browser keeps. No database needed.
+def b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
-# POST /chat  { visitor_id, text } from your widget
-@app.post("/chat")
-async def chat(body: ChatIn):
-    return await ask(f"web:{body.visitor_id}", body.text)
+def unb64(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
-# The widget's "Talk to a person" button
-@app.post("/chat/handoff")
-async def chat_handoff(body: dict):
-    return await handoff(body["conversation_id"])`,
-      deliver: `# Push the reply to the open widget, e.g. over your own WebSocket.
-if ws := sockets.get(thread):
-    await ws.send_json({"from": agent, "text": text})`,
+def sign(conv: str) -> str:
+    payload = f"{conv}.{int(time.time())}".encode()
+    return f"{b64(payload)}.{b64(hmac.new(SECRET, payload, hashlib.sha256).digest())}"
+
+
+def verify(token) -> str | None:
+    try:
+        p, s = token.split(".")
+        payload = unb64(p)
+        if not hmac.compare_digest(unb64(s), hmac.new(SECRET, payload, hashlib.sha256).digest()):
+            return None
+        m = re.fullmatch(r"(conv_[0-9a-f]{32})\\.(\\d+)", payload.decode())
+        return m[1] if m and -300 <= time.time() - int(m[2]) <= TTL else None
+    except (AttributeError, ValueError, UnicodeDecodeError):
+        return None
+
+
+class Upstream(Exception):
+    def __init__(self, code: str, request_id: str | None):
+        self.code, self.request_id = code, request_id
+
+
+async def api(method: str, path: str, body: dict | None = None) -> dict:
+    res = await http.request(method, path, json=body)
+    if res.is_error:
+        err = (res.json() if res.content else {}).get("error", {})
+        code = "NOT_CONFIGURED" if res.status_code == 401 else err.get("code", "UPSTREAM_ERROR")
+        raise Upstream(code, err.get("request_id") or res.headers.get("x-request-id"))
+    return res.json()
+
+
+def public(conv: dict) -> dict:
+    """What the visitor may see: no background "[Context only" messages."""
+    keep = ("id", "role", "content", "author", "agent", "created_at")
+    messages = [
+        {k: m[k] for k in keep if k in m}
+        for m in conv["messages"]
+        if not (m["role"] == "user" and m["content"].startswith("[Context only"))
+    ]
+    return {"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
+
+
+# Messages the visitor sees. Never pass on the API's own message.
+ERRORS = {
+    "INVALID_REQUEST": (400, "Messages must be 1–4000 characters."),
+    "CHANNEL_DISABLED": (503, "Chat is turned off right now."),
+    "PLAN_LIMIT_REACHED": (503, "The assistant can't reply right now. Please try again later."),
+    "LLM_RATE_LIMITED": (429, "The assistant is busy. Please try again in a moment."),
+    "LLM_TIMEOUT": (504, "The reply took too long. Please try again."),
+}
+
+
+def error(code: str, request_id: str | None = None) -> JSONResponse:
+    if code not in ERRORS:
+        code = "UPSTREAM_ERROR"
+    status, message = ERRORS.get(code, (502, "Chat is unavailable right now."))
+    return JSONResponse({"error": {"code": code, "message": message, "request_id": request_id}}, status)
+
+
+@app.post("/api/truplexy")
+async def truplexy(request: Request):
+    body = await request.json()
+    action, conv = body.get("action"), verify(body.get("session"))
+    try:
+        if action == "message":
+            text = str(body.get("text", "")).strip()
+            if not 0 < len(text) <= 4000 or text.startswith("[Context only"):
+                return error("INVALID_REQUEST")
+            conv = conv or (await api("POST", "/conversations"))["id"]
+            r = await api("POST", f"/conversations/{conv}/messages", {"message": text})
+            return {"session": sign(conv), "message": r["message"], "reply": r["reply"], "status": r["status"], "sources": r.get("sources", [])}
+        if action == "history":
+            if not conv:
+                return {"session": None}
+            return {"session": sign(conv), "conversation": public(await api("GET", f"/conversations/{conv}"))}
+        if action == "handoff" and conv:
+            return {"session": sign(conv), "conversation": public(await api("POST", f"/conversations/{conv}/handoff"))}
+        if action == "live":
+            if not conv:
+                return {}
+            t = await api("POST", "/realtime/token", {"conversation_id": conv})
+            # Only the conversation's own topic: bot_topic carries every customer's messages.
+            return {k: t[k] for k in ("url", "publishable_key", "conversation_topic") if k in t}
+    except Upstream as e:
+        if action == "history" and e.code == "CONVERSATION_NOT_FOUND":
+            return {"session": None}
+        if action == "live":
+            return {}
+        return error(e.code, e.request_id)
+    return error("INVALID_REQUEST")`,
     },
 
     whatsapp: {

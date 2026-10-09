@@ -43,6 +43,8 @@ export interface Integration {
   langs: Lang[];
   /** Internal tools reply as the team instead of chatting as the customer. */
   teamSide?: boolean;
+  /** Customers chat in the Truplexy widget, which picks up the team's replies itself: no webhook. */
+  widget?: boolean;
 }
 
 export { PUBLIC_API } from './snippets/types';
@@ -55,16 +57,13 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'website',
     name: 'Website chat',
     group: 'messaging',
-    blurb: 'A chat bubble on your own site or app, talking to your server.',
+    blurb: 'A ready-made chat widget for any site: React, Next.js, Vue, Svelte, Angular, plain HTML and more.',
     glyph: Globe,
     color: 'var(--color-accent)',
     match: ['web', 'website', 'site', 'widget'],
     langs: ['node', 'python', 'php', 'go'],
-    steps: [
-      'Add a small chat UI to your site (any framework). It talks only to your own server.',
-      'On your server, add the route below. It keeps one Truplexy conversation per visitor.',
-      'Show `reply` in the widget. When status is `handoff_offered`, add a "Talk to a person" button that calls your /handoff route.',
-    ],
+    widget: true,
+    steps: ['Add one route to your server. It holds the chat key and keeps a signed session per visitor, with no database needed.'],
   },
   {
     id: 'whatsapp',
@@ -181,10 +180,11 @@ export const INTEGRATIONS: Integration[] = [
     color: brand(siWoocommerce.hex),
     match: ['woocommerce', 'woo'],
     langs: ['php'],
+    widget: true,
     steps: [
-      'Install a small plugin (or a snippet in your theme\'s functions.php) that adds the chat widget and a REST route.',
-      'The REST route calls your server, or Truplexy directly from PHP. The chat key stays in wp-config.php, never in the page.',
-      'Add an order-lookup tool that calls the WooCommerce REST API.',
+      'Save the plugin below as wp-content/plugins/truplexy-chat/truplexy-chat.php and activate it under Plugins.',
+      "Add define('TRUPLEXY_CHAT_KEY', 'tpx_…'); to wp-config.php. The key never reaches the page.",
+      'Style the chat under Settings → Truplexy Chat, and add an order-lookup tool under Tools that calls the WooCommerce REST API.',
     ],
   },
   {
@@ -196,10 +196,11 @@ export const INTEGRATIONS: Integration[] = [
     color: brand(siWordpress.hex),
     match: ['wordpress', 'wp'],
     langs: ['php'],
+    widget: true,
     steps: [
-      'Create a plugin folder with the file below, and define TRUPLEXY_CHAT_KEY in wp-config.php.',
-      'Enqueue your chat widget script; it posts to /wp-json/truplexy/v1/chat.',
-      'Activate the plugin under Plugins.',
+      'Save the plugin below as wp-content/plugins/truplexy-chat/truplexy-chat.php and activate it under Plugins.',
+      "Add define('TRUPLEXY_CHAT_KEY', 'tpx_…'); to wp-config.php. The key never reaches the page.",
+      'Style the chat under Settings → Truplexy Chat: heading, greeting, colour and position.',
     ],
   },
   {

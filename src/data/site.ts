@@ -29,6 +29,7 @@ export const NAV = [
   { label: 'Channels', href: '#channels' },
   { label: 'Continuity', href: '#continuous' },
   { label: 'Pricing', href: '/pricing' },
+  { label: 'Docs', href: '/docs/web-sdk' },
 ] as const;
 
 /**

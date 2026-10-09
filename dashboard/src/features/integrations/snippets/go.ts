@@ -218,28 +218,222 @@ func deliver(thread, text, agent string) {
 
   integrations: {
     web: {
-      handler: `// POST /chat  {"visitorId", "text"} from your widget
-http.HandleFunc("POST /chat", func(w http.ResponseWriter, r *http.Request) {
-	var in struct{ VisitorID, Text string }
-	json.NewDecoder(r.Body).Decode(&in)
-	a, err := ask("web:"+in.VisitorID, in.Text)
-	if err != nil {
-		http.Error(w, "try again", http.StatusBadGateway)
-		return
-	}
-	json.NewEncoder(w).Encode(a)
-})
+      file: 'widget.go',
+      standalone: true,
+      handler: `// widget.go — the route the Truplexy widget talks to. In main():
+//
+//	http.HandleFunc("POST /api/truplexy", widgetHandler)
+//
+// Standard library only. TRUPLEXY_CHAT_KEY stays on this server.
+package main
 
-// The widget's "Talk to a person" button
-http.HandleFunc("POST /chat/handoff", func(w http.ResponseWriter, r *http.Request) {
-	var in struct{ ConversationID string }
-	json.NewDecoder(r.Body).Decode(&in)
-	if err := handoff(in.ConversationID); err != nil {
-		http.Error(w, "try again", http.StatusBadGateway)
+import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+)
+
+const widgetAPI = "${PUBLIC_API}"
+
+var (
+	widgetClient = &http.Client{Timeout: 60 * time.Second}
+	sessionRe    = regexp.MustCompile(\`^(conv_[0-9a-f]{32})\\.(\\d+)$\`)
+	b64          = base64.RawURLEncoding
+)
+
+// Sessions: a signed conversation ID the visitor's browser keeps. No database needed.
+func sessionMAC(payload []byte) []byte {
+	secret := os.Getenv("TRUPLEXY_SESSION_SECRET")
+	if secret == "" {
+		secret = os.Getenv("TRUPLEXY_CHAT_KEY")
 	}
-})`,
-      deliver: `// Push the reply to the open widget, e.g. over your own WebSocket hub.
-hub.Send(thread, map[string]string{"from": agent, "text": text})`,
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write(payload)
+	return h.Sum(nil)
+}
+
+func signSession(conv string) string {
+	payload := []byte(fmt.Sprintf("%s.%d", conv, time.Now().Unix()))
+	return b64.EncodeToString(payload) + "." + b64.EncodeToString(sessionMAC(payload))
+}
+
+// verifySession returns the conversation ID of a valid, unexpired session, or "".
+func verifySession(token string) string {
+	p, s, _ := strings.Cut(token, ".")
+	payload, err1 := b64.DecodeString(p)
+	sig, err2 := b64.DecodeString(s)
+	if err1 != nil || err2 != nil || !hmac.Equal(sig, sessionMAC(payload)) {
+		return ""
+	}
+	m := sessionRe.FindStringSubmatch(string(payload))
+	if m == nil {
+		return ""
+	}
+	issued, _ := strconv.ParseInt(m[2], 10, 64)
+	if age := time.Since(time.Unix(issued, 0)); age < -5*time.Minute || age > 30*24*time.Hour {
+		return ""
+	}
+	return m[1]
+}
+
+type upstreamError struct{ code, requestID string }
+
+func (e *upstreamError) Error() string { return e.code }
+
+func widgetCall(method, path string, body any) (map[string]any, error) {
+	var buf bytes.Buffer
+	if body != nil {
+		json.NewEncoder(&buf).Encode(body)
+	}
+	req, _ := http.NewRequest(method, widgetAPI+path, &buf)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("TRUPLEXY_CHAT_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := widgetClient.Do(req)
+	if err != nil {
+		return nil, &upstreamError{code: "UPSTREAM_ERROR"}
+	}
+	defer res.Body.Close()
+	var out map[string]any
+	json.NewDecoder(res.Body).Decode(&out)
+	if res.StatusCode >= 300 {
+		e := &upstreamError{code: "UPSTREAM_ERROR", requestID: res.Header.Get("X-Request-ID")}
+		if apiErr, ok := out["error"].(map[string]any); ok {
+			if c, ok := apiErr["code"].(string); ok {
+				e.code = c
+			}
+		}
+		if res.StatusCode == http.StatusUnauthorized {
+			e.code = "NOT_CONFIGURED"
+		}
+		return nil, e
+	}
+	return out, nil
+}
+
+// publicConversation is what the visitor may see: no background "[Context only" messages.
+func publicConversation(conv map[string]any) map[string]any {
+	messages := []map[string]any{}
+	list, _ := conv["messages"].([]any)
+	for _, raw := range list {
+		m, _ := raw.(map[string]any)
+		if content, _ := m["content"].(string); m["role"] == "user" && strings.HasPrefix(content, "[Context only") {
+			continue
+		}
+		keep := map[string]any{}
+		for _, k := range []string{"id", "role", "content", "author", "agent", "created_at"} {
+			if v, ok := m[k]; ok {
+				keep[k] = v
+			}
+		}
+		messages = append(messages, keep)
+	}
+	return map[string]any{"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
+}
+
+type widgetError struct {
+	status  int
+	message string
+}
+
+// Messages the visitor sees. Never pass on the API's own message.
+var widgetErrors = map[string]widgetError{
+	"INVALID_REQUEST":    {400, "Messages must be 1–4000 characters."},
+	"CHANNEL_DISABLED":   {503, "Chat is turned off right now."},
+	"PLAN_LIMIT_REACHED": {503, "The assistant can't reply right now. Please try again later."},
+	"LLM_RATE_LIMITED":   {429, "The assistant is busy. Please try again in a moment."},
+	"LLM_TIMEOUT":        {504, "The reply took too long. Please try again."},
+}
+
+func widgetHandler(w http.ResponseWriter, r *http.Request) {
+	var in struct{ Action, Session, Text string }
+	json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in)
+	conv := verifySession(in.Session)
+	w.Header().Set("Content-Type", "application/json")
+	reply := func(v any) { json.NewEncoder(w).Encode(v) }
+	fail := func(err error) {
+		e, _ := err.(*upstreamError)
+		known, ok := widgetErrors[e.code]
+		if !ok {
+			e.code, known = "UPSTREAM_ERROR", widgetError{502, "Chat is unavailable right now."}
+		}
+		w.WriteHeader(known.status)
+		reply(map[string]any{"error": map[string]string{"code": e.code, "message": known.message, "request_id": e.requestID}})
+	}
+
+	switch in.Action {
+	case "message":
+		text := strings.TrimSpace(in.Text)
+		if text == "" || utf8.RuneCountInString(text) > 4000 || strings.HasPrefix(text, "[Context only") {
+			fail(&upstreamError{code: "INVALID_REQUEST"})
+			return
+		}
+		if conv == "" {
+			c, err := widgetCall("POST", "/conversations", nil)
+			if err != nil {
+				fail(err)
+				return
+			}
+			conv, _ = c["id"].(string)
+		}
+		res, err := widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": text})
+		if err != nil {
+			fail(err)
+			return
+		}
+		reply(map[string]any{"session": signSession(conv), "message": res["message"], "reply": res["reply"], "status": res["status"], "sources": res["sources"]})
+
+	case "history", "handoff":
+		if conv == "" {
+			if in.Action == "history" {
+				reply(map[string]any{"session": nil})
+			} else {
+				fail(&upstreamError{code: "INVALID_REQUEST"})
+			}
+			return
+		}
+		method, path := "GET", "/conversations/"+conv
+		if in.Action == "handoff" {
+			method, path = "POST", path+"/handoff"
+		}
+		c, err := widgetCall(method, path, nil)
+		if e, ok := err.(*upstreamError); ok && e.code == "CONVERSATION_NOT_FOUND" && in.Action == "history" {
+			reply(map[string]any{"session": nil})
+			return
+		}
+		if err != nil {
+			fail(err)
+			return
+		}
+		reply(map[string]any{"session": signSession(conv), "conversation": publicConversation(c)})
+
+	case "live":
+		out := map[string]any{}
+		if conv != "" {
+			// Only the conversation's own topic: bot_topic carries every customer's messages.
+			if t, err := widgetCall("POST", "/realtime/token", map[string]string{"conversation_id": conv}); err == nil {
+				for _, k := range []string{"url", "publishable_key", "conversation_topic"} {
+					if v, ok := t[k]; ok {
+						out[k] = v
+					}
+				}
+			}
+		}
+		reply(out)
+
+	default:
+		fail(&upstreamError{code: "INVALID_REQUEST"})
+	}
+}`,
     },
 
     whatsapp: {
