@@ -979,6 +979,10 @@ export interface PlatformTicket {
   updated_at: string;
 }
 
+export interface PlatformCustomer extends Customer {
+  tenant_name: string;
+}
+
 export interface PlatformTool {
   id: string;
   tenant_id: string;
