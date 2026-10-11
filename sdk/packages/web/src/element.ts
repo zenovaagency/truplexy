@@ -9,7 +9,7 @@ import type { ChatMessage, ChatState } from './types';
 export const TAG = 'truplexy-chat';
 
 /** Where "Powered by Truplexy" links to; the UTM tags show widget referrals in the site's analytics. */
-export const BRAND_URL = 'https://zenovasolution.xyz/?utm_source=chat-widget&utm_medium=referral';
+export const BRAND_URL = 'https://truplexy.com/?utm_source=chat-widget&utm_medium=referral';
 
 const ICONS = {
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3 21l1.5-5.2A8.5 8.5 0 1 1 21 12z"/></svg>',

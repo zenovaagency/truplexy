@@ -17,16 +17,16 @@ Contents:
 
 | Environment | Base URL |
 | --- | --- |
-| Production | `https://api.zenovasolution.xyz/v2` |
+| Production | `https://api.truplexy.com/v2` |
 | Local (`go run ./cmd/server`) | `http://localhost:3000/v2` |
 
-Every path in this document is relative to the base URL, so `GET /me` means `GET https://api.zenovasolution.xyz/v2/me`. `/v1` still answers for the endpoints it had before v2 but is deprecated. Its responses carry `Deprecation: true`, a `Link: </v2/…>; rel="successor-version"` header and, once scheduled, a `Sunset` date. Endpoints added in v2 exist only under `/v2`. Build against `/v2`.
+Every path in this document is relative to the base URL, so `GET /me` means `GET https://api.truplexy.com/v2/me`. `/v1` still answers for the endpoints it had before v2 but is deprecated. Its responses carry `Deprecation: true`, a `Link: </v2/…>; rel="successor-version"` header and, once scheduled, a `Sunset` date. Endpoints added in v2 exist only under `/v2`. Build against `/v2`.
 
 ### Calling from the browser (CORS)
 
 The API answers browsers only from the origins listed in its `CORS_ALLOWED_ORIGINS` setting (comma-separated, such as `https://dashboard.example.com,http://localhost:5173`). Add your dashboard's local and production origins there, in the API's environment (Vercel project `truplexy-api`), and redeploy. From any other origin, the browser blocks the response.
 
-Origins include the port: `http://localhost:5173` does not permit `http://localhost:5174`. To allow both local dashboards, append `http://localhost:5173,http://localhost:5174` to the API's `CORS_ALLOWED_ORIGINS`, keeping any production origins already listed. When calling `https://api.zenovasolution.xyz`, update the Vercel project's Production environment and redeploy; changing a local `.env` only affects `go run ./cmd/server` after a restart. An unallowed preflight to `/v2/me` can return `405` without `Access-Control-Allow-Origin`.
+Origins include the port: `http://localhost:5173` does not permit `http://localhost:5174`. To allow both local dashboards, append `http://localhost:5173,http://localhost:5174` to the API's `CORS_ALLOWED_ORIGINS`, keeping any production origins already listed. When calling `https://api.truplexy.com`, update the Vercel project's Production environment and redeploy; changing a local `.env` only affects `go run ./cmd/server` after a restart. An unallowed preflight to `/v2/me` can return `405` without `Access-Control-Allow-Origin`.
 
 - **Preflight.** Allowed requests may send `Authorization`, `Content-Type`, `X-Truplexy-Tenant` and `X-Truplexy-Bot`, with the methods `GET`, `POST`, `PUT`, `PATCH` and `DELETE`. Preflights are cached for 10 minutes.
 - **Readable headers.** Browser code can read `X-Request-ID`, `Deprecation`, `Link`, `Sunset` and `Retry-After`.

@@ -18,7 +18,7 @@ Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mir
 ## Deploying
 
 `vercel.json` deploys this site and the dashboard (`dashboard/`) as one Vercel project with two
-services: `dashboard` on `app.` hosts (`app.zenovasolution.xyz`), `site` on every other host.
+services: `dashboard` on `app.` hosts (`app.truplexy.com`), `site` on every other host.
 `vercel dev` runs both locally (the dashboard at `http://app.localhost:3000`).
 
 ## Where things live

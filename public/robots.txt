@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://zenovasolution.xyz/sitemap-index.xml
+Sitemap: https://truplexy.com/sitemap-index.xml

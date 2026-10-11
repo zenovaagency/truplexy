@@ -8,14 +8,14 @@ const email = 'hello@truplexy.com'; // PLACEHOLDER — real inbox
 
 export const SITE = {
   name: 'Truplexy',
-  url: 'https://zenovasolution.xyz',
+  url: 'https://truplexy.com',
   title: 'Truplexy — One conversation. Everywhere.',
   description:
     'Truplexy is the AI customer-support layer that keeps one continuous, human-like conversation going across your website, Telegram, Discord and your own apps — with smart handoff to your team when it matters.',
   tagline: 'One conversation. Everywhere.',
   email,
   // The dashboard, served by the `dashboard` service in vercel.json.
-  dashboardUrl: 'https://app.zenovasolution.xyz',
+  dashboardUrl: 'https://app.truplexy.com',
   // PLACEHOLDER — swap for the real sign-up flow.
   signupUrl: `mailto:${email}?subject=${encodeURIComponent('Get started with Truplexy')}`,
   // PLACEHOLDER — swap for the real booking link (Calendly, Cal.com, …).

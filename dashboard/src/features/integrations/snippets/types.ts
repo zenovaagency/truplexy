@@ -1,10 +1,10 @@
 import { env } from '@/lib/env';
 
 /** The API base integrators call: the real URL, even in demo mode. */
-export const PUBLIC_API = /^https?:\/\//.test(env.apiBaseUrl) ? env.apiBaseUrl : 'https://api.zenovasolution.xyz/v2';
+export const PUBLIC_API = /^https?:\/\//.test(env.apiBaseUrl) ? env.apiBaseUrl : 'https://api.truplexy.com/v2';
 
 /** The website SDK guide on the marketing site: every widget option, framework and the server protocol. */
-export const WEB_SDK_DOCS = 'https://zenovasolution.xyz/docs/web-sdk';
+export const WEB_SDK_DOCS = 'https://truplexy.com/docs/web-sdk';
 
 export type Lang = 'node' | 'python' | 'php' | 'go' | 'java' | 'csharp' | 'ruby';
 

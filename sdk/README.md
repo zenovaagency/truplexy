@@ -1,6 +1,6 @@
 # Truplexy website SDK
 
-Add the Truplexy chat to any website: a ready-made widget, plus one small route on the site's server that holds the chat key. The full guide, with every framework, is at [zenovasolution.xyz/docs/web-sdk](https://zenovasolution.xyz/docs/web-sdk). The dashboard shows the same recipes under Integrations → Guides → Website chat.
+Add the Truplexy chat to any website: a ready-made widget, plus one small route on the site's server that holds the chat key. The full guide, with every framework, is at [truplexy.com/docs/web-sdk](https://truplexy.com/docs/web-sdk). The dashboard shows the same recipes under Integrations → Guides → Website chat.
 
 ```
 <truplexy-chat> (browser) ──POST /api/truplexy──▶ your route (@truplexy/server) ──chat key──▶ Truplexy API

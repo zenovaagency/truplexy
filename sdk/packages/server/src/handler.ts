@@ -1,6 +1,6 @@
 import { signSession, verifySession } from './session';
 
-export const DEFAULT_API_BASE = 'https://api.zenovasolution.xyz/v2';
+export const DEFAULT_API_BASE = 'https://api.truplexy.com/v2';
 
 export interface HandlerOptions {
   /** The chat key (`tpx_…`). Defaults to the `TRUPLEXY_CHAT_KEY` environment variable, read on each request. */

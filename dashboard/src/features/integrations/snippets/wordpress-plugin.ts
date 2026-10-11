@@ -5,7 +5,7 @@
 export const WORDPRESS_PLUGIN = String.raw`<?php
 /**
  * Plugin Name:       Truplexy Chat
- * Plugin URI:        https://zenovasolution.xyz/docs/web-sdk
+ * Plugin URI:        https://truplexy.com/docs/web-sdk
  * Description:       Adds the Truplexy AI support chat to your site. Your chat key stays on the server.
  * Version:           0.1.0
  * Requires at least: 6.0
@@ -44,7 +44,7 @@ function truplexy_chat_key(): string {
 }
 
 function truplexy_chat_api_base(): string {
-    return rtrim(defined('TRUPLEXY_API_BASE') ? TRUPLEXY_API_BASE : 'https://api.zenovasolution.xyz/v2', '/');
+    return rtrim(defined('TRUPLEXY_API_BASE') ? TRUPLEXY_API_BASE : 'https://api.truplexy.com/v2', '/');
 }
 
 /* -------------------------------------------------------------------------

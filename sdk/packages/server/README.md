@@ -35,7 +35,7 @@ import { createNodeHandler } from "@truplexy/server/node";
 app.post("/api/truplexy", createNodeHandler());
 ```
 
-The same pattern works for Remix / React Router (`action`), Astro (`POST: APIRoute`), Hono (`c.req.raw`), Cloudflare Workers and Vercel or Netlify functions. Every framework is covered in [the docs](https://zenovasolution.xyz/docs/web-sdk#route).
+The same pattern works for Remix / React Router (`action`), Astro (`POST: APIRoute`), Hono (`c.req.raw`), Cloudflare Workers and Vercel or Netlify functions. Every framework is covered in [the docs](https://truplexy.com/docs/web-sdk#route).
 
 ## Options
 
@@ -68,6 +68,6 @@ export const POST = createHandler({
 - API errors become fixed, safe messages such as `PLAN_LIMIT_REACHED` or `CHANNEL_DISABLED`, with the `request_id` kept for support.
 - A tampered or expired session starts a new conversation instead of failing.
 
-`signSession` and `verifySession` are exported for routes that need them elsewhere. The wire protocol is in [PROTOCOL.md](https://zenovasolution.xyz/docs/web-sdk#protocol).
+`signSession` and `verifySession` are exported for routes that need them elsewhere. The wire protocol is in [PROTOCOL.md](https://truplexy.com/docs/web-sdk#protocol).
 
 MIT licensed.

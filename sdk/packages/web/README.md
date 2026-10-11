@@ -2,7 +2,7 @@
 
 The Truplexy chat widget as one custom element, `<truplexy-chat>`, for any website or framework. It has no dependencies, renders in a Shadow DOM and weighs about 19 KB gzipped. The package also includes `TruplexyClient`, the same chat without any UI.
 
-The widget talks to a route on **your** server, which holds the chat key. Add that route first with [`@truplexy/server`](https://www.npmjs.com/package/@truplexy/server) (or see the [protocol](https://zenovasolution.xyz/docs/web-sdk#protocol)).
+The widget talks to a route on **your** server, which holds the chat key. Add that route first with [`@truplexy/server`](https://www.npmjs.com/package/@truplexy/server) (or see the [protocol](https://truplexy.com/docs/web-sdk#protocol)).
 
 ## Install
 
@@ -52,7 +52,7 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | `details` | `ask`: a name and email form before the first message (and a ticket for the conversation); `off`: skip it | `ask` |
 | `storage-key` | localStorage key for the conversation | `truplexy:<endpoint>` |
 
-The `labels` property replaces any string, for translations (see `DEFAULT_LABELS`). The panel ends with a small "Powered by Truplexy" link to zenovasolution.xyz; translate it with the `poweredBy` label.
+The `labels` property replaces any string, for translations (see `DEFAULT_LABELS`). The panel ends with a small "Powered by Truplexy" link to truplexy.com; translate it with the `poweredBy` label.
 
 **Styling.** CSS variables on the element:
 
