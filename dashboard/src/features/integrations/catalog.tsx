@@ -168,6 +168,7 @@ export const INTEGRATIONS: Integration[] = [
     steps: [
       'Add a theme app extension (app embed block) with your chat UI to the storefront.',
       'Send messages through a Shopify App Proxy, so they reach your server signed by Shopify. Never put the chat key in the theme.',
+      'Implement guestSessionId / guest_session_id with a server-issued, verified session. Guests stay anonymous; only the signed logged_in_customer_id identifies a Shopify customer.',
       'Add tools for order lookup and returns under Tools, using the Admin API on your server.',
     ],
   },
@@ -214,6 +215,7 @@ export const INTEGRATIONS: Integration[] = [
     langs: ['node', 'python', 'php', 'go'],
     steps: [
       'Create a HubSpot private app with the conversations.read and conversations.write scopes.',
+      'Set HUBSPOT_ACCOUNT_ID to your account ID; sender actor IDs are stored with that account prefix.',
       'Subscribe a webhook to "conversation.newMessage" pointing at your /hubspot route.',
     ],
   },
@@ -228,7 +230,7 @@ export const INTEGRATIONS: Integration[] = [
     langs: ['node', 'python', 'php', 'go'],
     steps: [
       'In Zendesk Admin Center, add a webhook to your /zendesk route and a trigger on "Ticket is created".',
-      'Use an API token for an agent account the assistant replies as.',
+      'Use an API token for an agent account the assistant replies as. Include ticket_id, description and requester_id as strings in the trigger JSON body (requester_id uses {{ticket.requester.id}}).',
     ],
   },
   {
@@ -275,7 +277,7 @@ export const INTEGRATIONS: Integration[] = [
     langs: ['node', 'python', 'php', 'go', 'java', 'csharp', 'ruby'],
     steps: [
       'Issue a chat key for your server.',
-      'Create a conversation per customer thread, then post each message to it.',
+      'Identify the sender with PUT /customer, then create a conversation with customer_id for each customer thread.',
       'Render the reply according to its status (see the API keys page for the table).',
     ],
   },

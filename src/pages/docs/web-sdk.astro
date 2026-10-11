@@ -7,7 +7,8 @@ import CodeBlock from '../../components/docs/CodeBlock.astro';
 import CodeTabs, { type Tab } from '../../components/docs/CodeTabs.astro';
 import { SITE } from '../../data/site';
 // One source for the install recipes: the dashboard's Website chat guide shows the same ones.
-import { SERVER_RECIPES, WIDGET_RECIPES } from '../../../dashboard/src/features/integrations/snippets/web-sdk';
+import { SERVER_RECIPES, WIDGET_RECIPES, CUSTOMER_RECIPE } from '../../../dashboard/src/features/integrations/snippets/web-sdk';
+import { CHAT_API_ENDPOINTS, CUSTOMER_RULES } from '../../../dashboard/src/features/integrations/snippets/chat-api';
 
 const serverTabs: Tab[] = [
   ...SERVER_RECIPES,
@@ -45,7 +46,7 @@ const attributes = [
   ['open', 'Present: the chat starts open.', 'Closed'],
   ['show-sources', 'Present: answers link the help articles they came from.', 'Off'],
   ['demo', 'Present: canned replies with no server, for previews.', 'Off'],
-  ['details', '`ask` shows a name and email form before the first message, and opens a ticket for it. `off` skips the form.', 'ask'],
+  ['details', '`ask` shows a name and email form before the first message. `off` skips the form; both modes attempt to open a ticket.', 'ask'],
   ['storage-key', 'Where the visitor’s conversation is saved, to keep two widgets apart.', 'truplexy:<endpoint>'],
 ];
 
@@ -82,11 +83,14 @@ const serverOptions = [
   ['allowedOrigins', 'Sites allowed to call the route from another origin, e.g. ["https://www.example.com"].', 'Same origin only'],
   ['authorize(request)', 'Runs first. Return false (403) or a Response to refuse: rate limits, sign-in.', 'Allow all'],
   ['context(request)', 'Background for the assistant, sent once privately when a conversation starts.', 'None'],
+  ['customer(request)', 'Trusted contacts, name and metadata for a new chat; null/undefined falls back to the form.', 'None'],
   ['onError(error)', 'Server-side failures, for your logs. Never includes the key.', 'console.error'],
   ['apiBase', 'The Truplexy API.', 'TRUPLEXY_API_BASE, then production'],
 ];
 
 const errors = [
+  ['CUSTOMER_CONFLICT', 'The contacts belong to different customers. Correct them in Customers; no unlinked conversation is started.'],
+  ['CUSTOMER_EXISTS', 'A contact race persisted after one retry. Retry the new chat.'],
   ['NOT_CONFIGURED', 'The route has no chat key, or Truplexy refused it (revoked or mistyped). Check TRUPLEXY_CHAT_KEY and redeploy.'],
   ['CHANNEL_DISABLED', 'The key’s channel is switched off. Turn it on under Integrations → Your channels.'],
   ['PLAN_LIMIT_REACHED', 'This month’s AI replies or tokens are used up. Upgrade or add tokens under Settings → Plan.'],
@@ -146,7 +150,7 @@ truplexy-chat::part(launcher) { box-shadow: none; }`;
 const headlessReact = `import { useTruplexyChat } from "@truplexy/react";
 
 export function SupportChat() {
-  const chat = useTruplexyChat({ endpoint: "/api/truplexy" });
+  const chat = useTruplexyChat({ endpoint: "/api/truplexy", details: "off" }); // anonymous, or server-supplied identity
   return (
     <div>
       {chat.messages.map((m) => (
@@ -169,6 +173,7 @@ const headlessVanilla = `import { TruplexyClient } from "@truplexy/web";
 const chat = new TruplexyClient({ endpoint: "/api/truplexy" });
 chat.subscribe((state) => render(state.messages, state.sending));
 await chat.start();          // restores the visitor's conversation
+chat.setCustomer("Ann", "ann@example.com"); // or collect these in your own form
 await chat.send("Hello");    // state updates as the reply arrives
 chat.setOpen(true);          // your UI is visible: clears unread, polls faster`;
 
@@ -181,6 +186,8 @@ const toc = [
   ['key', '1. Issue a chat key'],
   ['route', '2. Add the route'],
   ['widget', '3. Add the widget'],
+  ['customers', 'Customer identity'],
+  ['chat-api', 'Server chat API'],
   ['customise', 'Customise'],
   ['api', 'JavaScript API'],
   ['headless', 'Build your own UI'],
@@ -271,6 +278,31 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
           <p>Point <code>endpoint</code> at your route. Then reload: the chat button appears bottom right.</p>
           <CodeTabs group="widget" label="Your site" tabs={WIDGET_RECIPES} />
 
+          <h2 id="customers">Customer identity</h2>
+          <p>The default widget form collects a self-reported name and email. Your route records the customer before starting the conversation; its ticket inherits the customer and channel. An identified chat stops if linking fails. Anonymous chat remains available with <code>details="off"</code> and no server identity.</p>
+          <ul>{CUSTOMER_RULES.map(rule => <li>{rule}</li>)}</ul>
+          <p>For signed-in users, supply trusted contacts and metadata through <code>customer(request)</code>, then set <code>details="off"</code> on the widget. A non-null resolver result replaces browser details; null or undefined falls back to the form. Only new conversations run the resolver.</p>
+          <CodeBlock name={CUSTOMER_RECIPE.name} code={CUSTOMER_RECIPE.code} />
+          <p>Python and PHP routes expose <code>resolve_customer</code>; Go exposes <code>resolveCustomer</code>; WordPress has the <code>truplexy_chat_customer</code> filter. Set <code>TRUPLEXY_CHANNEL_ID</code> on these routes (a constant in WordPress) to override the key’s channel. Node uses <code>channelId</code>.</p>
+          <p>In a headless UI, <code>send()</code> sets <code>needsDetails</code> when details are missing. Keep the draft, call <code>setCustomer(name, email)</code>, then send it again. Use <code>cancelDetails()</code> to dismiss the form. State also includes <code>customer</code>, <code>profile</code> and <code>ticket</code>.</p>
+          <p><code>reset()</code> retains customer details. On account changes, dispose of the old client and recreate it with separate storage per identity, or clear its store first. The server must enforce authorization. Identifying a customer does not grant access to earlier conversations, and existing conversations are not relinked.</p>
+
+          <h2 id="chat-api">Server chat API</h2>
+          <p>Import <code>createChatClient</code> from <code>@truplexy/server</code> on your server. It reads <code>TRUPLEXY_CHAT_KEY</code> and calls the production <code>/v2</code> API; options are <code>chatKey</code>, <code>apiBase</code>, and <code>fetch</code>. Responses retain the API’s snake_case fields. Staff customer management under <code>/customers</code> is separate.</p>
+          <CodeBlock name="chat.ts" code={`import { createChatClient } from "@truplexy/server";
+const chat = createChatClient();
+const customer = await chat.upsertCustomer({ contacts: [{ type: "app", value: "user-42" }] });
+const conversation = await chat.createConversation({ customer_id: customer.id });
+const result = await chat.sendMessage(conversation.id, "Hello");`} />
+          <div class="table-wrap"><table><thead><tr><th>Method</th><th>Endpoint</th><th>Behavior</th></tr></thead><tbody>
+            {CHAT_API_ENDPOINTS.map(([method, path, sdk, description]) => <tr><td><code>{sdk}</code></td><td><code>{method} {path}</code></td><td>{description}</td></tr>)}
+          </tbody></table></div>
+          <p>A channel-bound key supplies the channel automatically; <code>channel_id</code> can override it. Disabled channels return <code>CHANNEL_DISABLED</code>. <code>TruplexyApiError</code> exposes <code>status</code>, <code>code</code>, <code>requestId</code>, <code>details</code> and <code>retryAfter</code>. Keep its raw message on the server; the widget handler returns fixed visitor-safe messages.</p>
+          <p>Show <code>reply</code> for answered, clarification, and no-answer statuses. Offer a handoff button for <code>handoff_offered</code>. Handoff notifies the team while the AI continues; escalation silences the AI. Resume leaves the ticket open; closure ends escalation and clears handoff. <code>escalated</code> and <code>context</code> replies are null.</p>
+          <p>Agent replies take <code>content</code> (1–8000 characters), optional <code>author</code> (up to 64), <code>external_id</code> (up to 128), and <code>escalate</code> (default false). Reuse the platform message ID to deduplicate retries. New replies return 201; repeated IDs return 200.</p>
+          <p>Realtime includes messages and ticket changes; pass only the visitor’s conversation topic to their browser. Webhooks report staff actions, exclude internal notes and integration actions, and do not echo resume or agent replies sent through the integration. Verify the raw-body signature, acknowledge within 2.5 seconds and deduplicate the delivery ID across its possible retry.</p>
+          <p>Migration: the five widget protocol actions and signed-session format remain compatible. Customer linking errors now stop new identified chats. Background context and automatic ticket creation remain best effort. Only <code>REALTIME_NOT_CONFIGURED</code> triggers polling fallback.</p>
+
           <h2 id="customise">Customise</h2>
           <h3>Attributes</h3>
           <p>Set them on <code>&lt;truplexy-chat&gt;</code>, as <code>data-*</code> on the script tag (<code>data-show-sources</code>), or as props in React and Vue (<code>showSources</code>).</p>
@@ -339,7 +371,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
           </ul>
 
           <h2 id="protocol">Protocol</h2>
-          <p>For a route in a language without an SDK: one <code>POST</code> endpoint taking JSON <code>{'{'}action, session, text{'}'}</code>. Your server calls the Truplexy chat API with the chat key.</p>
+          <p>For a route in a language without an SDK: one <code>POST</code> endpoint taking JSON <code>{'{'}action, session?, text?, customer?{'}'}</code>. Your server calls the Truplexy chat API with the chat key.</p>
           <div class="table-wrap">
             <table>
               <thead><tr><th>action</th><th>Calls</th><th>Returns</th></tr></thead>
@@ -355,7 +387,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
           <CodeBlock name="session token" lang="txt" code={tokenFormat} />
           <ul>
             <li>Trim <code>text</code>; refuse it when empty, over 4000 characters, or starting with <code>[Context only</code>.</li>
-            <li>With <code>customer: {'{name, email}'}</code>, refuse a missing name, one over 80 characters, or an invalid email. For a new conversation, record the person with <code>PUT /customer</code> and <code>{'{name, contacts: [{type: "email", value}]}'}</code>, and start the conversation with the returned <code>customer_id</code>, then send <code>[Context only] Customer: name &lt;email&gt;</code> first and open the ticket with <code>{'{subject: "Chat with name"}'}</code>. Pass on only the ticket’s <code>id, subject, status</code>, and keep chatting if either call fails.</li>
+            <li>With <code>customer: {'{name, email}'}</code>, refuse a missing name, one over 120 characters, or an invalid email. For a new conversation, resolve trusted identity first or convert the form to <code>{'{name, contacts: [{type: "email", value}]}'}</code>. Call <code>PUT /customer</code> and start the conversation with its <code>customer_id</code>. Retry <code>CUSTOMER_EXISTS</code> once; other linking failures stop creation. Background context and automatic ticket creation remain best effort. Pass on only the ticket’s <code>id, subject, status</code>.</li>
             <li>In <code>profile</code>, pass on only the names and pictures. The widget shows them in its header and falls back to its defaults if the call fails.</li>
             <li>Never pass on <code>bot_topic</code>: it carries every customer’s messages. <code>conversation_topic</code> is safe for the browser.</li>
             <li>In <code>history</code> and <code>handoff</code>, drop user messages starting with <code>[Context only</code>, and pass on only <code>id, role, content, author, agent, created_at</code>.</li>

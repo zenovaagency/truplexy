@@ -20,6 +20,26 @@ export interface Recipe {
   note?: string;
 }
 
+/** Trusted identity recipe, shared with the public guide. The default widget form asks for name/email. */
+export const CUSTOMER_RECIPE = {
+  name: 'customer-route.ts',
+  code: `import { createHandler } from "@truplexy/server";
+import { getUser } from "./your-app"; // your verified server session
+
+export const POST = createHandler({
+  customer: async (request) => {
+    const user = await getUser(request);
+    return user ? {
+      name: user.name,
+      contacts: [{ type: "app", value: String(user.id) }],
+      metadata: { plan: user.plan },
+    } : null;
+  },
+});
+// Use details="off" on the widget when the server supplies identity.
+// Keep a separate storageKey per signed-in user; reset() retains visitor details.`,
+};
+
 export const CDN_URL = 'https://cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js';
 
 /** Step 2: the route the widget talks to. It holds the chat key. */

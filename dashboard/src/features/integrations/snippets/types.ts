@@ -41,7 +41,7 @@ export interface LangPack {
   /** A line shown under the code, e.g. where the snippets go. */
   note?: string;
   files: { server: string; helper: string; webhook: string; verify: string };
-  /** Server-side client for the chat API: call, ask, handoff, threadFor. */
+  /** Server-side chat helpers: HTTP methods, structured errors, customer upsert and conversation routing. */
   helper: string;
   /** Checks X-Truplexy-Signature. */
   verify: string;

@@ -239,7 +239,7 @@ export class TruplexyChatElement extends Base {
   <form class="details" part="details" hidden novalidate>
     <p class="details-title"></p>
     <p class="details-hint"></p>
-    <input class="details-name" name="name" type="text" autocomplete="name" maxlength="80" required>
+    <input class="details-name" name="name" type="text" autocomplete="name" maxlength="120" required>
     <input class="details-email" name="email" type="email" autocomplete="email" maxlength="254" required>
     <p class="details-error" role="alert" hidden></p>
     <div class="details-buttons"><button class="details-cancel" type="button"></button><button class="details-start" type="submit"></button></div>

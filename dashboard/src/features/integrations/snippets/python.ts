@@ -17,10 +17,39 @@ _http = httpx.AsyncClient(
 )
 
 
-async def call(path: str, body: dict | None = None) -> dict:
-    res = await _http.post(path, json=body)
-    res.raise_for_status()
-    return res.json()
+class TruplexyApiError(Exception):
+    def __init__(self, response, error):
+        super().__init__(error.get("message", "Truplexy request failed"))
+        self.status, self.code = response.status_code, error.get("code", "UPSTREAM_ERROR")
+        self.request_id = error.get("request_id") or response.headers.get("x-request-id")
+        self.details = error
+
+
+async def call(path: str, body: dict | None = None, method: str = "POST") -> dict:
+    res = await _http.request(method, path, **({"json": body} if body is not None else {}))
+    try:
+        data = res.json()
+    except ValueError:
+        data = {}
+    if res.is_error:
+        raise TruplexyApiError(res, data.get("error", {}))
+    return data
+
+
+async def upsert_customer(customer: dict) -> dict:
+    try:
+        return await call("/customer", customer, "PUT")
+    except TruplexyApiError as e:
+        if e.status != 409 or e.code != "CUSTOMER_EXISTS":
+            raise
+        return await call("/customer", customer, "PUT")
+
+
+async def create_conversation(customer=None, channel_id=None) -> dict:
+    opening = {"channel_id": channel_id} if channel_id else {}
+    if customer is not None:
+        opening["customer_id"] = (await upsert_customer(customer))["id"]
+    return await call("/conversations", opening)
 
 
 # One Truplexy conversation per customer thread. Use your database in production.
@@ -31,10 +60,10 @@ def thread_for(conversation_id: str) -> str | None:
     return next((t for t, c in threads.items() if c == conversation_id), None)
 
 
-async def ask(thread: str, text: str) -> dict:
+async def ask(thread: str, text: str, customer=None, channel_id=None) -> dict:
     conv = threads.get(thread)
     if not conv:
-        conv = threads[thread] = (await call("/conversations"))["id"]
+        conv = threads[thread] = (await create_conversation(customer, channel_id))["id"]
     r = await call(f"/conversations/{conv}/messages", {"message": text[:4000]})
     # "escalated" (a person has it) and "context" have no reply: send nothing.
     return {"reply": r.get("reply"), "status": r["status"], "conversation_id": conv}
@@ -139,16 +168,22 @@ def verify(token) -> str | None:
 
 
 class Upstream(Exception):
-    def __init__(self, code: str, request_id: str | None):
-        self.code, self.request_id = code, request_id
+    def __init__(self, code: str, request_id: str | None, status: int = 502):
+        self.code, self.request_id, self.status = code, request_id, status
 
 
-async def api(method: str, path: str, body: dict | None = None) -> dict:
-    res = await http.request(method, path, json=body)
+async def api(method: str, path: str, body: dict | None = None, retry: bool = True) -> dict:
+    try:
+        res = await http.request(method, path, **({"json": body} if body is not None else {}))
+        data = res.json()
+    except (httpx.HTTPError, ValueError):
+        raise Upstream("UPSTREAM_ERROR", None)
     if res.is_error:
-        err = (res.json() if res.content else {}).get("error", {})
+        err = data.get("error", {})
+        if retry and method == "PUT" and path == "/customer" and res.status_code == 409 and err.get("code") == "CUSTOMER_EXISTS":
+            return await api(method, path, body, False)
         code = "NOT_CONFIGURED" if res.status_code == 401 else err.get("code", "UPSTREAM_ERROR")
-        raise Upstream(code, err.get("request_id") or res.headers.get("x-request-id"))
+        raise Upstream(code, err.get("request_id") or res.headers.get("x-request-id"), res.status_code)
     return res.json()
 
 
@@ -166,35 +201,44 @@ def public(conv: dict) -> dict:
 EMAIL = re.compile(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+")
 
 
-def parse_customer(raw) -> tuple[str, str] | None:
-    """(name, email) from the widget's details form, None when absent. Raises ValueError when unusable."""
+def parse_customer(raw) -> dict | None:
+    """Convert visitor details to API contacts; reject unusable input."""
     if raw is None:
         return None
     name = str(raw.get("name", "")).strip() if isinstance(raw, dict) else ""
     email = str(raw.get("email", "")).strip() if isinstance(raw, dict) else ""
-    if not name or len(name) > 80 or len(email) > 254 or not EMAIL.fullmatch(email):
+    if not name or len(name) > 120 or len(email) > 254 or not EMAIL.fullmatch(email):
         raise ValueError
-    return name, email
+    return {"name": name, "contacts": [{"type": "email", "value": email}]}
 
 
-async def start_conversation(customer) -> tuple[str, dict | None]:
-    """Starts the conversation for the customer, tells the assistant who is chatting and opens a ticket for the team. The chat works without any of that."""
-    # Record who is chatting as a customer, so the conversation and its ticket are linked to them.
-    customer_id = None
-    try:
-        if customer:
-            customer_id = (await api("PUT", "/customer", {"name": customer[0], "contacts": [{"type": "email", "value": customer[1]}]}))["id"]
-    except Upstream:
-        pass
-    conv = (await api("POST", "/conversations", {"customer_id": customer_id} if customer_id else None))["id"]
+async def resolve_customer(request: Request) -> dict | None:
+    # Return {contacts, name?, metadata?} from your authenticated server session.
+    # Never copy a customer_id or trusted metadata from the browser body.
+    return None
+
+
+async def start_conversation(raw, request: Request) -> tuple[str, dict | None]:
+    customer = await resolve_customer(request)
+    if customer is None:
+        customer = parse_customer(raw)
+    opening = {"channel_id": os.environ["TRUPLEXY_CHANNEL_ID"]} if os.environ.get("TRUPLEXY_CHANNEL_ID") else {}
+    if customer is not None:
+        known = await api("PUT", "/customer", customer)
+        if not isinstance(known.get("id"), str) or not known["id"]:
+            raise Upstream("UPSTREAM_ERROR", None)
+        opening["customer_id"] = known["id"]
+    conv = (await api("POST", "/conversations", opening))["id"]
+    name = customer.get("name", "") if customer else ""
+
     ticket = None
     try:
         if customer:
-            await api("POST", f"/conversations/{conv}/messages", {"message": f"[Context only] Customer: {customer[0]} <{customer[1]}>"})
+            await api("POST", f"/conversations/{conv}/messages", {"message": f"[Context only] Customer: {name}"})
     except Upstream:
         pass
     try:
-        t = await api("POST", f"/conversations/{conv}/ticket", {"subject": f"Chat with {customer[0]}" if customer else "Website chat"})
+        t = await api("POST", f"/conversations/{conv}/ticket", {"subject": f"Chat with {name}" if name else "Website chat"})
         ticket = {"id": t["id"], "subject": t.get("subject"), "status": t.get("status")}
     except Upstream:
         pass
@@ -203,6 +247,10 @@ async def start_conversation(customer) -> tuple[str, dict | None]:
 
 # Messages the visitor sees. Never pass on the API's own message.
 ERRORS = {
+    "CUSTOMER_CONFLICT": (409, "Your contact details could not be linked. Please contact support."),
+    "CUSTOMER_EXISTS": (409, "Your contact details could not be saved. Please try again."),
+    "NOT_CONFIGURED": (500, "Chat is not set up correctly."),
+    "TENANT_SUSPENDED": (503, "Chat is turned off right now."),
     "INVALID_REQUEST": (400, "Check your message, name and email."),
     "CHANNEL_DISABLED": (503, "Chat is turned off right now."),
     "PLAN_LIMIT_REACHED": (503, "The assistant can't reply right now. Please try again later."),
@@ -220,21 +268,28 @@ def error(code: str, request_id: str | None = None) -> JSONResponse:
 
 @app.post("/api/truplexy")
 async def truplexy(request: Request):
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        return error("INVALID_REQUEST")
+    if not isinstance(body, dict):
+        return error("INVALID_REQUEST")
     action, conv = body.get("action"), verify(body.get("session"))
     try:
         if action == "message":
             text = str(body.get("text", "")).strip()
             if not 0 < len(text) <= 4000 or text.startswith("[Context only"):
                 return error("INVALID_REQUEST")
-            try:
-                customer = parse_customer(body.get("customer"))
-            except ValueError:
-                return error("INVALID_REQUEST")
             ticket = None
             if not conv:
-                conv, ticket = await start_conversation(customer)
-            r = await api("POST", f"/conversations/{conv}/messages", {"message": text})
+                conv, ticket = await start_conversation(body.get("customer"), request)
+            try:
+                r = await api("POST", f"/conversations/{conv}/messages", {"message": text})
+            except Upstream as e:
+                if e.code != "CONVERSATION_NOT_FOUND" or not verify(body.get("session")):
+                    raise
+                conv, ticket = await start_conversation(body.get("customer"), request)
+                r = await api("POST", f"/conversations/{conv}/messages", {"message": text})
             return {"session": sign(conv), "message": r["message"], "reply": r["reply"], "status": r["status"], "sources": r.get("sources", []), **({"ticket": ticket} if ticket else {})}
         if action == "history":
             if not conv:
@@ -259,9 +314,11 @@ async def truplexy(request: Request):
     except Upstream as e:
         if action == "history" and e.code == "CONVERSATION_NOT_FOUND":
             return {"session": None}
-        if action == "live":
+        if action == "live" and e.code == "REALTIME_NOT_CONFIGURED":
             return {}
         return error(e.code, e.request_id)
+    except ValueError:
+        return error("INVALID_REQUEST")
     return error("INVALID_REQUEST")`,
     },
 
@@ -293,7 +350,7 @@ async def handle_whatsapp(body: dict):
     for msg in value.get("messages", []):
         if msg["type"] != "text":
             continue
-        r = await ask(f"wa:{msg['from']}", msg["text"]["body"])
+        r = await ask(f"wa:{msg['from']}", msg["text"]["body"], {"contacts": [{"type": "whatsapp", "value": msg["from"]}]})
         if r["reply"]:
             await send_whatsapp(msg["from"], r["reply"])
 
@@ -326,9 +383,9 @@ async def telegram(request: Request, background: BackgroundTasks):
 
 async def handle_update(update: dict):
     msg = update.get("message") or {}
-    if not msg.get("text"):
+    if not msg.get("text") or not msg.get("from") or msg.get("sender_chat"):
         return
-    r = await ask(f"tg:{msg['chat']['id']}", msg["text"])
+    r = await ask(f"tg:{msg['chat']['id']}:{msg['from']['id']}", msg["text"], {"contacts": [{"type": "telegram", "value": str(msg["from"]["id"])}]})
     if r["reply"]:
         await send_telegram(msg["chat"]["id"], r["reply"])
 
@@ -336,7 +393,7 @@ async def handle_update(update: dict):
 async def send_telegram(chat_id, text: str):
     async with httpx.AsyncClient() as http:
         await http.post(f"{TELEGRAM}/sendMessage", json={"chat_id": chat_id, "text": text})`,
-      deliver: `await send_telegram(thread.removeprefix("tg:"), f"{agent}: {text}")`,
+      deliver: `await send_telegram(thread.split(":")[1], f"{agent}: {text}")`,
     },
 
     discord: {
@@ -356,7 +413,7 @@ async def on_message(m: discord.Message):
     if m.author.bot or not m.content:
         return
     async with m.channel.typing():
-        r = await ask(f"dc:{m.channel.id}:{m.author.id}", m.content)
+        r = await ask(f"dc:{m.channel.id}:{m.author.id}", m.content, {"contacts": [{"type": "discord", "value": str(m.author.id)}]})
     if r["reply"]:
         await m.reply(r["reply"])
 
@@ -389,7 +446,7 @@ async def handle_messenger(body: dict):
             text = ev.get("message", {}).get("text")
             if not text:
                 continue
-            r = await ask(f"fb:{ev['sender']['id']}", text)
+            r = await ask(f"fb:{ev['sender']['id']}", text, {"contacts": [{"type": "messenger", "value": ev["sender"]["id"]}]})
             if r["reply"]:
                 await send_messenger(ev["sender"]["id"], r["reply"])
 
@@ -425,7 +482,7 @@ async def handle_instagram(body: dict):
             message = ev.get("message", {})
             if not message.get("text") or message.get("is_echo"):
                 continue
-            r = await ask(f"ig:{ev['sender']['id']}", message["text"])
+            r = await ask(f"ig:{ev['sender']['id']}", message["text"], {"contacts": [{"type": "instagram", "value": ev["sender"]["id"]}]})
             if r["reply"]:
                 await send_instagram(ev["sender"]["id"], r["reply"])
 
@@ -454,7 +511,7 @@ async def inbound_email(request: Request, background: BackgroundTasks):
 
 
 async def handle_email(mail: dict):   # Postmark's fields
-    r = await ask(f"mail:{mail['From']}", f"{mail['Subject']}\\n\\n{mail['TextBody']}"[:4000])
+    r = await ask(f"mail:{mail['From']}", f"{mail['Subject']}\\n\\n{mail['TextBody']}"[:4000], {"contacts": [{"type": "email", "value": mail["From"]}]})
     if r["reply"]:
         await send_email(to=mail["From"], subject=f"Re: {mail['Subject']}", text=r["reply"], in_reply_to=mail["MessageID"])`,
       deliver: `await send_email(to=thread.removeprefix("mail:"), subject="Re: your request", text=text)`,
@@ -478,8 +535,11 @@ async def shopify_chat(request: Request):
         return Response(status_code=401)
     body = await request.json()
     q = request.query_params
-    customer = q.get("logged_in_customer_id") or body["visitor_id"]
-    return await ask(f"shop:{q['shop']}:{customer}", body["text"])
+    signed_in = q.get("logged_in_customer_id")
+    # Implement guest_session_id using your server's verified guest session.
+    customer = "user:" + signed_in if signed_in else "guest:" + await guest_session_id(request)
+    identity = {"contacts": [{"type": "shopify", "value": f"{q['shop']}:{signed_in}"}]} if signed_in else None
+    return await ask(f"shop:{q['shop']}:{customer}", body["text"], identity)
 
 
 # Shopify signs proxy requests: sorted "key=value" pairs, joined without separators.
@@ -517,7 +577,12 @@ async def handle_events(events: list):
         if msg.get("direction") != "INCOMING":
             continue
         last_channel[thread_id] = msg
-        r = await ask(f"hs:{thread_id}", msg["text"])
+        sender = next(iter(msg.get("senders", [])), {})
+        email = next((d["value"] for d in sender.get("deliveryIdentifiers", []) if d["type"] == "HS_EMAIL_ADDRESS"), None)
+        contacts = [{"type": "hubspot", "value": os.environ["HUBSPOT_ACCOUNT_ID"] + ":" + sender["actorId"]}] if sender.get("actorId") else ([{"type": "email", "value": email}] if email else [])
+        if not contacts:
+            raise ValueError("HubSpot sender identity is missing")
+        r = await ask(f"hs:{thread_id}", msg["text"], {"contacts": contacts})
         if r["reply"]:
             await hubspot_send(thread_id, r["reply"])
 
@@ -551,7 +616,7 @@ async def new_ticket(request: Request, background: BackgroundTasks):
 
 
 async def handle_ticket(body: dict):
-    r = await ask(f"zd:{body['ticket_id']}", body["description"])
+    r = await ask(f"zd:{body['ticket_id']}", body["description"], {"contacts": [{"type": "zendesk", "value": os.environ["ZENDESK_SUBDOMAIN"] + ":" + str(body["requester_id"])}]})
     if r["reply"] and r["status"] == "answered":
         await comment(body["ticket_id"], r["reply"])
 
@@ -566,7 +631,7 @@ async def comment(ticket_id, text: str):
       handler: `# pip install slack_bolt aiohttp
 import os
 from slack_bolt.async_app import AsyncApp
-from truplexy import call
+from truplexy import call, create_conversation
 
 slack = AsyncApp(token=os.environ["SLACK_BOT_TOKEN"], signing_secret=os.environ["SLACK_SIGNING_SECRET"])
 
@@ -596,7 +661,7 @@ await save_slack_thread(post["ts"], conversation_id)`,
       file: 'bot.py',
       handler: `# pip install botbuilder-core botbuilder-integration-aiohttp
 from botbuilder.core import ActivityHandler, TurnContext
-from truplexy import call
+from truplexy import call, create_conversation
 
 
 class SupportBot(ActivityHandler):
@@ -613,11 +678,11 @@ class SupportBot(ActivityHandler):
     api: {
       file: 'example.py',
       handler: `import asyncio
-from truplexy import call
+from truplexy import call, create_conversation
 
 
 async def main():
-    conv = await call("/conversations")
+    conv = await create_conversation({"contacts": [{"type": "app", "value": "user-42"}]})
     r = await call(f"/conversations/{conv['id']}/messages", {"message": "Where is my order?"})
     print(r["status"], r["reply"], r["sources"])
 

@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class Truplexy {
@@ -26,22 +27,50 @@ public final class Truplexy {
     /** reply is null for "escalated" and "context": send nothing. */
     public record Answer(String reply, String status, String conversationId) {}
 
-    public static JsonNode call(String path, Object body) throws Exception {
+    public static final class ApiError extends RuntimeException {
+        public final int status;
+        public final String code, requestId;
+        public final JsonNode details;
+        ApiError(int status, JsonNode details, String requestId) {
+            super(details.path("message").asText("Truplexy request failed"));
+            this.status = status; this.details = details;
+            this.code = details.path("code").asText("UPSTREAM_ERROR");
+            this.requestId = details.path("request_id").asText(requestId);
+        }
+    }
+    public static JsonNode call(String path, Object body) throws Exception { return call(path, body, "POST"); }
+    public static JsonNode call(String path, Object body, String method) throws Exception {
         var req = HttpRequest.newBuilder(URI.create(API + path))
             .timeout(Duration.ofSeconds(60))
             .header("Authorization", "Bearer " + System.getenv("TRUPLEXY_CHAT_KEY"))
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body == null ? Map.of() : body)))
+            .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)))
             .build();
         var res = HTTP.send(req, HttpResponse.BodyHandlers.ofString());
-        if (res.statusCode() >= 300) throw new IllegalStateException("Truplexy " + res.statusCode() + ": " + res.body());
-        return JSON.readTree(res.body());
+        JsonNode data;
+        try { data = JSON.readTree(res.body()); } catch (Exception e) { data = JSON.createObjectNode(); }
+        if (res.statusCode() >= 300) throw new ApiError(res.statusCode(), data.path("error"), res.headers().firstValue("X-Request-ID").orElse(null));
+        return data;
     }
 
-    public static Answer ask(String thread, String text) throws Exception {
+    public static JsonNode upsertCustomer(Object customer) throws Exception {
+        try { return call("/customer", customer, "PUT"); }
+        catch (ApiError e) {
+            if (e.status != 409 || !e.code.equals("CUSTOMER_EXISTS")) throw e;
+            return call("/customer", customer, "PUT");
+        }
+    }
+    public static JsonNode createConversation(Object customer, String channelId) throws Exception {
+        var opening = new HashMap<String, Object>();
+        if (customer != null) opening.put("customer_id", upsertCustomer(customer).get("id").asText());
+        if (channelId != null) opening.put("channel_id", channelId);
+        return call("/conversations", opening);
+    }
+    public static Answer ask(String thread, String text) throws Exception { return ask(thread, text, null, null); }
+    public static Answer ask(String thread, String text, Object customer, String channelId) throws Exception {
         String id = THREADS.get(thread);
         if (id == null) {
-            id = call("/conversations", null).get("id").asText();
+            id = createConversation(customer, channelId).get("id").asText();
             THREADS.put(thread, id);
         }
         var message = text.length() > 4000 ? text.substring(0, 4000) : text;
@@ -174,7 +203,7 @@ saveSlackThread(post.getTs(), conversationId);`,
 
 public class Example {
     public static void main(String[] args) throws Exception {
-        var conv = Truplexy.call("/conversations", null);
+        var conv = Truplexy.createConversation(Map.of("contacts", java.util.List.of(Map.of("type", "app", "value", "user-42"))), null);
         var r = Truplexy.call("/conversations/" + conv.get("id").asText() + "/messages", Map.of("message", "Where is my order?"));
         System.out.println(r.get("status").asText() + ": " + r.path("reply").asText());
     }

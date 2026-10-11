@@ -49,7 +49,7 @@ export default defineEventHandler((event) => truplexy(toWebRequest(event)));
 
 ## Props and events
 
-- **Props** are the same as the element's attributes: `endpoint`, `heading`, `subtitle`, `greeting`, `placeholder`, `accent`, `avatar`, `theme`, `position`, `mode`, `show-sources`, `demo`, `storage-key`. There are also `open`, which controls the panel when set, and `labels`.
+- **Props** are the same as the element's attributes: `endpoint`, `heading`, `subtitle`, `greeting`, `placeholder`, `accent`, `avatar`, `theme`, `position`, `mode`, `show-sources`, `demo`, `details`, `storage-key`. There are also `open`, which controls the panel when set, and `labels`.
 - **Events:** `@open`, `@close`, `@message`, `@status`, `@error`.
 - **Template ref:** exposes `open()`, `close()`, `toggle()`, `send(text)`, `reset()`.
 
@@ -58,8 +58,12 @@ export default defineEventHandler((event) => truplexy(toWebRequest(event)));
 ```ts
 import { useTruplexyChat } from "@truplexy/vue";
 
-const { state, send, handoff, retry, reset, setOpen } = useTruplexyChat({ endpoint: "/api/truplexy" });
-// state.value.messages, sending, offerHandoff, escalated, unread, error
+const { state, setCustomer, cancelDetails, send, handoff, retry, reset, setOpen } = useTruplexyChat({ endpoint: "/api/truplexy" });
+// state.value.customer, needsDetails, profile, ticket, messages, sending, offerHandoff, escalated, unread, error
 ```
+
+With `details: 'ask'` (the default), collect a name/email and call `setCustomer(name, email)` before sending. When `state.value.needsDetails` is true, preserve the draft, set the details, then `send(draft)` again. Use `details: 'off'` for a server `customer(request)` resolver. Names allow 120 characters; customer linking errors stop a new identified chat.
+
+`reset()` retains customer details. Remount with isolated storage on account changes; the server must enforce authorization. See [customer identity, types and errors](../../CHAT_API.md).
 
 MIT licensed.

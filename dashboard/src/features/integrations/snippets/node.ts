@@ -8,23 +8,44 @@ const pack: LangPack = {
 // TRUPLEXY_CHAT_KEY lives in your secret manager, never in a browser or app.
 const API = "${PUBLIC_API}";
 
-export async function call(path, body) {
+export class TruplexyApiError extends Error {
+  constructor(status, error, requestId) {
+    super(error.message ?? "Truplexy request failed");
+    this.status = status; this.code = error.code ?? "UPSTREAM_ERROR";
+    this.requestId = error.request_id ?? requestId; this.details = error;
+  }
+}
+export async function call(path, body, method = "POST") {
   const res = await fetch(API + path, {
-    method: "POST",
+    method,
     headers: { Authorization: \`Bearer \${process.env.TRUPLEXY_CHAT_KEY}\`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(\`Truplexy \${res.status}: \${await res.text()}\`);
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new TruplexyApiError(res.status, data.error ?? {}, res.headers.get("X-Request-ID"));
+  return data;
+}
+
+export async function upsertCustomer(customer) {
+  try { return await call("/customer", customer, "PUT"); }
+  catch (e) {
+    if (e.status !== 409 || e.code !== "CUSTOMER_EXISTS") throw e;
+    return call("/customer", customer, "PUT"); // one retry only
+  }
+}
+export async function createConversation(customer, channelId) {
+  const known = customer == null ? null : await upsertCustomer(customer);
+  if (customer != null && (typeof known?.id !== "string" || !known.id)) throw new TruplexyApiError(502, { code: "UPSTREAM_ERROR", message: "Missing customer ID" });
+  return call("/conversations", { ...(known && { customer_id: known.id }), ...(channelId && { channel_id: channelId }) });
 }
 
 // One Truplexy conversation per customer thread. Use your database in production.
 const threads = new Map();
 export const threadFor = (conversationId) => [...threads].find(([, c]) => c === conversationId)?.[0];
 
-export async function ask(thread, text) {
+export async function ask(thread, text, customer, channelId) {
   let id = threads.get(thread);
-  if (!id) threads.set(thread, (id = (await call("/conversations")).id));
+  if (!id) threads.set(thread, (id = (await createConversation(customer, channelId)).id));
   const r = await call(\`/conversations/\${id}/messages\`, { message: text.slice(0, 4000) });
   // "escalated" (a person has it) and "context" have no reply: send nothing.
   return { reply: r.reply, status: r.status, conversationId: id };
@@ -94,7 +115,7 @@ app.post("/whatsapp", express.json(), async (req, res) => {
   res.sendStatus(200);                       // answer Meta at once
   const msg = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
   if (msg?.type !== "text") return;
-  const { reply } = await ask(\`wa:\${msg.from}\`, msg.text.body);
+  const { reply } = await ask(\`wa:\${msg.from}\`, msg.text.body, { contacts: [{ type: "whatsapp", value: msg.from }] });
   if (reply) await sendWhatsApp(msg.from, reply);
 });
 
@@ -111,8 +132,8 @@ const sendWhatsApp = (to, body) =>
       handler: `app.post("/telegram", express.json(), async (req, res) => {
   res.sendStatus(200);
   const msg = req.body.message;
-  if (!msg?.text) return;
-  const { reply } = await ask(\`tg:\${msg.chat.id}\`, msg.text);
+  if (!msg?.text || !msg.from || msg.sender_chat) return;
+  const { reply } = await ask(\`tg:\${msg.chat.id}:\${msg.from.id}\`, msg.text, { contacts: [{ type: "telegram", value: String(msg.from.id) }] });
   if (reply) await sendTelegram(msg.chat.id, reply);
 });
 
@@ -122,7 +143,7 @@ const sendTelegram = (chat_id, text) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id, text }),
   });`,
-      deliver: `await sendTelegram(thread.replace("tg:", ""), \`\${agent}: \${text}\`);`,
+      deliver: `await sendTelegram(thread.split(":")[1], \`\${agent}: \${text}\`);`,
     },
 
     discord: {
@@ -134,7 +155,7 @@ const discord = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBi
 discord.on("messageCreate", async (m) => {
   if (m.author.bot || !m.content) return;
   await m.channel.sendTyping();
-  const { reply } = await ask(\`dc:\${m.channelId}:\${m.author.id}\`, m.content);
+  const { reply } = await ask(\`dc:\${m.channelId}:\${m.author.id}\`, m.content, { contacts: [{ type: "discord", value: m.author.id }] });
   if (reply) await m.reply(reply);
 });
 discord.login(process.env.DISCORD_TOKEN);`,
@@ -147,7 +168,7 @@ await (await discord.channels.fetch(channelId)).send(\`**\${agent}:** \${text}\`
   res.sendStatus(200);
   for (const e of req.body.entry ?? []) for (const ev of e.messaging ?? []) {
     if (!ev.message?.text) continue;
-    const { reply } = await ask(\`fb:\${ev.sender.id}\`, ev.message.text);
+    const { reply } = await ask(\`fb:\${ev.sender.id}\`, ev.message.text, { contacts: [{ type: "messenger", value: ev.sender.id }] });
     if (reply) await sendMessenger(ev.sender.id, reply);
   }
 });
@@ -166,7 +187,7 @@ const sendMessenger = (id, text) =>
   res.sendStatus(200);
   for (const e of req.body.entry ?? []) for (const ev of e.messaging ?? []) {
     if (!ev.message?.text || ev.message.is_echo) continue;
-    const { reply } = await ask(\`ig:\${ev.sender.id}\`, ev.message.text);
+    const { reply } = await ask(\`ig:\${ev.sender.id}\`, ev.message.text, { contacts: [{ type: "instagram", value: ev.sender.id }] });
     if (reply) await sendInstagram(ev.sender.id, reply);
   }
 });
@@ -184,7 +205,7 @@ const sendInstagram = (id, text) =>
       handler: `app.post("/inbound-email", express.json(), async (req, res) => {
   res.sendStatus(200);
   const { From, Subject, TextBody, MessageID } = req.body;   // Postmark's fields
-  const { reply } = await ask(\`mail:\${From}\`, \`\${Subject}\\n\\n\${TextBody}\`.slice(0, 4000));
+  const { reply } = await ask(\`mail:\${From}\`, \`\${Subject}\\n\\n\${TextBody}\`.slice(0, 4000), { contacts: [{ type: "email", value: From }] });
   if (reply) await sendEmail({ to: From, subject: \`Re: \${Subject}\`, text: reply, inReplyTo: MessageID });
 });`,
       deliver: `await sendEmail({ to: thread.replace("mail:", ""), subject: "Re: your request", text });`,
@@ -196,8 +217,11 @@ const sendInstagram = (id, text) =>
 // App Proxy: https://{shop}/apps/support/chat → https://your-server.com/shopify/chat
 app.post("/shopify/chat", express.json(), async (req, res) => {
   if (!validProxySignature(req.query, process.env.SHOPIFY_SECRET)) return res.sendStatus(401);
-  const customer = req.query.logged_in_customer_id || req.body.visitorId;
-  const { reply, status, conversationId } = await ask(\`shop:\${req.query.shop}:\${customer}\`, req.body.text);
+  const signedIn = req.query.logged_in_customer_id;
+  // guestSessionId must come from your server's verified guest session, never a caller-chosen ID.
+  const customer = signedIn ? "user:" + signedIn : "guest:" + await guestSessionId(req);
+  const identity = signedIn ? { contacts: [{ type: "shopify", value: req.query.shop + ":" + signedIn }] } : undefined;
+  const { reply, status, conversationId } = await ask(\`shop:\${req.query.shop}:\${customer}\`, req.body.text, identity);
   res.json({ reply, status, conversationId });
 });
 
@@ -227,7 +251,11 @@ app.post("/hubspot", express.json(), async (req, res) => {
     const msg = await hubspot(\`/conversations/v3/conversations/threads/\${e.objectId}/messages/\${e.messageId}\`);
     if (msg.direction !== "INCOMING") continue;
     lastChannel.set(e.objectId, msg);
-    const { reply } = await ask(\`hs:\${e.objectId}\`, msg.text);
+    const sender = msg.senders?.[0];
+    const email = sender?.deliveryIdentifiers?.find((d) => d.type === "HS_EMAIL_ADDRESS")?.value;
+    const contacts = sender?.actorId ? [{ type: "hubspot", value: process.env.HUBSPOT_ACCOUNT_ID + ":" + sender.actorId }] : email ? [{ type: "email", value: email }] : [];
+    if (!contacts.length) throw new Error("HubSpot sender identity is missing");
+    const { reply } = await ask(\`hs:\${e.objectId}\`, msg.text, { contacts });
     if (reply) await hubspotSend(e.objectId, reply, msg);
   }
 });
@@ -252,8 +280,9 @@ const hubspotSend = (threadId, text, { channelId, channelAccountId } = lastChann
 
 app.post("/zendesk", express.json(), async (req, res) => {
   res.sendStatus(200);
-  const { ticket_id, description } = req.body;            // fields from your trigger's JSON body
-  const { reply, status } = await ask(\`zd:\${ticket_id}\`, description);
+  const { ticket_id, description, requester_id } = req.body;            // fields from your trigger's JSON body
+  if (!requester_id) throw new Error("Configure requester_id in the Zendesk trigger body");
+  const { reply, status } = await ask(\`zd:\${ticket_id}\`, description, { contacts: [{ type: "zendesk", value: process.env.ZENDESK_SUBDOMAIN + ":" + requester_id }] });
   if (reply && status === "answered") await zendesk(\`/tickets/\${ticket_id}\`, { ticket: { comment: { body: reply, public: true } } });
 });`,
       deliver: `await zendesk(\`/tickets/\${thread.replace("zd:", "")}\`, { ticket: { comment: { body: text, public: true } } });`,
@@ -299,11 +328,14 @@ app.post("/api/messages", express.json(), (req, res) =>
     },
 
     api: {
+      standalone: true,
       file: 'example.js',
-      handler: `import { call } from "./truplexy.js";
-
-const conv = await call("/conversations");
-const r = await call(\`/conversations/\${conv.id}/messages\`, { message: "Where is my order?" });
+      handler: `// npm i @truplexy/server — server code only.
+import { createChatClient } from "@truplexy/server";
+const chat = createChatClient();
+const customer = await chat.upsertCustomer({ contacts: [{ type: "app", value: "user-42" }, { type: "email", value: "ann@example.com" }] });
+const conv = await chat.createConversation({ customer_id: customer.id });
+const r = await chat.sendMessage(conv.id, "Where is my order?");
 console.log(r.status, r.reply, r.sources);`,
       deliver: `// Deliver the reply to the customer's thread on your platform.
 deliver(thread, text, agent);`,

@@ -84,7 +84,7 @@ describe('<truplexy-chat>', () => {
     const logos = brand.querySelectorAll('img');
     expect([...logos].map((i) => i.className)).toEqual(['wordmark-on-light', 'wordmark-on-dark']);
     expect([...logos].every((i) => i.alt === 'Truplexy' && i.src.startsWith('data:image/png;base64,'))).toBe(true);
-    expect(brand.href).toMatch(/^https:\/\/zenovasolution\.xyz\/\?utm_source=chat-widget/);
+    expect(brand.href).toMatch(/^https:\/\/truplexy\.com\/\?utm_source=chat-widget/);
     expect(brand.target).toBe('_blank');
     expect(brand.rel).toContain('noopener');
     el.labels = { poweredBy: 'Desarrollado por Truplexy' };

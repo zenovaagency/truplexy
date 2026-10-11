@@ -1,6 +1,7 @@
 import { signSession, verifySession } from './session';
 
-export const DEFAULT_API_BASE = 'https://api.truplexy.com/v2';
+import { createChatClient, TruplexyApiError, type CustomerInput, type Conversation, type Profile } from './client';
+export { DEFAULT_API_BASE } from './client';
 
 export interface HandlerOptions {
   /** The chat key (`tpx_…`). Defaults to the `TRUPLEXY_CHAT_KEY` environment variable, read on each request. */
@@ -28,6 +29,8 @@ export interface HandlerOptions {
    * once, as a `[Context only]` message, when a conversation starts.
    */
   context?: (request: Request) => string | null | undefined | Promise<string | null | undefined>;
+  /** Trusted identity for a new conversation. Null/undefined falls back to the visitor form. */
+  customer?: (request: Request) => CustomerInput | null | undefined | Promise<CustomerInput | null | undefined>;
   /** Called with server-side failures. Defaults to `console.error`. Never receives the chat key. */
   onError?: (error: TruplexyError) => void;
   /** A custom fetch, for tests or proxies. */
@@ -50,7 +53,7 @@ export class TruplexyError extends Error {
 }
 
 const MAX_BODY = 16 * 1024;
-const MAX_NAME = 80;
+const MAX_NAME = 120;
 const MAX_EMAIL = 254;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TEXT = 4000;
@@ -58,6 +61,11 @@ const CONTEXT_PREFIX = '[Context only';
 
 /** API failures the widget can explain; everything else becomes UPSTREAM_ERROR. */
 const PASSED_ON: Record<string, [number, string]> = {
+  CUSTOMER_CONFLICT: [409, 'Your contact details could not be linked. Please contact support.'],
+  CUSTOMER_EXISTS: [409, 'Your contact details could not be saved. Please try again.'],
+  CUSTOMER_NOT_FOUND: [404, 'Your customer profile is unavailable. Please try again.'],
+  REALTIME_NOT_CONFIGURED: [503, 'Live updates are unavailable.'],
+  INVALID_REQUEST: [400, 'Check your message and customer details.'],
   CHANNEL_DISABLED: [503, 'Chat is turned off right now.'],
   TENANT_SUSPENDED: [503, 'Chat is turned off right now.'],
   PLAN_LIMIT_REACHED: [503, "The assistant can't reply right now. Please try again later."],
@@ -67,13 +75,6 @@ const PASSED_ON: Record<string, [number, string]> = {
 };
 
 const env = (name: string): string | undefined => (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[name] || undefined;
-
-interface Conversation {
-  id: string;
-  status: string;
-  escalated: boolean;
-  messages: { id: string; role: string; content: string; author?: string; agent?: string; created_at: string }[];
-}
 
 /**
  * The route the widget talks to: one POST endpoint taking `{action, session?, …}`.
@@ -123,27 +124,31 @@ export function createHandler(options: HandlerOptions = {}): Handler {
       const chatKey = options.chatKey ?? env('TRUPLEXY_CHAT_KEY');
       if (!chatKey) throw new TruplexyError('NOT_CONFIGURED', 500, 'Chat is not set up yet.');
       const secret = options.sessionSecret ?? env('TRUPLEXY_SESSION_SECRET') ?? chatKey;
-      const api = createApi(chatKey, (options.apiBase ?? env('TRUPLEXY_API_BASE') ?? DEFAULT_API_BASE).replace(/\/$/, ''), options.fetch ?? fetch);
+      const api = createChatClient({ chatKey, apiBase: options.apiBase, fetch: options.fetch });
       const conversationId = await verifySession(body.session, secret, ttl);
       const session = (id: string) => signSession(id, secret);
 
-      // Who is chatting, from the widget's details form. Both fields or neither.
-      const customer = parseCustomer(body.customer);
       let ticket: Ticket | undefined;
 
       const start = async () => {
-        // Record who is chatting as a customer of the bot, so the conversation and its ticket are linked to them.
-        // The chat works without it if that fails.
-        const known = customer && (await api<{ id: string }>('/customer', { name: customer.name, contacts: [{ type: 'email', value: customer.email }] }, 'PUT').catch((e) => (report(e), undefined)));
-        const opening = { ...(options.channelId && { channel_id: options.channelId }), ...(known && { customer_id: known.id }) };
-        const conv = await api<Conversation>('/conversations', Object.keys(opening).length ? opening : undefined);
-        const lines = [customer && `Customer: ${customer.name} <${customer.email}>`, (await options.context?.(request))?.trim()].filter(Boolean);
-        if (lines.length) {
-          // Background only: stored as history, never answered. A failure here mustn't stop the chat.
-          await api(`/conversations/${conv.id}/messages`, { message: `${CONTEXT_PREFIX}] ${lines.join('. ')}`.slice(0, MAX_TEXT) }).catch(report);
+        const trusted = await options.customer?.(request);
+        const visitor = trusted == null ? parseCustomer(body.customer) : undefined;
+        const identity = trusted ?? (visitor && { name: visitor.name, contacts: [{ type: 'email', value: visitor.email }] });
+        // Linking is required when identity is supplied. upsertCustomer retries a contact race once.
+        const known = identity ? await api.upsertCustomer(identity) : undefined;
+        if (identity && (typeof known?.id !== 'string' || !known.id)) {
+          throw new TruplexyApiError('UPSTREAM_ERROR', 502, 'The chat API returned no customer ID.');
         }
-        // Every conversation gets a ticket, which carries the customer. Chat still works if it fails.
-        ticket = await api<Ticket>(`/conversations/${conv.id}/ticket`, { subject: customer ? `Chat with ${customer.name}` : 'Website chat' }).then(publicTicket, (e) => (report(e), undefined));
+        const opening = { ...(options.channelId && { channel_id: options.channelId }), ...(known && { customer_id: known.id }) };
+        const conv = await api.createConversation(Object.keys(opening).length ? opening : undefined);
+        const name = known?.name || identity?.name;
+        try {
+          const lines = [visitor ? `Customer: ${visitor.name} <${visitor.email}>` : name && `Customer: ${name}`, (await options.context?.(request))?.trim()].filter(Boolean);
+          if (lines.length) await api.sendMessage(conv.id, `${CONTEXT_PREFIX}] ${lines.join('. ')}`.slice(0, MAX_TEXT));
+        } catch (e) { report(safeError(e)); }
+        // Background and automatic ticket creation remain best effort.
+        ticket = await api.createTicket(conv.id, { subject: name ? `Chat with ${name}` : 'Website chat' })
+          .then(publicTicket, (e) => (report(safeError(e)), undefined));
         return conv.id;
       };
 
@@ -153,13 +158,13 @@ export function createHandler(options: HandlerOptions = {}): Handler {
           if (!text || text.length > MAX_TEXT) throw new TruplexyError('INVALID_REQUEST', 400, `Messages must be 1–${MAX_TEXT} characters.`);
           if (text.startsWith(CONTEXT_PREFIX)) throw new TruplexyError('INVALID_REQUEST', 400, 'That message can’t be sent.');
           let id = conversationId ?? (await start());
-          const ask = () => api<{ message: unknown; reply: string | null; status: string; sources: unknown[] }>(`/conversations/${id}/messages`, { message: text });
+          const ask = () => api.sendMessage(id, text);
           let result;
           try {
             result = await ask();
           } catch (e) {
             // The conversation is gone (deleted, or a different key): start a new one.
-            if (!(e instanceof TruplexyError && e.code === 'CONVERSATION_NOT_FOUND') || !conversationId) throw e;
+            if (!(e instanceof TruplexyApiError && e.code === 'CONVERSATION_NOT_FOUND') || !conversationId) throw e;
             id = await start();
             result = await ask();
           }
@@ -169,35 +174,35 @@ export function createHandler(options: HandlerOptions = {}): Handler {
         case 'history': {
           if (!conversationId) return json({ session: null });
           try {
-            const conv = await api<Conversation>(`/conversations/${conversationId}`, undefined, 'GET');
+            const conv = await api.getConversation(conversationId);
             return json({ session: await session(conversationId), conversation: publicConversation(conv) });
           } catch (e) {
-            if (e instanceof TruplexyError && e.code === 'CONVERSATION_NOT_FOUND') return json({ session: null });
+            if (e instanceof TruplexyApiError && e.code === 'CONVERSATION_NOT_FOUND') return json({ session: null });
             throw e;
           }
         }
 
         case 'handoff': {
           if (!conversationId) throw new TruplexyError('NO_SESSION', 400, 'Send a message first.');
-          const conv = await api<Conversation>(`/conversations/${conversationId}/handoff`);
+          const conv = await api.handoff(conversationId);
           return json({ session: await session(conversationId), conversation: publicConversation(conv) });
         }
 
         case 'live': {
           if (!conversationId) return json({});
           try {
-            const live = await api<{ url: string; publishable_key: string; conversation_topic?: string }>('/realtime/token', { conversation_id: conversationId });
+            const live = await api.getRealtimeToken(conversationId);
             // Only the conversation's own topic: the bot topic carries every customer's messages.
             return json(live.conversation_topic ? { url: live.url, publishable_key: live.publishable_key, conversation_topic: live.conversation_topic } : {});
           } catch (e) {
-            if (e instanceof TruplexyError && e.status === 503) return json({});
+            if (e instanceof TruplexyApiError && e.code === 'REALTIME_NOT_CONFIGURED') return json({});
             throw e;
           }
         }
 
         case 'profile': {
           // The business and bot name and picture, read with the chat key. Needs no session.
-          const p = await api<Profile>('/profile', undefined, 'GET');
+          const p = await api.getProfile();
           return json(publicProfile(p));
         }
 
@@ -205,8 +210,8 @@ export function createHandler(options: HandlerOptions = {}): Handler {
           throw new TruplexyError('INVALID_REQUEST', 400, 'Unknown action.');
       }
     } catch (e) {
-      const error = e instanceof TruplexyError ? e : new TruplexyError('INTERNAL_ERROR', 500, 'Something went wrong.');
-      if (error.status >= 500) report(e instanceof TruplexyError ? e : Object.assign(error, { cause: e }));
+      const error = safeError(e);
+      if (error.status >= 500 || error.code.startsWith('CUSTOMER_')) report(error);
       return fail(error);
     }
   };
@@ -225,30 +230,15 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   throw new TruplexyError('INVALID_REQUEST', 400, 'Send a JSON object.');
 }
 
-function createApi(chatKey: string, base: string, doFetch: typeof fetch) {
-  return async function api<T>(path: string, body?: unknown, method = 'POST'): Promise<T> {
-    let res: Response;
-    try {
-      res = await doFetch(base + path, {
-        method,
-        headers: { Authorization: `Bearer ${chatKey}`, ...(body !== undefined && { 'Content-Type': 'application/json' }) },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-    } catch {
-      throw new TruplexyError('UPSTREAM_ERROR', 502, 'Chat is unavailable right now.');
-    }
-    const data = await res.json().catch(() => null);
-    if (res.ok) return data as T;
-
-    const code: string = data?.error?.code ?? 'UPSTREAM_ERROR';
-    const requestId: string | undefined = data?.error?.request_id ?? res.headers.get('X-Request-ID') ?? undefined;
-    if (code === 'CONVERSATION_NOT_FOUND') throw new TruplexyError(code, 404, 'That conversation has ended.', requestId);
-    if (res.status === 401) throw new TruplexyError('NOT_CONFIGURED', 500, 'Chat is not set up correctly.', requestId);
-    if (res.status === 503) throw new TruplexyError(PASSED_ON[code] ? code : 'UNAVAILABLE', 503, PASSED_ON[code]?.[1] ?? 'Chat is unavailable right now.', requestId);
-    const known = PASSED_ON[code];
-    if (known) throw new TruplexyError(code, known[0], known[1], requestId);
-    throw new TruplexyError('UPSTREAM_ERROR', 502, 'Chat is unavailable right now.', requestId);
-  };
+function safeError(error: unknown): TruplexyError {
+  if (error instanceof TruplexyError) return error;
+  if (!(error instanceof TruplexyApiError)) return new TruplexyError('INTERNAL_ERROR', 500, 'Something went wrong.');
+  const { code, status, requestId } = error;
+  if (status === 401 || code === 'NOT_CONFIGURED') return new TruplexyError('NOT_CONFIGURED', 500, 'Chat is not set up correctly.', requestId);
+  const known = PASSED_ON[code];
+  if (known) return new TruplexyError(code, known[0], known[1], requestId);
+  if (status === 503) return new TruplexyError('UNAVAILABLE', 503, 'Chat is unavailable right now.', requestId);
+  return new TruplexyError('UPSTREAM_ERROR', 502, 'Chat is unavailable right now.', requestId);
 }
 
 interface Ticket {
@@ -269,11 +259,6 @@ function parseCustomer(raw: unknown): { name: string; email: string } | undefine
     throw new TruplexyError('INVALID_REQUEST', 400, 'Enter your name and a valid email address.');
   }
   return { name, email };
-}
-
-interface Profile {
-  business?: { name?: string; logo_url?: string };
-  bot?: { id?: string; name?: string; avatar_url?: string };
 }
 
 /** Only the names and pictures: nothing else the API might add later. */

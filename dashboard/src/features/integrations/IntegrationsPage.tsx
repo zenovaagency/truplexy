@@ -1,3 +1,4 @@
+import { ChatApiReference, CustomerGuide } from './ChatApiGuide';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useSearchParams } from 'react-router';
 import {
@@ -276,6 +277,7 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
             </div>
           )}
 
+          {!i.teamSide && (i.id === 'api' ? <ChatApiReference /> : <CustomerGuide />)}
           <ol className="grid">
             <Step n={1} title={i.channelType ? 'Add the channel and issue its key' : 'Issue a chat key'} done={existing.length > 0 || issued}>
               {i.channelType && <GuideChannel integration={i} channels={ofType} value={channelId} onChange={setChannelId} />}
@@ -337,7 +339,7 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
             {i.widget ? (
               <Step n={i.id === 'web' ? 4 : 3} title="Your team's replies">
                 <p className="text-[0.8125rem] text-ink-muted">
-                  Nothing to set up. When someone replies from Tickets, the widget shows it live, or within a few seconds where live updates aren't available. Visitors keep their conversation when they reload or come back later.
+                  The visitor’s name and email link the conversation and its ticket to Customers. When someone replies from Tickets, the widget shows it live, or within a few seconds where live updates aren't available. Visitors keep their conversation when they reload or come back later.
                 </p>
               </Step>
             ) : (
@@ -379,6 +381,7 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
             <Step n={i.id === 'web' ? 5 : 4} title="Try it">
               <ul className="grid gap-1.5 text-[0.8125rem] text-ink-muted">
                 <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Send a message on {where}. The reply should arrive within a few seconds.</li>
+                {!i.teamSide && <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> For an identified visitor, open Customers and check the contact and conversation link. Any tickets should carry that customer too.</li>}
                 <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Ask for a person. The conversation shows up under Tickets → Handoffs.</li>
                 <li className="flex gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-accent" /> Take it over and reply from the ticket. Your reply should appear on {where}.</li>
               </ul>
@@ -421,6 +424,11 @@ function WebServerCode({ lang, setLang, pack, code, packError }: { lang: Lang; s
       ) : (
         <CodeLoading error={recipes.isError} />
       )}
+      {recipes.data && pick !== 'other' && <details className="text-[0.8125rem] text-ink-muted">
+        <summary className="cursor-pointer font-semibold text-ink">Link signed-in customers</summary>
+        <p className="my-3">Return trusted contacts from your server session. This overrides the name/email form for new conversations. Return null to use the form; use details="off" when your server supplies identity.</p>
+        <CodeBlock title={recipes.data.CUSTOMER_RECIPE.name} code={recipes.data.CUSTOMER_RECIPE.code} />
+      </details>}
     </>
   );
 }

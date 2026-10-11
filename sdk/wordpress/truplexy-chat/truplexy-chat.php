@@ -95,15 +95,17 @@ function truplexy_chat_verify($token): ?string {
 class Truplexy_Chat_Error extends Exception {
     public $api_code;
     public $request_id;
+    public $status;
 
-    public function __construct(string $api_code, string $request_id = '') {
+    public function __construct(string $api_code, string $request_id = '', int $status = 502) {
         parent::__construct($api_code);
         $this->api_code = $api_code;
         $this->request_id = $request_id;
+        $this->status = $status;
     }
 }
 
-function truplexy_chat_api(string $method, string $path, ?array $body = null): array {
+function truplexy_chat_api(string $method, string $path, ?array $body = null, bool $retry = true): array {
     $res = wp_remote_request(truplexy_chat_api_base() . $path, [
         'method'  => $method,
         'timeout' => 55,
@@ -115,9 +117,12 @@ function truplexy_chat_api(string $method, string $path, ?array $body = null): a
     }
     $status = (int) wp_remote_retrieve_response_code($res);
     $data = json_decode(wp_remote_retrieve_body($res), true);
+    if ($retry && $method === 'PUT' && $path === '/customer' && $status === 409 && ($data['error']['code'] ?? '') === 'CUSTOMER_EXISTS') {
+        return truplexy_chat_api($method, $path, $body, false);
+    }
     if ($status >= 300) {
         $code = $status === 401 ? 'NOT_CONFIGURED' : ($data['error']['code'] ?? 'UPSTREAM_ERROR');
-        throw new Truplexy_Chat_Error($code, (string) ($data['error']['request_id'] ?? wp_remote_retrieve_header($res, 'x-request-id')));
+        throw new Truplexy_Chat_Error($code, (string) ($data['error']['request_id'] ?? wp_remote_retrieve_header($res, 'x-request-id')), $status);
     }
     return is_array($data) ? $data : [];
 }
@@ -137,7 +142,9 @@ function truplexy_chat_public(array $conversation): array {
 /** An error the widget can show. Never passes on the API's own message. */
 function truplexy_chat_error(string $code, string $request_id = ''): WP_REST_Response {
     $known = [
-        'INVALID_REQUEST'    => [400, 'Messages must be 1–4000 characters.'],
+        'CUSTOMER_CONFLICT'  => [409, 'Your contact details could not be linked. Please contact support.'],
+        'CUSTOMER_EXISTS'    => [409, 'Your contact details could not be saved. Please try again.'],
+        'INVALID_REQUEST'    => [400, 'Check your message and customer details.'],
         'RATE_LIMITED'       => [429, 'You are sending messages too quickly. Please wait a moment.'],
         'CHANNEL_DISABLED'   => [503, 'Chat is turned off right now.'],
         'TENANT_SUSPENDED'   => [503, 'Chat is turned off right now.'],
@@ -182,6 +189,37 @@ add_action('rest_api_init', function () {
     ]);
 });
 
+/** Starts a new conversation; customer linking is required, context and tickets are best effort. */
+function truplexy_chat_start(WP_REST_Request $request, $raw): array {
+    $user_id = (int) wp_validate_auth_cookie('', 'logged_in');
+    $customer = apply_filters('truplexy_chat_customer', null, $request, $user_id);
+    if ($customer === null && $raw !== null) {
+        $name = is_array($raw) ? trim((string) ($raw['name'] ?? '')) : '';
+        $email = is_array($raw) ? trim((string) ($raw['email'] ?? '')) : '';
+        if ($name === '' || mb_strlen($name) > 120 || strlen($email) > 254 || !is_email($email)) throw new Truplexy_Chat_Error('INVALID_REQUEST');
+        $customer = ['name' => $name, 'contacts' => [['type' => 'email', 'value' => $email]]];
+    }
+    $opening = defined('TRUPLEXY_CHANNEL_ID') ? ['channel_id' => TRUPLEXY_CHANNEL_ID] : [];
+    if ($customer !== null) {
+        $known = truplexy_chat_api('PUT', '/customer', $customer);
+        if (empty($known['id'])) throw new Truplexy_Chat_Error('UPSTREAM_ERROR');
+        $opening['customer_id'] = $known['id'];
+    }
+    $conv = truplexy_chat_api('POST', '/conversations', $opening ?: null)['id'];
+    $name = $customer['name'] ?? '';
+    try {
+        $context = (string) apply_filters('truplexy_chat_context', '', $request, $user_id);
+        $background = trim(($name ? 'Customer: ' . $name . '. ' : '') . $context);
+        if ($background !== '') truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => mb_substr('[Context only] ' . $background, 0, 4000)]);
+    } catch (Throwable $e) { error_log('[truplexy-chat] Background context unavailable'); }
+    $ticket = null;
+    try {
+        $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", ['subject' => $name ? 'Chat with ' . $name : 'Website chat']);
+        $ticket = array_intersect_key($t, array_flip(['id', 'subject', 'status']));
+    } catch (Truplexy_Chat_Error $e) { error_log('[truplexy-chat] ' . $e->api_code); }
+    return [$conv, $ticket];
+}
+
 function truplexy_chat_route(WP_REST_Request $request) {
     $in = $request->get_json_params();
     if (!is_array($in)) {
@@ -203,48 +241,15 @@ function truplexy_chat_route(WP_REST_Request $request) {
                 if (!truplexy_chat_allow()) {
                     return truplexy_chat_error('RATE_LIMITED');
                 }
-                $customer = $in['customer'] ?? null;
-                if ($customer !== null) {
-                    $name = is_array($customer) ? trim((string) ($customer['name'] ?? '')) : '';
-                    $email = is_array($customer) ? trim((string) ($customer['email'] ?? '')) : '';
-                    if ($name === '' || mb_strlen($name) > 80 || strlen($email) > 254 || !is_email($email)) {
-                        return truplexy_chat_error('INVALID_REQUEST');
-                    }
-                }
                 $ticket = null;
-                if (!$conv) {
-                    // Record who is chatting as a customer, so the conversation and its ticket are linked to them.
-                    $customer_id = null;
-                    try {
-                        if ($customer !== null) {
-                            $customer_id = truplexy_chat_api('PUT', '/customer', ['name' => $name, 'contacts' => [['type' => 'email', 'value' => $email]]])['id'] ?? null;
-                        }
-                    } catch (Truplexy_Chat_Error $e) {
-                        error_log('[truplexy-chat] ' . $e->api_code);
-                    }
-                    $conv = truplexy_chat_api('POST', '/conversations', $customer_id ? ['customer_id' => $customer_id] : null)['id'];
-                    // Tell the assistant who is chatting and open a ticket for the team. The chat works without either.
-                    try {
-                        if ($customer !== null) {
-                            truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => '[Context only] Customer: ' . $name . ' <' . $email . '>']);
-                        }
-                    } catch (Truplexy_Chat_Error $e) {
-                        error_log('[truplexy-chat] ' . $e->api_code);
-                    }
-                    try {
-                        $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", ['subject' => $customer !== null ? 'Chat with ' . $name : 'Website chat']);
-                        $ticket = ['id' => $t['id'] ?? null, 'subject' => $t['subject'] ?? null, 'status' => $t['status'] ?? null];
-                    } catch (Truplexy_Chat_Error $e) {
-                        error_log('[truplexy-chat] ' . $e->api_code);
-                    }
-                    // REST requests from the widget carry no nonce, so read the login cookie directly. Used only for context.
-                    $user_id = (int) wp_validate_auth_cookie('', 'logged_in');
-                    $context = (string) apply_filters('truplexy_chat_context', '', $request, $user_id);
-                    if ($context !== '') {
-                        truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => mb_substr('[Context only] ' . $context, 0, 4000)]);
-                    }
+                if (!$conv) list($conv, $ticket) = truplexy_chat_start($request, $in['customer'] ?? null);
+                try {
+                    $r = truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => $text]);
+                } catch (Truplexy_Chat_Error $e) {
+                    if ($e->api_code !== 'CONVERSATION_NOT_FOUND' || !truplexy_chat_verify($in['session'] ?? null)) throw $e;
+                    list($conv, $ticket) = truplexy_chat_start($request, $in['customer'] ?? null);
+                    $r = truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => $text]);
                 }
-                $r = truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => $text]);
                 return [
                     'session' => truplexy_chat_sign($conv),
                     'message' => $r['message'] ?? null,
@@ -286,7 +291,7 @@ function truplexy_chat_route(WP_REST_Request $request) {
         if ($action === 'history' && $e->api_code === 'CONVERSATION_NOT_FOUND') {
             return ['session' => null];
         }
-        if ($action === 'live') {
+        if ($action === 'live' && $e->api_code === 'REALTIME_NOT_CONFIGURED') {
             return new stdClass();
         }
         error_log('[truplexy-chat] ' . $e->api_code . ($e->request_id ? ' request_id=' . $e->request_id : ''));
@@ -314,6 +319,13 @@ add_filter('script_loader_tag', function ($tag, $handle) {
     }
     $s = truplexy_chat_settings();
     $attrs = ['data-endpoint' => rest_url('truplexy/v1/chat'), 'data-position' => $s['position'], 'data-theme' => $s['theme']];
+    if (apply_filters('truplexy_chat_details', 'ask') === 'off') {
+        $attrs['data-details'] = 'off';
+    }
+    $storage_key = apply_filters('truplexy_chat_storage_key', '');
+    if ($storage_key !== '') {
+        $attrs['data-storage-key'] = $storage_key;
+    }
     foreach (['heading', 'subtitle', 'greeting', 'accent'] as $key) {
         if ($s[$key] !== '') {
             $attrs['data-' . $key] = $s[$key];

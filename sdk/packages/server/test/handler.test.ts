@@ -133,22 +133,58 @@ describe('createHandler', () => {
 
   it('refuses unusable customer details', async () => {
     const handler = createHandler({ ...base, fetch: fakeApi({}).fetch });
-    for (const customer of [{ name: '', email: 'a@b.co' }, { name: 'Ada', email: 'not-an-email' }, { name: 'x'.repeat(81), email: 'a@b.co' }, { name: 'Ada' }, 'Ada']) {
+    for (const customer of [{ name: '', email: 'a@b.co' }, { name: 'Ada', email: 'not-an-email' }, { name: 'x'.repeat(121), email: 'a@b.co' }, { name: 'Ada' }, 'Ada']) {
       expect((await handler(post({ action: 'message', text: 'hi', customer }))).status).toBe(400);
     }
   });
 
-  it('still opens the ticket and chats when the customer cannot be saved', async () => {
-    const api = fakeApi({
-      'POST /conversations': () => [201, { id: CONV }],
-      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_3', subject: 'Chat with Ada', status: 'open' }],
-      [`POST /conversations/${CONV}/messages`]: reply('answered', 'ok'),
-    });
+  it('does not start an unlinked conversation when customer saving fails', async () => {
+    const api = fakeApi({ 'PUT /customer': () => [409, { error: { code: 'CUSTOMER_CONFLICT', message: 'private contacts', request_id: 'req_2' } }] });
     const handler = createHandler({ ...base, fetch: api.fetch });
-    const data = await (await handler(post({ action: 'message', text: 'hi', customer: { name: 'Ada', email: 'ada@example.com' } }))).json();
-    expect(api.calls[1].body).toBeUndefined();
-    expect(data.reply).toBe('ok');
-    expect(data.ticket?.id).toBe('tkt_3');
+    const res = await handler(post({ action: 'message', text: 'hi', customer: { name: 'Ada', email: 'ada@example.com' } }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: { code: 'CUSTOMER_CONFLICT', message: 'Your contact details could not be linked. Please contact support.', request_id: 'req_2' } });
+    expect(api.calls.map(c => c.path)).toEqual(['/customer']);
+  });
+
+  it('uses trusted contacts instead of browser details and accepts a 120 character name', async () => {
+    const identity = { name: 'A'.repeat(120), contacts: [{ type: 'app', value: 'user-1' }], metadata: { plan: 'pro' } };
+    const api = fakeApi({
+      'PUT /customer': () => [200, { id: 'cus_1', ...identity }],
+      'POST /conversations': () => [201, { id: CONV }],
+      [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi'),
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch, customer: () => identity });
+    expect((await handler(post({ action: 'message', text: 'hi', customer: 'untrusted' }))).status).toBe(200);
+    expect(api.calls[0].body).toEqual(identity);
+    expect(api.calls[1].body).toEqual({ customer_id: 'cus_1' });
+    const fallback = createHandler({ ...base, fetch: api.fetch, customer: () => null });
+    expect((await fallback(post({ action: 'message', text: 'hi', customer: { name: 'A'.repeat(120), email: 'a@b.co' } }))).status).toBe(200);
+  });
+
+  it('requires a customer ID even when the upstream responds with success', async () => {
+    const api = fakeApi({ 'PUT /customer': () => [200, {}] });
+    const res = await createHandler({ ...base, fetch: api.fetch })(post({ action: 'message', text: 'hi', customer: { name: 'Ada', email: 'ada@example.com' } }));
+    expect(res.status).toBe(502);
+    expect(api.calls.map(c => c.path)).toEqual(['/customer']);
+  });
+
+  it('does not resolve a new identity for an existing session', async () => {
+    const customer = vi.fn(() => ({ contacts: [{ type: 'app', value: 'new-user' }] }));
+    const api = fakeApi({ [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi') });
+    await createHandler({ ...base, fetch: api.fetch, customer })(post({ action: 'message', text: 'hi', session: await signSession(CONV, KEY) }));
+    expect(customer).not.toHaveBeenCalled();
+    expect(api.calls.map(c => c.path)).toEqual([`/conversations/${CONV}/messages`]);
+  });
+
+  it('only falls back from live updates for REALTIME_NOT_CONFIGURED', async () => {
+    const session = await signSession(CONV, KEY);
+    for (const [code, status, expected] of [['REALTIME_NOT_CONFIGURED', 503, 200], ['CHANNEL_DISABLED', 403, 503], ['UNAUTHORIZED', 401, 500]] as const) {
+      const api = fakeApi({ 'POST /realtime/token': () => [status, { error: { code, message: 'private' } }] });
+      const res = await createHandler({ ...base, fetch: api.fetch })(post({ action: 'live', session }));
+      expect(res.status).toBe(expected);
+      if (expected === 200) expect(await res.json()).toEqual({});
+    }
   });
 
   it('still chats when the ticket cannot be opened', async () => {

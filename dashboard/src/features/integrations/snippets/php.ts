@@ -22,7 +22,7 @@ foreach ($body['entry'] ?? [] as $entry) {
     foreach ($entry['messaging'] ?? [] as $ev) {
         $text = $ev['message']['text'] ?? '';
         if ($text === ''${skipEcho ? " || !empty($ev['message']['is_echo'])" : ''}) continue;
-        $r = ask('${prefix}:' . $ev['sender']['id'], $text);
+        $r = ask('${prefix}:' . $ev['sender']['id'], $text, ['contacts' => [['type' => '${route}', 'value' => $ev['sender']['id']]]]);
         if ($r['reply']) send_meta($ev['sender']['id'], $r['reply']);
     }
 }
@@ -42,6 +42,13 @@ const pack: LangPack = {
 // TRUPLEXY_CHAT_KEY lives in your secret manager, never in a browser or app.
 const TRUPLEXY_API = '${PUBLIC_API}';
 
+class TruplexyApiError extends RuntimeException {
+    public function __construct(public int $status, public array $details, public string $requestId = '') {
+        parent::__construct($details['message'] ?? 'Truplexy request failed');
+    }
+    public function apiCode(): string { return $this->details['code'] ?? 'UPSTREAM_ERROR'; }
+}
+
 /** Calls an API with a JSON body and returns the decoded answer. */
 function post_json(string $url, ?array $body = null, array $headers = [], string $method = 'POST'): array {
     $ch = curl_init($url);
@@ -52,14 +59,37 @@ function post_json(string $url, ?array $body = null, array $headers = [], string
         CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers),
     ]);
     if ($method !== 'GET') curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body ?? new stdClass()));
+    $requestId = '';
+    curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $line) use (&$requestId) {
+        if (stripos($line, 'X-Request-ID:') === 0) $requestId = trim(substr($line, 13));
+        return strlen($line);
+    });
     $res = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    if ($res === false || $status >= 300) throw new RuntimeException("$url answered $status: $res");
-    return json_decode($res, true) ?? [];
+    $data = json_decode((string) $res, true) ?? [];
+    if ($res === false || $status >= 300) throw new TruplexyApiError($status ?: 502, $data['error'] ?? [], $data['error']['request_id'] ?? $requestId);
+    return $data;
 }
 
-function truplexy(string $path, ?array $body = null): array {
-    return post_json(TRUPLEXY_API . $path, $body, ['Authorization: Bearer ' . getenv('TRUPLEXY_CHAT_KEY')]);
+function truplexy(string $path, ?array $body = null, string $method = 'POST'): array {
+    return post_json(TRUPLEXY_API . $path, $body, ['Authorization: Bearer ' . getenv('TRUPLEXY_CHAT_KEY')], $method);
+}
+
+function upsert_customer(array $customer): array {
+    try { return truplexy('/customer', $customer, 'PUT'); }
+    catch (TruplexyApiError $e) {
+        if ($e->status !== 409 || $e->apiCode() !== 'CUSTOMER_EXISTS') throw $e;
+        return truplexy('/customer', $customer, 'PUT');
+    }
+}
+function create_conversation(?array $customer = null, ?string $channelId = null): array {
+    $opening = $channelId ? ['channel_id' => $channelId] : [];
+    if ($customer !== null) {
+        $known = upsert_customer($customer);
+        if (empty($known['id'])) throw new TruplexyApiError(502, ['code' => 'UPSTREAM_ERROR', 'message' => 'Missing customer ID']);
+        $opening['customer_id'] = $known['id'];
+    }
+    return truplexy('/conversations', $opening ?: null);
 }
 
 // One Truplexy conversation per customer thread. Use your database in production.
@@ -73,9 +103,9 @@ function thread_for(string $conversationId): ?string {
     return array_search($conversationId, threads(), true) ?: null;
 }
 
-function ask(string $thread, string $text): array {
+function ask(string $thread, string $text, ?array $customer = null, ?string $channelId = null): array {
     $threads = threads();
-    $id = $threads[$thread] ??= truplexy('/conversations')['id'];
+    $id = $threads[$thread] ??= create_conversation($customer, $channelId)['id'];
     threads($threads);
     $r = truplexy("/conversations/$id/messages", ['message' => mb_substr($text, 0, 4000)]);
     // "escalated" (a person has it) and "context" have no reply: send nothing.
@@ -170,12 +200,12 @@ function verify_session(mixed $token): ?string {
 }
 
 class UpstreamError extends Exception {
-    public function __construct(public string $apiCode, public string $requestId = '') {
+    public function __construct(public string $apiCode, public string $requestId = '', public int $status = 502) {
         parent::__construct($apiCode);
     }
 }
 
-function api(string $method, string $path, ?array $body = null): array {
+function api(string $method, string $path, ?array $body = null, bool $retry = true): array {
     $ch = curl_init(TRUPLEXY_API . $path);
     curl_setopt_array($ch, [
         CURLOPT_CUSTOMREQUEST => $method,
@@ -187,8 +217,9 @@ function api(string $method, string $path, ?array $body = null): array {
     $raw = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $data = json_decode((string) $raw, true) ?? [];
+    if ($retry && $method === 'PUT' && $path === '/customer' && $status === 409 && ($data['error']['code'] ?? '') === 'CUSTOMER_EXISTS') return api($method, $path, $body, false);
     if ($raw === false || $status >= 300) {
-        throw new UpstreamError($status === 401 ? 'NOT_CONFIGURED' : ($data['error']['code'] ?? 'UPSTREAM_ERROR'), $data['error']['request_id'] ?? '');
+        throw new UpstreamError($status === 401 ? 'NOT_CONFIGURED' : ($data['error']['code'] ?? 'UPSTREAM_ERROR'), $data['error']['request_id'] ?? '', $status ?: 502);
     }
     return $data;
 }
@@ -203,31 +234,36 @@ function public_conversation(array $conv): array {
     return ['status' => $conv['status'], 'escalated' => $conv['escalated'], 'messages' => $messages];
 }
 
-/** [name, email] from the widget's details form, or null when absent. Refuses unusable details. */
+/** API contacts from the visitor form, or null when absent. */
 function parse_customer(mixed $raw): ?array {
     if ($raw === null) return null;
     $name = is_array($raw) ? trim((string) ($raw['name'] ?? '')) : '';
     $email = is_array($raw) ? trim((string) ($raw['email'] ?? '')) : '';
-    if ($name === '' || mb_strlen($name) > 80 || strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('INVALID_REQUEST');
-    return [$name, $email];
+    if ($name === '' || mb_strlen($name) > 120 || strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('INVALID_REQUEST');
+    return ['name' => $name, 'contacts' => [['type' => 'email', 'value' => $email]]];
 }
 
-/** Starts the conversation for the customer, tells the assistant who is chatting and opens a ticket for the team. The chat works without any of that. */
-function start_conversation(?array $customer): array {
-    // Record who is chatting as a customer, so the conversation and its ticket are linked to them.
-    $customerId = null;
-    try {
-        if ($customer) $customerId = api('PUT', '/customer', ['name' => $customer[0], 'contacts' => [['type' => 'email', 'value' => $customer[1]]]])['id'] ?? null;
-    } catch (UpstreamError) {
+/** Customize this using your authenticated server session. Never trust browser metadata. */
+function resolve_customer(): ?array { return null; }
+
+/** Identified chats require a successful upsert; context and tickets are best effort. */
+function start_conversation(mixed $raw): array {
+    $customer = resolve_customer() ?? parse_customer($raw);
+    $opening = getenv('TRUPLEXY_CHANNEL_ID') ? ['channel_id' => getenv('TRUPLEXY_CHANNEL_ID')] : [];
+    if ($customer !== null) {
+        $known = api('PUT', '/customer', $customer);
+        if (empty($known['id'])) throw new UpstreamError('UPSTREAM_ERROR', '');
+        $opening['customer_id'] = $known['id'];
     }
-    $conv = api('POST', '/conversations', $customerId ? ['customer_id' => $customerId] : null)['id'];
+    $conv = api('POST', '/conversations', $opening ?: null)['id'];
+    $name = $customer['name'] ?? '';
     $ticket = null;
     try {
-        if ($customer) api('POST', "/conversations/$conv/messages", ['message' => '[Context only] Customer: ' . $customer[0] . ' <' . $customer[1] . '>']);
+        if ($customer) api('POST', "/conversations/$conv/messages", ['message' => '[Context only] Customer: ' . $name]);
     } catch (UpstreamError) {
     }
     try {
-        $t = api('POST', "/conversations/$conv/ticket", ['subject' => $customer ? 'Chat with ' . $customer[0] : 'Website chat']);
+        $t = api('POST', "/conversations/$conv/ticket", ['subject' => $name ? 'Chat with ' . $name : 'Website chat']);
         $ticket = ['id' => $t['id'], 'subject' => $t['subject'] ?? null, 'status' => $t['status'] ?? null];
     } catch (UpstreamError) {
     }
@@ -237,6 +273,10 @@ function start_conversation(?array $customer): array {
 /** Messages the visitor sees. Never pass on the API's own message. */
 function fail(string $code, string $requestId = ''): never {
     $known = [
+        'CUSTOMER_CONFLICT' => [409, 'Your contact details could not be linked. Please contact support.'],
+        'CUSTOMER_EXISTS' => [409, 'Your contact details could not be saved. Please try again.'],
+        'NOT_CONFIGURED' => [500, 'Chat is not set up correctly.'],
+        'TENANT_SUSPENDED' => [503, 'Chat is turned off right now.'],
         'INVALID_REQUEST' => [400, 'Check your message, name and email.'],
         'CHANNEL_DISABLED' => [503, 'Chat is turned off right now.'],
         'PLAN_LIMIT_REACHED' => [503, "The assistant can't reply right now. Please try again later."],
@@ -259,10 +299,15 @@ try {
         case 'message':
             $text = trim((string) ($in['text'] ?? ''));
             if ($text === '' || mb_strlen($text) > 4000 || str_starts_with($text, '[Context only')) fail('INVALID_REQUEST');
-            $customer = parse_customer($in['customer'] ?? null);
             $ticket = null;
-            if (!$conv) [$conv, $ticket] = start_conversation($customer);
-            $r = api('POST', "/conversations/$conv/messages", ['message' => $text]);
+            if (!$conv) [$conv, $ticket] = start_conversation($in['customer'] ?? null);
+            try {
+                $r = api('POST', "/conversations/$conv/messages", ['message' => $text]);
+            } catch (UpstreamError $e) {
+                if ($e->apiCode !== 'CONVERSATION_NOT_FOUND' || !verify_session($in['session'] ?? null)) throw $e;
+                [$conv, $ticket] = start_conversation($in['customer'] ?? null);
+                $r = api('POST', "/conversations/$conv/messages", ['message' => $text]);
+            }
             echo json_encode(['session' => sign_session($conv), 'message' => $r['message'], 'reply' => $r['reply'], 'status' => $r['status'], 'sources' => $r['sources'] ?? []] + ($ticket ? ['ticket' => $ticket] : []));
             break;
         case 'history':
@@ -290,7 +335,7 @@ try {
     }
 } catch (UpstreamError $e) {
     if ($action === 'history' && $e->apiCode === 'CONVERSATION_NOT_FOUND') exit(json_encode(['session' => null]));
-    if ($action === 'live') exit('{}');
+    if ($action === 'live' && $e->apiCode === 'REALTIME_NOT_CONFIGURED') exit('{}');
     fail($e->apiCode, $e->requestId);
 }`,
     },
@@ -313,7 +358,7 @@ ${answerNow}
 
 foreach ($body['entry'][0]['changes'][0]['value']['messages'] ?? [] as $msg) {
     if ($msg['type'] !== 'text') continue;
-    $r = ask('wa:' . $msg['from'], $msg['text']['body']);
+    $r = ask('wa:' . $msg['from'], $msg['text']['body'], ['contacts' => [['type' => 'whatsapp', 'value' => $msg['from']]]]);
     if ($r['reply']) send_whatsapp($msg['from'], $r['reply']);
 }
 
@@ -336,15 +381,15 @@ $update = json_decode(file_get_contents('php://input'), true);
 ${answerNow}
 
 $msg = $update['message'] ?? null;
-if (!empty($msg['text'])) {
-    $r = ask('tg:' . $msg['chat']['id'], $msg['text']);
+if (!empty($msg['text']) && !empty($msg['from']) && empty($msg['sender_chat'])) {
+    $r = ask('tg:' . $msg['chat']['id'] . ':' . $msg['from']['id'], $msg['text'], ['contacts' => [['type' => 'telegram', 'value' => (string) $msg['from']['id']]]]);
     if ($r['reply']) {
         post_json('https://api.telegram.org/bot' . getenv('TELEGRAM_TOKEN') . '/sendMessage',
             ['chat_id' => $msg['chat']['id'], 'text' => $r['reply']]);
     }
 }`,
       deliver: `post_json('https://api.telegram.org/bot' . getenv('TELEGRAM_TOKEN') . '/sendMessage',
-    ['chat_id' => substr($thread, 3), 'text' => "$agent: $text"]);`,
+    ['chat_id' => explode(':', $thread)[1], 'text' => "$agent: $text"]);`,
     },
 
     messenger: meta('messenger', 'fb', 'FB_PAGE_TOKEN', false),
@@ -358,7 +403,7 @@ require __DIR__ . '/truplexy.php';
 $mail = json_decode(file_get_contents('php://input'), true);
 ${answerNow}
 
-$r = ask('mail:' . $mail['From'], "{$mail['Subject']}\\n\\n{$mail['TextBody']}");
+$r = ask('mail:' . $mail['From'], "{$mail['Subject']}\\n\\n{$mail['TextBody']}", ['contacts' => [['type' => 'email', 'value' => $mail['From']]]]);
 if ($r['reply']) send_email($mail['From'], 'Re: ' . $mail['Subject'], $r['reply'], $mail['MessageID']);`,
       deliver: `send_email(substr($thread, 5), 'Re: your request', $text);`,
     },
@@ -373,9 +418,12 @@ if (!valid_proxy_signature($_SERVER['QUERY_STRING'] ?? '', getenv('SHOPIFY_SECRE
     exit;
 }
 $in = json_decode(file_get_contents('php://input'), true);
-$customer = ($_GET['logged_in_customer_id'] ?? '') ?: $in['visitorId'];
+$signedIn = $_GET['logged_in_customer_id'] ?? '';
+// Implement guest_session_id() using your server's verified guest session.
+$customer = $signedIn ? 'user:' . $signedIn : 'guest:' . guest_session_id();
+$identity = $signedIn ? ['contacts' => [['type' => 'shopify', 'value' => $_GET['shop'] . ':' . $signedIn]]] : null;
 header('Content-Type: application/json');
-echo json_encode(ask("shop:{$_GET['shop']}:$customer", $in['text']));
+echo json_encode(ask("shop:{$_GET['shop']}:$customer", $in['text'], $identity));
 
 // Shopify signs proxy requests: sorted "key=value" pairs, joined without separators.
 function valid_proxy_signature(string $query, string $secret): bool {
@@ -412,7 +460,14 @@ foreach ($events as $e) {
     $msg = post_json(HUBSPOT_THREADS . "{$e['objectId']}/messages/{$e['messageId']}", null, $auth, 'GET');
     if ($msg['direction'] !== 'INCOMING') continue;
     save_last_channel($e['objectId'], $msg);   // so your team's replies use the same channel
-    $r = ask('hs:' . $e['objectId'], $msg['text']);
+    $sender = $msg['senders'][0] ?? [];
+    $contacts = [];
+    if (!empty($sender['actorId'])) $contacts[] = ['type' => 'hubspot', 'value' => getenv('HUBSPOT_ACCOUNT_ID') . ':' . $sender['actorId']];
+    else foreach ($sender['deliveryIdentifiers'] ?? [] as $d) {
+        if ($d['type'] === 'HS_EMAIL_ADDRESS') { $contacts[] = ['type' => 'email', 'value' => $d['value']]; break; }
+    }
+    if (!$contacts) throw new RuntimeException('HubSpot sender identity is missing');
+    $r = ask('hs:' . $e['objectId'], $msg['text'], ['contacts' => $contacts]);
     if ($r['reply']) {
         post_json(HUBSPOT_THREADS . "{$e['objectId']}/messages", [
             'type' => 'MESSAGE', 'text' => $r['reply'], 'senderActorId' => getenv('HS_ACTOR'),
@@ -436,7 +491,8 @@ require __DIR__ . '/truplexy.php';
 $in = json_decode(file_get_contents('php://input'), true);   // fields from your trigger's JSON body
 ${answerNow}
 
-$r = ask('zd:' . $in['ticket_id'], $in['description']);
+if (empty($in['requester_id'])) throw new RuntimeException('Configure requester_id in the Zendesk trigger body');
+$r = ask('zd:' . $in['ticket_id'], $in['description'], ['contacts' => [['type' => 'zendesk', 'value' => getenv('ZENDESK_SUBDOMAIN') . ':' . $in['requester_id']]]]);
 if ($r['reply'] && $r['status'] === 'answered') zendesk_comment($in['ticket_id'], $r['reply']);
 
 // Keep this in a shared file: the webhook uses it too.
@@ -453,7 +509,7 @@ function zendesk_comment($ticketId, string $text): void {
       handler: `<?php
 require __DIR__ . '/truplexy.php';
 
-$conv = truplexy('/conversations');
+$conv = create_conversation(['contacts' => [['type' => 'app', 'value' => 'user-42']]]);
 $r = truplexy("/conversations/{$conv['id']}/messages", ['message' => 'Where is my order?']);
 echo $r['status'], ': ', $r['reply'], PHP_EOL;`,
       deliver: `// Deliver the reply to the customer's thread on your platform.

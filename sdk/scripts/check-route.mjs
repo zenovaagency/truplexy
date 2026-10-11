@@ -1,15 +1,15 @@
 // Checks a widget route against PROTOCOL.md, with the route pointed at the mock API
 // (node playground/mock-api.mjs). Works for a route in any language.
 //
-//   node scripts/check-route.mjs http://localhost:8000/api/truplexy [session-secret]
+//   node scripts/check-route.mjs http://localhost:8000/api/truplexy [session-secret] [mock-api-base]
 //
 // With the secret (the route's TRUPLEXY_SESSION_SECRET or chat key), it also checks
 // that its session tokens match @truplexy/server's byte for byte in format.
-import { signSession, verifySession } from '../packages/server/dist/index.js';
+import { createChatClient, signSession, verifySession } from '../packages/server/dist/index.js';
 
-const [url, secret] = process.argv.slice(2);
+const [url, secret, mockBase] = process.argv.slice(2);
 if (!url) {
-  console.error('Usage: node scripts/check-route.mjs <route URL> [session secret]');
+  console.error('Usage: node scripts/check-route.mjs <route URL> [session secret] [mock API base]');
   process.exit(2);
 }
 
@@ -46,6 +46,35 @@ check('the first message opens a ticket', typeof first.data.ticket?.id === 'stri
 
 const named = await post({ action: 'message', session: null, text: 'hello', customer: { name: ' Ada Lovelace ', email: 'ada@example.com' } });
 check('message takes the visitor name and email', named.status === 200 && named.data.ticket?.subject === 'Chat with Ada Lovelace', named.text);
+const longName = await post({ action: 'message', text: 'hello', customer: { name: 'A'.repeat(120), email: 'long@example.com' } });
+check('120 character names are accepted', longName.status === 200, longName.text);
+const tooLong = await post({ action: 'message', text: 'hello', customer: { name: 'A'.repeat(121), email: 'long@example.com' } });
+check('121 character names are refused', tooLong.status === 400, tooLong.text);
+if (mockBase && secret && named.data.session) {
+  // Only supply a local mock base here; these checks inspect the test conversation.
+  const id = await verifySession(named.data.session, secret, 3600);
+  const conversation = await fetch(`${mockBase}/conversations/${id}`).then(r => r.json());
+  const customer = await fetch(`${mockBase}/customer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contacts: [{ type: 'email', value: 'ADA@example.com' }] }) }).then(r => r.json());
+  check('conversation links to the normalized customer', conversation.customer_id === customer.id, JSON.stringify(conversation));
+  check('ticket inherits the same customer', conversation.ticket?.customer_id === customer.id);
+  const chat = createChatClient({ apiBase: mockBase, chatKey: 'mock-key' });
+  await chat.escalate(id);
+  const silent = await post({ action: 'message', session: named.data.session, text: 'Are you there?' });
+  check('escalated conversations accept messages without an AI reply', silent.status === 200 && silent.data.reply === null && silent.data.status === 'escalated', silent.text);
+  const agent = { content: 'A teammate is here.', external_id: `route-check-${id}`, author: 'Support' };
+  const firstReply = await chat.sendReply(id, agent);
+  const repeated = await chat.sendReply(id, agent);
+  check('agent reply retries return the same message', firstReply.message.id === repeated.message.id);
+  const teamHistory = await post({ action: 'history', session: named.data.session });
+  check('history includes the agent reply once', teamHistory.data.conversation?.messages?.filter(m => m.id === firstReply.message.id && m.author === 'agent').length === 1, teamHistory.text);
+  await chat.resume(id);
+  check('resume leaves the existing ticket open', (await chat.createTicket(id)).id === conversation.ticket?.id);
+  const resumed = await post({ action: 'message', session: named.data.session, text: 'Thanks' });
+  check('AI replies again after resume', resumed.status === 200 && typeof resumed.data.reply === 'string', resumed.text);
+  const closed = await chat.closeTicket(id);
+  const closedHistory = await post({ action: 'history', session: named.data.session });
+  check('ticket closure leaves the conversation open without escalation', closed.status === 'closed' && closedHistory.data.conversation?.status === 'open' && closedHistory.data.conversation?.escalated === false, closedHistory.text);
+}
 for (const customer of [{ name: '', email: 'ada@example.com' }, { name: 'Ada', email: 'nope' }, 'Ada']) {
   const bad = await post({ action: 'message', session: null, text: 'hello', customer });
   check(`unusable details are refused (${JSON.stringify(customer)})`, bad.status === 400 && bad.data.error?.code === 'INVALID_REQUEST', bad.text);

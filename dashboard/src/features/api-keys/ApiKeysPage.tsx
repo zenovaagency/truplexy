@@ -12,7 +12,6 @@ import {
   Callout,
   Card,
   Checkbox,
-  CodeBlock,
   DataTable,
   EmptyState,
   ErrorState,
@@ -24,7 +23,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { ChannelBadge } from '@/components/domain/ChannelBadge';
-import { PUBLIC_API } from '@/features/integrations/catalog';
+import { ChatApiQuickStart, ChatApiReference } from '@/features/integrations/ChatApiGuide';
 import { IssueKeyDialog } from './IssueKey';
 
 const STATUSES: [string, string][] = [
@@ -110,81 +109,11 @@ export default function ApiKeysPage() {
     },
   ];
 
-  const curl = `# 1. Start a conversation
-curl -X POST ${PUBLIC_API}/conversations \\
-  -H "Authorization: Bearer $TRUPLEXY_CHAT_KEY"
-
-# 2. Send the customer's message
-curl -X POST ${PUBLIC_API}/conversations/$CONVERSATION_ID/messages \\
-  -H "Authorization: Bearer $TRUPLEXY_CHAT_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"message": "Where is my order?"}'`;
-
-  const node = `const API = "${PUBLIC_API}";
-const headers = { Authorization: \`Bearer \${process.env.TRUPLEXY_CHAT_KEY}\`, "Content-Type": "application/json" };
-
-const conv = await fetch(\`\${API}/conversations\`, { method: "POST", headers }).then((r) => r.json());
-const { reply, status, sources } = await fetch(\`\${API}/conversations/\${conv.id}/messages\`, {
-  method: "POST",
-  headers,
-  body: JSON.stringify({ message: "Where is my order?" }),
-}).then((r) => r.json());`;
-
-  const python = `import os, requests
-
-API = "${PUBLIC_API}"
-headers = {"Authorization": f"Bearer {os.environ['TRUPLEXY_CHAT_KEY']}"}
-
-conv = requests.post(f"{API}/conversations", headers=headers).json()
-r = requests.post(f"{API}/conversations/{conv['id']}/messages",
-                  headers=headers, json={"message": "Where is my order?"}).json()
-print(r["status"], r["reply"])`;
-
-  const php = `<?php
-$api = '${PUBLIC_API}';
-$post = function (string $path, array $body = []) use ($api) {
-    $ch = curl_init($api . $path);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . getenv('TRUPLEXY_CHAT_KEY'), 'Content-Type: application/json'],
-        CURLOPT_POSTFIELDS => json_encode((object) $body),
-    ]);
-    return json_decode(curl_exec($ch), true);
-};
-
-$conv = $post('/conversations');
-$r = $post("/conversations/{$conv['id']}/messages", ['message' => 'Where is my order?']);
-echo $r['status'], ': ', $r['reply'];`;
-
-  const go = `const api = "${PUBLIC_API}"
-
-func post(path string, body, out any) error {
-	b, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", api+path, bytes.NewReader(b))
-	req.Header.Set("Authorization", "Bearer "+os.Getenv("TRUPLEXY_CHAT_KEY"))
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	return json.NewDecoder(res.Body).Decode(out)
-}
-
-func main() {
-	var conv struct{ ID string }
-	post("/conversations", map[string]any{}, &conv)
-	var r struct{ Status, Reply string }
-	post("/conversations/"+conv.ID+"/messages", map[string]string{"message": "Where is my order?"}, &r)
-	fmt.Println(r.Status, r.Reply)
-}`;
-
   return (
     <Page>
       <PageHeader
         title="API keys"
-        description="Chat keys let your integrations talk to a bot through the chat API. Each key reaches only the conversations it started."
+        description="Chat keys let your integrations talk to a bot through the chat API. Each key reaches chat API conversations for its bot."
         actions={
           writable && (
             <Button variant="accent" leading={<Plus />} onClick={() => setParams({ new: '1' })}>
@@ -230,16 +159,8 @@ func main() {
       </Card>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card title="Quick start" description="Create a conversation for each customer thread, then post their messages to it.">
-          <CodeBlock
-            samples={[
-              { label: 'curl', code: curl },
-              { label: 'Node.js', code: node },
-              { label: 'Python', code: python },
-              { label: 'PHP', code: php },
-              { label: 'Go', code: go },
-            ]}
-          />
+        <Card title="Quick start" description="Identify the customer, create their conversation, then send messages.">
+          <ChatApiQuickStart />
         </Card>
         <Card title="What to show the customer" description="Every reply comes with a status." flush>
           <table className="table">
@@ -256,6 +177,8 @@ func main() {
           </table>
         </Card>
       </div>
+
+      <Card title="Customer chat API"><ChatApiReference /></Card>
 
       {writable && <IssueKeyDialog open={params.get('new') === '1'} onOpenChange={(o) => !o && setParams({}, { replace: true })} />}
     </Page>

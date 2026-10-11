@@ -24,7 +24,7 @@ const meta = (route: string, prefix: string, tokenEnv: string, skipEcho: boolean
 				if ev.Message.Text == ""${skipEcho ? ' || ev.Message.IsEcho' : ''} {
 					continue
 				}
-				if a, err := ask("${prefix}:"+ev.Sender.ID, ev.Message.Text); err == nil && a.Reply != "" {
+				if a, err := ask("${prefix}:"+ev.Sender.ID, ev.Message.Text, identify("${route}", ev.Sender.ID)); err == nil && a.Reply != "" {
 					sendMeta(ev.Sender.ID, a.Reply)
 				}
 			}
@@ -50,7 +50,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -61,6 +60,13 @@ import (
 const truplexyAPI = "${PUBLIC_API}"
 
 var httpClient = &http.Client{Timeout: 60 * time.Second}
+
+type APIError struct {
+    Status int
+    Code, Message, RequestID string
+    Details map[string]any
+}
+func (e *APIError) Error() string { return e.Code + ": " + e.Message }
 
 // sendJSON calls an API with a JSON body, decoding the answer into out when given.
 func sendJSON(method, url string, body any, headers map[string]string, out ...any) error {
@@ -87,7 +93,13 @@ func sendJSON(method, url string, body any, headers map[string]string, out ...an
 	defer res.Body.Close()
 	if res.StatusCode >= 300 {
 		msg, _ := io.ReadAll(res.Body)
-		return fmt.Errorf("%s answered %d: %s", url, res.StatusCode, msg)
+        var data struct { Error map[string]any }
+        json.Unmarshal(msg, &data)
+        code, _ := data.Error["code"].(string)
+        message, _ := data.Error["message"].(string)
+        requestID, _ := data.Error["request_id"].(string)
+        if requestID == "" { requestID = res.Header.Get("X-Request-ID") }
+        return &APIError{res.StatusCode, code, message, requestID, data.Error}
 	}
 	if len(out) == 0 {
 		return nil
@@ -95,12 +107,39 @@ func sendJSON(method, url string, body any, headers map[string]string, out ...an
 	return json.NewDecoder(res.Body).Decode(out[0])
 }
 
-func call(path string, body, out any) error {
+func call(path string, body, out any) error { return callMethod("POST", path, body, out) }
+func callMethod(method, path string, body, out any) error {
 	auth := map[string]string{"Authorization": "Bearer " + os.Getenv("TRUPLEXY_CHAT_KEY")}
 	if out == nil {
-		return sendJSON("POST", truplexyAPI+path, body, auth)
+		return sendJSON(method, truplexyAPI+path, body, auth)
 	}
-	return sendJSON("POST", truplexyAPI+path, body, auth, out)
+	return sendJSON(method, truplexyAPI+path, body, auth, out)
+}
+
+func upsertCustomer(customer map[string]any) (string, error) {
+    var result struct { ID string }
+    err := callMethod("PUT", "/customer", customer, &result)
+    if e, ok := err.(*APIError); ok && e.Status == 409 && e.Code == "CUSTOMER_EXISTS" {
+        err = callMethod("PUT", "/customer", customer, &result)
+    }
+    if err == nil && result.ID == "" { err = &APIError{Status: 502, Code: "UPSTREAM_ERROR", Message: "Missing customer ID"} }
+    return result.ID, err
+}
+type ConversationOptions struct { Customer map[string]any; ChannelID string }
+func identify(kind, value string) ConversationOptions {
+    return ConversationOptions{Customer: map[string]any{"contacts": []map[string]string{{"type": kind, "value": value}}}}
+}
+func createConversation(options ConversationOptions) (string, error) {
+    opening := map[string]string{}
+    if options.ChannelID != "" { opening["channel_id"] = options.ChannelID }
+    if options.Customer != nil {
+        id, err := upsertCustomer(options.Customer)
+        if err != nil { return "", err }
+        opening["customer_id"] = id
+    }
+    var result struct { ID string }
+    err := call("/conversations", opening, &result)
+    return result.ID, err
 }
 
 // One Truplexy conversation per customer thread. Use your database in production.
@@ -126,18 +165,16 @@ type Answer struct {
 	ConversationID string \`json:"conversationId"\`
 }
 
-func ask(thread, text string) (Answer, error) {
+func ask(thread, text string, options ...ConversationOptions) (Answer, error) {
 	mu.Lock()
 	id, ok := threads[thread]
 	mu.Unlock()
 	if !ok {
-		var conv struct {
-			ID string \`json:"id"\`
-		}
-		if err := call("/conversations", map[string]any{}, &conv); err != nil {
-			return Answer{}, err
-		}
-		id = conv.ID
+        option := ConversationOptions{}
+        if len(options) > 0 { option = options[0] }
+        var err error
+        id, err = createConversation(option)
+        if err != nil { return Answer{}, err }
 		mu.Lock()
 		threads[thread] = id
 		mu.Unlock()
@@ -286,11 +323,18 @@ func verifySession(token string) string {
 	return m[1]
 }
 
-type upstreamError struct{ code, requestID string }
+type upstreamError struct{ code, requestID string; status int }
 
 func (e *upstreamError) Error() string { return e.code }
 
 func widgetCall(method, path string, body any) (map[string]any, error) {
+    out, err := widgetRequest(method, path, body)
+    if e, ok := err.(*upstreamError); ok && method == "PUT" && path == "/customer" && e.status == 409 && e.code == "CUSTOMER_EXISTS" {
+        return widgetRequest(method, path, body)
+    }
+    return out, err
+}
+func widgetRequest(method, path string, body any) (map[string]any, error) {
 	var buf bytes.Buffer
 	if body != nil {
 		json.NewEncoder(&buf).Encode(body)
@@ -306,7 +350,7 @@ func widgetCall(method, path string, body any) (map[string]any, error) {
 	var out map[string]any
 	json.NewDecoder(res.Body).Decode(&out)
 	if res.StatusCode >= 300 {
-		e := &upstreamError{code: "UPSTREAM_ERROR", requestID: res.Header.Get("X-Request-ID")}
+		e := &upstreamError{code: "UPSTREAM_ERROR", requestID: res.Header.Get("X-Request-ID"), status: res.StatusCode}
 		if apiErr, ok := out["error"].(map[string]any); ok {
 			if c, ok := apiErr["code"].(string); ok {
 				e.code = c
@@ -354,23 +398,38 @@ func parseCustomer(raw any) (name, email string, ok bool) {
 	name, _ = m["name"].(string)
 	email, _ = m["email"].(string)
 	name, email = strings.TrimSpace(name), strings.TrimSpace(email)
-	if name == "" || utf8.RuneCountInString(name) > 80 || len(email) > 254 || !emailRe.MatchString(email) {
+	if name == "" || utf8.RuneCountInString(name) > 120 || len(email) > 254 || !emailRe.MatchString(email) {
 		return "", "", false
 	}
 	return name, email, true
 }
 
-// customerID records who is chatting as a customer, so the conversation and its ticket are linked to them. "" when it can't.
-func customerID(name, email string) string {
-	if name == "" {
-		return ""
-	}
-	c, err := widgetCall("PUT", "/customer", map[string]any{"name": name, "contacts": []map[string]string{{"type": "email", "value": email}}})
-	if err != nil {
-		return ""
-	}
-	id, _ := c["id"].(string)
-	return id
+// Customize with your authenticated server session; nil falls back to the form.
+func resolveCustomer(r *http.Request) (map[string]any, error) { return nil, nil }
+
+func startWidgetConversation(r *http.Request, raw any) (string, map[string]any, error) {
+    identity, err := resolveCustomer(r)
+    if err != nil { return "", nil, err }
+    name, email := "", ""
+    if identity == nil {
+        var ok bool
+        name, email, ok = parseCustomer(raw)
+        if !ok { return "", nil, &upstreamError{code: "INVALID_REQUEST"} }
+        if name != "" { identity = map[string]any{"name": name, "contacts": []map[string]string{{"type": "email", "value": email}}} }
+    } else { name, _ = identity["name"].(string) }
+    opening := map[string]string{}
+    if channel := os.Getenv("TRUPLEXY_CHANNEL_ID"); channel != "" { opening["channel_id"] = channel }
+    if identity != nil {
+        customer, err := widgetCall("PUT", "/customer", identity)
+        if err != nil { return "", nil, err }
+        id, _ := customer["id"].(string)
+        if id == "" { return "", nil, &upstreamError{code: "UPSTREAM_ERROR"} }
+        opening["customer_id"] = id
+    }
+    c, err := widgetCall("POST", "/conversations", opening)
+    if err != nil { return "", nil, err }
+    conv, _ := c["id"].(string)
+    return conv, openTicket(conv, name, email), nil
 }
 
 // openTicket tells the assistant who is chatting and opens a ticket for the team. The chat works without either.
@@ -394,6 +453,10 @@ type widgetError struct {
 
 // Messages the visitor sees. Never pass on the API's own message.
 var widgetErrors = map[string]widgetError{
+    "CUSTOMER_CONFLICT": {409, "Your contact details could not be linked. Please contact support."},
+    "CUSTOMER_EXISTS": {409, "Your contact details could not be saved. Please try again."},
+    "NOT_CONFIGURED": {500, "Chat is not set up correctly."},
+    "TENANT_SUSPENDED": {503, "Chat is turned off right now."},
 	"INVALID_REQUEST":    {400, "Check your message, name and email."},
 	"CHANNEL_DISABLED":   {503, "Chat is turned off right now."},
 	"PLAN_LIMIT_REACHED": {503, "The assistant can't reply right now. Please try again later."},
@@ -411,8 +474,9 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	reply := func(v any) { json.NewEncoder(w).Encode(v) }
 	fail := func(err error) {
-		e, _ := err.(*upstreamError)
-		known, ok := widgetErrors[e.code]
+        e, ok := err.(*upstreamError)
+        if !ok { e = &upstreamError{code: "UPSTREAM_ERROR"} }
+        known, ok := widgetErrors[e.code]
 		if !ok {
 			e.code, known = "UPSTREAM_ERROR", widgetError{502, "Chat is unavailable right now."}
 		}
@@ -427,30 +491,18 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 			fail(&upstreamError{code: "INVALID_REQUEST"})
 			return
 		}
-		name, email, ok := parseCustomer(in.Customer)
-		if !ok {
-			fail(&upstreamError{code: "INVALID_REQUEST"})
-			return
-		}
-		var ticket map[string]any
-		if conv == "" {
-			var opening any
-			if id := customerID(name, email); id != "" {
-				opening = map[string]string{"customer_id": id}
-			}
-			c, err := widgetCall("POST", "/conversations", opening)
-			if err != nil {
-				fail(err)
-				return
-			}
-			conv, _ = c["id"].(string)
-			ticket = openTicket(conv, name, email)
-		}
-		res, err := widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": text})
-		if err != nil {
-			fail(err)
-			return
-		}
+        var ticket map[string]any
+        if conv == "" {
+            var err error
+            conv, ticket, err = startWidgetConversation(r, in.Customer)
+            if err != nil { fail(err); return }
+        }
+        res, err := widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": text})
+        if e, ok := err.(*upstreamError); ok && e.code == "CONVERSATION_NOT_FOUND" && verifySession(in.Session) != "" {
+            conv, ticket, err = startWidgetConversation(r, in.Customer)
+            if err == nil { res, err = widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": text}) }
+        }
+        if err != nil { fail(err); return }
 		out := map[string]any{"session": signSession(conv), "message": res["message"], "reply": res["reply"], "status": res["status"], "sources": res["sources"]}
 		if ticket != nil {
 			out["ticket"] = ticket
@@ -499,8 +551,11 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 		out := map[string]any{}
 		if conv != "" {
 			// Only the conversation's own topic: bot_topic carries every customer's messages.
-			if t, err := widgetCall("POST", "/realtime/token", map[string]string{"conversation_id": conv}); err == nil {
-				for _, k := range []string{"url", "publishable_key", "conversation_topic"} {
+            t, err := widgetCall("POST", "/realtime/token", map[string]string{"conversation_id": conv})
+            if err != nil {
+                if e, ok := err.(*upstreamError); !ok || e.code != "REALTIME_NOT_CONFIGURED" { fail(err); return }
+            } else {
+                for _, k := range []string{"url", "publishable_key", "conversation_topic"} {
 					if v, ok := t[k]; ok {
 						out[k] = v
 					}
@@ -547,7 +602,7 @@ http.HandleFunc("POST /whatsapp", func(w http.ResponseWriter, r *http.Request) {
 					if m.Type != "text" {
 						continue
 					}
-					if a, err := ask("wa:"+m.From, m.Text.Body); err == nil && a.Reply != "" {
+					if a, err := ask("wa:"+m.From, m.Text.Body, identify("whatsapp", m.From)); err == nil && a.Reply != "" {
 						sendWhatsApp(m.From, a.Reply)
 					}
 				}
@@ -570,17 +625,19 @@ func sendWhatsApp(to, body string) error {
 		Message struct {
 			Text string
 			Chat struct{ ID int64 }
+            From struct{ ID int64 }
+            SenderChat any \`json:"sender_chat"\`
 		}
 	}
 	json.NewDecoder(r.Body).Decode(&update)
 	w.WriteHeader(http.StatusOK)
 	m := update.Message
-	if m.Text == "" {
+	if m.Text == "" || m.From.ID == 0 || m.SenderChat != nil {
 		return
 	}
 	go func() {
 		chat := strconv.FormatInt(m.Chat.ID, 10)
-		if a, err := ask("tg:"+chat, m.Text); err == nil && a.Reply != "" {
+		if a, err := ask("tg:"+chat+":"+strconv.FormatInt(m.From.ID, 10), m.Text, identify("telegram", strconv.FormatInt(m.From.ID, 10))); err == nil && a.Reply != "" {
 			sendTelegram(chat, a.Reply)
 		}
 	}()
@@ -590,7 +647,7 @@ func sendTelegram(chatID, text string) error {
 	return sendJSON("POST", "https://api.telegram.org/bot"+os.Getenv("TELEGRAM_TOKEN")+"/sendMessage",
 		map[string]string{"chat_id": chatID, "text": text}, nil)
 }`,
-      deliver: `sendTelegram(strings.TrimPrefix(thread, "tg:"), agent+": "+text)`,
+      deliver: `sendTelegram(strings.Split(thread, ":")[1], agent+": "+text)`,
     },
 
     discord: {
@@ -608,7 +665,7 @@ func startDiscord() error {
 			return
 		}
 		s.ChannelTyping(m.ChannelID)
-		a, err := ask("dc:"+m.ChannelID+":"+m.Author.ID, m.Content)
+		a, err := ask("dc:"+m.ChannelID+":"+m.Author.ID, m.Content, identify("discord", m.Author.ID))
 		if err == nil && a.Reply != "" {
 			s.ChannelMessageSendReply(m.ChannelID, a.Reply, m.Reference())
 		}
@@ -629,7 +686,7 @@ discord.ChannelMessageSend(channelID, "**"+agent+":** "+text)`,
 	json.NewDecoder(r.Body).Decode(&mail)
 	w.WriteHeader(http.StatusOK)
 	go func() {
-		a, err := ask("mail:"+mail.From, mail.Subject+"\\n\\n"+mail.TextBody)
+		a, err := ask("mail:"+mail.From, mail.Subject+"\\n\\n"+mail.TextBody, identify("email", mail.From))
 		if err == nil && a.Reply != "" {
 			sendEmail(mail.From, "Re: "+mail.Subject, a.Reply, mail.MessageID)
 		}
@@ -639,7 +696,10 @@ discord.ChannelMessageSend(channelID, "**"+agent+":** "+text)`,
     },
 
     hubspot: {
-      handler: `type hsMessage struct{ Text, Direction, ChannelID, ChannelAccountID string }
+      handler: `type hsMessage struct {
+    Text, Direction, ChannelID, ChannelAccountID string
+    Senders []struct { ActorID string; DeliveryIdentifiers []struct { Type, Value string } }
+}
 
 var lastChannel sync.Map   // thread → its channel, for your team's replies
 
@@ -663,7 +723,13 @@ http.HandleFunc("POST /hubspot", func(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			lastChannel.Store(thread, msg)
-			if a, err := ask("hs:"+thread, msg.Text); err == nil && a.Reply != "" {
+            if len(msg.Senders) == 0 { continue }
+            sender := msg.Senders[0]
+            kind, value := "hubspot", ""
+            if sender.ActorID != "" { value = os.Getenv("HUBSPOT_ACCOUNT_ID") + ":" + sender.ActorID
+            } else { for _, d := range sender.DeliveryIdentifiers { if d.Type == "HS_EMAIL_ADDRESS" { kind, value = "email", d.Value; break } } }
+            if value == "" { continue } // no usable customer identity
+            if a, err := ask("hs:"+thread, msg.Text, identify(kind, value)); err == nil && a.Reply != "" {
 				hubspotSend(thread, a.Reply)
 			}
 		}
@@ -685,12 +751,14 @@ func hubspotSend(thread, text string) error {
       handler: `http.HandleFunc("POST /zendesk", func(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		TicketID    string \`json:"ticket_id"\`
+        RequesterID string \`json:"requester_id"\`
 		Description string
 	}   // fields from your trigger's JSON body
 	json.NewDecoder(r.Body).Decode(&in)
 	w.WriteHeader(http.StatusOK)
 	go func() {
-		a, err := ask("zd:"+in.TicketID, in.Description)
+        if in.RequesterID == "" { return } // configure requester_id in your trigger body
+        a, err := ask("zd:"+in.TicketID, in.Description, identify("zendesk", os.Getenv("ZENDESK_SUBDOMAIN")+":"+in.RequesterID))
 		if err == nil && a.Reply != "" && a.Status == "answered" {
 			zendeskComment(in.TicketID, a.Reply)
 		}
@@ -708,15 +776,13 @@ func zendeskComment(ticketID, text string) error {
 
     api: {
       handler: `func main() {
-	var conv struct{ ID string }
-	if err := call("/conversations", map[string]any{}, &conv); err != nil {
-		log.Fatal(err)
-	}
+    conversationID, err := createConversation(identify("app", "user-42"))
+    if err != nil { log.Fatal(err) }
 	var r struct {
 		Status, Reply string
 		Sources       []map[string]any
 	}
-	if err := call("/conversations/"+conv.ID+"/messages", map[string]string{"message": "Where is my order?"}, &r); err != nil {
+	if err := call("/conversations/"+conversationID+"/messages", map[string]string{"message": "Where is my order?"}, &r); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println(r.Status, r.Reply, len(r.Sources))

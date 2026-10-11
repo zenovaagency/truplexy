@@ -26,18 +26,44 @@ public static class Truplexy
     /// <summary>Reply is null for "escalated" and "context": send nothing.</summary>
     public record Answer(string? Reply, string Status, string ConversationId);
 
-    public static async Task<JsonElement> Call(string path, object? body = null)
+    public sealed class ApiError(int status, JsonElement details, string? requestId) : Exception(details.TryGetProperty("message", out var m) ? m.GetString() : "Truplexy request failed")
     {
-        using var res = await Http.PostAsJsonAsync(Api + path, body ?? new { });
-        if (!res.IsSuccessStatusCode)
-            throw new HttpRequestException($"Truplexy {(int)res.StatusCode}: {await res.Content.ReadAsStringAsync()}");
-        return await res.Content.ReadFromJsonAsync<JsonElement>();
+        public int Status { get; } = status;
+        public JsonElement Details { get; } = details;
+        public string Code { get; } = details.TryGetProperty("code", out var c) ? c.GetString()! : "UPSTREAM_ERROR";
+        public string? RequestId { get; } = details.TryGetProperty("request_id", out var r) ? r.GetString() : requestId;
+    }
+    public static async Task<JsonElement> Call(string path, object? body = null, string method = "POST")
+    {
+        using var req = new HttpRequestMessage(new HttpMethod(method), Api + path);
+        if (body is not null) req.Content = JsonContent.Create(body);
+        using var res = await Http.SendAsync(req);
+        JsonElement data;
+        try { data = await res.Content.ReadFromJsonAsync<JsonElement>(); }
+        catch (JsonException) { data = JsonSerializer.SerializeToElement(new { }); }
+        if (!res.IsSuccessStatusCode) {
+            var details = data.TryGetProperty("error", out var error) ? error : JsonSerializer.SerializeToElement(new { });
+            throw new ApiError((int)res.StatusCode, details, res.Headers.TryGetValues("X-Request-ID", out var ids) ? ids.FirstOrDefault() : null);
+        }
+        return data;
     }
 
-    public static async Task<Answer> Ask(string thread, string text)
+    public static async Task<JsonElement> UpsertCustomer(object customer)
+    {
+        try { return await Call("/customer", customer, "PUT"); }
+        catch (ApiError e) when (e.Status == 409 && e.Code == "CUSTOMER_EXISTS") { return await Call("/customer", customer, "PUT"); }
+    }
+    public static async Task<JsonElement> CreateConversation(object? customer = null, string? channelId = null)
+    {
+        var opening = new Dictionary<string, string>();
+        if (customer is not null) opening["customer_id"] = (await UpsertCustomer(customer)).GetProperty("id").GetString()!;
+        if (channelId is not null) opening["channel_id"] = channelId;
+        return await Call("/conversations", opening);
+    }
+    public static async Task<Answer> Ask(string thread, string text, object? customer = null, string? channelId = null)
     {
         if (!Threads.TryGetValue(thread, out var id))
-            Threads[thread] = id = (await Call("/conversations")).GetProperty("id").GetString()!;
+            Threads[thread] = id = (await CreateConversation(customer, channelId)).GetProperty("id").GetString()!;
         var message = text.Length > 4000 ? text[..4000] : text;
         var r = await Call($"/conversations/{id}/messages", new { message });
         return new Answer(r.GetProperty("reply").GetString(), r.GetProperty("status").GetString()!, id);
@@ -128,7 +154,7 @@ discord.MessageReceived += m =>
     _ = Task.Run(async () =>   // don't block the gateway
     {
         using var typing = m.Channel.EnterTypingState();
-        var a = await Truplexy.Ask($"dc:{m.Channel.Id}:{m.Author.Id}", m.Content);
+        var a = await Truplexy.Ask($"dc:{m.Channel.Id}:{m.Author.Id}", m.Content, new { contacts = new[] { new { type = "discord", value = m.Author.Id.ToString() } } });
         if (a.Reply is { } reply) await m.Channel.SendMessageAsync(reply, messageReference: new MessageReference(m.Id));
     });
     return Task.CompletedTask;
@@ -170,7 +196,7 @@ await PostTeamsCard(supportChannel, "Escalated", subject, conversationId);`,
     },
 
     api: {
-      handler: `var conv = await Truplexy.Call("/conversations");
+      handler: `var conv = await Truplexy.CreateConversation(new { contacts = new[] { new { type = "app", value = "user-42" } } });
 var id = conv.GetProperty("id").GetString();
 var r = await Truplexy.Call($"/conversations/{id}/messages", new { message = "Where is my order?" });
 Console.WriteLine($"{r.GetProperty("status")}: {r.GetProperty("reply")}");`,

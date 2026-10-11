@@ -16,14 +16,15 @@ Every request is `POST <your route>` with a JSON object body:
 | `history` | n/a | `GET /conversations/{id}` | `{session, conversation: {status, escalated, messages}}`, or `{session: null}` when there's no valid session or the API says `CONVERSATION_NOT_FOUND` |
 | `handoff` | n/a | `POST /conversations/{id}/handoff` | `{session, conversation}` |
 | `profile` | n/a | `GET /profile`, which needs no session | `{business: {name, logo_url}, bot: {id, name, avatar_url}}`; leave out any field the API doesn't send |
-| `live` | n/a | `POST /realtime/token` with `{conversation_id: id}` | `{url, publishable_key, conversation_topic}`, or `{}` when there's no session or the API answers 503 |
+| `live` | n/a | `POST /realtime/token` with `{conversation_id: id}` | `{url, publishable_key, conversation_topic}`, or `{}` when there's no session or the API answers `503 REALTIME_NOT_CONFIGURED` |
 
 Rules:
 
 - **Validate `text`**: trim it; it must be 1–4000 characters and must not start with `[Context only`, which the API treats as background rather than a question.
 - **Forward only names and pictures** from `/profile`: the fields above and nothing else. The widget shows them in its header, so a failure here (an older API answering 404, say) can simply return the error: the widget keeps its defaults.
 - **Never forward `bot_topic`** from `/realtime/token`. It carries every customer's conversations. `conversation_topic` is safe for the browser.
-- **Customer details**: the widget asks for a name and email before a conversation's first message and sends them as `customer: {name, email}` with every message. Both are required together: refuse a `customer` that is present but has an empty name (over 80 characters), or an email that is invalid (over 254). When a new conversation starts, first record the person with `PUT /customer` and `{name, contacts: [{type: "email", value: <email>}]}` and start the conversation with the returned `id` as `customer_id`, so the conversation and its ticket belong to that customer (if the call fails, start it without). Then send `[Context only] Customer: <name> <<email>>` as its first message so the assistant and your team know who it is, then always open a ticket with `POST /conversations/{id}/ticket` (it carries the customer) and `{subject: "Chat with <name>"}` (`"Website chat"` without details). Pass on only `{id, subject, status}` of the ticket, and carry on chatting if either call fails. The widget keeps the details and the ticket in the visitor's browser.
+- **Trusted identity**: for a new conversation, run the server customer resolver first. A non-null `{contacts, name?, metadata?}` replaces browser details; null/undefined falls back to the form. Never accept a browser-supplied `customer_id` or trusted metadata. Use `details="off"` when the server supplies identity.
+- **Customer details**: the widget asks for a name and email before a conversation's first message and sends `customer: {name, email}` with messages. When used, both fields are required: name 1–120 characters and email up to 254. Convert them to `{name, contacts: [{type: "email", value: <email>}]}` for `PUT /customer`. Start the conversation with the returned `customer_id`. Linking failure must stop creation; retry `409 CUSTOMER_EXISTS` once, never `CUSTOMER_CONFLICT`. Then send a `[Context only]` message describing the customer, and attempt to open a ticket with `{subject: "Chat with <name>"}` (`"Website chat"` without a name). Pass on only its `{id, subject, status}`. Background context and ticket creation remain best effort. Details and the ticket are kept in the visitor's browser.
 - **Hide background messages**: in `history` and `handoff`, drop `user` messages whose `content` starts with `[Context only`, and pass on only `id, role, content, author, agent, created_at` for each message.
 - **Return a fresh `session`** in every successful response that has a conversation. The expiry then slides with activity.
 - **Should**: when `message` gets `CONVERSATION_NOT_FOUND` for a valid session, start a new conversation and send the message there.
@@ -65,6 +66,7 @@ Answer failures with an HTTP status and:
 | `LLM_RATE_LIMITED` | `429 LLM_RATE_LIMITED` |
 | `LLM_TIMEOUT`, `TIMEOUT` | `504` with the same code |
 | `401` (wrong or revoked chat key) | `500 NOT_CONFIGURED`, and log it |
+| `CUSTOMER_CONFLICT`, exhausted `CUSTOMER_EXISTS` | `409` with the same code and a fixed visitor-safe message |
 | Anything else | `502 UPSTREAM_ERROR` |
 
 Keep `request_id` from the API's error (or its `X-Request-ID` header). It's what Truplexy support asks for.
@@ -72,3 +74,7 @@ Keep `request_id` from the API's error (or its `X-Request-ID` header). It's what
 ## Protect the route
 
 The route is public, like any contact form, and every message costs AI usage. Add the rate limiting you'd use on a form, such as 20 messages per IP per minute. Require sign-in if the chat is for customers only. Reply timeouts can reach 45 seconds, so allow your function at least 60.
+
+## Full API and migration
+
+See [CHAT_API.md](CHAT_API.md) for contact normalization and limits, the typed server client, channels, ticket controls, agent replies, live updates and account changes. The five browser actions and signed-session format stay compatible. Customer linking now stops new identified chats on failure. Existing conversations retain their original customer; identification does not grant access to earlier conversations. Realtime returns `{}` only for `REALTIME_NOT_CONFIGURED`, not channel or authentication errors.

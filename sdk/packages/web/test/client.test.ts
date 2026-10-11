@@ -21,6 +21,27 @@ function fake(handlers: Partial<Record<Action, (body: any) => any>>) {
 }
 
 describe('TruplexyClient', () => {
+  it('surfaces live service errors and only uses configuration failures for polling fallback', async () => {
+    for (const code of ['REALTIME_NOT_CONFIGURED', 'CHANNEL_DISABLED', 'NOT_CONFIGURED']) {
+      const { transport } = fake({
+        message: () => ({ session: 'S1', message: { id: 'm1' }, reply: 'Hi', status: 'answered' }),
+        live: () => { throw new TruplexyRequestError(code, 'Live unavailable', 503, 'req_live'); },
+      });
+      const client = new TruplexyClient({ transport, store: false, details: 'off' });
+      const errors: unknown[] = [];
+      client.on('error', e => errors.push(e));
+      await client.start();
+      await client.send('hi');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      if (code === 'REALTIME_NOT_CONFIGURED') expect(errors).toEqual([]);
+      else {
+        expect(errors).toEqual([{ code, message: 'Live unavailable', requestId: 'req_live' }]);
+        expect(client.getState().error?.code).toBe(code);
+      }
+      client.destroy();
+    }
+  });
+
   it('asks for name and email before the first message, sends them, and remembers them with the ticket', async () => {
     const ticket = { id: 'tkt_1', subject: 'Chat with Ada', status: 'open' };
     let saved: any = { session: null, messages: [], seen: 0 };

@@ -18,11 +18,11 @@ export interface ClientOptions extends FetchTransportOptions {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** The cleaned-up details, or null when the name or email isn't usable (name up to 80 characters). */
+/** The cleaned-up details, or null when the name or email isn't usable (name up to 120 characters). */
 export function checkCustomer(name: string, email: string): Customer | null {
   const n = name.trim();
   const e = email.trim();
-  return n && n.length <= 80 && e.length <= 254 && EMAIL.test(e) ? { name: n, email: e } : null;
+  return n && n.length <= 120 && e.length <= 254 && EMAIL.test(e) ? { name: n, email: e } : null;
 }
 
 export interface ClientEvents {
@@ -360,10 +360,10 @@ export class TruplexyClient {
       this.liveConnected = true;
       return this.schedule();
     }
-    this.schedule();
     this.transport
       .request<WireLive>('live', { session: this.session })
       .then((live) => {
+        this.schedule();
         if (this.destroyed || this.stopLive || !live.url || !live.publishable_key || !live.conversation_topic) return;
         this.stopLive = listenRealtime({
           url: live.url,
@@ -388,8 +388,13 @@ export class TruplexyClient {
           },
         });
       })
-      .catch(() => {
-        // No live updates: polling covers it.
+      .catch((e) => {
+        const error = toError(e);
+        if (error.code === 'REALTIME_NOT_CONFIGURED') this.schedule();
+        else {
+          clearTimeout(this.timers.poll);
+          this.fail(error);
+        }
       });
   }
 

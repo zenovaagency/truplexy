@@ -49,7 +49,7 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | `open` | Start open | closed |
 | `show-sources` | Link the articles answers came from | off |
 | `demo` | Canned replies, no server | off |
-| `details` | `ask`: a name and email form before the first message (and a ticket for the conversation); `off`: skip it | `ask` |
+| `details` | `ask`: a name and email form before the first message; `off`: skip the form. Both modes attempt to open a ticket | `ask` |
 | `storage-key` | localStorage key for the conversation | `truplexy:<endpoint>` |
 
 The `labels` property replaces any string, for translations (see `DEFAULT_LABELS`). The panel ends with a small "Powered by Truplexy" link to truplexy.com; translate it with the `poweredBy` label.
@@ -81,12 +81,22 @@ These events bubble to `document`:
 import { TruplexyClient } from "@truplexy/web";
 
 const chat = new TruplexyClient({ endpoint: "/api/truplexy" });
-chat.subscribe((state) => render(state)); // messages, sending, offerHandoff, handoff, escalated, unread, error
+chat.subscribe((state) => render(state)); // customer, needsDetails, profile, ticket, messages, sending, offerHandoff, handoff, escalated, unread, error
 await chat.start();
-await chat.send("Where is my order?");
+if (chat.setCustomer("Ann", "ann@example.com")) {
+  await chat.send("Where is my order?");
+}
 await chat.handoff();      // "Talk to a person"
 chat.setOpen(true);        // your UI is visible: clears unread, polls faster
 ```
+
+## Customer details and sessions
+
+`details` defaults to `ask`. With no session or customer, `send()` sets `needsDetails` and waits; call `setCustomer(name, email)` then send the pending text again. Names allow 120 characters. `cancelDetails()` dismisses that request. `customer` is self-reported browser form data, `profile` contains the business/bot names and pictures, and `ticket` is the automatically opened ticket reference.
+
+For trusted identities, configure the server's `customer(request)` resolver and use `details: 'off'`. The browser never supplies trusted metadata or a customer ID. The server requires successful customer linking before it creates an identified conversation.
+
+`reset()` retains customer details. On account changes, destroy the old client and use separate storage per user or clear the store and recreate it; the server must still enforce authorization. See [customer identity, errors and migration](../../CHAT_API.md).
 
 ## Types for JSX frameworks
 
