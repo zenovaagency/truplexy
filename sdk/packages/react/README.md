@@ -49,7 +49,7 @@ const chat = useTruplexyChat({ endpoint: "/api/truplexy" });
 
 With the default `details: 'ask'`, collect a name/email and call `chat.setCustomer(name, email)` before sending. If `chat.needsDetails` is true, keep the draft, collect details, then call `chat.send(draft)` again. Use `details: 'off'` when identity comes from the server's `customer(request)` resolver. Render `chat.ticket` and `chat.profile` when available.
 
-Names allow 120 characters. Linking errors stop a new identified conversation. `reset()` keeps the visitor details; recreate the client with isolated storage on account changes. See the [customer chat guide](../../CHAT_API.md).
+Names allow 120 characters. Linking errors stop a new identified conversation. `reset()` keeps the visitor details; recreate the client with isolated storage on account changes. See the [customer chat guide](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md).
 
 The client is created in an effect, so it never runs during server rendering and survives StrictMode.
 

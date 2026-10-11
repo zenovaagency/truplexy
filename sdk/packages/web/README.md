@@ -96,7 +96,7 @@ chat.setOpen(true);        // your UI is visible: clears unread, polls faster
 
 For trusted identities, configure the server's `customer(request)` resolver and use `details: 'off'`. The browser never supplies trusted metadata or a customer ID. The server requires successful customer linking before it creates an identified conversation.
 
-`reset()` retains customer details. On account changes, destroy the old client and use separate storage per user or clear the store and recreate it; the server must still enforce authorization. See [customer identity, errors and migration](../../CHAT_API.md).
+`reset()` retains customer details. On account changes, destroy the old client and use separate storage per user or clear the store and recreate it; the server must still enforce authorization. See [customer identity, errors and migration](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md).
 
 ## Types for JSX frameworks
 

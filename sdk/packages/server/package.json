@@ -1,6 +1,6 @@
 {
   "name": "@truplexy/server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Typed Truplexy customer chat API client and widget server route. Keeps your chat key on the server, for Next.js, Nuxt, SvelteKit, Remix, Astro, Express, Cloudflare Workers and any Fetch-API runtime.",
   "license": "MIT",
   "type": "module",
@@ -19,8 +19,20 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md"],
-  "keywords": ["truplexy", "chat", "widget", "support", "nextjs", "nuxt", "sveltekit", "express"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "truplexy",
+    "chat",
+    "widget",
+    "support",
+    "nextjs",
+    "nuxt",
+    "sveltekit",
+    "express"
+  ],
   "engines": {
     "node": ">=20"
   },

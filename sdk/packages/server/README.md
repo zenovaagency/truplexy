@@ -18,7 +18,7 @@ const conversation = await chat.createConversation({ customer_id: customer.id })
 const result = await chat.sendMessage(conversation.id, "Hello");
 ```
 
-The [customer chat API guide](../../CHAT_API.md) documents every method, input and response type, errors, lifecycle controls, contact normalization, webhook delivery and realtime. `chatKey`, `apiBase` and `fetch` configure the client. `TruplexyApiError` preserves the HTTP status, code, request ID and additional error fields for server handling.
+The [customer chat API guide](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md) documents every method, input and response type, errors, lifecycle controls, contact normalization, webhook delivery and realtime. `chatKey`, `apiBase` and `fetch` configure the client. `TruplexyApiError` preserves the HTTP status, code, request ID and additional error fields for server handling.
 
 ## One line per framework
 

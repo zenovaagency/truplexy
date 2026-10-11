@@ -6,6 +6,13 @@ setlocal
 cd /d "%~dp0"
 
 echo.
+set "SDK_VERSION="
+set /p SDK_VERSION=New release version (e.g. 0.4.0), or Enter to keep current versions:
+if not "%SDK_VERSION%"=="" (
+    call npm run version:sdk -- "%SDK_VERSION%" || goto :fail
+)
+
+echo.
 echo === 1/5 Installing dependencies ===
 call npm install || goto :fail
 
@@ -28,12 +35,13 @@ call npm run size || goto :fail
 echo.
 echo All SDK packages are built and verified.
 echo.
+set "PUBLISH="
 set /p PUBLISH=Publish them to npm now? Type YES to publish, anything else to stop:
 if /i not "%PUBLISH%"=="YES" goto :done
 
 echo.
 echo === Publishing ===
-call npm publish --workspaces --access public || goto :fail
+call npm run release || goto :publish_fail
 
 :done
 echo.
@@ -43,6 +51,12 @@ exit /b 0
 
 :fail
 echo.
-echo *** Update stopped: a step above failed. Nothing was published. ***
+echo *** Update stopped before publishing: a step above failed. ***
+pause
+exit /b 1
+
+:publish_fail
+echo.
+echo *** Release stopped. Some packages may already be published; check npm before retrying. ***
 pause
 exit /b 1

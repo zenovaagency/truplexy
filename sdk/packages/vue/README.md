@@ -64,6 +64,6 @@ const { state, setCustomer, cancelDetails, send, handoff, retry, reset, setOpen 
 
 With `details: 'ask'` (the default), collect a name/email and call `setCustomer(name, email)` before sending. When `state.value.needsDetails` is true, preserve the draft, set the details, then `send(draft)` again. Use `details: 'off'` for a server `customer(request)` resolver. Names allow 120 characters; customer linking errors stop a new identified chat.
 
-`reset()` retains customer details. Remount with isolated storage on account changes; the server must enforce authorization. See [customer identity, types and errors](../../CHAT_API.md).
+`reset()` retains customer details. Remount with isolated storage on account changes; the server must enforce authorization. See [customer identity, types and errors](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md).
 
 MIT licensed.
