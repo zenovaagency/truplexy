@@ -6,11 +6,8 @@ setlocal
 cd /d "%~dp0"
 
 echo.
-set "SDK_VERSION="
-set /p SDK_VERSION=New release version (e.g. 0.4.0), or Enter to keep current versions:
-if not "%SDK_VERSION%"=="" (
-    call npm run version:sdk -- "%SDK_VERSION%" || goto :fail
-)
+echo === Selecting the next SDK release version ===
+call npm run version:sdk || goto :fail
 
 echo.
 echo === 1/5 Installing dependencies ===

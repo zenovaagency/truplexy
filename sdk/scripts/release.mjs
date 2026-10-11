@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = new URL('../', import.meta.url);
+const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const read = (path) => JSON.parse(readFileSync(new URL(path, root), 'utf8'));
 const workspaces = () => read('package.json').workspaces.map(path => ({ path, manifest: read(`${path}/package.json`) }));
 
@@ -13,7 +14,7 @@ function npm(args) {
 }
 
 export function versionManifest(manifest, version, names) {
-  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+  if (!stableVersion.test(version)) {
     throw new Error('Use a stable version such as 0.4.0.');
   }
   const next = structuredClone(manifest);
@@ -26,14 +27,36 @@ export function versionManifest(manifest, version, names) {
   return next;
 }
 
+const compareVersions = (a, b) => {
+  const left = a.split('.').map(BigInt);
+  const right = b.split('.').map(BigInt);
+  for (let i = 0; i < 3; i++) {
+    if (left[i] !== right[i]) return left[i] > right[i] ? 1 : -1;
+  }
+  return 0;
+};
+
+export function nextReleaseVersion(manifests, lookup) {
+  if (!manifests.length || manifests.some(p => !stableVersion.test(p.version))) {
+    throw new Error('SDK packages need stable versions before choosing the next release.');
+  }
+  const local = manifests.map(p => p.version).sort(compareVersions).at(-1);
+  // Read every package before choosing a version, including a partially published release.
+  const published = manifests.flatMap(p => lookup(p.name)).filter(v => stableVersion.test(v)).sort(compareVersions).at(-1);
+  // Reuse a prepared release after cancelled publishing or failed authentication.
+  if (!published || compareVersions(local, published) > 0) return local;
+  const [major, minor, patch] = published.split('.');
+  return `${major}.${minor}.${BigInt(patch) + 1n}`;
+}
+
 export function checkVersions(manifests, lookup) {
   const versions = new Set(manifests.map(p => p.version));
-  if (versions.size !== 1) throw new Error('SDK versions differ. Run npm run version:sdk -- <new-version> first.');
+  if (versions.size !== 1) throw new Error('SDK versions differ. Run npm run version:sdk first.');
   const published = [];
   for (const p of manifests) {
     if (lookup(p.name).includes(p.version)) published.push(`${p.name}@${p.version}`);
   }
-  if (published.length) throw new Error(`Already published: ${published.join(', ')}. Choose a new version with npm run version:sdk -- <new-version>. No publishing was attempted.`);
+  if (published.length) throw new Error(`Already published: ${published.join(', ')}. Run npm run version:sdk to choose the next version. No publishing was attempted.`);
 }
 
 function registryVersions(name) {
@@ -47,6 +70,10 @@ function registryVersions(name) {
 function run(command, version) {
   const packages = workspaces();
   if (command === 'version') {
+    if (version === undefined || version === 'auto') {
+      version = nextReleaseVersion(packages.map(p => p.manifest), registryVersions);
+      console.log(`Selected SDK release ${version}.`);
+    }
     const names = packages.map(p => p.manifest.name);
     // Validate every manifest before writing any file.
     const updated = packages.map(p => ({ ...p, manifest: versionManifest(p.manifest, version, names) }));
@@ -57,7 +84,7 @@ function run(command, version) {
     console.log(`All SDK packages and internal dependencies updated to ${version}.`);
     return;
   }
-  if (command !== 'check' && command !== 'publish') throw new Error('Expected version <x.y.z>, check, or publish.');
+  if (command !== 'check' && command !== 'publish') throw new Error('Expected version [auto|x.y.z], check, or publish.');
   checkVersions(packages.map(p => p.manifest), registryVersions);
   console.log('Unpublished versions verified: ' + packages.map(p => `${p.manifest.name}@${p.manifest.version}`).join(', '));
   if (command === 'publish') {

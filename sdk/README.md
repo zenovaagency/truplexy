@@ -78,11 +78,11 @@ It checks the whole protocol, customer/conversation/ticket linkage, escalation/r
 
 Published npm versions cannot be overwritten. For a new release:
 
-1. Run `npm run version:sdk -- <new-version>` (for example, `0.4.0`). This updates all four package versions, their internal dependencies, and the lockfile together.
+1. Run `npm run version:sdk`. It checks all four packages on npm and chooses the next patch version above the highest published stable version. An already prepared local version is kept if it is newer, so rerunning after cancelled publishing or failed authentication does not keep incrementing. All four package versions, their internal dependencies, and the lockfile are updated together. For a specific minor or major release, use `npm run version:sdk -- <new-version>` instead.
 2. Run `npm install`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run size`.
 3. Run `npm run publish:check` to confirm that none of those versions already exists on npm. Sign in with `npm login` if needed.
 4. Run `npm run release`. It repeats the registry check before publishing `server`, `web`, `react`, and `vue`, in that order.
 
-On Windows, `update-sdk.bat` asks for an optional new version, runs the checks, then asks before publishing. If publishing fails partway through, inspect each package's published version before retrying; some may have succeeded.
+On Windows, `update-sdk.bat` selects the version automatically, runs the checks, then asks before publishing. There is no version prompt. For example, once `0.4.0` is published, the next run prepares `0.4.1`. If only some packages published successfully, the next run also picks a patch above that partially published version for all four packages.
 
 The CDN URL in the docs (`cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js`) and the WordPress plugin follow the latest `0.x` widget release.
