@@ -13,6 +13,7 @@
     "preview": "astro preview",
     "check": "astro check",
     "brand": "node scripts/brand-assets.mjs",
+    "brand:icons": "node scripts/vendor-brand-icons.mjs",
     "astro": "astro",
     "verify": "node scripts/verify-claims.mjs"
   },
@@ -30,7 +31,6 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "sharp": "^0.35.5",
-    "simple-icons": "^16.33.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {

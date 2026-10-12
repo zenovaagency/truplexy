@@ -1,16 +1,4 @@
-import {
-  siDiscord,
-  siHubspot,
-  siInstagram,
-  siMessenger,
-  siShopify,
-  siTelegram,
-  siWhatsapp,
-  siWoocommerce,
-  siWordpress,
-  siZendesk,
-} from 'simple-icons';
-import { Code2, Globe, Mail, MessageSquare, Users, Webhook, type LucideIcon } from 'lucide-react';
+import { Code2, Globe, Mail, Webhook, type LucideIcon } from 'lucide-react';
 import type { ApiKey, Channel } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import type { Lang } from './snippets/types';
@@ -29,8 +17,9 @@ export interface Integration {
   name: string;
   group: IntegrationGroup;
   blurb: string;
-  /** simple-icons path; otherwise `glyph`. */
-  path?: string;
+  /** Full-colour brand logo (theSVG) under public/brands; otherwise `glyph`. */
+  icon?: string;
+  /** Tint for `glyph`. */
   color: string;
   glyph?: LucideIcon;
   /** The channel type this integration adds (see GET /channel-types). */
@@ -48,8 +37,6 @@ export interface Integration {
 }
 
 export { PUBLIC_API } from './snippets/types';
-
-const brand = (hex: string) => `#${hex}`;
 
 export const INTEGRATIONS: Integration[] = [
   {
@@ -71,8 +58,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'WhatsApp',
     group: 'messaging',
     blurb: 'Answer customers on WhatsApp Business through the Meta Cloud API.',
-    path: siWhatsapp.path,
-    color: brand(siWhatsapp.hex),
+    icon: '/brands/whatsapp.svg',
+    color: 'var(--color-ink)',
     match: ['whatsapp', 'wa '],
     langs: ['node', 'python', 'php', 'go'],
     steps: [
@@ -87,8 +74,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Telegram',
     group: 'messaging',
     blurb: 'A Telegram bot that answers in private chats and groups.',
-    path: siTelegram.path,
-    color: brand(siTelegram.hex),
+    icon: '/brands/telegram.svg',
+    color: 'var(--color-ink)',
     match: ['telegram', 'tg'],
     langs: ['node', 'python', 'php', 'go'],
     steps: [
@@ -102,8 +89,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Discord',
     group: 'messaging',
     blurb: 'A support bot for your community server, in channels or DMs.',
-    path: siDiscord.path,
-    color: brand(siDiscord.hex),
+    icon: '/brands/discord.svg',
+    color: 'var(--color-ink)',
     match: ['discord'],
     langs: ['node', 'python', 'go', 'csharp'],
     steps: [
@@ -117,8 +104,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Messenger',
     group: 'messaging',
     blurb: 'Reply to messages sent to your Facebook Page.',
-    path: siMessenger.path,
-    color: brand(siMessenger.hex),
+    icon: '/brands/messenger.svg',
+    color: 'var(--color-ink)',
     match: ['messenger', 'facebook'],
     langs: ['node', 'python', 'php', 'go'],
     steps: [
@@ -132,8 +119,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Instagram',
     group: 'messaging',
     blurb: 'Answer Instagram Direct messages to your business account.',
-    path: siInstagram.path,
-    color: brand(siInstagram.hex),
+    icon: '/brands/instagram.svg',
+    color: 'var(--color-ink)',
     match: ['instagram', 'ig'],
     langs: ['node', 'python', 'php', 'go'],
     steps: [
@@ -161,8 +148,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Shopify',
     group: 'business',
     blurb: 'A chat on your storefront that can look up orders and returns.',
-    path: siShopify.path,
-    color: brand(siShopify.hex),
+    icon: '/brands/shopify.svg',
+    color: 'var(--color-ink)',
     match: ['shopify'],
     langs: ['node', 'ruby', 'php', 'python'],
     steps: [
@@ -177,8 +164,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'WooCommerce',
     group: 'business',
     blurb: 'Support chat for a WooCommerce store, with order lookups.',
-    path: siWoocommerce.path,
-    color: brand(siWoocommerce.hex),
+    icon: '/brands/woocommerce.svg',
+    color: 'var(--color-ink)',
     match: ['woocommerce', 'woo'],
     langs: ['php'],
     widget: true,
@@ -193,8 +180,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'WordPress',
     group: 'business',
     blurb: 'Add the assistant to any WordPress site with a small plugin.',
-    path: siWordpress.path,
-    color: brand(siWordpress.hex),
+    icon: '/brands/wordpress.svg',
+    color: 'var(--color-ink)',
     match: ['wordpress', 'wp'],
     langs: ['php'],
     widget: true,
@@ -209,8 +196,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'HubSpot',
     group: 'business',
     blurb: 'Answer HubSpot conversations inbox threads automatically.',
-    path: siHubspot.path,
-    color: brand(siHubspot.hex),
+    icon: '/brands/hubspot.svg',
+    color: 'var(--color-ink)',
     match: ['hubspot'],
     langs: ['node', 'python', 'php', 'go'],
     steps: [
@@ -224,8 +211,8 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Zendesk',
     group: 'business',
     blurb: 'Suggest or send first replies on new Zendesk tickets.',
-    path: siZendesk.path,
-    color: brand(siZendesk.hex),
+    icon: '/brands/zendesk.svg',
+    color: 'var(--color-ink)',
     match: ['zendesk'],
     langs: ['node', 'python', 'php', 'go'],
     steps: [
@@ -239,7 +226,7 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Slack',
     group: 'internal',
     blurb: 'Get escalations in Slack and reply to customers from a thread.',
-    glyph: MessageSquare,
+    icon: '/brands/slack.svg',
     color: 'var(--color-ink)',
     match: ['slack'],
     langs: ['node', 'python', 'java'],
@@ -255,7 +242,7 @@ export const INTEGRATIONS: Integration[] = [
     name: 'Microsoft Teams',
     group: 'internal',
     blurb: 'Route escalations to a Teams channel and answer from there.',
-    glyph: Users,
+    icon: '/brands/microsoft-teams.svg',
     color: 'var(--color-ink)',
     match: ['teams', 'microsoft'],
     langs: ['csharp', 'node', 'python'],
@@ -313,10 +300,8 @@ export function IntegrationIcon({ i, size = 40, className }: { i: Integration; s
       style={{ width: size, height: size }}
       aria-hidden
     >
-      {i.path && !Glyph ? (
-        <svg viewBox="0 0 24 24" style={{ width: size * 0.5, height: size * 0.5, fill: i.color }}>
-          <path d={i.path} />
-        </svg>
+      {i.icon && !Glyph ? (
+        <img src={i.icon} alt="" draggable={false} style={{ width: size * 0.56, height: size * 0.56 }} className="object-contain" />
       ) : Glyph ? (
         <Glyph style={{ width: size * 0.48, height: size * 0.48, color: i.color }} />
       ) : null}

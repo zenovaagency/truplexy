@@ -1,15 +1,3 @@
-import {
-  siDiscord,
-  siHubspot,
-  siInstagram,
-  siMessenger,
-  siShopify,
-  siTelegram,
-  siWhatsapp,
-  siWoocommerce,
-  siZendesk,
-} from 'simple-icons';
-
 /**
  * The channel registry — the single source of truth for what Truplexy
  * connects to and whether it is live.
@@ -49,9 +37,9 @@ export interface Channel {
   name: string;
   group: ChannelGroup;
   status: ChannelStatus;
-  /** Brand glyph from simple-icons. Absent → ChannelIcon draws a neutral glyph. */
-  path?: string;
-  /** Tint for the glyph when the channel is live. */
+  /** Full-colour brand logo (theSVG), a file under public/brands. Absent → ChannelIcon draws a neutral glyph. */
+  icon?: string;
+  /** Tint for the neutral glyph when the channel is live. */
   color: string;
   /** Optional qualifier shown under the name in the ecosystem diagram. */
   note?: string;
@@ -70,23 +58,22 @@ const INK = 'var(--color-ink)';
 export const CHANNELS: readonly Channel[] = [
   // Customer messaging
   { id: 'web', name: 'Website chat', group: 'messaging', status: 'live', color: INDIGO },
-  { id: 'telegram', name: 'Telegram', group: 'messaging', status: 'live', path: siTelegram.path, color: `#${siTelegram.hex}` },
-  { id: 'discord', name: 'Discord', group: 'messaging', status: 'live', path: siDiscord.path, color: `#${siDiscord.hex}` },
-  { id: 'whatsapp', name: 'WhatsApp', group: 'messaging', status: 'live', path: siWhatsapp.path, color: `#${siWhatsapp.hex}` },
-  { id: 'messenger', name: 'Messenger', group: 'messaging', status: 'live', path: siMessenger.path, color: `#${siMessenger.hex}` },
-  { id: 'instagram', name: 'Instagram', group: 'messaging', status: 'live', path: siInstagram.path, color: `#${siInstagram.hex}` },
+  { id: 'telegram', name: 'Telegram', group: 'messaging', status: 'live', icon: '/brands/telegram.svg', color: INK },
+  { id: 'discord', name: 'Discord', group: 'messaging', status: 'live', icon: '/brands/discord.svg', color: INK },
+  { id: 'whatsapp', name: 'WhatsApp', group: 'messaging', status: 'live', icon: '/brands/whatsapp.svg', color: INK },
+  { id: 'messenger', name: 'Messenger', group: 'messaging', status: 'live', icon: '/brands/messenger.svg', color: INK },
+  { id: 'instagram', name: 'Instagram', group: 'messaging', status: 'live', icon: '/brands/instagram.svg', color: INK },
   { id: 'email', name: 'Email', group: 'messaging', status: 'live', color: INK },
 
   // Business platforms
-  { id: 'shopify', name: 'Shopify', group: 'business', status: 'live', path: siShopify.path, color: `#${siShopify.hex}` },
-  { id: 'woocommerce', name: 'WooCommerce', group: 'business', status: 'live', path: siWoocommerce.path, color: `#${siWoocommerce.hex}` },
-  { id: 'hubspot', name: 'HubSpot', group: 'business', status: 'live', path: siHubspot.path, color: `#${siHubspot.hex}` },
-  { id: 'zendesk', name: 'Zendesk', group: 'business', status: 'live', path: siZendesk.path, color: `#${siZendesk.hex}` },
+  { id: 'shopify', name: 'Shopify', group: 'business', status: 'live', icon: '/brands/shopify.svg', color: INK },
+  { id: 'woocommerce', name: 'WooCommerce', group: 'business', status: 'live', icon: '/brands/woocommerce.svg', color: INK },
+  { id: 'hubspot', name: 'HubSpot', group: 'business', status: 'live', icon: '/brands/hubspot.svg', color: INK },
+  { id: 'zendesk', name: 'Zendesk', group: 'business', status: 'live', icon: '/brands/zendesk.svg', color: INK },
 
-  // Internal collaboration — neither brand ships in simple-icons, so both
-  // fall back to a neutral glyph rather than an approximated logo.
-  { id: 'slack', name: 'Slack', group: 'internal', status: 'live', color: INK },
-  { id: 'teams', name: 'Microsoft Teams', group: 'internal', status: 'live', color: INK },
+  // Internal collaboration
+  { id: 'slack', name: 'Slack', group: 'internal', status: 'live', icon: '/brands/slack.svg', color: INK },
+  { id: 'teams', name: 'Microsoft Teams', group: 'internal', status: 'live', icon: '/brands/microsoft-teams.svg', color: INK },
 
   // Developer
   { id: 'api', name: 'REST API', group: 'developer', status: 'live', color: INK },

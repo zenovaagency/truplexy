@@ -1,4 +1,3 @@
-import { siDiscord, siInstagram, siLine, siMessenger, siSignal, siTelegram, siViber, siWechat, siWhatsapp } from 'simple-icons';
 import { Code2, Globe, Mail, MessageSquare, Radio, Smartphone, type LucideIcon } from 'lucide-react';
 import type { Channel } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -6,18 +5,21 @@ import { Badge, Tip } from '@/components/ui';
 
 /**
  * Channel types carry an `icon`: a name or a URL. Known names (and the
- * default type IDs) get a brand mark or a glyph; a URL is shown as an image.
+ * default type IDs) get a full-colour brand logo (theSVG, under public/brands)
+ * or a glyph; a URL is shown as an image.
  */
-const BRANDS: Record<string, { path: string; hex: string }> = {
-  discord: siDiscord,
-  whatsapp: siWhatsapp,
-  telegram: siTelegram,
-  messenger: siMessenger,
-  instagram: siInstagram,
-  line: siLine,
-  viber: siViber,
-  wechat: siWechat,
-  signal: siSignal,
+const BRANDS: Record<string, string> = {
+  discord: '/brands/discord.svg',
+  whatsapp: '/brands/whatsapp.svg',
+  telegram: '/brands/telegram.svg',
+  messenger: '/brands/messenger.svg',
+  instagram: '/brands/instagram.svg',
+  line: '/brands/line.svg',
+  viber: '/brands/viber.svg',
+  wechat: '/brands/wechat.svg',
+  signal: '/brands/signal.svg',
+  slack: '/brands/slack.svg',
+  teams: '/brands/microsoft-teams.svg',
 };
 
 const GLYPHS: Record<string, LucideIcon> = {
@@ -27,7 +29,6 @@ const GLYPHS: Record<string, LucideIcon> = {
   widget: Globe,
   email: Mail,
   mail: Mail,
-  slack: MessageSquare,
   chat: MessageSquare,
   sms: Smartphone,
   phone: Smartphone,
@@ -43,12 +44,7 @@ export function ChannelGlyph({ icon, className }: { icon?: string; className?: s
   const key = (icon ?? '').trim();
   if (key && isUrl(key)) return <img src={key} alt="" className={cn('size-4 shrink-0 object-contain', className)} />;
   const brand = BRANDS[key.toLowerCase()];
-  if (brand)
-    return (
-      <svg viewBox="0 0 24 24" className={cn('size-4 shrink-0', className)} style={{ fill: `#${brand.hex}` }} aria-hidden>
-        <path d={brand.path} />
-      </svg>
-    );
+  if (brand) return <img src={brand} alt="" draggable={false} className={cn('size-4 shrink-0 object-contain', className)} />;
   const Glyph = GLYPHS[key.toLowerCase()] ?? Radio;
   return <Glyph className={cn('size-4 shrink-0 text-ink-muted', className)} aria-hidden />;
 }
