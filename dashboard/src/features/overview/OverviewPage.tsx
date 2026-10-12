@@ -316,8 +316,16 @@ export default function OverviewPage() {
               ))}
               <li className="flex justify-between border-t border-line pt-3 text-xs text-ink-faint">
                 <span>Retrieval, average</span>
-                <span className="font-mono text-ink">{formatMs(u.rag.avg_retrieval_ms)}</span>
+                <span className="tabular-nums text-ink">{formatMs(u.rag.avg_retrieval_ms)}</span>
               </li>
+              {Boolean(u.web_searches?.searches) && (
+                <li className="flex justify-between text-xs text-ink-faint">
+                  <span>Web searches</span>
+                  <span className="tabular-nums text-ink">
+                    {formatNumber(u.web_searches!.searches)} · {formatPercent(u.web_searches!.with_results / u.web_searches!.searches, 0)} found results
+                  </span>
+                </li>
+              )}
             </ul>
           ) : (
             <SkeletonRows rows={4} />

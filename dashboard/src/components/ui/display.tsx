@@ -1,12 +1,14 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { AlertCircle, Check, Copy, Eye, EyeOff, Lock, RefreshCw, ShieldAlert } from 'lucide-react';
+import { AlertCircle, Check, Copy, Eye, EyeOff, FileQuestion, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router';
 import { useState } from 'react';
 import { cn } from '@/lib/cn';
-import { describeError } from '@/lib/errors';
+import { describeError, isNotFoundError, isScopeLostError } from '@/lib/errors';
 import { initials } from '@/lib/format';
 import { useCopy } from '@/hooks';
 import { Button } from './button';
 import { Tip } from './overlay';
+import { NotFoundState, type NotFoundCopy } from './status';
 
 /* ------------------------------------------------------------------ */
 /* Badge                                                               */
@@ -101,8 +103,44 @@ export function EmptyState({
   );
 }
 
-export function ErrorState({ error, onRetry, className, compact }: { error: unknown; onRetry?: () => void; className?: string; compact?: boolean }) {
+/**
+ * A failed load. A record that doesn't exist (any 404 but a lost business,
+ * which redirects) renders as the 404: the big one on a page, a small note
+ * inside a card. `notFound` gives that case its own words and way back.
+ */
+export function ErrorState({
+  error,
+  onRetry,
+  className,
+  compact,
+  notFound,
+}: {
+  error: unknown;
+  onRetry?: () => void;
+  className?: string;
+  compact?: boolean;
+  notFound?: NotFoundCopy;
+}) {
   const d = describeError(error);
+  if (isNotFoundError(error) && !isScopeLostError(error)) {
+    if (!compact) return <NotFoundState size="md" className={cn('mx-auto py-12', className)} title={notFound?.title ?? d.title} description={notFound?.description ?? d.detail} back={notFound?.back} />;
+    return (
+      <EmptyState
+        compact
+        className={className}
+        icon={<FileQuestion />}
+        title={notFound?.title ?? d.title}
+        description={notFound?.description ?? d.detail}
+        action={
+          notFound?.back && (
+            <Button asChild size="xs">
+              <Link to={notFound.back.to}>{notFound.back.label}</Link>
+            </Button>
+          )
+        }
+      />
+    );
+  }
   return (
     <EmptyState
       compact={compact}
@@ -121,21 +159,6 @@ export function ErrorState({ error, onRetry, className, compact }: { error: unkn
             Try again
           </Button>
         )
-      }
-    />
-  );
-}
-
-export function NoAccess({ what = 'this page', permission }: { what?: string; permission?: string }) {
-  return (
-    <EmptyState
-      icon={<Lock />}
-      title="You don't have access"
-      description={
-        <>
-          Your role can't open {what}. Ask an owner or admin of this business if you need it.
-          {permission && <span className="mt-2 block font-mono text-[0.7rem] text-ink-faint">Needs {permission}</span>}
-        </>
       }
     />
   );

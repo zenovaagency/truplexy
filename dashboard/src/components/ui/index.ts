@@ -5,3 +5,4 @@ export * from './confirm';
 export * from './display';
 export * from './layout';
 export * from './code';
+export * from './status';

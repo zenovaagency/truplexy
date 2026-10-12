@@ -73,7 +73,19 @@ export function TicketDetail({ id, backHref }: { id: string; backHref?: string }
       </div>
     );
   }
-  if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} className="h-full" />;
+  if (q.isError)
+    return (
+      <ErrorState
+        error={q.error}
+        onRetry={() => q.refetch()}
+        className="h-full"
+        notFound={{
+          title: "This ticket doesn't exist",
+          description: 'It may have been deleted, or it belongs to another business.',
+          back: { to: backHref ?? '/tickets', label: 'Back to tickets' },
+        }}
+      />
+    );
   const t = q.data;
 
   return (
@@ -657,6 +669,23 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
             />
           </div>
         )}
+        {!closed && (
+          <div className="rounded-[12px] border border-line bg-surface-2/60 p-3">
+            <Switch
+              checked={t.keep_open ?? false}
+              disabled={!writable || update.isPending}
+              onCheckedChange={(v) => patch({ keep_open: v })}
+              label="Keep open"
+              description={
+                t.keep_open
+                  ? "It won't close on its own, however long it's quiet."
+                  : t.auto_close_at
+                    ? `Closes on its own ${formatRelative(t.auto_close_at)} if nothing happens.`
+                    : "It doesn't close on its own now: no inactivity time is set."
+              }
+            />
+          </div>
+        )}
       </section>
 
       <section className="grid gap-3">
@@ -667,7 +696,9 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
             { label: 'First response', value: t.first_response_at ? formatDateTime(t.first_response_at) : <span className="text-warn">Not yet</span> },
             { label: 'Customer wrote', value: formatRelative(t.last_customer_at), hidden: !t.last_customer_at },
             { label: 'Team replied', value: formatRelative(t.last_agent_at), hidden: !t.last_agent_at },
-            { label: 'Closed', value: formatRelative(t.closed_at), hidden: !t.closed_at },
+            { label: 'Closes on its own', value: formatRelative(t.auto_close_at), hidden: closed || t.keep_open || !t.auto_close_at },
+            { label: 'Closed', value: formatRelative(t.closed_at), hidden: !t.closed_at || Boolean(t.auto_closed_at) },
+            { label: 'Closed on its own', value: formatRelative(t.auto_closed_at), hidden: !t.auto_closed_at },
             { label: 'Reopened', value: `${t.reopen_count} times`, hidden: !t.reopen_count },
           ]}
         />

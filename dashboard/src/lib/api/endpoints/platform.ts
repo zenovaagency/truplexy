@@ -18,6 +18,10 @@ import type {
   PlatformTool,
   PlatformUsageRow,
   PlatformUser,
+  PlatformUserDetail,
+  PlatformUserInput,
+  PlatformUserPatch,
+  PlatformUserQuery,
   TenantDeletion,
   TicketPriority,
   TicketStatus,
@@ -143,21 +147,53 @@ export function useRejectDeletion() {
   });
 }
 
-export function usePlatformUsers(q: string) {
+/* Accounts -------------------------------------------------------------- */
+
+export function usePlatformUsers(params: Omit<PlatformUserQuery, 'cursor'>) {
+  return useInfiniteQuery({
+    queryKey: qk.platform('users', 'list', params),
+    queryFn: ({ pageParam, signal }) =>
+      api<{ data: PlatformUser[]; next_cursor?: string }>('/platform/users', { signal, query: { limit: 50, ...params, cursor: pageParam } }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next_cursor,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** One account with the last 50 things its person did. Finds deleted accounts too. */
+export function usePlatformUser(id: string | undefined) {
   return useQuery({
-    queryKey: qk.platform('users', q),
-    queryFn: ({ signal }) => api<{ data: PlatformUser[] }>('/platform/users', { signal, query: { q } }).then((r) => r.data),
-    placeholderData: (prev) => prev,
+    queryKey: qk.platform('users', 'detail', id),
+    queryFn: ({ signal }) => api<PlatformUserDetail>(`/platform/users/${id}`, { signal }),
+    enabled: Boolean(id),
+  });
+}
+
+/** Creates the account and emails the person a link to set it up. */
+export function useCreatePlatformUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PlatformUserInput) => api<PlatformUser>('/platform/users', { method: 'POST', body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('users') }),
+    meta: { success: 'Invitation sent' },
   });
 }
 
 export function useUpdatePlatformUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, platform_admin }: { id: string; platform_admin: boolean }) =>
-      api<{ id: string; platform_admin: boolean }>(`/platform/users/${id}`, { method: 'PATCH', body: { platform_admin } }),
+    mutationFn: ({ id, ...body }: PlatformUserPatch & { id: string }) => api<PlatformUser>(`/platform/users/${id}`, { method: 'PATCH', body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('users') }),
-    meta: { success: 'Platform access updated' },
+  });
+}
+
+/** Deletes the account, takes it out of every business and unassigns its open tickets. */
+export function useDeletePlatformUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/platform/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('users') }),
+    meta: { success: 'Account deleted' },
   });
 }
 
@@ -181,7 +217,10 @@ export function usePlatformTickets(params: PlatformTicketQuery) {
 
 export interface PlatformCustomerQuery {
   tenant?: string;
+  bot?: string;
   q?: string;
+  /** 1–200, default 50. */
+  limit?: number;
 }
 
 export function usePlatformCustomers(params: PlatformCustomerQuery) {
@@ -306,7 +345,7 @@ export function usePlatformChannelTypes() {
   });
 }
 
-export type ChannelTypeInput = Pick<PlatformChannelType, 'id' | 'label' | 'description' | 'icon' | 'status' | 'sort_order'>;
+export type ChannelTypeInput = Pick<PlatformChannelType, 'id' | 'label' | 'description' | 'icon' | 'status' | 'sort_order' | 'auto_close_hours'>;
 
 export function useSavePlatformChannelType() {
   const qc = useQueryClient();

@@ -35,10 +35,10 @@ const telegram = channel('telegram').name;
   <div class="container-t">
     <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-end">
       <div>
-        <p class="eyebrow" data-reveal>Human + AI</p>
-        <h2 id="handoff-title" class="h2 mt-5" data-split>Always AI-assisted. Never AI-trapped.</h2>
+        <p class="eyebrow">Human + AI</p>
+        <h2 id="handoff-title" class="h2 mt-5">Always AI-assisted. Never AI-trapped.</h2>
       </div>
-      <p class="lede lg:pb-2" data-reveal>
+      <p class="lede lg:pb-2">
         Truplexy isn’t about replacing your support team. It’s the first layer of continuous support —
         and it brings people into the conversation when their involvement adds value. The context follows
         automatically.
@@ -48,7 +48,7 @@ const telegram = channel('telegram').name;
     <!-- Flows -->
     <div class="mt-14 grid gap-4 lg:grid-cols-[1fr_1.35fr]">
       {flows.map((f, fi) => (
-        <div class="card p-6 sm:p-7" data-reveal data-reveal-delay={String(fi * 0.08)}>
+        <div class="card p-6 sm:p-7">
           <p class="mono text-ink-faint">{f.label}</p>
           <ol class="mt-6 flex flex-col items-stretch gap-0 sm:flex-row sm:items-start">
             {f.steps.map((s, i) => {
@@ -85,7 +85,7 @@ const telegram = channel('telegram').name;
 
     <!-- The difference context makes -->
     <div class="mt-4 grid gap-4 md:grid-cols-2">
-      <div class="card border-dashed !bg-paper p-6 sm:p-7" data-reveal>
+      <div class="card border-dashed !bg-paper p-6 sm:p-7">
         <p class="flex items-center gap-2 text-[0.85rem] font-semibold text-ink-muted">
           <span class="grid h-6 w-6 place-items-center rounded-full bg-surface-3 text-ink-muted" aria-hidden="true">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -101,7 +101,7 @@ const telegram = channel('telegram').name;
         </div>
       </div>
 
-      <div class="card p-6 sm:p-7 !shadow-[var(--shadow-md)]" data-reveal data-reveal-delay="0.08">
+      <div class="card p-6 sm:p-7 !shadow-[var(--shadow-md)]">
         <p class="flex items-center gap-2 text-[0.85rem] font-semibold text-live">
           <span class="grid h-6 w-6 place-items-center rounded-full bg-live-soft" aria-hidden="true">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -120,7 +120,7 @@ const telegram = channel('telegram').name;
       </div>
     </div>
 
-    <p class="mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.6rem,1.1rem+2vw,2.6rem)] font-bold tracking-tight" data-reveal>
+    <p class="mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.6rem,1.1rem+2vw,2.6rem)] font-bold tracking-tight">
       Start on web. Continue on {telegram}.
       <span class="gradient-text block">Finish with your team.</span>
     </p>

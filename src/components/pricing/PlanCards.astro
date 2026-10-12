@@ -66,7 +66,7 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
 
 <div class="group/pricing" data-billing="monthly" data-plan-cards>
   <!-- Needs the script below, so it only shows once JS has marked the page. -->
-  <div class="mt-10 hidden justify-center [.js_&]:flex" data-reveal>
+  <div class="mt-10 hidden justify-center [.js_&]:flex">
     <div
       class="relative inline-flex items-center gap-1 rounded-full border border-line bg-paper p-1 shadow-[var(--shadow-sm)]"
       role="group"
@@ -107,8 +107,6 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
           'card relative flex flex-col p-6 sm:p-8',
           plan.featured ? '!border-accent/40 !shadow-[var(--shadow-lg)] ring-4 ring-accent/10' : '!bg-paper',
         ]}
-        data-reveal
-        data-reveal-delay={String(i * 0.06)}
       >
         <div class="flex items-center justify-between gap-3">
           <h3 class="text-xl font-bold tracking-tight">{plan.name}</h3>
@@ -178,7 +176,7 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
   </ul>
 
   {compareLink && (
-    <p class="mt-8 text-center" data-reveal>
+    <p class="mt-8 text-center">
       <a href="/pricing" class="inline-flex items-center gap-1.5 text-[0.95rem] font-semibold text-accent hover:underline">
         Compare all features
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13m0 0-5.5-5.5M18 12l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>

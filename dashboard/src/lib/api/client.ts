@@ -13,8 +13,18 @@ export class ApiError extends Error {
   readonly requestId?: string;
   readonly documentId?: string;
   readonly limit?: keyof Limits;
+  /** SOLE_OWNER: the businesses the person is the only owner of. */
+  readonly tenants?: { id: string; name: string }[];
 
-  constructor(init: { code: string; message: string; status: number; requestId?: string; documentId?: string; limit?: keyof Limits }) {
+  constructor(init: {
+    code: string;
+    message: string;
+    status: number;
+    requestId?: string;
+    documentId?: string;
+    limit?: keyof Limits;
+    tenants?: { id: string; name: string }[];
+  }) {
     super(init.message);
     this.name = 'ApiError';
     this.code = init.code;
@@ -22,6 +32,7 @@ export class ApiError extends Error {
     this.requestId = init.requestId;
     this.documentId = init.documentId;
     this.limit = init.limit;
+    this.tenants = init.tenants;
   }
 }
 
@@ -36,12 +47,15 @@ export const hasCode = (e: unknown, ...codes: string[]) => isApiError(e) && code
 
 type Transport = (req: Request) => Promise<Response>;
 type TokenProvider = (opts?: { refresh?: boolean }) => Promise<string | null>;
+/** Why the session ended: it expired, or a platform admin disabled the account. */
+export type SignOutReason = 'expired' | 'disabled';
+type UnauthorizedHandler = (reason: SignOutReason) => void;
 
 let transport: Transport = (req) => fetch(req);
 let getToken: TokenProvider = async () => null;
-let onUnauthorized: () => void = () => {};
+let onUnauthorized: UnauthorizedHandler = () => {};
 
-export function configureApi(opts: { transport?: Transport; getToken?: TokenProvider; onUnauthorized?: () => void }) {
+export function configureApi(opts: { transport?: Transport; getToken?: TokenProvider; onUnauthorized?: UnauthorizedHandler }) {
   if (opts.transport) transport = opts.transport;
   if (opts.getToken) getToken = opts.getToken;
   if (opts.onUnauthorized) onUnauthorized = opts.onUnauthorized;
@@ -96,7 +110,8 @@ async function send(path: string, opts: RequestOptions, token: string | null) {
 /**
  * Calls the API. Resolves with the parsed body (undefined for 204) or
  * rejects with an ApiError carrying the API's `code` and request ID.
- * A 401 refreshes the session once and retries before giving up.
+ * A 401 refreshes the session once and retries before giving up; a lasting
+ * 401, or a disabled account, signs the person out.
  */
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   let res = await send(path, opts, await getToken());
@@ -120,7 +135,8 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
 
   if (!res.ok) {
     const err = (body as ApiErrorBody | null)?.error;
-    if (res.status === 401) onUnauthorized();
+    if (res.status === 401) onUnauthorized('expired');
+    else if (res.status === 403 && err?.code === 'ACCOUNT_DISABLED') onUnauthorized('disabled');
     throw new ApiError({
       code: err?.code ?? `HTTP_${res.status}`,
       message: err?.message ?? `The API answered ${res.status}.`,
@@ -128,6 +144,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
       requestId: err?.request_id ?? requestId,
       documentId: err?.document_id,
       limit: err?.limit,
+      tenants: err?.tenants,
     });
   }
   return body as T;

@@ -20,7 +20,7 @@ export function useUpdateTenant() {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name?: string; business_type?: BusinessTypeId; reply_target_hours?: number }) =>
+    mutationFn: (body: { name?: string; business_type?: BusinessTypeId; reply_target_hours?: number; auto_close_hours?: number }) =>
       api<Business>('/tenant', { method: 'PATCH', body, scope }),
     onSuccess: (b) => {
       qc.setQueryData(qk.tenant(scope, 'business'), b);

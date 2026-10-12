@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { EmailOtpType, Session } from '@supabase/supabase-js';
-import { configureApi } from '@/lib/api/client';
+import { configureApi, type SignOutReason } from '@/lib/api/client';
 import { env } from '@/lib/env';
 import { getSupabase } from './supabase';
 
@@ -54,6 +54,35 @@ export function callbackError(url: URL): AuthCallbackError | null {
   return new AuthCallbackError(code || error || 'unknown', description || 'Sign-in failed.');
 }
 
+/** Why the last session ended, shown once on the sign-in page. Kept per tab. */
+const SIGN_OUT_REASON_KEY = 'truplexy.signout';
+
+function rememberSignOut(reason: SignOutReason) {
+  try {
+    sessionStorage.setItem(SIGN_OUT_REASON_KEY, reason);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Why the last session in this tab ended, until the next sign-in clears it. */
+export function signOutReason(): SignOutReason | null {
+  try {
+    const v = sessionStorage.getItem(SIGN_OUT_REASON_KEY);
+    return v === 'disabled' || v === 'expired' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function forgetSignOut() {
+  try {
+    sessionStorage.removeItem(SIGN_OUT_REASON_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 const callbackUrl = (next?: string) =>
   `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`;
 
@@ -89,7 +118,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (env.useMocks) {
       const on = mockSignedIn();
-      configureApi({ getToken: async () => (mockSignedIn() ? 'mock-token' : null), onUnauthorized: () => setStatus('signedOut') });
+      configureApi({
+        getToken: async () => (mockSignedIn() ? 'mock-token' : null),
+        onUnauthorized: (reason) => {
+          rememberSignOut(reason);
+          if (reason === 'disabled') {
+            setMockSignedIn(false);
+            qc.clear();
+          }
+          setStatus('signedOut');
+        },
+      });
       setUser(on ? { id: 'mock', email: 'demo@truplexy.dev' } : null);
       setStatus(on ? 'signedIn' : 'signedOut');
       return;
@@ -113,7 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data } = await sb.auth.getSession();
           return data.session?.access_token ?? null;
         },
-        onUnauthorized: () => void sb.auth.signOut(),
+        onUnauthorized: (reason) => {
+          rememberSignOut(reason);
+          void sb.auth.signOut();
+        },
       });
       const { data } = await sb.auth.getSession();
       if (cancelled) return;
@@ -131,6 +173,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsub();
     };
   }, [qc]);
+
+  useEffect(() => {
+    if (status === 'signedIn') forgetSignOut();
+  }, [status]);
 
   const value = useMemo<AuthValue>(() => {
     if (env.useMocks) {

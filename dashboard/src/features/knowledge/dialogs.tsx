@@ -533,7 +533,12 @@ export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onCl
           <Skeleton className="h-64" />
         </div>
       ) : q.isError ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        <ErrorState
+          error={q.error}
+          onRetry={() => q.refetch()}
+          compact
+          notFound={{ title: 'Document not found', description: 'It may have been deleted.', back: { to: '/knowledge', label: 'Back to documents' } }}
+        />
       ) : (
         d && (
           <div className="grid gap-6">

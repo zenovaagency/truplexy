@@ -24,10 +24,10 @@ const core = [
   <div class="container-t relative">
     <div class="grid gap-8 lg:grid-cols-[1.1fr_1fr] lg:items-end">
       <div>
-        <p class="eyebrow" data-reveal>Channels & platforms</p>
-        <h2 id="channels-title" class="h2 mt-5" data-split>Meet customers where they already are.</h2>
+        <p class="eyebrow">Channels & platforms</p>
+        <h2 id="channels-title" class="h2 mt-5">Meet customers where they already are.</h2>
       </div>
-      <div class="lg:pb-2" data-reveal>
+      <div class="lg:pb-2">
         <p class="lede">
           Don’t force customers into a new support experience. Bring Truplexy into the platforms they already use.
         </p>
@@ -42,11 +42,11 @@ const core = [
 
     <!-- Ecosystem -->
     <div class="relative mt-16" data-eco>
-      <svg class="pointer-events-none absolute inset-0 hidden h-full w-full lg:block" aria-hidden="true" data-eco-svg data-reveal data-reveal-delay="0.15"></svg>
+      <svg class="pointer-events-none absolute inset-0 hidden h-full w-full lg:block" aria-hidden="true" data-eco-svg></svg>
 
       <div class="relative grid gap-6 lg:grid-cols-[minmax(0,290px)_minmax(0,1fr)_minmax(0,290px)] lg:gap-0">
         <!-- Left: where conversations arrive -->
-        <div class="flex flex-col gap-6" data-reveal>
+        <div class="flex flex-col gap-6">
           {left.map((g) => (
             <div>
               <h3 class="mono mb-2.5 text-[0.66rem] text-ink-faint">{GROUP_LABEL[g]}</h3>
@@ -74,7 +74,7 @@ const core = [
         </div>
 
         <!-- Center: the layer -->
-        <div class="flex items-center justify-center py-4 lg:px-10 lg:py-0" data-reveal>
+        <div class="flex items-center justify-center py-4 lg:px-10 lg:py-0">
           <div class="relative w-full max-w-[300px]" data-eco-hub>
             <div class="eco-halo absolute -inset-6 rounded-[44px]" aria-hidden="true"></div>
             <div class="card relative !rounded-[30px] px-6 py-7 text-center !shadow-[var(--shadow-lg)]">
@@ -93,7 +93,7 @@ const core = [
         </div>
 
         <!-- Right: what the layer is made of, and what it works with -->
-        <div class="flex flex-col gap-6" data-reveal>
+        <div class="flex flex-col gap-6">
           <div>
             <h3 class="mono mb-2.5 text-[0.66rem] text-ink-faint">Inside the layer</h3>
             <ul class="flex flex-col gap-1.5">
@@ -133,7 +133,7 @@ const core = [
       </div>
     </div>
 
-    <p class="display mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.9rem,1.2rem+2.6vw,3.3rem)]" data-reveal>
+    <p class="display mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.9rem,1.2rem+2.6vw,3.3rem)]">
       Many channels.
       <span class="gradient-text block">One intelligence layer.</span>
     </p>

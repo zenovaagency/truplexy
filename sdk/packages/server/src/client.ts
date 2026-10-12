@@ -25,7 +25,12 @@ export interface ConversationInput { channel_id?: string; customer_id?: string }
 export type ReplyStatus = 'answered' | 'clarification_required' | 'no_answer' | 'handoff_offered' | 'handoff' | 'escalated' | 'context';
 export interface Source { document_id: string; title: string; section?: string; url?: string; score: number }
 export interface MessageResult { message: Message; reply: string | null; status: ReplyStatus; sources: Source[] }
-export interface TicketInput { subject?: string; priority?: 'low' | 'normal' | 'high' | 'urgent' }
+export interface TicketInput {
+  subject?: string;
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  /** true stops a new ticket closing on its own after a quiet spell. */
+  keep_open?: boolean;
+}
 export interface Ticket {
   id: string; subject: string; status: 'open' | 'closed'; priority: NonNullable<TicketInput['priority']>;
   escalated: boolean; channel_id?: string; customer_id?: string; created_at: string;

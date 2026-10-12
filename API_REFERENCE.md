@@ -319,8 +319,11 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/platform/deletion-requests` | platform | Owners' deletion requests (v2) |
 | `POST` | `/platform/deletion-requests/{id}/approve` | platform | Approve a request, deleting the business (v2) |
 | `POST` | `/platform/deletion-requests/{id}/reject` | platform | Reject a request (v2) |
-| `GET` | `/platform/users` | platform | Everyone who has signed in (v2) |
-| `PATCH` | `/platform/users/{id}` | platform | Grant or revoke platform admin (v2) |
+| `GET` | `/platform/users` | platform | Everyone's accounts (v2) |
+| `POST` | `/platform/users` | platform | Create an account and invite the person (v2) |
+| `GET` | `/platform/users/{id}` | platform | One account and what its person did (v2) |
+| `PATCH` | `/platform/users/{id}` | platform | Rename, change email, grant or revoke platform admin, disable or enable (v2) |
+| `DELETE` | `/platform/users/{id}` | platform | Delete an account (v2) |
 | `GET` | `/platform/tickets` | platform | Tickets across businesses (v2) |
 | `GET` | `/platform/tools` | platform | API tools across businesses (v2) |
 | `PATCH` | `/platform/tools/{id}` | platform | Turn a tool off or on (v2) |
@@ -337,6 +340,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/platform/channel-types` | platform | Add a channel type (v2) |
 | `PATCH` | `/platform/channel-types/{id}` | platform | Change or hide a channel type (v2) |
 | `GET` | `/platform/channels` | platform | Channels across businesses (v2) |
+| `GET` | `/platform/customers` | platform | Customers across businesses (v2) |
 | `PATCH` | `/platform/channels/{id}` | platform | Turn a business's channel off or on (v2) |
 | `POST` | `/conversations` | chat key | Start a conversation |
 | `GET` | `/conversations/{id}` | chat key | A conversation with its latest messages |
@@ -352,6 +356,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
 | `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
+| `GET` | `/internal/cron/tickets` | `CRON_SECRET` | Close tickets left without activity (v2; not for frontends) |
 
 ## 4. Endpoints
 
@@ -427,7 +432,9 @@ Scope headers. These act on the business the headers name.
   id, name, business_type, plan, status,         // status: active | suspended
   created_at,
   reply_target_hours,                            // tickets needing a reply longer than this are overdue
-  limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month},   // the plan's, with overrides; 0 = unlimited
+  auto_close_hours,                              // open tickets close after this long without activity (v2); 0 = never
+  limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month,
+           web_search, web_searches_per_month},   // the plan's, with overrides; 0 = unlimited; web_search is on or off
   limit_overrides: {…},                          // only what a platform admin overrode
   usage: {bots, members, replies_this_month, tokens_this_month},   // members includes pending invitations
   balance,                                       // USD; see GET /billing
@@ -445,6 +452,7 @@ Scope headers. These act on the business the headers name.
 - `name`: 1–80 characters.
 - `business_type`.
 - `reply_target_hours`: 1–720.
+- `auto_close_hours` (v2): 0 (never, the default) to 2160. Open tickets without a channel, and those of channel types without a time, close after this many hours without activity; see [Tickets](#tickets).
 
 Changing the type changes the defaults for new bots, not saved bots. **200** the Business.
 
@@ -658,6 +666,8 @@ Channels tell the team where each ticket came from:
   active,                                  // enabled and not disabled_by_platform: its keys work
   open_tickets, tickets,                   // tickets from the channel
   api_keys,                                // active chat API keys bound to it
+  auto_close_hours,                        // null: the channel type's, else the business's; 0 = never
+  effective_auto_close_hours,              // what applies; 0 = never
   created_at, updated_at
 }
 ```
@@ -681,6 +691,7 @@ Channels tell the team where each ticket came from:
 | `description` | Up to 300 characters. |
 | `external_id` | Up to 128 characters: the platform's own ID for it. |
 | `enabled` | Default `true`. |
+| `auto_close_hours` | 0 (never) to 2160, or `null` (the default) to use the channel type's time, else the business's. Open tickets from the channel close after this many hours without activity. In `PATCH`, `null` clears it and leaving it out keeps it. |
 
 **201** the channel.
 
@@ -736,6 +747,7 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | `topK` | The most passages per message, 1–20. |
 | `toolsEnabled` | Let the model call `tools`. Needs a model with `supports_tools`. |
 | `tools` | Up to 20 unique tool names from `GET /tools`. |
+| `webSearch` | `{enabled, mode, maxResults, depth, topic, timeRange, includeDomains, excludeDomains}`; see [Web search](../README.md#web-search). Needs `ragEnabled`. `mode` is `fallback` (default: only when the knowledge base has no confident answer) or `always`; `maxResults` 1–8 (3); `depth` `basic` or `advanced`; `topic` `general` or `news`; `timeRange` `day`, `week`, `month`, `year` or `""`; the domain lists hold up to 50 hostnames such as `docs.example.com`, without `https://` or a path, and a domain covers its subdomains. Missing fields get their defaults. |
 
 **200** the saved workspace (a new `revision`). Every save adds a version when `bot` changed.
 
@@ -749,6 +761,8 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | `400 INVALID_PROMPT_VARIABLES` | A required variable is empty. |
 | `400 PROMPT_NOT_EDITABLE` | `prompt` was changed. |
 | `400 INVALID_REQUEST` | A field breaks the rules above. |
+| `400 WEB_SEARCH_NOT_CONFIGURED` | `webSearch.enabled` was turned on, but the server has no `TAVILY_API_KEY`. |
+| `403 PLAN_LIMIT_REACHED` | `webSearch.enabled` was turned on, but the business's plan doesn't include web search (`limit: "web_search"`). |
 
 ### Models and prompt templates
 
@@ -990,6 +1004,9 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   last_customer_at?, last_agent_at?,
   first_response_at?, closed_at?, reopen_count,
   summary?, summary_at?,                   // the AI summary a person last generated, and when
+  keep_open,                               // true: never closes on its own (v2)
+  auto_close_at?,                          // when it closes if nothing happens before (v2)
+  auto_closed_at?,                         // when it last closed on its own (v2)
   created_at, updated_at
 }
 ```
@@ -1001,6 +1018,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 **Automatic changes:**
 - A customer message sets `needs_reply`.
 - Closing ends escalation, and the assistant answers again.
+- **Closing inactive tickets** (v2). An open ticket closes after a number of hours without activity (no change to it and no message in its conversation): its channel's `auto_close_hours`, else its channel type's, else its business's; 0 is never, and nothing closes until one is set. A ticket with `keep_open: true`, and one waiting on the team (escalated or handed off, with the customer having written last), never closes on its own. `auto_close_at` says when it will. Closing on its own ends escalation, adds the internal note "Closed automatically after N hours without activity." and sets `auto_closed_at`; reopening clears it. It sends the same `ticket.updated` events as a person closing it.
 
 **Flags**, for badges and filters:
 
@@ -1043,6 +1061,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | `priority` | Default `normal`. |
 | `escalated` | `true` takes the conversation over at once. |
 | `channel_id` | One of the bot's channels (v2). With `conversation_id`, defaults to the conversation's channel. |
+| `keep_open` | `true` stops the ticket closing on its own (v2). |
 
 Opening a ticket for a flagged conversation clears the flag. To take over a conversation from `GET /handoffs`, send its `conversation_id` with `escalated: true`. **201** the ticket.
 
@@ -1076,6 +1095,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | `escalated` | `true` takes the conversation over (reopening a closed ticket); `false` hands it back to the AI. Can't be combined with `status: closed`. Integrations calling with a chat key use [`POST /conversations/{id}/resume`](#post-conversationsidresume) instead. |
 | `assignee` | Legacy free text, up to 64 characters. |
 | `channel_id` | One of the bot's channels; `""` clears it (v2). |
+| `keep_open` | `true` stops the ticket closing on its own; `false` lets it again (v2). |
 
 **200** the ticket.
 
@@ -1219,7 +1239,8 @@ export function verify(rawBody, header, secret) {
   by_model: [{model, requests, total_tokens, estimated_cost, avg_latency_ms}],               // top 5
   tool_calls: {total, errors, avg_latency_ms, by_tool: [{name, calls, errors, avg_latency_ms}]},
   rag: {requests, no_answer_rate, handoff_rate, clarification_rate, cache_hit_rate,
-        rewrite_rate, degraded_rate, avg_latency_ms, avg_retrieval_ms}   // rates from 0 to 1
+        rewrite_rate, degraded_rate, avg_latency_ms, avg_retrieval_ms},  // rates from 0 to 1
+  web_searches: {searches, with_results, errors, skipped, avg_latency_ms}   // searches that ran count against the plan (v2)
 }
 ```
 
@@ -1344,6 +1365,7 @@ Scope headers, `playground.run`. Runs real model and tool requests for trying se
 | `resend` | With `conversation_id`: answer the last stored message again, replacing its reply. |
 | `history` | Only without `conversation_id`: up to 40 `{role, content}` turns, and nothing is stored. |
 | `rag_enabled`, `rag_top_k` | Knowledge retrieval, and the most passages (1–20, default 4). |
+| `web_search` | `{enabled, mode, max_results, depth, topic, time_range, include_domains, exclude_domains}`, the bot's `webSearch` settings in snake_case (v2). Needs `rag_enabled`. Searches only when the server has a search provider and the business's plan has room; otherwise the reply is answered without it. |
 | `tools_enabled`, `tools` | Tools to allow; `tools` is required with `tools_enabled` and not allowed without it. |
 | `filters` | Retrieval metadata filters. |
 | `debug` | Include the retrieval trace as `debug`. |
@@ -1357,7 +1379,7 @@ Scope headers, `playground.run`. Runs real model and tool requests for trying se
   usage: {input_tokens, output_tokens, total_tokens, cost} | null,
   tool_calls: [{name, arguments, status, output, latency_ms}],
   status,                                                          // answered | clarification_required | no_answer | handoff | escalated
-  sources,                                                         // null with retrieval off
+  sources,                                                         // null with retrieval off; web results have kind: "web"
   context_tokens,
   conversation_id?, user_message?, reply?,                         // with conversation_id: the stored messages
   debug?
@@ -1410,7 +1432,7 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 `{plan?, status?, limits?}`; leave out what doesn't change.
 - `plan`: a plan `id` from `GET /plans`.
 - `status`: `active` or `suspended`. Suspending blocks the business's members and chat keys.
-- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?, tokens_per_month?}`, each 0 (unlimited) to 10,000,000 (`tokens_per_month` to 100,000,000,000). It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
+- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?, tokens_per_month?, web_search?, web_searches_per_month?}`, each 0 (unlimited) to 10,000,000 (`tokens_per_month` to 100,000,000,000); `web_search` is `true` or `false`, turning web search on or off whatever the plan says. It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
 
 **200** the Business.
 
@@ -1492,17 +1514,72 @@ Restores a deleted business as it was. Recorded as `business.restored`. **200** 
 
 `{note?}`, shown to the business as `review_note`. **200** the request, `rejected`. Recorded as `business.deletion_rejected`. **Errors:** `404 DELETION_REQUEST_NOT_FOUND`.
 
+**User:**
+
+```text
+{
+  id, email, name, platform_admin,
+  status,                                  // active | disabled | deleted
+  disabled_at?, deleted_at?,
+  created_at, last_seen_at?,
+  memberships: [{tenant_id, tenant_name, role}]
+}
+```
+
+A deleted account keeps only its `id`: its email becomes `deleted+{id}@invalid` and its name is empty, so activity logs and ticket history still name someone.
+
 #### `GET /platform/users`
 
-`?q=` searches email and name (up to 120 characters). **200** `{data: [{id, email, name, platform_admin, created_at, last_seen_at?, memberships: [{tenant_id, tenant_name, role}]}]}`: up to 100 people, most recently seen first.
+Most recently seen first.
+
+| Query | Rules |
+| --- | --- |
+| `q` | Up to 120 characters: matches email or name. |
+| `status` | `active`, `disabled`, `deleted` or `all`. Default: everyone not deleted. |
+| `platform_admin` | `true` or `false`. |
+| `limit` | 1–100, default 100. |
+| `cursor` | `next_cursor` from the previous page. |
+
+**200** `{data: [User], next_cursor?}`.
+
+#### `POST /platform/users` (v2)
+
+| Field | Rules |
+| --- | --- |
+| `email` | Required. An email address no other account has. |
+| `name` | Up to 80 characters. |
+| `platform_admin` | Default `false`. |
+| `memberships` | Up to 20 `{tenant_id, role}`, each business once, with the role `owner`, `admin`, `editor`, `agent` or `viewer`. |
+
+Creates the account in Supabase Auth, which emails the person a link to set it up (the **Invite user** template, landing on `{DASHBOARD_URL}/auth/callback`), and adds it to the businesses. **201** the User. Recorded as `user.created`, and `member.added` in each business.
+
+#### `GET /platform/users/{id}` (v2)
+
+**200** the User with `activity`: the last 50 audit events the person made, in any business, as `{id, tenant_id, actor, action, target, created_at}`. Deleted accounts are found too. **Errors:** `404 USER_NOT_FOUND`.
 
 #### `PATCH /platform/users/{id}`
 
-`{platform_admin: true | false}`. **200** `{id, platform_admin}`.
+Send any of:
+- `name`: up to 80 characters.
+- `email`: an address no other account has; it's confirmed at once.
+- `platform_admin`: `true` or `false`.
+- `disabled`: `true` locks the person out: every request with their token, even one issued before, gets `403 ACCOUNT_DISABLED` (within 30 seconds on every server), and Supabase bans the account so it can't sign in. `false` lets them back in.
 
-**Errors:**
-- `404 USER_NOT_FOUND`
-- `409 OWN_ACCESS`: admins can't revoke their own access.
+Names and emails change in Supabase too, since sign-in copies them from it. **200** the User. Recorded as `user.updated`, `user.disabled`, `user.enabled`, `platform_admin.granted` or `platform_admin.revoked`.
+
+#### `DELETE /platform/users/{id}` (v2)
+
+Deletes the account in Supabase Auth, takes the person out of every business (each records `member.removed`), unassigns their open tickets and revokes invitations to their address. **204**. Recorded as `user.deleted`.
+
+**Errors**, for the user endpoints:
+- `400 INVALID_REQUEST`
+- `404 USER_NOT_FOUND`; `404 TENANT_NOT_FOUND` (a membership names no business)
+- `409 EMAIL_TAKEN`
+- `409 OWN_ACCESS`: nobody can disable, delete or remove platform admin from their own account.
+- `409 LAST_PLATFORM_ADMIN`: the platform keeps one active platform admin.
+- `409 SOLE_OWNER`: the person is the only owner of a business; `tenants` lists them. Make someone else an owner, or delete the business, first.
+- `502 AUTH_PROVIDER_ERROR`: Supabase Auth didn't make the change.
+- `503 NOT_CONFIGURED`: creating accounts and changing names or emails needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY`. Disabling, enabling and platform admin access work without them; deleting then only locks the person out.
 
 #### `GET /platform/tickets`
 
@@ -1638,7 +1715,7 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 
 #### `GET /platform/channel-types` (v2)
 
-**200** `{data: [{id, label, description, icon, status, sort_order, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `discord`, `slack`, `telegram`, `whatsapp`, `email` and `custom`.
+**200** `{data: [{id, label, description, icon, status, sort_order, auto_close_hours, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `discord`, `slack`, `telegram`, `whatsapp`, `email` and `custom`.
 
 #### `POST /platform/channel-types` (v2)
 
@@ -1650,6 +1727,7 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 | `icon` | Up to 200 characters: an icon name or URL for dashboards. |
 | `status` | `active` (default) or `hidden`. A hidden type isn't offered for new channels; channels already of it keep working. |
 | `sort_order` | -10,000 to 10,000. |
+| `auto_close_hours` | 0 (never) to 2160, or `null` (the default) to leave it to each business. Open tickets from channels of the type close after this many hours without activity, unless a channel sets its own. In `PATCH`, `null` clears it and leaving it out keeps it. |
 
 **201** the type. **Errors:** `400 INVALID_REQUEST`, `409 CHANNEL_TYPE_EXISTS`.
 
@@ -1668,6 +1746,19 @@ Every business's channels, newest first, up to 500.
 | `status` | `active`, or `disabled` (turned off by its business or a platform admin). |
 
 **200** `{data: [Channel + {tenant_name}]}`.
+
+#### `GET /platform/customers` (v2)
+
+Read only, every business's customers, most recently seen first.
+
+| Query | Rules |
+| --- | --- |
+| `tenant` | A business ID. |
+| `bot` | A bot ID. |
+| `q` | Matches the start of the name or of any contact's value, up to 100 characters. |
+| `limit`, `cursor` | 1–200 (default 50); `next_cursor` from the previous page. |
+
+**200** `{data: [Customer + {tenant_name}], next_cursor?}`.
 
 #### `PATCH /platform/channels/{id}` (v2)
 
@@ -1756,7 +1847,7 @@ No body. Flags the conversation for the team and adds a confirmation message. Th
 
 #### `POST /conversations/{id}/ticket`
 
-Optional `{subject, priority}`. Opens a ticket without escalating, or returns the open one. **200** `{id, subject, status, priority, escalated, channel_id?, created_at}`; the ticket takes the conversation's channel.
+Optional `{subject, priority, keep_open}`. Opens a ticket without escalating, or returns the open one; `keep_open: true` stops a new ticket closing on its own. **200** `{id, subject, status, priority, escalated, channel_id?, created_at}`; the ticket takes the conversation's channel.
 
 #### `POST /conversations/{id}/ticket/close`
 
@@ -1785,6 +1876,10 @@ For the scheduler only (Vercel Cron, `Authorization: Bearer <CRON_SECRET>`). It 
 
 For the scheduler only, authenticated like the one above; Vercel runs it daily. It erases the businesses deleted more than 30 days ago: their knowledge files in R2, their vectors, then every D1 record of theirs, and marks their deletion `purged`. People's accounts stay. It works for up to 45 seconds and the next run continues what is left. **200** `{purged: [tenant_id], pending: [tenant_id]}`.
 
+#### `GET /internal/cron/tickets`
+
+For the scheduler only, authenticated like the ones above; `vercel.json` runs it hourly. It closes open tickets left without activity for their channel's, channel type's or business's `auto_close_hours` (see [Tickets](#tickets)). It works for up to 45 seconds and the next run continues what is left. **200** `{closed, remaining}`.
+
 ## 5. Which endpoints a dashboard needs where
 
 A guide to which calls back each typical area. It doesn't prescribe screens.
@@ -1805,7 +1900,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
 | Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
 | Team | `GET /members`, `PATCH`/`DELETE /members/{user_id}`, `GET`/`POST /invites`, `DELETE /invites/{id}`, `GET /audit` |
-| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `DELETE /platform/tenants/{id}`, `POST …/restore`, `GET /platform/deleted-tenants`, `GET /platform/deletion-requests` with `POST …/approve` and `…/reject`, `GET`/`PATCH /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…`, `GET`/`POST`/`PATCH /platform/channel-types…`, `GET`/`PATCH /platform/channels…` |
+| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `DELETE /platform/tenants/{id}`, `POST …/restore`, `GET /platform/deleted-tenants`, `GET /platform/deletion-requests` with `POST …/approve` and `…/reject`, `GET`/`POST`/`PATCH`/`DELETE /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…`, `GET`/`POST`/`PATCH /platform/channel-types…`, `GET`/`PATCH /platform/channels…`, `GET /platform/customers` |
 
 ## 6. Errors
 
@@ -1821,7 +1916,7 @@ Every error has its HTTP status and this body:
 }
 ```
 
-`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month` or `tokens_per_month`.
+`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month`, `tokens_per_month` or `web_search`. `SOLE_OWNER` adds `tenants`.
 
 | HTTP | Codes | What to do |
 | --- | --- | --- |
@@ -1831,12 +1926,13 @@ Every error has its HTTP status and this body:
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /models` and `GET /prompt-templates`, and fill required variables. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
-| 400 | `FEATURE_UNAVAILABLE` | The server lacks the service this needs. |
+| 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. |
 | 400 | `ADDON_NOT_AVAILABLE` | The plan sells no extra tokens (Free), or the business's tokens are unlimited and it needs none. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |
 | 402 | `INSUFFICIENT_BALANCE` | The balance is too low; ask a platform admin for a top-up or buy less. |
 | 403 | `FORBIDDEN` | The role lacks the permission; hide the action. |
 | 403 | `TENANT_SUSPENDED` | The business is suspended. |
+| 403 | `ACCOUNT_DISABLED` | A platform admin disabled the person's account; sign them out. |
 | 403 | `CHANNEL_DISABLED` | The chat key's channel, or the one named, is turned off; turn it on, or ask a platform admin. |
 | 403 | `INVITE_EMAIL_MISMATCH` | Sign in with the invited address. |
 | 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. |
@@ -1846,7 +1942,8 @@ Every error has its HTTP status and this body:
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |
 | 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS` | Already exists. |
-| 409 | `LAST_OWNER`, `OWN_ACCESS` | The change would leave no owner, or remove your own platform access. |
+| 409 | `LAST_OWNER`, `OWN_ACCESS`, `LAST_PLATFORM_ADMIN`, `SOLE_OWNER` | The change would leave a business without an owner or the platform without an admin, or change your own account's access. |
+| 409 | `EMAIL_TAKEN` | Another account has this email address. |
 | 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE` | State conflicts. |
 | 410 | `INVITE_REVOKED`, `INVITE_EXPIRED` | A new invitation is needed. |
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
@@ -1854,8 +1951,8 @@ Every error has its HTTP status and this body:
 | 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up, or its tokens are and the balance is empty. |
 | 429 | `LLM_RATE_LIMITED` | The model provider is busy; retry shortly. |
 | 500 | `INTERNAL_ERROR` | Unexpected; quote the request ID. |
-| 502 | `DATABASE_ERROR`, `STORAGE_ERROR`, `RETRIEVAL_FAILED`, `LLM_PROVIDER_ERROR` | A backing service failed; `message` says which. |
-| 503 | `SIGN_IN_NOT_CONFIGURED`, `ADMIN_NOT_CONFIGURED`, `PLAYGROUND_NOT_CONFIGURED`, `CHAT_NOT_CONFIGURED`, `DATABASE_NOT_CONFIGURED`, `LLM_NOT_CONFIGURED`, `REALTIME_NOT_CONFIGURED`, `CRON_NOT_CONFIGURED` | The server isn't configured for this. |
+| 502 | `DATABASE_ERROR`, `STORAGE_ERROR`, `RETRIEVAL_FAILED`, `LLM_PROVIDER_ERROR`, `AUTH_PROVIDER_ERROR` | A backing service failed; `message` says which. |
+| 503 | `SIGN_IN_NOT_CONFIGURED`, `ADMIN_NOT_CONFIGURED`, `PLAYGROUND_NOT_CONFIGURED`, `CHAT_NOT_CONFIGURED`, `DATABASE_NOT_CONFIGURED`, `LLM_NOT_CONFIGURED`, `REALTIME_NOT_CONFIGURED`, `CRON_NOT_CONFIGURED`, `NOT_CONFIGURED` | The server isn't configured for this. |
 | 504 | `LLM_TIMEOUT`, `TIMEOUT` | The operation took too long; retry. |
 
 **Model errors** come from the endpoints that generate replies (`POST /playground/run`, `POST /conversations/{id}/messages`):

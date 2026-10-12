@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, Coins, Gauge, Hash } from 'lucide-react';
+import { Activity, Coins, Gauge, Globe, Hash } from 'lucide-react';
 import { useModels } from '@/lib/api/endpoints/bot';
 import { useUsageSummary } from '@/lib/api/endpoints/stats';
 import { cn } from '@/lib/cn';
@@ -169,6 +169,34 @@ export default function UsageTab() {
             />
             <StatCard label="Average latency" icon={<Gauge />} loading={!u} value={formatMs(u?.avg_latency_ms)} sub="From request to full reply" />
           </div>
+
+          {Boolean(u?.web_searches?.searches || u?.web_searches?.skipped) && u?.web_searches && (
+            <Card
+              title={
+                <span className="flex items-center gap-2">
+                  <Globe className="size-4 text-accent" /> Web searches
+                </span>
+              }
+              description="Searches that ran count toward your plan; skipped ones (no room on the plan, or not set up) don't."
+            >
+              <dl className="grid gap-4 text-[0.8125rem] sm:grid-cols-4">
+                {[
+                  { label: 'Searches', value: formatNumber(u.web_searches.searches) },
+                  {
+                    label: 'Found results',
+                    value: u.web_searches.searches ? formatPercent(u.web_searches.with_results / u.web_searches.searches, 0) : '—',
+                  },
+                  { label: 'Errors · skipped', value: `${formatNumber(u.web_searches.errors)} · ${formatNumber(u.web_searches.skipped)}` },
+                  { label: 'Average latency', value: formatMs(u.web_searches.avg_latency_ms) },
+                ].map((s) => (
+                  <div key={s.label} className="grid gap-1">
+                    <dt className="text-ink-faint">{s.label}</dt>
+                    <dd className="text-lg font-bold tabular-nums text-ink">{s.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          )}
 
           <Card
             title="Per day"

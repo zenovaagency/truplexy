@@ -34,7 +34,7 @@ Options: `chatKey`, `apiBase` (default production `/v2`), and `fetch`. Environme
 | `handoff(id)` | `POST /conversations/{id}/handoff` | Flags the conversation and adds confirmation; AI keeps replying |
 | `escalate(id)` | `POST /conversations/{id}/escalate` | Opens/escalates a ticket; AI stops replying; safe to repeat |
 | `resume(id)` | `POST /conversations/{id}/resume` | Ends escalation; ticket stays open; safe to repeat |
-| `createTicket(id, {subject?, priority?}?)` | `POST /conversations/{id}/ticket` | Opens or returns the open ticket, without escalation |
+| `createTicket(id, {subject?, priority?, keep_open?}?)` | `POST /conversations/{id}/ticket` | Opens or returns the open ticket, without escalation; `keep_open: true` stops a new ticket closing on its own |
 | `closeTicket(id)` | `POST /conversations/{id}/ticket/close` | Closes the open ticket, ends escalation, clears handoff; returns the latest ticket if already closed |
 | `sendReply(id, input)` | `POST /conversations/{id}/replies` | `{message, ticket_id, escalated}`; opens a ticket if necessary |
 | `getRealtimeToken(conversationId?)` | `POST /realtime/token` | Server topics, URL, publishable key, events |

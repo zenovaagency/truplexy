@@ -735,7 +735,7 @@ export function seedDb(): MockDb {
     { id: '7b1e2c4a-0003-4c1a-9f00-000000000003', email: 'marco@acme.example', name: 'Marco Ruiz', platform_admin: false },
     { id: '7b1e2c4a-0004-4c1a-9f00-000000000004', email: 'jun@acme.example', name: 'Jun Park', platform_admin: false },
     { id: '7b1e2c4a-0005-4c1a-9f00-000000000005', email: 'sofia@acme.example', name: 'Sofia Alvarez', platform_admin: false },
-    { id: '7b1e2c4a-0006-4c1a-9f00-000000000006', email: 'liam@acme.example', name: "Liam O'Connor", platform_admin: false },
+    { id: '7b1e2c4a-0006-4c1a-9f00-000000000006', email: 'liam@acme.example', name: "Liam O'Connor", platform_admin: false, status: 'disabled' as const, disabled_at: ago(2 * DAY) },
     { id: '7b1e2c4a-0007-4c1a-9f00-000000000007', email: 'dana@northwind.example', name: 'Dana Whitfield', platform_admin: false },
     { id: '7b1e2c4a-0008-4c1a-9f00-000000000008', email: 'sam@northwind.example', name: 'Sam Okafor', platform_admin: false },
     { id: '7b1e2c4a-0009-4c1a-9f00-000000000009', email: 'ops@truplexy.dev', name: 'Truplexy Ops', platform_admin: true },
@@ -747,7 +747,7 @@ export function seedDb(): MockDb {
   // Its own sequence, so the rest of the sample data stays as it was.
   const br = rng(4242);
   const tenants: MockDb['tenants'] = [
-    { id: 'acme', name: 'Acme Store', business_type: 'ecommerce', plan: 'pro', status: 'active', created_at: ago(118 * DAY), reply_target_hours: 4, limit_overrides: {}, replies_this_month: 3412, tokens_this_month: 7_120_000,
+    { id: 'acme', name: 'Acme Store', business_type: 'ecommerce', plan: 'pro', status: 'active', created_at: ago(118 * DAY), reply_target_hours: 4, auto_close_hours: 72, limit_overrides: {}, replies_this_month: 3412, tokens_this_month: 7_120_000,
       ...billingHistory(br, [
         { days: 40, kind: 'credit', amount: 150, actor: ops!.email, note: 'Bank transfer INV-1042' },
         { days: 2, kind: 'token_addon', millions: 5, price: 30, actor: alex!.email },

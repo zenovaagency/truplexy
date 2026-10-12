@@ -24,11 +24,11 @@ const offered = PLANS.filter((p) => typeof max.values[p.id] === 'string');
       <div class="aurora" aria-hidden="true"></div>
       <div class="container-t relative">
         <div class="mx-auto max-w-[760px] text-center">
-          <p class="eyebrow" data-reveal>Pricing</p>
-          <h1 id="pricing-title" class="display mt-5 text-balance text-[clamp(2.3rem,1.5rem+3vw,3.75rem)]" data-split>
+          <p class="eyebrow">Pricing</p>
+          <h1 id="pricing-title" class="display mt-5 text-balance text-[clamp(2.3rem,1.5rem+3vw,3.75rem)]">
             Simple plans for every conversation.
           </h1>
-          <p class="lede mx-auto mt-6 max-w-[600px] text-pretty" data-reveal>
+          <p class="lede mx-auto mt-6 max-w-[600px] text-pretty">
             Start free on one channel. Upgrade for more AI tokens, more channels and the integrations your team
             already uses.
           </p>
@@ -42,15 +42,15 @@ const offered = PLANS.filter((p) => typeof max.values[p.id] === 'string');
       <div class="container-t">
         <!-- Stacks over the table's header, which reaches up under it. -->
         <div class="relative z-[4] mx-auto max-w-[760px] text-center">
-          <h2 id="compare-title" class="h2" data-split>Compare every plan</h2>
-          <p class="lede mx-auto mt-4 max-w-[560px]" data-reveal>Limits, channels and integrations, side by side.</p>
+          <h2 id="compare-title" class="h2">Compare every plan</h2>
+          <p class="lede mx-auto mt-4 max-w-[560px]">Limits, channels and integrations, side by side.</p>
         </div>
 
         <div class="mt-12">
           <CompareTable />
         </div>
 
-        <div class="card mt-14 grid gap-6 !bg-paper p-6 sm:p-8 md:grid-cols-[1.2fr_1fr] md:items-center" data-reveal>
+        <div class="card mt-14 grid gap-6 !bg-paper p-6 sm:p-8 md:grid-cols-[1.2fr_1fr] md:items-center">
           <div>
             <h2 class="text-xl font-bold tracking-tight">Need more AI tokens?</h2>
             <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-muted">
@@ -68,7 +68,7 @@ const offered = PLANS.filter((p) => typeof max.values[p.id] === 'string');
           </ul>
         </div>
 
-        <p class="mt-8 text-center text-[0.9rem] text-ink-faint" data-reveal>
+        <p class="mt-8 text-center text-[0.9rem] text-ink-faint">
           Not sure which plan fits? <a href={SITE.demoUrl} class="font-semibold text-accent hover:underline">Book a demo</a> and we’ll walk you through it.
         </p>
       </div>

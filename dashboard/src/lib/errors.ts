@@ -1,4 +1,4 @@
-import { isApiError } from '@/lib/api/client';
+import { hasCode, isApiError } from '@/lib/api/client';
 
 /**
  * People-facing copy per error code. The API's own `message` is used when a
@@ -12,6 +12,19 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   TENANT_SUSPENDED: { title: 'This business is suspended', hint: 'Contact Truplexy support to restore it.' },
   TENANT_NOT_FOUND: { title: 'Business not found', hint: "It may have been removed, or you're no longer a member." },
   BOT_NOT_FOUND: { title: 'Bot not found' },
+  ACCOUNT_DISABLED: { title: 'Your account is disabled', hint: 'A Truplexy administrator turned it off. Contact support to restore it.' },
+  SCOPE_REQUIRED: { title: 'No business selected', hint: 'Reload the page, then try again.' },
+  INVALID_SCOPE: { title: "That business address isn't valid", hint: 'Check the link, or pick a business from the switcher.' },
+  NOT_FOUND: { title: 'Not found', hint: "It doesn't exist, or it's outside this business." },
+  TICKET_NOT_FOUND: { title: 'Ticket not found', hint: 'It may have been deleted, or it belongs to another business.' },
+  CUSTOMER_NOT_FOUND: { title: 'Customer not found', hint: 'They may have been deleted.' },
+  DOCUMENT_NOT_FOUND: { title: 'Document not found', hint: 'It may have been deleted.' },
+  CONVERSATION_NOT_FOUND: { title: 'Conversation not found' },
+  MEMBER_NOT_FOUND: { title: 'Member not found', hint: 'They may have left the business.' },
+  KEY_NOT_FOUND: { title: 'API key not found', hint: 'It may already have been revoked.' },
+  TOOL_NOT_FOUND: { title: 'Tool not found', hint: 'It may have been deleted.' },
+  MODEL_NOT_FOUND: { title: 'Model not found' },
+  TEMPLATE_NOT_FOUND: { title: 'Template not found' },
   PLAN_LIMIT_REACHED: { title: 'Plan limit reached', hint: 'See Settings → Plan & usage.' },
   ADDON_NOT_AVAILABLE: { title: "Extra tokens aren't available", hint: "This business's plan doesn't sell extra tokens, or its tokens are unlimited." },
   INSUFFICIENT_BALANCE: { title: 'The balance is too low', hint: 'Ask Truplexy for a top-up, or buy fewer tokens.' },
@@ -23,7 +36,11 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   KNOWLEDGE_BASE_FULL: { title: 'The knowledge base is full' },
   DOCUMENT_BUSY: { title: 'This document is being processed', hint: 'Try again in a few seconds.' },
   LAST_OWNER: { title: 'A business needs at least one owner', hint: 'Make someone else an owner first.' },
-  OWN_ACCESS: { title: "You can't revoke your own platform access" },
+  OWN_ACCESS: { title: "You can't do that to your own account", hint: 'Ask another platform admin.' },
+  LAST_PLATFORM_ADMIN: { title: 'Truplexy needs at least one platform admin', hint: 'Make someone else an admin first.' },
+  EMAIL_TAKEN: { title: 'That email already has an account' },
+  SOLE_OWNER: { title: 'This person is the only owner of a business', hint: 'Make someone else an owner of those businesses first.' },
+  AUTH_PROVIDER_ERROR: { title: "The sign-in provider didn't respond", useMessage: true },
   ALREADY_MEMBER: { title: 'Already a member' },
   BOT_EXISTS: { title: 'A bot with that ID exists' },
   TOOL_EXISTS: { title: 'A tool with that name exists' },
@@ -36,6 +53,7 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   TIMEOUT: { title: 'That took too long', hint: 'Try again.' },
   LLM_PROVIDER_ERROR: { title: 'The model provider failed', useMessage: true },
   LLM_NOT_CONFIGURED: { title: "AI isn't set up on this server" },
+  WEB_SEARCH_NOT_CONFIGURED: { title: "Web search isn't set up on this server", hint: 'Ask Truplexy to add a search provider key.' },
   NO_CONVERSATION: { title: 'This ticket has no conversation to summarize' },
   STORAGE_ERROR: { title: 'Storage failed', useMessage: true },
   RETRIEVAL_FAILED: { title: 'Retrieval failed', useMessage: true },
@@ -55,8 +73,8 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   INVALID_IMAGE: { title: "That image can't be used", hint: 'It must be readable and 16–4096 pixels on each side.' },
   IMAGE_TOO_LARGE: { title: 'That image is too large', hint: 'Use a file of 512 KiB or less.' },
   UNSUPPORTED_IMAGE_TYPE: { title: 'Use a PNG, JPEG or WebP image', hint: "SVG and GIF files aren't supported." },
-  NOT_CONFIGURED: { title: "Pictures aren't set up on this server", hint: 'The server has no public storage bucket yet.' },
-  USER_NOT_FOUND: { title: "We don't have your profile yet", hint: 'Reload the page, then try again.' },
+  NOT_CONFIGURED: { title: "This isn't set up on this server", useMessage: true },
+  USER_NOT_FOUND: { title: 'Account not found', hint: 'It may have been deleted. Reload the page, then try again.' },
   BODY_TOO_LARGE: { title: 'That is too large to send' },
   DELETION_REQUEST_PENDING: { title: 'A deletion request is already pending', hint: 'Withdraw it first to send a new one.' },
   DELETION_REQUEST_NOT_FOUND: { title: 'Deletion request not found', hint: 'It may already have been reviewed or withdrawn.' },
@@ -72,7 +90,15 @@ const LIMIT_LABEL: Record<string, string> = {
   members: 'team members',
   replies_per_month: 'AI replies this month',
   tokens_per_month: 'tokens this month',
+  web_search: 'web search',
+  web_searches_per_month: 'web searches this month',
 };
+
+/** A record (or route) that doesn't exist, or that the caller can't see: the API answers both with 404. */
+export const isNotFoundError = (e: unknown) => isApiError(e) && (e.status === 404 || e.code === 'NOT_FOUND' || e.code.endsWith('_NOT_FOUND'));
+
+/** The business or bot the tab is on is gone, or the person was removed from it. */
+export const isScopeLostError = (e: unknown) => hasCode(e, 'TENANT_NOT_FOUND', 'BOT_NOT_FOUND');
 
 export interface Described {
   title: string;
@@ -87,6 +113,8 @@ export function describeError(e: unknown): Described {
     const c = COPY[e.code];
     let detail = c?.useMessage || !c ? e.message : c.hint;
     if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'tokens_per_month') detail = "This month's tokens are used up and the balance is empty. Buy extra tokens in Settings → Billing.";
+    else if (e.code === 'SOLE_OWNER' && e.tenants?.length) detail = `Make someone else an owner of ${e.tenants.map((t) => t.name).join(', ')} first.`;
+    else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'web_search') detail = "This business's plan doesn't include web search. See Settings → Plan & usage.";
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit) detail = `Your plan has no room for more ${LIMIT_LABEL[e.limit] ?? e.limit}. See Settings → Plan & usage.`;
     return { title: c?.title ?? 'Request failed', detail, code: e.code, requestId: e.requestId };
   }

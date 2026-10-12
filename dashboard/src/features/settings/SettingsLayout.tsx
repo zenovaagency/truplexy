@@ -29,6 +29,7 @@ import type { Billing, BotConfig, BusinessTypeId, DocumentList, KnowledgeDocumen
 import { formatMonth, LEDGER_KIND, ordinal, quoteTokens } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber, formatPerM, isoDay } from '@/lib/format';
+import { AUTO_CLOSE_MAX_HOURS, AutoCloseField } from '@/components/domain/AutoCloseField';
 import { ImageUploader } from '@/components/domain/ImageUploader';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { useDebounce } from '@/hooks';
@@ -90,19 +91,22 @@ export function BusinessTab() {
   const [name, setName] = useState('');
   const [type, setType] = useState<BusinessTypeId>('other');
   const [hours, setHours] = useState(24);
+  const [autoClose, setAutoClose] = useState(0);
 
   useEffect(() => {
     if (!t.data) return;
     setName(t.data.name);
     setType(t.data.business_type);
     setHours(t.data.reply_target_hours);
+    setAutoClose(t.data.auto_close_hours ?? 0);
   }, [t.data]);
 
   if (t.isPending) return <Card><SkeletonRows rows={4} /></Card>;
   if (t.isError) return <Card><ErrorState error={t.error} onRetry={() => t.refetch()} /></Card>;
   const b = t.data;
-  const dirty = name !== b.name || type !== b.business_type || hours !== b.reply_target_hours;
-  const valid = name.trim().length >= 1 && hours >= 1 && hours <= 720;
+  const savedAutoClose = b.auto_close_hours ?? 0;
+  const dirty = name !== b.name || type !== b.business_type || hours !== b.reply_target_hours || autoClose !== savedAutoClose;
+  const valid = name.trim().length >= 1 && hours >= 1 && hours <= 720 && autoClose >= 0 && autoClose <= AUTO_CLOSE_MAX_HOURS;
 
   return (
     <div className="grid max-w-3xl gap-5">
@@ -132,6 +136,7 @@ export function BusinessTab() {
               name: name !== b.name ? name.trim() : undefined,
               business_type: type !== b.business_type ? type : undefined,
               reply_target_hours: hours !== b.reply_target_hours ? hours : undefined,
+              auto_close_hours: autoClose !== savedAutoClose ? autoClose : undefined,
             });
           }}
         >
@@ -147,9 +152,15 @@ export function BusinessTab() {
               <span className="text-[0.8125rem] text-ink-muted">hours{hours >= 24 && ` (${+(hours / 24).toFixed(1)} days)`}</span>
             </div>
           </Field>
+          <AutoCloseField
+            value={autoClose}
+            disabled={!writable}
+            onChange={(v) => setAutoClose(v ?? 0)}
+            hint="Open tickets close on their own after this long with no message and no change. Channels and channel types can set their own time; tickets marked keep open, and ones waiting on your team, never close on their own."
+          />
           {writable && (
             <div className="flex justify-end gap-2 border-t border-line pt-4">
-              <Button variant="ghost" disabled={!dirty} onClick={() => (setName(b.name), setType(b.business_type), setHours(b.reply_target_hours))}>
+              <Button variant="ghost" disabled={!dirty} onClick={() => (setName(b.name), setType(b.business_type), setHours(b.reply_target_hours), setAutoClose(savedAutoClose))}>
                 Reset
               </Button>
               <Button type="submit" variant="accent" loading={update.isPending} disabled={!dirty || !valid}>

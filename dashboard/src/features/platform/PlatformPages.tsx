@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import {
   AlertTriangle,
   ArrowUpRight,
+  Ban,
   Bot,
   Building2,
   Cpu,
@@ -18,15 +19,20 @@ import {
   Shapes,
   ShieldCheck,
   Trash2,
+  UserCheck,
+  UserPlus,
   UserRound,
   Users,
   Wallet,
   Wrench,
+  X,
 } from 'lucide-react';
 import { useBusinessTypes, useMe, usePlans } from '@/lib/api/endpoints/account';
 import {
   useAdjustBalance,
   useApproveDeletion,
+  useCreatePlatformUser,
+  useDeletePlatformUser,
   useDeletedTenants,
   useDeleteTenant,
   usePlatformChannels,
@@ -41,6 +47,7 @@ import {
   usePlatformTickets,
   usePlatformTools,
   usePlatformUsage,
+  usePlatformUser,
   usePlatformUsers,
   useRefreshAllPricing,
   useRefreshModelPricing,
@@ -70,6 +77,10 @@ import type {
   PlatformChannelType,
   PlatformModel,
   PlatformTemplate,
+  PlatformUser,
+  PlatformUserQuery,
+  PlatformUserStatus,
+  Role,
   TemplateVariable,
   TenantDeletion,
   TicketPriority,
@@ -80,6 +91,7 @@ import { cn } from '@/lib/cn';
 import { contactOf, customerLabel } from '@/lib/customers';
 import { ContactChip } from '@/features/customers/CustomersPage';
 import { dayRange, formatCompact, formatCurrency, formatDate, formatMs, formatNumber, formatRelative, formatPerM, pluralize } from '@/lib/format';
+import { ROLE_LABEL, ROLES } from '@/lib/permissions';
 import { scopeLink } from '@/lib/session/scope-context';
 import { BUILTIN_VARIABLES, renderTemplate, templateKeys } from '@/lib/template';
 import { OpenRouterPicker, priceDiffers } from './OpenRouterPicker';
@@ -92,6 +104,8 @@ import {
   Button,
   Callout,
   Card,
+  DescList,
+  Dialog,
   Checkbox,
   DataTable,
   EmptyState,
@@ -118,6 +132,7 @@ import { BarList, TrendChart } from '@/components/charts';
 import { ChannelBadge, ChannelStatusBadge, ChannelTypeIcon } from '@/components/domain/ChannelBadge';
 import { StatCard } from '@/components/domain/StatCard';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
+import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseField';
 import { PRIORITIES, PRIORITY, PriorityBadge, RoleBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 
 const STATUS_TONE: Record<CatalogStatus, Tone> = { active: 'live', hidden: 'warn', retired: 'neutral' };
@@ -373,12 +388,15 @@ function BusinessStatusBadge({ business: b }: { business: PlatformBusiness }) {
 /** Businesses that can still be filtered on: deleted ones have nothing to show. */
 const liveBusinesses = (list: PlatformBusiness[] | undefined) => (list ?? []).filter((t) => !t.deleted_at);
 
-const LIMIT_FIELDS: { key: keyof Limits; label: string; max: number }[] = [
+type NumericLimit = Exclude<keyof Limits, 'web_search'>;
+
+const LIMIT_FIELDS: { key: NumericLimit; label: string; max: number }[] = [
   { key: 'replies_per_month', label: 'AI replies / month', max: 10_000_000 },
   { key: 'tokens_per_month', label: 'Tokens / month', max: 100_000_000_000 },
   { key: 'bots', label: 'Bots', max: 10_000_000 },
   { key: 'documents_per_bot', label: 'Documents / bot', max: 10_000_000 },
   { key: 'members', label: 'Members', max: 10_000_000 },
+  { key: 'web_searches_per_month', label: 'Web searches / month', max: 10_000_000 },
 ];
 
 function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; onClose: () => void }) {
@@ -420,6 +438,7 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
   const saveLimits = () => {
     const out: Partial<Limits> = {};
     for (const f of LIMIT_FIELDS) if (limits[f.key] !== undefined && limits[f.key] !== '') out[f.key] = Math.max(0, Math.min(f.max, Math.round(Number(limits[f.key]))));
+    if (limits.web_search === 'true' || limits.web_search === 'false') out.web_search = limits.web_search === 'true';
     update.mutate({ id: b.id, body: { limits: out } });
   };
 
@@ -475,11 +494,32 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
           <p className="mono text-ink-faint">Limit overrides</p>
           <p className="text-xs text-ink-faint">Blank uses the plan's limit; 0 means unlimited. Saving replaces every override.</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {LIMIT_FIELDS.map((f) => (
-              <Field key={f.key} label={f.label}>
-                <Input type="number" min={0} max={f.max} placeholder={`Plan: ${formatNumber(plans.data?.find((p) => p.id === b.plan)?.limits[f.key])}`} value={limits[f.key] ?? ''} onChange={(e) => setLimits({ ...limits, [f.key]: e.target.value })} />
-              </Field>
-            ))}
+            {LIMIT_FIELDS.map((f) => {
+              const planLimit = plans.data?.find((p) => p.id === b.plan)?.limits[f.key];
+              return (
+                <Field key={f.key} label={f.label}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={f.max}
+                    placeholder={planLimit === undefined ? 'Plan default' : `Plan: ${formatNumber(planLimit)}`}
+                    value={limits[f.key] ?? ''}
+                    onChange={(e) => setLimits({ ...limits, [f.key]: e.target.value })}
+                  />
+                </Field>
+              );
+            })}
+            <Field label="Web search" hint={`Now ${b.limits.web_search ? 'on' : 'off'} for this business.`}>
+              <Select
+                value={limits.web_search ?? ''}
+                onChange={(e) => setLimits({ ...limits, web_search: e.target.value })}
+                options={[
+                  { value: '', label: "The plan's setting" },
+                  { value: 'true', label: 'On' },
+                  { value: 'false', label: 'Off' },
+                ]}
+              />
+            </Field>
           </div>
           <div className="flex gap-2">
             <Button size="xs" variant="soft" disabled={!overridesChanged} loading={update.isPending && update.variables?.body.limits !== undefined} onClick={saveLimits}>
@@ -913,27 +953,65 @@ function DeletionState({ deletion: d }: { deletion: TenantDeletion }) {
 /* Users                                                               */
 /* ------------------------------------------------------------------ */
 
+const USER_STATUS: Record<PlatformUserStatus, { label: string; tone: Tone }> = {
+  active: { label: 'Active', tone: 'live' },
+  disabled: { label: 'Disabled', tone: 'warn' },
+  deleted: { label: 'Deleted', tone: 'neutral' },
+};
+
+const USER_STATUS_FILTER = [
+  { value: '', label: 'Everyone not deleted' },
+  { value: 'active', label: 'Active' },
+  { value: 'disabled', label: 'Disabled' },
+  { value: 'deleted', label: 'Deleted' },
+  { value: 'all', label: 'Everyone' },
+];
+
+const userLabel = (u: Pick<PlatformUser, 'name' | 'status'>) => u.name || (u.status === 'deleted' ? 'Deleted account' : 'No name');
+
 export function PlatformUsers() {
-  const me = useMe();
+  const { userId } = useParams();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const q = usePlatformUsers(useDebounce(search.trim(), 300));
-  const update = useUpdatePlatformUser();
-  const confirm = useConfirm();
-  const toggle = (id: string, name: string, on: boolean) =>
-    confirm({
-      title: on ? `Make ${name} a platform admin?` : `Remove ${name}'s platform access?`,
-      description: on ? 'They can see and change every business, user, model and template on Truplexy.' : 'They keep their own business memberships.',
-      confirmLabel: on ? 'Grant access' : 'Remove access',
-      tone: on ? 'default' : 'danger',
-      onConfirm: () => update.mutateAsync({ id, platform_admin: on }),
-    });
+  const [status, setStatus] = useState('');
+  const [admins, setAdmins] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const q = usePlatformUsers({
+    q: useDebounce(search.trim(), 300) || undefined,
+    status: (status || undefined) as PlatformUserQuery['status'],
+    platform_admin: admins === '' ? undefined : admins === 'true',
+  });
+  const rows = useMemo(() => q.data?.pages.flatMap((p) => p.data) ?? [], [q.data]);
+  const open = (id?: string) => navigate(id ? `/platform/users/${id}` : '/platform/users');
 
   return (
     <Page>
-      <PageHeader eyebrow="Platform" title="Users" description="Everyone with a Truplexy account, most recently seen first." />
+      <PageHeader
+        eyebrow="Platform"
+        title="Users"
+        description="Everyone with a Truplexy account, most recently seen first."
+        actions={
+          <Button variant="accent" leading={<UserPlus />} onClick={() => setInviting(true)}>
+            Invite user
+          </Button>
+        }
+      />
       <Card flush>
-        <div className="border-b border-line p-3">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
           <SearchBox value={search} onChange={setSearch} placeholder="Search email or name" />
+          <Select size="sm" className="w-auto" aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} options={USER_STATUS_FILTER} />
+          <Select
+            size="sm"
+            className="w-auto"
+            aria-label="Platform access"
+            value={admins}
+            onChange={(e) => setAdmins(e.target.value)}
+            options={[
+              { value: '', label: 'Any access' },
+              { value: 'true', label: 'Platform admins' },
+              { value: 'false', label: 'Not admins' },
+            ]}
+          />
         </div>
         {q.isPending ? (
           <SkeletonRows rows={6} className="p-4" />
@@ -941,23 +1019,35 @@ export function PlatformUsers() {
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         ) : (
           <DataTable
-            rows={q.data}
+            rows={rows}
             getKey={(u) => u.id}
+            selectedKey={userId}
+            onRowClick={(u) => open(u.id)}
             empty={<EmptyState compact icon={<Search />} title="No one matches" />}
+            footer={<LoadMore hasMore={q.hasNextPage} loading={q.isFetchingNextPage} onLoad={() => q.fetchNextPage()} shown={rows.length} />}
             columns={[
               {
                 key: 'user',
                 header: 'Person',
                 cell: (u) => (
-                  <span className="flex items-center gap-3">
+                  <span className={cn('flex items-center gap-3', u.status === 'deleted' && 'opacity-60')}>
                     <Avatar name={u.name} email={u.email} size={30} />
                     <span className="grid min-w-0">
                       <span className="flex items-center gap-1.5 truncate font-semibold text-ink">
-                        {u.name} {u.platform_admin && <ShieldCheck className="size-3.5 text-accent" aria-label="Platform admin" />}
+                        {userLabel(u)} {u.platform_admin && <ShieldCheck className="size-3.5 text-accent" aria-label="Platform admin" />}
                       </span>
                       <span className="truncate text-xs text-ink-faint">{u.email}</span>
                     </span>
                   </span>
+                ),
+              },
+              {
+                key: 'status',
+                header: 'Status',
+                cell: (u) => (
+                  <Badge tone={USER_STATUS[u.status].tone} dot>
+                    {USER_STATUS[u.status].label}
+                  </Badge>
                 ),
               },
               {
@@ -976,24 +1066,344 @@ export function PlatformUsers() {
                     <span className="text-xs text-ink-faint">None</span>
                   ),
               },
-              { key: 'seen', header: 'Last seen', hideBelowLg: true, cell: (u) => <span className="text-ink-muted">{u.last_seen_at ? formatRelative(u.last_seen_at) : 'Never'}</span> },
               {
-                key: 'admin',
-                header: 'Platform admin',
+                key: 'seen',
+                header: 'Last seen',
+                hideBelowLg: true,
                 align: 'right',
-                cell: (u) => (
-                  <Tip content={u.id === me.data?.user.id ? "You can't remove your own access." : undefined}>
-                    <span className="inline-flex">
-                      <Switch checked={u.platform_admin} disabled={u.id === me.data?.user.id} onCheckedChange={(v) => void toggle(u.id, u.name, v)} />
-                    </span>
-                  </Tip>
-                ),
+                cell: (u) => <span className="text-ink-muted">{u.last_seen_at ? formatRelative(u.last_seen_at) : 'Never'}</span>,
               },
             ]}
           />
         )}
       </Card>
+      <UserSheet id={userId} onClose={() => open()} />
+      <InviteUserDialog open={inviting} onOpenChange={setInviting} onCreated={(u) => open(u.id)} />
     </Page>
+  );
+}
+
+function UserSheet({ id, onClose }: { id?: string; onClose: () => void }) {
+  const me = useMe();
+  const q = usePlatformUser(id);
+  const tenants = usePlatformTenants();
+  const update = useUpdatePlatformUser();
+  const remove = useDeletePlatformUser();
+  const confirm = useConfirm();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    if (!q.data) return;
+    setName(q.data.name);
+    setEmail(q.data.email);
+  }, [q.data]);
+
+  if (!id) return <Sheet open={false} onOpenChange={() => {}} title="" />;
+  const u = q.data;
+  const self = u?.id === me.data?.user.id;
+  const deleted = u?.status === 'deleted';
+  const tenantName = (tid: string) => u?.memberships.find((m) => m.tenant_id === tid)?.tenant_name ?? tenants.data?.find((t) => t.id === tid)?.name ?? tid;
+  const profileChanged = Boolean(u) && (name.trim() !== u?.name || email.trim() !== u?.email);
+  const selfTip = self ? "You can't change your own account's access." : undefined;
+
+  const saveProfile = () => {
+    if (!u) return;
+    const body: { name?: string; email?: string } = {};
+    if (name.trim() !== u.name) body.name = name.trim();
+    if (email.trim() !== u.email) body.email = email.trim();
+    update.mutate({ id: u.id, ...body }, { onSuccess: () => notifySuccess('Account saved') });
+  };
+
+  const toggleAdmin = (on: boolean) =>
+    u &&
+    confirm({
+      title: on ? `Make ${userLabel(u)} a platform admin?` : `Remove ${userLabel(u)}'s platform access?`,
+      description: on ? 'They can see and change every business, user, model and template on Truplexy.' : 'They keep their own business memberships.',
+      confirmLabel: on ? 'Grant access' : 'Remove access',
+      tone: on ? 'default' : 'danger',
+      onConfirm: () => update.mutateAsync({ id: u.id, platform_admin: on }).then(() => notifySuccess('Platform access updated')),
+    });
+
+  const toggleDisabled = () =>
+    u &&
+    confirm({
+      title: u.status === 'disabled' ? `Enable ${userLabel(u)}?` : `Disable ${userLabel(u)}?`,
+      description:
+        u.status === 'disabled'
+          ? 'They can sign in again, with the same businesses and roles as before.'
+          : "They're signed out everywhere within 30 seconds and can't sign in until you enable the account. Their memberships and tickets stay.",
+      confirmLabel: u.status === 'disabled' ? 'Enable account' : 'Disable account',
+      tone: u.status === 'disabled' ? 'default' : 'danger',
+      onConfirm: () =>
+        update
+          .mutateAsync({ id: u.id, disabled: u.status !== 'disabled' })
+          .then(() => notifySuccess(u.status === 'disabled' ? 'Account enabled' : 'Account disabled')),
+    });
+
+  const del = () =>
+    u &&
+    confirm({
+      title: `Delete ${userLabel(u)}'s account?`,
+      description:
+        "They're taken out of every business, their open tickets are unassigned and invitations to their address are revoked. Activity logs keep their ID. This can't be undone.",
+      confirmLabel: 'Delete account',
+      tone: 'danger',
+      typeToConfirm: u.email,
+      onConfirm: () => remove.mutateAsync(u.id).then(onClose),
+    });
+
+  return (
+    <Sheet
+      open
+      onOpenChange={(o) => !o && onClose()}
+      width="md"
+      title={u ? userLabel(u) : 'Account'}
+      description={u?.email}
+      footer={
+        u &&
+        !deleted && (
+          <>
+            <Tip content={selfTip}>
+              <span className="mr-auto inline-flex">
+                <Button variant="danger-ghost" leading={<Trash2 />} disabled={self} onClick={() => void del()}>
+                  Delete account
+                </Button>
+              </span>
+            </Tip>
+            <Tip content={selfTip}>
+              <span className="inline-flex">
+                <Button
+                  variant={u.status === 'disabled' ? 'soft' : 'danger-ghost'}
+                  leading={u.status === 'disabled' ? <UserCheck /> : <Ban />}
+                  disabled={self}
+                  onClick={() => void toggleDisabled()}
+                >
+                  {u.status === 'disabled' ? 'Enable account' : 'Disable account'}
+                </Button>
+              </span>
+            </Tip>
+          </>
+        )
+      }
+    >
+      {q.isPending ? (
+        <SkeletonRows rows={6} />
+      ) : q.isError ? (
+        <ErrorState
+          error={q.error}
+          onRetry={() => q.refetch()}
+          compact
+          notFound={{ title: "This account doesn't exist", back: { to: '/platform/users', label: 'Back to users' } }}
+        />
+      ) : (
+        u && (
+          <div className="grid gap-6">
+            {u.status === 'disabled' && (
+              <Callout tone="warn" icon={<Ban />} title={u.disabled_at ? `Disabled ${formatRelative(u.disabled_at)}` : 'Disabled'}>
+                Every request with their token is refused, and they can't sign in.
+              </Callout>
+            )}
+            {deleted && (
+              <Callout tone="neutral" title={u.deleted_at ? `Deleted ${formatRelative(u.deleted_at)}` : 'Deleted'}>
+                Only the account's ID is kept, so activity logs and ticket history still name someone.
+              </Callout>
+            )}
+            {!deleted && (
+              <section className="grid gap-3">
+                <p className="mono text-ink-faint">Profile</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Name">
+                    <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+                  </Field>
+                  <Field label="Email" hint="Confirmed at once; they sign in with it next time.">
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  </Field>
+                </div>
+                <div>
+                  <Button
+                    size="xs"
+                    variant="soft"
+                    disabled={!profileChanged || !email.trim()}
+                    loading={update.isPending && (update.variables?.name !== undefined || update.variables?.email !== undefined)}
+                    onClick={saveProfile}
+                  >
+                    Save profile
+                  </Button>
+                </div>
+              </section>
+            )}
+            {!deleted && (
+              <Tip content={selfTip}>
+                <div className="rounded-[12px] border border-line bg-surface-2/60 p-3">
+                  <Switch
+                    checked={u.platform_admin}
+                    disabled={self}
+                    onCheckedChange={(v) => void toggleAdmin(v)}
+                    label="Platform admin"
+                    description="Sees and changes every business, user, model and template."
+                  />
+                </div>
+              </Tip>
+            )}
+            <section className="grid gap-3">
+              <p className="mono text-ink-faint">Businesses</p>
+              {u.memberships.length ? (
+                <ul className="grid gap-2">
+                  {u.memberships.map((m) => (
+                    <li key={m.tenant_id} className="flex items-center justify-between gap-3 rounded-[12px] border border-line px-3 py-2">
+                      <span className="flex min-w-0 items-center gap-2 text-[0.8125rem] font-semibold text-ink">
+                        <Building2 className="size-4 shrink-0 text-ink-faint" />
+                        <span className="truncate">{m.tenant_name}</span>
+                      </span>
+                      <RoleBadge role={m.role} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[0.8125rem] text-ink-faint">Not a member of any business.</p>
+              )}
+            </section>
+            <DescList
+              items={[
+                { label: 'Account ID', value: <span className="font-mono text-xs">{u.id}</span> },
+                { label: 'Created', value: formatDate(u.created_at) },
+                { label: 'Last seen', value: u.last_seen_at ? formatRelative(u.last_seen_at) : 'Never' },
+              ]}
+            />
+            <section className="grid gap-3">
+              <p className="mono text-ink-faint">Recent activity</p>
+              {u.activity.length ? (
+                <ol className="grid gap-px overflow-hidden rounded-[12px] border border-line bg-line">
+                  {u.activity.map((a) => (
+                    <li key={a.id} className="grid gap-0.5 bg-surface px-3 py-2.5">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className="truncate text-[0.8125rem] font-semibold text-ink">{a.action}</span>
+                        <span className="shrink-0 text-[0.7rem] tabular-nums text-ink-faint">{formatRelative(a.created_at)}</span>
+                      </span>
+                      <span className="truncate text-xs text-ink-faint">
+                        {tenantName(a.tenant_id)}
+                        {a.target && ` · ${a.target}`}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-[0.8125rem] text-ink-faint">Nothing recorded yet.</p>
+              )}
+            </section>
+          </div>
+        )
+      )}
+    </Sheet>
+  );
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function InviteUserDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: (u: PlatformUser) => void }) {
+  const tenants = usePlatformTenants();
+  const create = useCreatePlatformUser();
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [admin, setAdmin] = useState(false);
+  const [memberships, setMemberships] = useState<{ tenant_id: string; role: Role }[]>([]);
+  const businesses = liveBusinesses(tenants.data);
+  const validEmail = EMAIL_RE.test(email.trim());
+
+  useEffect(() => {
+    if (open) return;
+    setEmail('');
+    setName('');
+    setAdmin(false);
+    setMemberships([]);
+  }, [open]);
+
+  const setRow = (i: number, patch: Partial<{ tenant_id: string; role: Role }>) =>
+    setMemberships((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validEmail) return;
+    const picked = memberships.filter((m) => m.tenant_id);
+    create.mutate(
+      { email: email.trim(), name: name.trim() || undefined, platform_admin: admin || undefined, memberships: picked.length ? picked : undefined },
+      {
+        onSuccess: (u) => {
+          onOpenChange(false);
+          onCreated(u);
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Invite user"
+      description="Creates the account and emails them a link to set it up."
+      footer={
+        <>
+          <Button onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="accent" type="submit" form="invite-user" disabled={!validEmail} loading={create.isPending}>
+            Send invitation
+          </Button>
+        </>
+      }
+    >
+      <form id="invite-user" className="grid gap-4" onSubmit={submit}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Email">
+            <Input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
+          </Field>
+          <Field label="Name" optional>
+            <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+          </Field>
+        </div>
+        <div className="rounded-[12px] border border-line bg-surface-2/60 p-3">
+          <Switch checked={admin} onCheckedChange={setAdmin} label="Platform admin" description="Sees and changes every business, user, model and template." />
+        </div>
+        <div className="grid gap-2">
+          <p className="mono text-ink-faint">Businesses</p>
+          {memberships.map((m, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Select
+                size="sm"
+                className="min-w-0 flex-1"
+                aria-label="Business"
+                value={m.tenant_id}
+                placeholder="Pick a business"
+                onChange={(e) => setRow(i, { tenant_id: e.target.value })}
+                options={businesses.map((b) => ({ value: b.id, label: b.name, disabled: memberships.some((x, j) => j !== i && x.tenant_id === b.id) }))}
+              />
+              <Select
+                size="sm"
+                className="w-32"
+                aria-label="Role"
+                value={m.role}
+                onChange={(e) => setRow(i, { role: e.target.value as Role })}
+                options={ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+              />
+              <Button icon size="sm" variant="quiet" aria-label="Remove" onClick={() => setMemberships((rows) => rows.filter((_, j) => j !== i))}>
+                <X />
+              </Button>
+            </div>
+          ))}
+          <div>
+            <Button
+              size="xs"
+              variant="soft"
+              leading={<Plus />}
+              disabled={memberships.length >= 20}
+              onClick={() => setMemberships((rows) => [...rows, { tenant_id: '', role: 'agent' }])}
+            >
+              Add to a business
+            </Button>
+          </div>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 
@@ -1880,7 +2290,7 @@ function TemplateSheet({ template, onClose }: { template: PlatformTemplate | 'ne
 /* Channel types                                                       */
 /* ------------------------------------------------------------------ */
 
-const EMPTY_CHANNEL_TYPE: ChannelTypeInput = { id: '', label: '', description: '', icon: '', status: 'active', sort_order: 0 };
+const EMPTY_CHANNEL_TYPE: ChannelTypeInput = { id: '', label: '', description: '', icon: '', status: 'active', sort_order: 0, auto_close_hours: null };
 const CHANNEL_TYPE_ID_RE = /^[a-z][a-z0-9_-]{1,31}$/;
 
 export function PlatformChannelTypes() {
@@ -1921,6 +2331,12 @@ export function PlatformChannelTypes() {
               },
               { key: 'description', header: 'Description', hideBelowLg: true, cell: (t) => <span className="line-clamp-2 max-w-[360px] text-ink-muted">{t.description || '—'}</span> },
               { key: 'status', header: 'Status', cell: (t) => <Badge tone={STATUS_TONE[t.status]} dot className="capitalize">{t.status}</Badge> },
+              {
+                key: 'close',
+                header: 'Auto-close',
+                hideBelowLg: true,
+                cell: (t) => <span className="text-ink-muted">{t.auto_close_hours === null || t.auto_close_hours === undefined ? 'Business setting' : formatAutoClose(t.auto_close_hours)}</span>,
+              },
               { key: 'channels', header: 'Channels', align: 'right', cell: (t) => <span className="tabular-nums">{formatNumber(t.channels)}</span> },
               { key: 'order', header: 'Order', align: 'right', hideBelowLg: true, cell: (t) => <span className="tabular-nums text-ink-muted">{t.sort_order}</span> },
             ]}
@@ -1938,7 +2354,9 @@ function ChannelTypeSheet({ type, onClose }: { type: PlatformChannelType | 'new'
   const [t, setT] = useState<ChannelTypeInput>(EMPTY_CHANNEL_TYPE);
   useEffect(() => {
     if (!type) return;
-    setT(existing ? { id: existing.id, label: existing.label, description: existing.description, icon: existing.icon, status: existing.status, sort_order: existing.sort_order } : EMPTY_CHANNEL_TYPE);
+    setT(existing
+        ? { id: existing.id, label: existing.label, description: existing.description, icon: existing.icon, status: existing.status, sort_order: existing.sort_order, auto_close_hours: existing.auto_close_hours ?? null }
+        : EMPTY_CHANNEL_TYPE);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
   const set = <K extends keyof ChannelTypeInput>(k: K, v: ChannelTypeInput[K]) => setT((x) => ({ ...x, [k]: v }));
@@ -1993,6 +2411,12 @@ function ChannelTypeSheet({ type, onClose }: { type: PlatformChannelType | 'new'
             <Input type="number" min={-10000} max={10000} value={t.sort_order} onChange={(e) => set('sort_order', Number(e.target.value))} />
           </Field>
         </div>
+        <AutoCloseField
+          value={t.auto_close_hours}
+          onChange={(v) => set('auto_close_hours', v)}
+          inheritLabel="Each business's setting"
+          hint="Open tickets from channels of this type close after this long without activity, unless a channel sets its own time."
+        />
       </div>
     </Sheet>
   );

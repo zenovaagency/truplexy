@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Building2, CheckCircle2, FlaskConical, LifeBuoy, Lightbulb, Link2Off as LinkIcon, Mail, MailCheck, Wrench } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, CheckCircle2, FlaskConical, LifeBuoy, Lightbulb, Link2Off as LinkIcon, Mail, MailCheck, ShieldOff, Wrench } from 'lucide-react';
 import { fetchMe, previewInvite, useAcceptInvite, useBusinessTypes, useCreateTenant, useMe } from '@/lib/api/endpoints/account';
 import { hasCode } from '@/lib/api/client';
 import type { BusinessTypeId } from '@/lib/api/types';
-import { AuthCallbackError, useAuth } from '@/lib/auth/AuthProvider';
+import { AuthCallbackError, signOutReason, useAuth } from '@/lib/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 import { authConfigured, env } from '@/lib/env';
 import { describeError } from '@/lib/errors';
@@ -72,6 +72,7 @@ export function SignInPage() {
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [google, setGoogle] = useState(false);
+  const [endedBy] = useState(signOutReason);
   const nav = useNavigate();
 
   const [v, setV] = useState<Creds>(env.useMocks ? { email: 'alex@acme.example', password: 'demo-password', name: '' } : { email: '', password: '', name: '' });
@@ -144,6 +145,16 @@ export function SignInPage() {
           </p>
         </div>
 
+        {endedBy === 'disabled' && (
+          <Callout tone="danger" icon={<ShieldOff />} title="Your account was disabled">
+            A Truplexy administrator turned off this account, so you were signed out. Contact support if you think this is a mistake.
+          </Callout>
+        )}
+        {endedBy === 'expired' && (
+          <Callout tone="neutral" title="Your session ended">
+            Sign in again to pick up where you left off.
+          </Callout>
+        )}
         {env.useMocks && (
           <Callout tone="accent" icon={<FlaskConical />} title="Demo mode">
             Any email and password signs you in as Alex Rivera, with sample businesses stored in this browser.

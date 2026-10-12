@@ -11,33 +11,38 @@ function lazyRoute<M>(load: () => Promise<M>, pick: (m: M) => ComponentType): Pi
   return { lazy: async () => ({ Component: pick(await load()) }) };
 }
 
-/** Routes behind one permission: hidden in the nav, and a no-access state when opened by URL. */
-const gated = (permission: Permission, what: string, children: RouteObject[]): RouteObject => ({
-  element: <RequirePermission permission={permission} what={what} />,
+/** Routes behind one permission: hidden in the nav, and a 404 when opened by URL. */
+const gated = (permission: Permission, children: RouteObject[]): RouteObject => ({
+  element: <RequirePermission permission={permission} />,
   children,
 });
+
+/** An unknown tab inside a section (/settings/nope): a 404 inside the shell, so the nav stays. */
+const missing: RouteObject = { path: '*', element: <NotFound variant="inline" /> };
 
 const auth = () => import('@/features/auth/AuthPages');
 
 const businessRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="overview" replace /> },
-  gated('usage.read', 'the overview', [{ path: 'overview', ...lazyRoute(pages.overview, (m) => m.default) }]),
-  gated('tickets.read', 'tickets', [
+  gated('usage.read', [{ path: 'overview', ...lazyRoute(pages.overview, (m) => m.default) }]),
+  gated('tickets.read', [
     { path: 'tickets/handoffs', ...lazyRoute(pages.tickets, (m) => m.HandoffsPage) },
     { path: 'tickets/:ticketId?', ...lazyRoute(pages.tickets, (m) => m.default) },
+    { ...missing, path: 'tickets/*' },
   ]),
-  gated('customers.read', 'customers', [{ path: 'customers', ...lazyRoute(pages.customers, (m) => m.default) }]),
-  gated('knowledge.read', 'the knowledge base', [
+  gated('customers.read', [{ path: 'customers', ...lazyRoute(pages.customers, (m) => m.default) }]),
+  gated('knowledge.read', [
     {
       path: 'knowledge',
       ...lazyRoute(pages.knowledge, (m) => m.default),
       children: [
         { index: true, ...lazyRoute(pages.knowledge, (m) => m.DocumentsTab) },
         { path: 'search', ...lazyRoute(pages.knowledge, (m) => m.SearchTab) },
+        missing,
       ],
     },
   ]),
-  gated('bot.read', 'the assistant settings', [
+  gated('bot.read', [
     {
       // LLM, Tools and Playground share one unsaved draft of the bot's configuration.
       ...lazyRoute(pages.draft, (m) => m.default),
@@ -48,20 +53,21 @@ const businessRoutes: RouteObject[] = [
           children: [
             { index: true, element: <Navigate to="model" replace /> },
             { path: 'model', lazy: async () => ({ Component: (await import('@/features/llm/ModelTab')).default }) },
-            gated('usage.read', 'model usage', [{ path: 'usage', lazy: async () => ({ Component: (await import('@/features/llm/UsageTab')).default }) }]),
+            gated('usage.read', [{ path: 'usage', lazy: async () => ({ Component: (await import('@/features/llm/UsageTab')).default }) }]),
             // Earlier addresses of these pages.
             { path: 'prompt', element: <Navigate to="../model" replace /> },
             { path: 'configuration', element: <Navigate to="../model" replace /> },
             { path: 'tools', element: <Navigate to="../../tools" replace /> },
             { path: 'playground', element: <Navigate to="../../playground" replace /> },
+            missing,
           ],
         },
-        gated('tools.read', 'tools', [{ path: 'tools', ...lazyRoute(pages.tools, (m) => m.default) }]),
-        gated('playground.run', 'the playground', [{ path: 'playground', ...lazyRoute(pages.playground, (m) => m.default) }]),
+        gated('tools.read', [{ path: 'tools', ...lazyRoute(pages.tools, (m) => m.default) }]),
+        gated('playground.run', [{ path: 'playground', ...lazyRoute(pages.playground, (m) => m.default) }]),
       ],
     },
   ]),
-  gated('integrations.read', 'integrations', [
+  gated('integrations.read', [
     {
       path: 'integrations',
       ...lazyRoute(pages.integrations, (m) => m.default),
@@ -69,12 +75,13 @@ const businessRoutes: RouteObject[] = [
         { index: true, ...lazyRoute(pages.integrations, (m) => m.ChannelsTab) },
         { path: 'guides', ...lazyRoute(pages.integrations, (m) => m.CatalogTab) },
         { path: 'webhook', ...lazyRoute(pages.integrations, (m) => m.WebhookTab) },
+        missing,
       ],
     },
     { path: 'api-keys', ...lazyRoute(pages.apiKeys, (m) => m.default) },
   ]),
-  gated('audit.read', 'the activity log', [{ path: 'logs', ...lazyRoute(pages.logs, (m) => m.default) }]),
-  gated('members.read', 'the team', [
+  gated('audit.read', [{ path: 'logs', ...lazyRoute(pages.logs, (m) => m.default) }]),
+  gated('members.read', [
     {
       path: 'team',
       ...lazyRoute(pages.team, (m) => m.default),
@@ -82,6 +89,7 @@ const businessRoutes: RouteObject[] = [
         { index: true, ...lazyRoute(pages.team, (m) => m.MembersTab) },
         { path: 'invitations', ...lazyRoute(pages.team, (m) => m.InvitesTab) },
         { path: 'roles', ...lazyRoute(pages.team, (m) => m.RolesTab) },
+        missing,
       ],
     },
     {
@@ -91,10 +99,11 @@ const businessRoutes: RouteObject[] = [
         { index: true, element: <Navigate to="business" replace /> },
         { path: 'business', ...lazyRoute(pages.settings, (m) => m.BusinessTab) },
         { path: 'plan', ...lazyRoute(pages.settings, (m) => m.PlanTab) },
-        gated('usage.read', 'billing', [{ path: 'billing', ...lazyRoute(pages.settings, (m) => m.BillingTab) }]),
+        gated('usage.read', [{ path: 'billing', ...lazyRoute(pages.settings, (m) => m.BillingTab) }]),
         { path: 'bots', ...lazyRoute(pages.settings, (m) => m.BotsTab) },
         { path: 'backup', ...lazyRoute(pages.settings, (m) => m.BackupTab) },
         { path: 'danger', ...lazyRoute(pages.settings, (m) => m.DangerTab) },
+        missing,
       ],
     },
   ]),
@@ -105,7 +114,7 @@ const platformRoutes: RouteObject[] = [
   { path: 'overview', ...lazyRoute(pages.platform, (m) => m.PlatformOverview) },
   { path: 'businesses', ...lazyRoute(pages.platform, (m) => m.PlatformBusinesses) },
   { path: 'deletions', ...lazyRoute(pages.platform, (m) => m.PlatformDeletions) },
-  { path: 'users', ...lazyRoute(pages.platform, (m) => m.PlatformUsers) },
+  { path: 'users/:userId?', ...lazyRoute(pages.platform, (m) => m.PlatformUsers) },
   { path: 'customers', ...lazyRoute(pages.platform, (m) => m.PlatformCustomers) },
   { path: 'tickets', ...lazyRoute(pages.platform, (m) => m.PlatformTickets) },
   { path: 'channels', ...lazyRoute(pages.platform, (m) => m.PlatformChannels) },
@@ -114,6 +123,7 @@ const platformRoutes: RouteObject[] = [
   { path: 'models', ...lazyRoute(pages.platform, (m) => m.PlatformModels) },
   { path: 'templates', ...lazyRoute(pages.platform, (m) => m.PlatformTemplates) },
   { path: 'channel-types', ...lazyRoute(pages.platform, (m) => m.PlatformChannelTypes) },
+  missing,
 ];
 
 export const router = createBrowserRouter([
@@ -141,7 +151,8 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      // Every unknown address, signed in or not: a full-screen 404 outside the shell and the sign-in guard.
+      // Every other unknown address, signed in or not: a full-screen 404 outside the shell and the sign-in guard.
+      // Unknown tabs inside a section, and pages a role can't open, get the 404 inside the shell instead.
       { path: '*', element: <NotFound /> },
     ],
   },

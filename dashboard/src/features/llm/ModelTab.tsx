@@ -10,6 +10,7 @@ import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Card, ErrorState, Field, Input, SkeletonRows, Switch } from '@/components/ui';
 import { useBotDraft } from './draft';
 import { ViewOnly } from './LlmPage';
+import { WebSearchCard } from './WebSearchCard';
 
 export const TIER: Record<ModelTier, { label: string; tone: 'neutral' | 'accent' | 'violet' }> = {
   economy: { label: 'Economy', tone: 'neutral' },
@@ -211,6 +212,8 @@ export default function ModelTab() {
           </div>
         </Card>
       </div>
+
+      <WebSearchCard />
     </div>
   );
 }

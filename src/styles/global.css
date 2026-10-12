@@ -297,41 +297,11 @@
   to { stroke-dashoffset: -240; }
 }
 
-/* ------------------------------------------------------------------ *
- * Reveal system. Only hidden once JS has marked the document, so a
- * failed script never leaves a blank page.
- * ------------------------------------------------------------------ */
-.js [data-reveal] {
-  opacity: 0;
-  will-change: transform, opacity;
-}
-
-.split-line {
-  display: block;
-  overflow: hidden;
-  padding-bottom: 0.08em;
-  margin-bottom: -0.08em;
-}
-
-.split-inner {
-  display: block;
-  will-change: transform;
-}
-
-.js [data-split]:not([data-split-ready]) {
-  opacity: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .js [data-reveal],
-  .js [data-split]:not([data-split-ready]) {
-    opacity: 1;
   }
 }
 

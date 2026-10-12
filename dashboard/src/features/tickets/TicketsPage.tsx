@@ -335,19 +335,28 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
   const [priority, setPriority] = useState<TicketPriority>('normal');
   const [channel, setChannel] = useState('');
   const [escalated, setEscalated] = useState(Boolean(conversationId));
+  const [keepOpen, setKeepOpen] = useState(false);
   useEffect(() => {
     if (open) {
       setSubject(defaultSubject ?? '');
       setPriority('normal');
       setChannel('');
       setEscalated(Boolean(conversationId));
+      setKeepOpen(false);
     }
   }, [open, defaultSubject, conversationId]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     create.mutate(
-      { subject: subject.trim() || undefined, priority, conversation_id: conversationId, escalated: conversationId ? escalated : undefined, channel_id: channel || undefined },
+      {
+        subject: subject.trim() || undefined,
+        priority,
+        conversation_id: conversationId,
+        escalated: conversationId ? escalated : undefined,
+        channel_id: channel || undefined,
+        keep_open: keepOpen || undefined,
+      },
       { onSuccess: (t) => (onOpenChange(false), onCreated(t.id)) },
     );
   };
@@ -382,6 +391,7 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
         {conversationId && (
           <Switch checked={escalated} onCheckedChange={setEscalated} label="Take over now" description="The assistant stops replying in this conversation until you hand it back." />
         )}
+        <Switch checked={keepOpen} onCheckedChange={setKeepOpen} label="Keep open" description="It won't close on its own after a quiet spell; only a person closes it." />
       </form>
     </Dialog>
   );

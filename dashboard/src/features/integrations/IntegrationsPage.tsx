@@ -56,6 +56,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { ChannelStatusBadge, ChannelTypeIcon } from '@/components/domain/ChannelBadge';
+import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseField';
 import { IssueKeyForm } from '@/features/api-keys/IssueKey';
 import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type Integration, type IntegrationGroup } from './catalog';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
@@ -659,7 +660,7 @@ export function ChannelsTab() {
   );
 }
 
-const EMPTY_CHANNEL: ChannelInput = { type: '', name: '', description: '', external_id: '', enabled: true };
+const EMPTY_CHANNEL: ChannelInput = { type: '', name: '', description: '', external_id: '', enabled: true, auto_close_hours: null };
 
 function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; onClose: () => void }) {
   const types = useChannelTypes(Boolean(channel));
@@ -669,7 +670,18 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; o
   const [c, setC] = useState<ChannelInput>(EMPTY_CHANNEL);
   useEffect(() => {
     if (!channel) return;
-    setC(existing ? { type: existing.type, name: existing.name, description: existing.description, external_id: existing.external_id, enabled: existing.enabled } : EMPTY_CHANNEL);
+    setC(
+      existing
+        ? {
+            type: existing.type,
+            name: existing.name,
+            description: existing.description,
+            external_id: existing.external_id,
+            enabled: existing.enabled,
+            auto_close_hours: existing.auto_close_hours ?? null,
+          }
+        : EMPTY_CHANNEL,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
   const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setC((x) => ({ ...x, [k]: v }));
@@ -685,7 +697,7 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; o
     const body: ChannelInput = { ...c, name: c.name.trim(), description: c.description.trim(), external_id: c.external_id.trim() };
     if (!existing) return create.mutate(body, { onSuccess: onClose });
     // Send only what changed, so an unchanged hidden type isn't rejected.
-    const patch = Object.fromEntries(Object.entries(body).filter(([k, v]) => existing[k as keyof ChannelInput] !== v)) as Partial<ChannelInput>;
+    const patch = Object.fromEntries(Object.entries(body).filter(([k, v]) => (existing[k as keyof ChannelInput] ?? null) !== v)) as Partial<ChannelInput>;
     if (!Object.keys(patch).length) return onClose();
     update.mutate({ id: existing.id, patch }, { onSuccess: () => (notifySuccess('Channel saved'), onClose()) });
   };
@@ -736,6 +748,16 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; o
           onCheckedChange={(v) => set('enabled', v)}
           label="On"
           description={c.enabled ? 'Keys bound to it work.' : "Keys bound to it are refused until it's back on."}
+        />
+        <AutoCloseField
+          value={c.auto_close_hours ?? null}
+          onChange={(v) => set('auto_close_hours', v)}
+          inheritLabel={
+            existing && existing.auto_close_hours === null
+              ? `Default (now ${formatAutoClose(existing.effective_auto_close_hours).toLowerCase()})`
+              : "The channel type's or business's time"
+          }
+          hint="Open tickets from this channel close after this long without activity. Tickets marked keep open, and ones waiting on your team, never close on their own."
         />
         <button type="submit" hidden />
       </form>

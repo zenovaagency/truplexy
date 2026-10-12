@@ -21,7 +21,7 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
     <div class="relative mx-auto my-auto flex w-full max-w-[980px] flex-col items-center py-[clamp(40px,5vh,64px)] text-center">
       <HeroOrbit />
 
-      <p class="flex flex-col items-center gap-2.5 text-[0.875rem] text-ink-muted sm:flex-row sm:gap-3" data-reveal>
+      <p class="flex flex-col items-center gap-2.5 text-[0.875rem] text-ink-muted sm:flex-row sm:gap-3">
         <span class="flex items-center" aria-hidden="true">
           {heroLive.map((c, i) => (
             <span class:list={['grid h-8 w-8 place-items-center rounded-full border border-line bg-surface shadow-[var(--shadow-sm)] ring-2 ring-surface', i > 0 && '-ml-2']}>
@@ -34,24 +34,22 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
 
       <h1
         class="display mt-6 text-[clamp(2.4rem,1.5rem+3.1vw,3.75rem)] !font-semibold"
-        data-reveal
-        data-reveal-delay="0.05"
       >
         Human conversations.
         <span class="block">Wherever your customers are.</span>
       </h1>
 
-      <p class="lede mt-5 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] sm:mt-6" data-reveal data-reveal-delay="0.1">
+      <p class="lede mt-5 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] sm:mt-6">
         Truplexy gives businesses a human-like AI support layer across your website, Telegram,
         Discord and your own apps — with context that continues from one conversation to the next.
       </p>
 
-      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:mt-10 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center" data-reveal data-reveal-delay="0.15">
+      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:mt-10 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center">
         <Button href={SITE.signupUrl}>Start for free</Button>
         <Button href="#try" variant="ghost" arrow={false}>See it in action</Button>
       </div>
 
-      <p class="mono mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.68rem] text-ink-faint" data-reveal data-reveal-delay="0.2">
+      <p class="mono mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.68rem] text-ink-faint">
         <span>Multi-platform</span><span aria-hidden="true" class="text-line-strong">·</span>
         <span>Continuous support</span><span aria-hidden="true" class="text-line-strong">·</span>
         <span>Human handoff</span>
@@ -59,7 +57,7 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
     </div>
 
     <!-- Where Truplexy runs today. Stands in for a customer-logo strip. -->
-    <div class="border-t border-line py-8 sm:py-10" data-reveal>
+    <div class="border-t border-line py-8 sm:py-10">
       <p class="text-center text-[0.875rem] text-ink-faint">Live today on the channels your customers already use</p>
       <div class="mt-5 flex flex-col items-center gap-x-10 gap-y-4 xl:flex-row xl:justify-center">
         <ul class="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:gap-x-10">

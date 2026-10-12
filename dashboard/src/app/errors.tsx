@@ -1,9 +1,7 @@
-import type { ReactNode } from 'react';
-import { isRouteErrorResponse, Link, useLocation, useNavigate, useRouteError } from 'react-router';
-import { ArrowLeft, LayoutDashboard, RefreshCw, TriangleAlert } from 'lucide-react';
-import { Button, EmptyState } from '@/components/ui';
+import { isRouteErrorResponse, Link, useRouteError } from 'react-router';
+import { RefreshCw, TriangleAlert } from 'lucide-react';
+import { Button, EmptyState, NotFoundState, StatusContent, type NotFoundCopy, type StatusProps } from '@/components/ui';
 import { BrandMark } from '@/components/layout/Brand';
-import { cn } from '@/lib/cn';
 
 function FullPage({ children }: { children: React.ReactNode }) {
   return (
@@ -17,36 +15,8 @@ function FullPage({ children }: { children: React.ReactNode }) {
   );
 }
 
-interface StatusProps {
-  /** Large visual above the text: a numeral or an icon tile. */
-  hero?: ReactNode;
-  eyebrow?: ReactNode;
-  title: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-  /** Small print under the actions, e.g. an error code for support. */
-  detail?: ReactNode;
-  className?: string;
-}
-
-/** The centered block of a status page: hero, heading, copy, actions. */
-function StatusContent({ hero, eyebrow, title, description, actions, detail, className }: StatusProps) {
-  return (
-    <div className={cn('grid w-full max-w-[520px] justify-items-center gap-4 text-center', className)}>
-      {hero}
-      <div className="grid justify-items-center gap-2.5">
-        {eyebrow && <p className="mono text-accent">{eyebrow}</p>}
-        <h1 className="text-balance text-[1.75rem] font-bold leading-tight tracking-tight text-ink sm:text-[2.25rem]">{title}</h1>
-        {description && <div className="max-w-[440px] text-pretty text-[0.9375rem] leading-relaxed text-ink-muted">{description}</div>}
-      </div>
-      {actions && <div className="mt-3 grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-center">{actions}</div>}
-      {detail && <div className="mt-1">{detail}</div>}
-    </div>
-  );
-}
-
-/** A whole-screen status page (404, sign-in errors) with the brand header and footer. */
-export function StatusScreen(props: StatusProps) {
+/** The brand header and footer around a whole-screen status page. */
+function ScreenFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-paper">
       <div className="aurora" />
@@ -55,61 +25,37 @@ export function StatusScreen(props: StatusProps) {
           <BrandMark className="h-7" />
         </Link>
       </header>
-      <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-8">
-        <StatusContent {...props} />
-      </main>
+      <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-8">{children}</main>
       <footer className="relative px-4 pb-6 text-center text-xs text-ink-faint sm:pb-8">© {new Date().getFullYear()} Truplexy</footer>
     </div>
   );
 }
 
-/** The thread motif, broken: this path leads nowhere. */
-function NotFoundHero() {
+/** A whole-screen status page (404, sign-in errors) with the brand header and footer. */
+export function StatusScreen(props: StatusProps) {
   return (
-    <div className="grid justify-items-center gap-3" aria-hidden>
-      <p className="gradient-text text-[5.5rem] font-bold leading-none tracking-[-0.05em] tabular-nums sm:text-[8rem]">404</p>
-      <div className="flex w-40 items-center gap-3 sm:w-52">
-        <span className="thread-h flex-1" />
-        <span className="size-1.5 rounded-full bg-line-strong" />
-        <span className="h-0.5 flex-1 rounded-full bg-line" />
-      </div>
-    </div>
+    <ScreenFrame>
+      <StatusContent {...props} />
+    </ScreenFrame>
   );
 }
 
-/** Full screen for every visitor, signed in or not; never inside the app shell. */
-export function NotFound() {
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-  // React Router keeps a history index; 0 means this tab opened straight onto the missing page.
-  const canGoBack = ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0;
-
+/**
+ * The 404. Full screen outside the app (unknown addresses, the platform
+ * console for non-admins, a business you can't open); inline inside the
+ * shell (unknown tabs, pages your role can't open, missing records).
+ */
+export function NotFound({ variant = 'screen', ...copy }: NotFoundCopy & { variant?: 'screen' | 'inline' }) {
+  if (variant === 'inline')
+    return (
+      <div className="grid justify-items-center px-4 py-16 sm:py-24">
+        <NotFoundState size="md" {...copy} />
+      </div>
+    );
   return (
-    <StatusScreen
-      hero={<NotFoundHero />}
-      eyebrow="Page not found"
-      title="This page doesn't exist"
-      description={
-        <>
-          <p>Nothing lives at this address. It may have moved, or the link has a typo.</p>
-          <code className="mt-3 inline-block max-w-full break-all rounded-lg border border-line bg-surface-2 px-2.5 py-1 font-mono text-xs text-ink-muted">
-            {pathname}
-          </code>
-        </>
-      }
-      actions={
-        <>
-          <Button asChild variant="accent" size="md" className="w-full sm:w-auto" leading={<LayoutDashboard />}>
-            <Link to="/">Go to dashboard</Link>
-          </Button>
-          {canGoBack && (
-            <Button variant="ghost" size="md" className="w-full sm:w-auto" leading={<ArrowLeft />} onClick={() => navigate(-1)}>
-              Go back
-            </Button>
-          )}
-        </>
-      }
-    />
+    <ScreenFrame>
+      <NotFoundState {...copy} />
+    </ScreenFrame>
   );
 }
 

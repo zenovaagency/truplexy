@@ -36,6 +36,10 @@ export interface MockUser {
   last_seen_at?: string;
   /** A small data URL in demo mode. */
   avatar_url?: string;
+  /** Absent means active. */
+  status?: 'active' | 'disabled' | 'deleted';
+  disabled_at?: string;
+  deleted_at?: string;
 }
 
 export interface MockTenant {
@@ -46,6 +50,8 @@ export interface MockTenant {
   status: 'active' | 'suspended';
   created_at: string;
   reply_target_hours: number;
+  /** 0 or absent: open tickets never close on their own. */
+  auto_close_hours?: number;
   limit_overrides: Partial<Limits>;
   replies_this_month: number;
   tokens_this_month: number;
@@ -100,12 +106,14 @@ export type MockAudit = AuditEvent & { tenant_id: string };
 export type MockDoc = KnowledgeDocument & { tenant_id: string; bot_id: string; content: string; sha256?: string };
 export type MockTool = Tool & { id: string; tenant_id: string; disabled: boolean; calls: number; errors: number };
 /** `channel_name` and `channel_type` are stored only once the channel is deleted; otherwise they're read from it. */
-export type MockTicket = Omit<Ticket, 'flags' | 'needs_reply'> & { tenant_id: string; bot_id: string };
-/** Counts, the type's label and `active` are worked out on the way out. */
-export type MockChannel = Omit<Channel, 'type_label' | 'active' | 'open_tickets' | 'tickets' | 'api_keys'>;
+export type MockTicket = Omit<Ticket, 'flags' | 'needs_reply' | 'keep_open' | 'auto_close_at'> & { tenant_id: string; bot_id: string; keep_open?: boolean };
+/** Counts, the type's label, `active` and the effective auto-close time are worked out on the way out. */
+export type MockChannel = Omit<Channel, 'type_label' | 'active' | 'open_tickets' | 'tickets' | 'api_keys' | 'auto_close_hours' | 'effective_auto_close_hours'> & {
+  auto_close_hours?: number | null;
+};
 /** Counts are worked out on the way out. */
 export type MockCustomer = Omit<Customer, 'conversations' | 'tickets' | 'open_tickets'>;
-export type MockChannelType = Omit<PlatformChannelType, 'channels'>;
+export type MockChannelType = Omit<PlatformChannelType, 'channels' | 'auto_close_hours'> & { auto_close_hours?: number | null };
 
 export interface MockConversation {
   id: string;
@@ -152,7 +160,7 @@ export interface MockDb {
   customers: MockCustomer[];
 }
 
-export const DB_VERSION = 8;
+export const DB_VERSION = 9;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

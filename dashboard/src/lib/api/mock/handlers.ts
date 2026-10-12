@@ -92,9 +92,29 @@ const memberOf = (db: MockDb, tenant: string, user: string) => db.memberships.fi
 const permsFor = (role: Role | null, platform: boolean): Set<Permission> =>
   new Set(platform ? DEFAULT_ROLE_PERMISSIONS.owner : role ? DEFAULT_ROLE_PERMISSIONS[role] : []);
 
+/** Web search by plan: plans don't list it, so the mock decides (Free has none). */
+const WEB_SEARCHES: Record<string, number> = { starter: 500, pro: 3000 };
+
 function limitsOf(t: MockTenant): Limits {
   const plan = PLANS.find((p) => p.id === t.plan) ?? PLANS[0]!;
-  return { ...plan.limits, ...t.limit_overrides };
+  return { ...plan.limits, web_search: t.plan !== 'free', web_searches_per_month: WEB_SEARCHES[t.plan] ?? 0, ...t.limit_overrides };
+}
+
+const MAX_AUTO_CLOSE = 2160;
+
+/** 0–2160 hours, or null where `nullable`. */
+function autoCloseHours(v: unknown, field: string, nullable: boolean): number | null {
+  if (v === null && nullable) return null;
+  if (!Number.isInteger(v) || (v as number) < 0 || (v as number) > MAX_AUTO_CLOSE) throw invalid(`${field} must be 0–${MAX_AUTO_CLOSE}${nullable ? ' or null' : ''}.`);
+  return v as number;
+}
+
+/** The inactivity time a channel's tickets close after: its own, else its type's, else the business's. */
+function effectiveAutoClose(db: MockDb, tenant: MockTenant, ch?: MockChannel): number {
+  if (ch && ch.auto_close_hours !== undefined && ch.auto_close_hours !== null) return ch.auto_close_hours;
+  const type = ch && db.channelTypes.find((t) => t.id === ch.type);
+  if (type && type.auto_close_hours !== undefined && type.auto_close_hours !== null) return type.auto_close_hours;
+  return tenant.auto_close_hours ?? 0;
 }
 
 function businessOf(db: MockDb, t: MockTenant): Business {
@@ -107,6 +127,7 @@ function businessOf(db: MockDb, t: MockTenant): Business {
     created_at: t.created_at,
     logo_url: t.logo_url,
     reply_target_hours: t.reply_target_hours,
+    auto_close_hours: t.auto_close_hours ?? 0,
     limits: limitsOf(t),
     limit_overrides: t.limit_overrides,
     usage: {
@@ -199,8 +220,8 @@ function audit(c: Ctx, action: string, target: string, details: Record<string, u
   });
 }
 
-function requireLimit(t: MockTenant, key: keyof Limits, used: number) {
-  const max = limitsOf(t)[key];
+function requireLimit(t: MockTenant, key: Exclude<keyof Limits, 'web_search'>, used: number) {
+  const max = limitsOf(t)[key] ?? 0;
   if (max > 0 && used >= max) throw err(403, 'PLAN_LIMIT_REACHED', `The ${t.plan} plan allows ${max} ${key.replace(/_/g, ' ')}.`, { limit: key });
 }
 
@@ -227,8 +248,15 @@ function ticketOut(db: MockDb, t: MockTicket): Ticket {
   const overdue = needs && Date.now() - new Date(t.last_customer_at!).getTime() > tenant.reply_target_hours * 3_600_000;
   const assignee = t.assignee_user_id ? userById(db, t.assignee_user_id) : undefined;
   const ch = t.channel_id ? db.channels.find((x) => x.id === t.channel_id) : undefined;
+  // Closes after the inactivity time, unless kept open or waiting on the team.
+  const closeAfter = effectiveAutoClose(db, tenant, ch);
+  const waitingOnTeam = (t.escalated || t.handed_off) && needs;
+  const lastActivity = Math.max(...[t.updated_at, t.last_customer_at, t.last_agent_at].filter(Boolean).map((d) => new Date(d!).getTime()));
+  const autoCloseAt = !done && !t.keep_open && !waitingOnTeam && closeAfter > 0 ? new Date(lastActivity + closeAfter * 3_600_000).toISOString() : undefined;
   return {
     ...t,
+    keep_open: t.keep_open ?? false,
+    auto_close_at: autoCloseAt,
     channel_name: ch?.name ?? t.channel_name,
     channel_type: ch?.type ?? t.channel_type,
     assignee_name: assignee?.name ?? t.assignee_name,
@@ -416,6 +444,7 @@ function defaultBot(db: MockDb, type: BusinessTypeId, name: string) {
     topK: 4,
     toolsEnabled: false,
     tools: [],
+    webSearch: { enabled: false, mode: 'fallback' as const, maxResults: 3, depth: 'basic' as const, topic: 'general' as const, timeRange: '' as const, includeDomains: [], excludeDomains: [] },
   };
 }
 
@@ -509,6 +538,7 @@ route('PATCH', '/tenant', 'business.write', (c) => {
     if (!Number.isInteger(b.reply_target_hours) || b.reply_target_hours < 1 || b.reply_target_hours > 720) throw invalid('reply_target_hours must be 1–720.');
     c.tenant.reply_target_hours = b.reply_target_hours;
   }
+  if (b.auto_close_hours !== undefined) c.tenant.auto_close_hours = autoCloseHours(b.auto_close_hours, 'auto_close_hours', false)!;
   audit(c, 'business.updated', c.tenant.id, b);
   return businessOf(c.db, c.tenant);
 });
@@ -704,6 +734,8 @@ function channelOut(db: MockDb, ch: MockChannel): Channel {
     open_tickets: tickets.filter((t) => t.status === 'open').length,
     tickets: tickets.length,
     api_keys: db.apiKeys.filter((k) => k.channel_id === ch.id && k.status === 'active').length,
+    auto_close_hours: ch.auto_close_hours ?? null,
+    effective_auto_close_hours: effectiveAutoClose(db, db.tenants.find((t) => t.id === ch.tenant_id)!, ch),
   };
 }
 
@@ -736,6 +768,7 @@ function applyChannel(c: Ctx, ch: Partial<MockChannel>, b: any, existing?: MockC
     if (typeof b.enabled !== 'boolean') throw invalid('enabled must be true or false.');
     ch.enabled = b.enabled;
   }
+  if (b.auto_close_hours !== undefined) ch.auto_close_hours = autoCloseHours(b.auto_close_hours, 'auto_close_hours', true);
 }
 
 route('GET', '/channel-types', 'channels.read', (c) => {
@@ -948,6 +981,22 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   if (bot.maxTokens !== undefined && (bot.maxTokens < 1 || bot.maxTokens > 32768)) throw invalid('maxTokens must be 1–32768.');
   if (bot.toolsEnabled && model && !model.supports_tools) throw err(400, 'MODEL_NOT_ALLOWED', `${model.label} can't call tools. Turn tools off or pick another model.`);
   if ((bot.tools ?? []).length > 20) throw invalid('At most 20 tools.');
+  if (bot.webSearch !== undefined) {
+    const w = bot.webSearch;
+    if (!w || typeof w !== 'object') throw invalid('webSearch must be an object.');
+    if (w.mode !== undefined && !['fallback', 'always'].includes(w.mode)) throw invalid('webSearch.mode must be fallback or always.');
+    if (w.maxResults !== undefined && (!Number.isInteger(w.maxResults) || w.maxResults < 1 || w.maxResults > 8)) throw invalid('webSearch.maxResults must be 1–8.');
+    if (w.depth !== undefined && !['basic', 'advanced'].includes(w.depth)) throw invalid('webSearch.depth must be basic or advanced.');
+    if (w.topic !== undefined && !['general', 'news'].includes(w.topic)) throw invalid('webSearch.topic must be general or news.');
+    if (w.timeRange !== undefined && !['day', 'week', 'month', 'year', ''].includes(w.timeRange)) throw invalid('webSearch.timeRange is not valid.');
+    for (const k of ['includeDomains', 'excludeDomains'] as const) {
+      const list = w[k] ?? [];
+      if (!Array.isArray(list) || list.length > 50 || list.some((d: unknown) => typeof d !== 'string' || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(d))) throw invalid(`webSearch.${k} must be up to 50 hostnames.`);
+    }
+    const turningOn = w.enabled && !ws.bot.webSearch?.enabled;
+    if (turningOn && bot.ragEnabled === false) throw invalid('webSearch needs ragEnabled.');
+    if (turningOn && limitsOf(c.tenant).web_search === false) throw err(403, 'PLAN_LIMIT_REACHED', `The ${c.tenant.plan} plan doesn't include web search.`, { limit: 'web_search' });
+  }
   // Prompt fields in the request are ignored: the bot keeps its business type's prompt.
   const { promptTemplateId, promptVariables, prompt } = ws.bot;
   const next: MockBotConfig = { ...publicBot(bot), promptTemplateId, promptVariables, prompt };
@@ -1385,6 +1434,7 @@ route('POST', '/tickets', 'tickets.write', (c) => {
     str(b.subject, 'subject', 1, 200);
   }
   if (b.priority && !['low', 'normal', 'high', 'urgent'].includes(b.priority)) throw invalid('Unknown priority.');
+  if (b.keep_open !== undefined && typeof b.keep_open !== 'boolean') throw invalid('keep_open must be true or false.');
   const channelId = b.channel_id ? channelOf(c, b.channel_id).id : conv?.channel_id;
   const now = nowIso();
   const lastCustomer = conv?.messages.filter((m) => m.author === 'customer').at(-1);
@@ -1404,6 +1454,7 @@ route('POST', '/tickets', 'tickets.write', (c) => {
     handed_off: false,
     last_customer_at: lastCustomer?.created_at,
     reopen_count: 0,
+    keep_open: Boolean(b.keep_open),
     created_at: now,
     updated_at: now,
   };
@@ -1435,6 +1486,11 @@ route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
     t.priority = b.priority;
   }
   if (b.status !== undefined) applyStatus(t, b.status);
+  if (b.keep_open !== undefined) {
+    if (typeof b.keep_open !== 'boolean') throw invalid('keep_open must be true or false.');
+    t.keep_open = b.keep_open;
+  }
+  if (t.status === 'open') t.auto_closed_at = undefined;
   if (b.channel_id !== undefined && b.channel_id !== t.channel_id) {
     t.channel_id = b.channel_id === '' ? undefined : channelOf(c, b.channel_id).id;
     t.channel_name = undefined;
@@ -1656,6 +1712,17 @@ route('GET', '/usage/summary', 'usage.read', (c): UsageSummary => {
       avg_latency_ms: Math.round(1250 + r() * 250),
       avg_retrieval_ms: Math.round(240 + r() * 90),
     },
+    web_searches: (() => {
+      if (!ws?.bot.webSearch?.enabled) return { searches: 0, with_results: 0, errors: 0, skipped: 0, avg_latency_ms: 0 };
+      const searches = Math.round(requests * (ws.bot.webSearch.mode === 'always' ? 0.9 : 0.06));
+      return {
+        searches,
+        with_results: Math.round(searches * 0.86),
+        errors: Math.round(searches * 0.01),
+        skipped: limitsOf(c.tenant).web_search ? 0 : searches,
+        avg_latency_ms: Math.round(820 + r() * 260),
+      };
+    })(),
   };
 });
 
@@ -1785,7 +1852,7 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
 
   const rag = b.rag_enabled !== false;
   const { selected } = rag ? retrieve(c.db, c.tenant.id, c.botId, message, b.rag_top_k ?? 4) : { selected: [] };
-  const sources: Source[] | null = rag ? selected.map((x) => ({ document_id: x.s.doc.id, title: x.s.doc.title, section: x.s.heading, url: x.s.doc.source_url, score: +(0.5 + x.score / 2).toFixed(2) })) : null;
+  let sources: Source[] | null = rag ? selected.map((x) => ({ document_id: x.s.doc.id, title: x.s.doc.title, section: x.s.heading, url: x.s.doc.source_url, score: +(0.5 + x.score / 2).toFixed(2) })) : null;
   const tone = String(ws.bot.promptVariables?.tone ?? '');
   const warm = /warm|friendly/i.test(tone);
 
@@ -1810,6 +1877,20 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   } else {
     status = 'no_answer';
     output = `I don't have that in my notes yet, so I don't want to guess. Would you like me to bring in someone from the team?`;
+  }
+  // Web search: as a fallback when nothing confident came back, or on every message.
+  const web = b.web_search;
+  if (rag && web?.enabled && limitsOf(c.tenant).web_search !== false && (web.mode === 'always' || status === 'no_answer')) {
+    const hosts: string[] = (web.include_domains?.length ? web.include_domains : ['help.example.com', 'en.wikipedia.org', 'support.example.org']).slice(0, Math.min(8, Math.max(1, web.max_results ?? 3)));
+    const query = encodeURIComponent(message.slice(0, 60));
+    sources = [
+      ...(sources ?? []),
+      ...hosts.map((h, i): Source => ({ kind: 'web', title: `${message.slice(0, 50)} · ${h}`, url: `https://${h}/search?q=${query}`, score: +(0.72 - i * 0.07).toFixed(2) })),
+    ];
+    if (status === 'no_answer') {
+      status = 'answered';
+      output = `That isn't in our own notes, but here's what ${hosts[0]} says: it depends on the details of your case, so check the linked page and tell me if you'd like the team to confirm.`;
+    }
   }
   if (b.max_output_tokens < 40) output = output.split(' ').slice(0, Math.max(3, b.max_output_tokens)).join(' ') + '…';
 
@@ -1917,7 +1998,12 @@ route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
   if (b.limits !== undefined) {
     const out: Partial<Limits> = {};
     for (const [k, v] of Object.entries(b.limits)) {
-      if (!['bots', 'documents_per_bot', 'members', 'replies_per_month', 'tokens_per_month'].includes(k)) throw invalid(`Unknown limit ${k}.`);
+      if (k === 'web_search') {
+        if (typeof v !== 'boolean') throw invalid('web_search must be true or false.');
+        out.web_search = v;
+        continue;
+      }
+      if (!['bots', 'documents_per_bot', 'members', 'replies_per_month', 'tokens_per_month', 'web_searches_per_month'].includes(k)) throw invalid(`Unknown limit ${k}.`);
       const max = k === 'tokens_per_month' ? 100_000_000_000 : 10_000_000;
       if (typeof v !== 'number' || v < 0 || v > max) throw invalid(`${k} must be 0–${max.toLocaleString('en-US')}.`);
       (out as any)[k] = v;
@@ -2056,27 +2142,142 @@ route('POST', '/platform/deletion-requests/:id/reject', 'platform', (c) => {
   return r;
 });
 
+/* Accounts ------------------------------------------------------------ */
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const userStatus = (u: MockUser) => u.status ?? 'active';
+
+function userOut(db: MockDb, u: MockUser) {
+  const { avatar_url: _a, ...rest } = u;
+  return {
+    ...rest,
+    status: userStatus(u),
+    memberships: db.memberships
+      .filter((m) => m.user_id === u.id && !db.tenants.find((t) => t.id === m.tenant_id)?.deleted_at)
+      .map((m) => ({ tenant_id: m.tenant_id, tenant_name: db.tenants.find((t) => t.id === m.tenant_id)?.name ?? m.tenant_id, role: m.role })),
+  };
+}
+
+function platformUser(c: Ctx) {
+  const u = userById(c.db, c.params.id!);
+  if (!u) throw notFound('USER_NOT_FOUND', 'User');
+  return u;
+}
+
+const activeAdmins = (db: MockDb) => db.users.filter((u) => u.platform_admin && userStatus(u) === 'active');
+
+/** Businesses the person is the only owner of: they block deleting them. */
+const soleOwnerOf = (db: MockDb, userId: string) =>
+  db.memberships
+    .filter((m) => m.user_id === userId && m.role === 'owner')
+    .filter((m) => db.memberships.filter((x) => x.tenant_id === m.tenant_id && x.role === 'owner').length === 1)
+    .map((m) => db.tenants.find((t) => t.id === m.tenant_id))
+    .filter((t): t is MockTenant => Boolean(t && !t.deleted_at))
+    .map((t) => ({ id: t.id, name: t.name }));
+
 route('GET', '/platform/users', 'platform', ({ db, query }) => {
   const q = (query.get('q') ?? '').toLowerCase();
+  const status = query.get('status');
+  const admin = query.get('platform_admin');
+  const limit = Math.min(100, Math.max(1, Number(query.get('limit') ?? 100)));
+  const start = Number(query.get('cursor') ?? 0);
+  const list = db.users
+    .filter((u) => (status === 'all' ? true : status ? userStatus(u) === status : userStatus(u) !== 'deleted'))
+    .filter((u) => admin === null || u.platform_admin === (admin === 'true'))
+    .filter((u) => !q || `${u.email} ${u.name}`.toLowerCase().includes(q))
+    .sort((a, b) => (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? ''));
   return {
-    data: db.users
-      .filter((u) => !q || `${u.email} ${u.name}`.toLowerCase().includes(q))
-      .sort((a, b) => (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? ''))
-      .slice(0, 100)
-      .map((u) => ({
-        ...u,
-        memberships: db.memberships.filter((m) => m.user_id === u.id && !db.tenants.find((t) => t.id === m.tenant_id)?.deleted_at).map((m) => ({ tenant_id: m.tenant_id, tenant_name: db.tenants.find((t) => t.id === m.tenant_id)?.name ?? m.tenant_id, role: m.role })),
-      })),
+    data: list.slice(start, start + limit).map((u) => userOut(db, u)),
+    next_cursor: start + limit < list.length ? String(start + limit) : undefined,
   };
 });
 
+route('POST', '/platform/users', 'platform', (c) => {
+  const b = c.body ?? {};
+  const email = String(b.email ?? '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw invalid('email must be an email address.');
+  if (c.db.users.some((u) => u.email.toLowerCase() === email)) throw err(409, 'EMAIL_TAKEN', 'Another account has this email address.');
+  const name = b.name === undefined ? '' : str(b.name, 'name', 0, 80)!;
+  const memberships: { tenant_id: string; role: Role }[] = b.memberships ?? [];
+  if (!Array.isArray(memberships) || memberships.length > 20) throw invalid('memberships holds up to 20 businesses.');
+  for (const m of memberships) {
+    if (!['owner', 'admin', 'editor', 'agent', 'viewer'].includes(m.role)) throw invalid(`Unknown role ${m.role}.`);
+    if (!c.db.tenants.some((t) => t.id === m.tenant_id && !t.deleted_at)) throw notFound('TENANT_NOT_FOUND', 'Business');
+  }
+  if (new Set(memberships.map((m) => m.tenant_id)).size !== memberships.length) throw invalid('Each business once.');
+  const now = nowIso();
+  const u: MockUser = { id: newId('usr'), email, name, platform_admin: Boolean(b.platform_admin), created_at: now, status: 'active' };
+  c.db.users.push(u);
+  for (const m of memberships) {
+    c.db.memberships.push({ tenant_id: m.tenant_id, user_id: u.id, role: m.role, joined_at: now });
+    const t = c.db.tenants.find((x) => x.id === m.tenant_id)!;
+    audit({ ...c, tenant: t }, 'member.added', u.id, { email, role: m.role });
+  }
+  audit(c, 'user.created', u.id, { email }, '_platform');
+  return created(userOut(c.db, u));
+});
+
+route('GET', '/platform/users/:id', 'platform', (c) => {
+  const u = platformUser(c);
+  const activity = c.db.audit
+    .filter((e) => e.actor === u.id)
+    .slice(0, 50)
+    .map((e) => ({ id: e.id, tenant_id: e.tenant_id, actor: e.actor, action: e.action, target: e.target, created_at: e.created_at }));
+  return { ...userOut(c.db, u), activity };
+});
+
 route('PATCH', '/platform/users/:id', 'platform', (c) => {
-  const u = userById(c.db, c.params.id!);
-  if (!u) throw notFound('USER_NOT_FOUND', 'User');
-  if (u.id === c.user.id && c.body.platform_admin === false) throw err(409, 'OWN_ACCESS', "Admins can't revoke their own access.");
-  u.platform_admin = Boolean(c.body.platform_admin);
-  audit(c, u.platform_admin ? 'platform_admin.granted' : 'platform_admin.revoked', u.id, { email: u.email }, '_platform');
-  return { id: u.id, platform_admin: u.platform_admin };
+  const u = platformUser(c);
+  const b = c.body ?? {};
+  if (userStatus(u) === 'deleted') throw notFound('USER_NOT_FOUND', 'User');
+  const self = u.id === c.user.id;
+  if (self && (b.platform_admin === false || b.disabled === true)) throw err(409, 'OWN_ACCESS', "Nobody can disable or remove platform admin from their own account.");
+  if (b.name !== undefined) u.name = str(b.name, 'name', 0, 80)!;
+  if (b.email !== undefined) {
+    const email = String(b.email).trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw invalid('email must be an email address.');
+    if (c.db.users.some((x) => x !== u && x.email.toLowerCase() === email)) throw err(409, 'EMAIL_TAKEN', 'Another account has this email address.');
+    u.email = email;
+  }
+  const losesAdmin = (b.platform_admin === false || b.disabled === true) && u.platform_admin && userStatus(u) === 'active';
+  if (losesAdmin && activeAdmins(c.db).length <= 1) throw err(409, 'LAST_PLATFORM_ADMIN', 'The platform keeps one active platform admin.');
+  if (b.platform_admin !== undefined && Boolean(b.platform_admin) !== u.platform_admin) {
+    u.platform_admin = Boolean(b.platform_admin);
+    audit(c, u.platform_admin ? 'platform_admin.granted' : 'platform_admin.revoked', u.id, { email: u.email }, '_platform');
+  }
+  if (b.disabled !== undefined && Boolean(b.disabled) !== (userStatus(u) === 'disabled')) {
+    u.status = b.disabled ? 'disabled' : 'active';
+    u.disabled_at = b.disabled ? nowIso() : undefined;
+    audit(c, b.disabled ? 'user.disabled' : 'user.enabled', u.id, { email: u.email }, '_platform');
+  }
+  if (b.name !== undefined || b.email !== undefined) audit(c, 'user.updated', u.id, { email: u.email }, '_platform');
+  return userOut(c.db, u);
+});
+
+route('DELETE', '/platform/users/:id', 'platform', (c) => {
+  const u = platformUser(c);
+  if (userStatus(u) === 'deleted') throw notFound('USER_NOT_FOUND', 'User');
+  if (u.id === c.user.id) throw err(409, 'OWN_ACCESS', "You can't delete your own account.");
+  if (u.platform_admin && userStatus(u) === 'active' && activeAdmins(c.db).length <= 1) throw err(409, 'LAST_PLATFORM_ADMIN', 'The platform keeps one active platform admin.');
+  const sole = soleOwnerOf(c.db, u.id);
+  if (sole.length) throw err(409, 'SOLE_OWNER', 'This person is the only owner of a business.', { tenants: sole });
+  for (const m of c.db.memberships.filter((x) => x.user_id === u.id)) {
+    const t = c.db.tenants.find((x) => x.id === m.tenant_id);
+    if (t) audit({ ...c, tenant: t }, 'member.removed', u.id, { email: u.email });
+  }
+  c.db.memberships = c.db.memberships.filter((m) => m.user_id !== u.id);
+  for (const t of c.db.tickets.filter((x) => x.assignee_user_id === u.id && x.status === 'open')) {
+    t.assignee_user_id = undefined;
+    t.assignee_name = undefined;
+  }
+  for (const i of c.db.invites.filter((x) => x.email.toLowerCase() === u.email.toLowerCase() && x.status === 'pending')) i.status = 'revoked';
+  u.email = `deleted+${u.id}@invalid`;
+  u.name = '';
+  u.platform_admin = false;
+  u.status = 'deleted';
+  u.deleted_at = nowIso();
+  audit(c, 'user.deleted', u.id, null, '_platform');
+  return noContent();
 });
 
 route('GET', '/platform/tickets', 'platform', ({ db, query }) => {
@@ -2368,7 +2569,7 @@ route('PATCH', '/platform/prompt-templates/:id', 'platform', ({ db, params, body
 
 const CHANNEL_TYPE_ID_RE = /^[a-z][a-z0-9_-]{1,31}$/;
 
-const channelTypeOut = (db: MockDb, t: MockDb['channelTypes'][number]): PlatformChannelType => ({ ...t, channels: db.channels.filter((x) => x.type === t.id).length });
+const channelTypeOut = (db: MockDb, t: MockDb['channelTypes'][number]): PlatformChannelType => ({ ...t, auto_close_hours: t.auto_close_hours ?? null, channels: db.channels.filter((x) => x.type === t.id).length });
 
 function applyChannelType(t: Partial<MockDb['channelTypes'][number]>, b: any) {
   if (b.label !== undefined) t.label = str(b.label, 'label', 1, 80)!;
@@ -2382,6 +2583,7 @@ function applyChannelType(t: Partial<MockDb['channelTypes'][number]>, b: any) {
     if (!Number.isInteger(b.sort_order) || Math.abs(b.sort_order) > 10_000) throw invalid('sort_order must be a whole number from -10000 to 10000.');
     t.sort_order = b.sort_order;
   }
+  if (b.auto_close_hours !== undefined) t.auto_close_hours = autoCloseHours(b.auto_close_hours, 'auto_close_hours', true);
 }
 
 route('GET', '/platform/channel-types', 'platform', ({ db }) => ({
@@ -2394,7 +2596,7 @@ route('POST', '/platform/channel-types', 'platform', ({ db, body }) => {
   if (b.label === undefined) throw invalid('label is required.');
   if (db.channelTypes.some((t) => t.id === b.id)) throw err(409, 'CHANNEL_TYPE_EXISTS', `Channel type ${b.id} exists.`);
   const now = nowIso();
-  const t = { id: b.id, label: '', description: '', icon: '', status: 'active', sort_order: 0, created_at: now, updated_at: now } as MockDb['channelTypes'][number];
+  const t = { id: b.id, label: '', description: '', icon: '', status: 'active', sort_order: 0, auto_close_hours: null, created_at: now, updated_at: now } as MockDb['channelTypes'][number];
   applyChannelType(t, b);
   db.channelTypes.push(t);
   return created(channelTypeOut(db, t));
@@ -2459,7 +2661,8 @@ export function dispatch(db: MockDb, req: MockRequest): { status: number; body: 
 
   const auth = req.headers.get('Authorization');
   const user = auth ? userById(db, db.currentUserId) : undefined;
-  if (r.access !== 'public' && !user) throw err(401, 'UNAUTHORIZED', 'Sign in again.');
+  if (r.access !== 'public' && (!user || user.status === 'deleted')) throw err(401, 'UNAUTHORIZED', 'Sign in again.');
+  if (r.access !== 'public' && user?.status === 'disabled') throw err(403, 'ACCOUNT_DISABLED', 'A platform admin disabled this account.');
 
   const ctx = { db, user: user!, params, query: req.query, body: (req.body ?? {}) as any } as Ctx;
 

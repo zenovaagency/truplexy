@@ -60,12 +60,26 @@ export function setActiveScope(s: Scope, { remember }: { remember: boolean }) {
   if (remember) writeScope(() => localStorage, s);
 }
 
+/** Forgets the tab's scope and the remembered one, e.g. after losing access to that business. */
+export function clearActiveScope() {
+  for (const storage of [() => sessionStorage, () => localStorage]) {
+    try {
+      storage().removeItem(LAST_SCOPE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 /** Navigation state that moves the tab into another scope. The scope is never in the URL. */
 export interface ScopeState {
   scope?: Scope;
+  /** Opened from a link (/t/:tenant/:bot/...): a business you can't open is a 404, not a quiet switch. */
+  shared?: boolean;
 }
 
-export const scopeOf = (state: unknown): Scope | undefined => (state as ScopeState | null)?.scope;
+export const scopeOf = (state: unknown): Scope | undefined => (state as ScopeState | null)?.scope ?? undefined;
+export const isSharedScope = (state: unknown) => Boolean((state as ScopeState | null)?.shared);
 
 /** Whether a navigation moves to a scope other than `current`. */
 export const switchesScope = (state: unknown, current?: Scope) => {

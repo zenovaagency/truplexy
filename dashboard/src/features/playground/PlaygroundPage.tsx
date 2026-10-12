@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, CircleStop, FileText, MessageSquarePlus, RefreshCw, Send, Sparkles, Wrench } from 'lucide-react';
+import { ChevronDown, CircleStop, ExternalLink, FileText, Globe, MessageSquarePlus, RefreshCw, Send, Sparkles, Wrench } from 'lucide-react';
 import { isApiError } from '@/lib/api/client';
 import { useModels } from '@/lib/api/endpoints/bot';
 import { useCurrentPlayground, useNewPlayground, useRunPlayground } from '@/lib/api/endpoints/playground';
@@ -11,9 +11,19 @@ import { describeError } from '@/lib/errors';
 import { formatCurrency, formatMs, formatNumber } from '@/lib/format';
 import { qk } from '@/lib/query-keys';
 import { useScopeCtx } from '@/lib/session/scope-context';
+import { playgroundWebSearch } from '@/lib/web-search';
 import { Badge, Button, Card, CodeBlock, DescList, EmptyState, ErrorState, Page, PageHeader, Skeleton, Switch, Tip, useConfirm } from '@/components/ui';
 import { ReplyStatusBadge } from '@/components/domain/badges';
 import { useBotDraft } from '@/features/llm/draft';
+
+/** "https://docs.example.com/a" → "docs.example.com". */
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+};
 
 const SUGGESTIONS = ['Where is my order?', 'Can I return something I opened?', 'Do you ship internationally?', 'I want to speak to a person'];
 
@@ -52,6 +62,7 @@ export default function PlaygroundPage() {
     rag_top_k: b.topK,
     tools_enabled: b.toolsEnabled || undefined,
     tools: b.toolsEnabled ? (b.tools ?? []) : undefined,
+    web_search: b.webSearch?.enabled && b.ragEnabled !== false ? playgroundWebSearch(b.webSearch) : undefined,
     debug: debug || undefined,
     ...extra,
   });
@@ -284,14 +295,29 @@ function Bubble({ m, last, onResend, busy }: { m: PlaygroundMessage; last: boole
       </div>
       {open && (
         <div className="grid w-full max-w-[640px] gap-2 animate-fade-in">
-          {m.sources?.map((s, i) => (
-            <div key={`${s.document_id}-${i}`} className="flex items-center gap-2 rounded-[10px] border border-line bg-surface px-3 py-2 text-xs">
-              <FileText className="size-3.5 shrink-0 text-accent" />
-              <span className="truncate font-semibold text-ink">{s.title}</span>
-              {s.section && <span className="truncate text-ink-faint">› {s.section}</span>}
-              {s.score != null && <span className="ml-auto font-mono text-ink-faint">{s.score.toFixed(2)}</span>}
-            </div>
-          ))}
+          {m.sources?.map((s, i) =>
+            s.kind === 'web' && s.url ? (
+              <a
+                key={`${s.url}-${i}`}
+                href={s.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 rounded-[10px] border border-line bg-surface px-3 py-2 text-xs hover:border-line-strong"
+              >
+                <Globe className="size-3.5 shrink-0 text-accent" />
+                <span className="truncate font-semibold text-ink">{s.title || s.url}</span>
+                <span className="truncate text-ink-faint">{hostOf(s.url)}</span>
+                <ExternalLink className="ml-auto size-3 shrink-0 text-ink-faint" />
+              </a>
+            ) : (
+              <div key={`${s.document_id ?? s.title}-${i}`} className="flex items-center gap-2 rounded-[10px] border border-line bg-surface px-3 py-2 text-xs">
+                <FileText className="size-3.5 shrink-0 text-accent" />
+                <span className="truncate font-semibold text-ink">{s.title}</span>
+                {s.section && <span className="truncate text-ink-faint">› {s.section}</span>}
+                {s.score != null && <span className="ml-auto tabular-nums text-ink-faint">{s.score.toFixed(2)}</span>}
+              </div>
+            ),
+          )}
           {m.tool_calls?.map((t, i) => (
             <div key={i} className="grid gap-1.5 rounded-[10px] border border-line bg-surface px-3 py-2 text-xs">
               <div className="flex items-center gap-2">

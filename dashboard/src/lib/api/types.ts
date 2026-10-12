@@ -93,6 +93,10 @@ export interface Limits {
   members: number;
   replies_per_month: number;
   tokens_per_month: number;
+  /** Whether the bot may search the web (v2). Plans don't list it; a business's limits always do. */
+  web_search?: boolean;
+  /** Web searches a month; 0 = unlimited (v2). */
+  web_searches_per_month?: number;
 }
 
 /** The extra-token slider a plan sells. */
@@ -134,6 +138,8 @@ export interface Business {
   status: 'active' | 'suspended';
   created_at: string;
   reply_target_hours: number;
+  /** Open tickets close after this many hours without activity (v2); 0 = never. */
+  auto_close_hours: number;
   limits: Limits;
   limit_overrides: Partial<Limits>;
   usage: { bots: number; members: number; replies_this_month: number; tokens_this_month: number };
@@ -260,11 +266,18 @@ export interface Channel {
   tickets: number;
   /** Active chat API keys bound to it. */
   api_keys: number;
+  /** Its own inactivity time; null uses the channel type's, else the business's. 0 = never. */
+  auto_close_hours: number | null;
+  /** The time that applies; 0 = never. */
+  effective_auto_close_hours: number;
   created_at: string;
   updated_at: string;
 }
 
-export type ChannelInput = Pick<Channel, 'type' | 'name' | 'description' | 'external_id' | 'enabled'>;
+export type ChannelInput = Pick<Channel, 'type' | 'name' | 'description' | 'external_id' | 'enabled'> & {
+  /** null uses the channel type's time, else the business's. In a PATCH, null clears it and leaving it out keeps it. */
+  auto_close_hours?: number | null;
+};
 
 /* ------------------------------------------------------------------ */
 /* Bot configuration                                                   */
@@ -279,6 +292,26 @@ export interface BotConfig {
   topK?: number;
   toolsEnabled?: boolean;
   tools?: string[];
+  /** Search the web when the knowledge base has no confident answer, or always (v2). Needs ragEnabled. */
+  webSearch?: WebSearchConfig;
+}
+
+export type WebSearchMode = 'fallback' | 'always';
+export type WebSearchDepth = 'basic' | 'advanced';
+export type WebSearchTopic = 'general' | 'news';
+export type WebSearchTimeRange = 'day' | 'week' | 'month' | 'year' | '';
+
+export interface WebSearchConfig {
+  enabled: boolean;
+  mode: WebSearchMode;
+  /** 1–8. */
+  maxResults: number;
+  depth: WebSearchDepth;
+  topic: WebSearchTopic;
+  timeRange: WebSearchTimeRange;
+  /** Hostnames such as docs.example.com; a domain covers its subdomains. Up to 50 each. */
+  includeDomains: string[];
+  excludeDomains: string[];
 }
 
 export interface WorkspaceVersion {
@@ -514,6 +547,12 @@ export interface Ticket {
   /** The AI summary a person last generated, and when. */
   summary?: string;
   summary_at?: string;
+  /** Never closes on its own (v2). */
+  keep_open: boolean;
+  /** When it closes if nothing happens before (v2). */
+  auto_close_at?: string;
+  /** When it last closed on its own (v2); reopening clears it. */
+  auto_closed_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -594,6 +633,8 @@ export interface TicketPatch {
   escalated?: boolean;
   /** "" clears it. */
   channel_id?: string;
+  /** true stops it closing on its own; false lets it again. */
+  keep_open?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -730,6 +771,8 @@ export interface UsageSummary {
     avg_latency_ms: number;
     avg_retrieval_ms: number;
   };
+  /** Searches that ran count against the plan (v2). */
+  web_searches?: { searches: number; with_results: number; errors: number; skipped: number; avg_latency_ms: number };
 }
 
 export interface DurationStats {
@@ -822,7 +865,9 @@ export interface AddonQuote {
 export type ReplyStatus = 'answered' | 'clarification_required' | 'no_answer' | 'handoff' | 'escalated';
 
 export interface Source {
-  document_id: string;
+  /** Web results have kind "web" and a url instead of a document (v2). */
+  kind?: 'document' | 'web';
+  document_id?: string;
   title: string;
   section?: string;
   url?: string;
@@ -842,6 +887,17 @@ export interface PlaygroundRunInput {
   rag_top_k?: number;
   tools_enabled?: boolean;
   tools?: string[];
+  /** The bot's webSearch settings in snake_case (v2). Needs rag_enabled. */
+  web_search?: {
+    enabled: boolean;
+    mode: WebSearchMode;
+    max_results: number;
+    depth: WebSearchDepth;
+    topic: WebSearchTopic;
+    time_range: WebSearchTimeRange;
+    include_domains: string[];
+    exclude_domains: string[];
+  };
   filters?: SearchFilters;
   debug?: boolean;
 }
@@ -950,14 +1006,59 @@ export interface TenantDeletion {
   restorable: boolean;
 }
 
+export type PlatformUserStatus = 'active' | 'disabled' | 'deleted';
+
+/** An account. A deleted one keeps only its id: email deleted+{id}@invalid, an empty name. */
 export interface PlatformUser {
   id: string;
   email: string;
   name: string;
   platform_admin: boolean;
+  status: PlatformUserStatus;
+  disabled_at?: string;
+  deleted_at?: string;
   created_at: string;
   last_seen_at?: string;
   memberships: { tenant_id: string; tenant_name: string; role: Role }[];
+}
+
+export interface PlatformUserActivity {
+  id: string;
+  tenant_id: string;
+  actor: string;
+  action: string;
+  target?: string;
+  created_at: string;
+}
+
+export interface PlatformUserDetail extends PlatformUser {
+  /** The last 50 audit events the person made, in any business. */
+  activity: PlatformUserActivity[];
+}
+
+export interface PlatformUserInput {
+  email: string;
+  name?: string;
+  platform_admin?: boolean;
+  /** Up to 20, each business once. */
+  memberships?: { tenant_id: string; role: Role }[];
+}
+
+export interface PlatformUserPatch {
+  name?: string;
+  email?: string;
+  platform_admin?: boolean;
+  /** true locks the person out at once; false lets them back in. */
+  disabled?: boolean;
+}
+
+export interface PlatformUserQuery {
+  q?: string;
+  /** Default: everyone not deleted. */
+  status?: PlatformUserStatus | 'all';
+  platform_admin?: boolean;
+  limit?: number;
+  cursor?: string;
 }
 
 export interface PlatformTicket {
@@ -1067,6 +1168,8 @@ export interface PlatformChannelType {
   /** A hidden type isn't offered for new channels; channels already of it keep working. */
   status: 'active' | 'hidden';
   sort_order: number;
+  /** Inactivity time for channels of the type; null leaves it to each business. 0 = never. */
+  auto_close_hours: number | null;
   /** Businesses' channels of the type. */
   channels: number;
   created_at: string;
@@ -1086,5 +1189,7 @@ export interface ApiErrorBody {
     request_id?: string;
     document_id?: string;
     limit?: keyof Limits;
+    /** SOLE_OWNER: the businesses the person is the only owner of. */
+    tenants?: { id: string; name: string }[];
   };
 }
