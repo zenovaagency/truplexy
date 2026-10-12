@@ -62,7 +62,7 @@ const core = [
                   >
                     <ChannelIcon id={c.id} size={15} />
                     <span class="min-w-0 flex-1 truncate">
-                      {c.name}
+                      <a href={`/channels/${c.id}`} class="after:absolute after:inset-0 after:rounded-xl hover:underline">{c.name}</a>
                       {c.note && <span class="block truncate text-[0.72rem] font-normal text-ink-faint">{c.note}</span>}
                     </span>
                     {c.status === 'live' ? <span class="live-dot" title="Live" aria-label="Live"></span> : <span class="soon-tag">Coming soon</span>}
@@ -117,12 +117,12 @@ const core = [
                     data-eco-node="right"
                     data-status={c.status}
                     class:list={[
-                      'flex items-center gap-2.5 rounded-xl border bg-surface px-3 py-2 text-[0.88rem] font-medium',
+                      'relative flex items-center gap-2.5 rounded-xl border bg-surface px-3 py-2 text-[0.88rem] font-medium',
                       c.status === 'live' ? 'border-line text-ink shadow-sm' : 'border-dashed border-line-strong text-ink-muted',
                     ]}
                   >
                     <ChannelIcon id={c.id} size={15} />
-                    <span class="min-w-0 flex-1 truncate">{c.name}</span>
+                    <span class="min-w-0 flex-1 truncate"><a href={`/channels/${c.id}`} class="after:absolute after:inset-0 after:rounded-xl hover:underline">{c.name}</a></span>
                     {c.status === 'live' ? <span class="live-dot" title="Live" aria-label="Live"></span> : <span class="soon-tag">Coming soon</span>}
                   </li>
                 ))}

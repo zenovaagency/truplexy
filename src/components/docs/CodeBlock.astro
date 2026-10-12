@@ -16,6 +16,7 @@ const { code, name, lang } = Astro.props;
 const byExt: Record<string, string> = {
   ts: 'ts', tsx: 'tsx', js: 'js', mjs: 'js', jsx: 'jsx', vue: 'vue', svelte: 'svelte', astro: 'astro',
   html: 'html', php: 'php', py: 'python', go: 'go', json: 'json', css: 'css', sh: 'bash',
+  java: 'java', cs: 'csharp', rb: 'ruby',
 };
 const ext = name?.split('.').pop()?.toLowerCase() ?? '';
 const language = (lang ?? (name === 'Terminal' ? 'bash' : byExt[ext])) || 'txt';

@@ -1,0 +1,35 @@
+---
+/**
+ * A docs table. Cells are plain text; `backticks` become <code>. The first
+ * column is code by default (names, codes), set `codeFirst={false}` for prose.
+ */
+interface Props {
+  headers: readonly string[];
+  rows: readonly (readonly string[])[];
+  codeFirst?: boolean;
+  /** Last column in muted text, like a "Default" column. */
+  faintLast?: boolean;
+}
+const { headers, rows, codeFirst = true, faintLast = false } = Astro.props;
+
+const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/`([^`]+)`/g, '<code>$1</code>');
+---
+
+<div class:list={['table-wrap', !codeFirst && 'wrap-first']}>
+  <table>
+    <thead><tr>{headers.map((h) => <th>{h}</th>)}</tr></thead>
+    <tbody>
+      {rows.map((row) => (
+        <tr>
+          {row.map((cell, i) =>
+            i === 0 && codeFirst ? (
+              <td><code>{cell}</code></td>
+            ) : (
+              <td class:list={[faintLast && i === row.length - 1 && 'faint']} set:html={inline(cell)} />
+            ),
+          )}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
