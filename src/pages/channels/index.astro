@@ -1,0 +1,45 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import Button from '../../components/ui/Button.astro';
+import ChannelIcon from '../../components/ui/ChannelIcon';
+import { SITE } from '../../data/site';
+import { CHANNELS, GROUP_LABEL, channelsIn, type ChannelGroup } from '../../data/channels';
+import { GUIDES } from '../../data/channel-guides';
+
+const groups = Object.keys(GROUP_LABEL) as ChannelGroup[];
+const toc = groups.map((g) => [g, GROUP_LABEL[g]] as const);
+---
+
+<Docs
+  title="Channels — Truplexy"
+  description="Every channel Truplexy connects to: website chat, Telegram, Discord, WhatsApp, Messenger, Instagram, email, Shopify, WooCommerce, WordPress, HubSpot, Zendesk, Slack, Microsoft Teams and a REST API."
+  breadcrumbs={[{ name: 'Channels', path: '/channels' }]}
+  eyebrow="Channels & platforms"
+  heading="Meet customers where they already are"
+  lede={`${CHANNELS.length} channels and platforms, one conversation. Pick one to see what Truplexy does there and how to connect it.`}
+  toc={toc}
+>
+  <Fragment slot="hero-actions">
+    <Button href="/docs">Setup guides</Button>
+    <Button href={`${SITE.dashboardUrl}/`} variant="ghost" arrow={false}>Get a chat key</Button>
+  </Fragment>
+
+  {groups.map((g) => (
+    <>
+      <h2 id={g}>{GROUP_LABEL[g]}</h2>
+      <ul class="cards">
+        {channelsIn(g).map((c) => (
+          <li>
+            <a href={`/channels/${c.id}`} class="card-link">
+              <span class="icon"><ChannelIcon id={c.id} size={18} /></span>
+              <span>
+                <span class="name">{c.name} {c.status === 'soon' && <span class="soon-tag">Coming soon</span>}</span>
+                <span class="blurb">{GUIDES[c.id].blurb}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </>
+  ))}
+</Docs>

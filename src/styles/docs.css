@@ -1,0 +1,224 @@
+/*
+ * Docs article styles, shared by every page on the Docs layout
+ * (/docs/*, /channels/*). Everything is scoped under `.docs`.
+ */
+.docs {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-ink-muted);
+}
+/* Doubled `.docs` so it also wins over components that zero their own margin
+   (the code block); headings keep the larger gaps set below. */
+.docs.docs > * + :not(h2):not(h3) {
+  margin-top: 1rem;
+}
+.docs h2 {
+  margin-top: 3.5rem;
+  scroll-margin-top: calc(var(--nav-h) + 1.5rem);
+  font-size: clamp(1.45rem, 1.2rem + 0.8vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--color-ink);
+}
+.docs h2:first-child {
+  margin-top: 0;
+}
+.docs h3 {
+  margin-top: 2rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.docs strong {
+  color: var(--color-ink);
+}
+.docs a {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.docs a:hover {
+  text-decoration: underline;
+}
+.docs ol,
+.docs ul {
+  padding-left: 1.3rem;
+}
+.docs ol {
+  list-style: decimal;
+}
+.docs ul {
+  list-style: disc;
+}
+.docs li + li {
+  margin-top: 0.4rem;
+}
+.docs :not(pre) > code,
+.docs td code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+.docs .faint {
+  color: var(--color-ink-faint);
+}
+
+/* Tables */
+.docs .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+.docs table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.docs th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-ink-faint);
+  background: var(--color-surface-2);
+}
+.docs td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-line);
+  vertical-align: top;
+}
+.docs td:first-child {
+  white-space: nowrap;
+}
+.docs .table-wrap.wrap-first td:first-child {
+  white-space: normal;
+}
+
+/* The three-node "how it works" diagram */
+.docs .flow {
+  display: grid;
+  gap: 10px;
+  align-items: stretch;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+  .docs .flow {
+    grid-template-columns: 1fr 28px 1fr 28px 1fr;
+    align-items: center;
+  }
+}
+.docs .node {
+  height: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.docs .node .mono {
+  color: var(--color-ink-faint);
+  font-size: 0.68rem;
+}
+.docs .node-title {
+  margin: 6px 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.docs .node-accent {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-line));
+  background: var(--color-accent-soft);
+}
+.docs .arrow {
+  justify-self: center;
+  width: 2px;
+  height: 22px;
+  background: linear-gradient(var(--color-blue), var(--color-indigo));
+  position: relative;
+}
+.docs .arrow::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-indigo);
+  border-bottom: 2px solid var(--color-indigo);
+  transform: translateX(-50%) rotate(45deg);
+}
+@media (min-width: 720px) {
+  .docs .arrow {
+    width: 22px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-blue), var(--color-indigo));
+  }
+  .docs .arrow::after {
+    left: auto;
+    right: -1px;
+    bottom: auto;
+    top: 50%;
+    transform: translateY(-50%) rotate(-45deg);
+  }
+}
+
+/* Link cards (channel indexes, related channels) */
+.docs .cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  padding: 0;
+  list-style: none;
+}
+.docs .cards > li + li {
+  margin-top: 0;
+}
+.docs .card-link {
+  display: flex;
+  height: 100%;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  font-weight: 400;
+  color: var(--color-ink-muted);
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.docs .card-link:hover {
+  border-color: var(--color-line-strong);
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+}
+.docs .card-link .icon {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface-2);
+}
+.docs .card-link .name {
+  display: block;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.docs .card-link .blurb {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}

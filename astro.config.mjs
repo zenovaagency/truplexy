@@ -17,7 +17,28 @@ import { SITE } from './src/data/site.ts';
 const PAGE_SOURCES = {
   '/': ['src/pages/index.astro', 'src/components/home', 'src/data'],
   '/pricing': ['src/pages/pricing.astro', 'src/components/pricing', 'src/data/pricing.ts', 'src/data/site.ts'],
-  '/docs/web-sdk': ['src/pages/docs/web-sdk.astro', 'src/components/docs', 'dashboard/src/features/integrations/snippets/web-sdk.ts'],
+  '/docs/web-sdk': ['src/pages/docs/web-sdk.astro', 'src/components/docs', 'src/layouts/Docs.astro', 'src/styles/docs.css', 'dashboard/src/features/integrations/snippets/web-sdk.ts'],
+  '/docs': ['src/pages/docs/index.astro', 'src/data/channel-guides.ts', 'src/data/channels.ts'],
+  '/channels': ['src/pages/channels/index.astro', 'src/data/channel-guides.ts', 'src/data/channels.ts'],
+};
+
+/**
+ * Sources shared by every page under a prefix (the per-channel routes), for
+ * routes not listed above.
+ * @type {Record<string, string[]>}
+ */
+const PREFIX_SOURCES = {
+  '/channels/': ['src/pages/channels/[id].astro', 'src/layouts/Docs.astro', 'src/styles/docs.css', 'src/data/channel-guides.ts', 'src/data/channels.ts', 'src/data/pricing.ts'],
+  '/docs/': [
+    'src/pages/docs/[id].astro',
+    'src/layouts/Docs.astro',
+    'src/styles/docs.css',
+    'src/components/docs',
+    'src/data/channel-guides.ts',
+    'src/data/channels.ts',
+    'src/data/snippets.ts',
+    'dashboard/src/features/integrations/snippets',
+  ],
 };
 
 /** @param {string[]} args */
@@ -40,7 +61,8 @@ const gitHistory = git('rev-parse', '--is-shallow-repository') === 'false';
  */
 function lastModified(route) {
   if (!gitHistory) return undefined;
-  const sources = PAGE_SOURCES[route] ?? [`src/pages${route === '/' ? '/index' : route}.astro`];
+  const prefix = Object.keys(PREFIX_SOURCES).find((p) => route.startsWith(p));
+  const sources = PAGE_SOURCES[route] ?? (prefix && PREFIX_SOURCES[prefix]) ?? [`src/pages${route === '/' ? '/index' : route}.astro`];
   return git('log', '-1', '--format=%cI', '--', ...sources) || undefined;
 }
 

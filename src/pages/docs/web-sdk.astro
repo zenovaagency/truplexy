@@ -1,10 +1,9 @@
 ---
-import Base from '../../layouts/Base.astro';
-import Nav from '../../components/chrome/Nav.astro';
-import Footer from '../../components/chrome/Footer.astro';
+import Docs from '../../layouts/Docs.astro';
 import Button from '../../components/ui/Button.astro';
 import CodeBlock from '../../components/docs/CodeBlock.astro';
 import CodeTabs, { type Tab } from '../../components/docs/CodeTabs.astro';
+import Flow from '../../components/docs/Flow.astro';
 import { SITE } from '../../data/site';
 // One source for the install recipes: the dashboard's Website chat guide shows the same ones.
 import { SERVER_RECIPES, WIDGET_RECIPES, CUSTOMER_RECIPE } from '../../../dashboard/src/features/integrations/snippets/web-sdk';
@@ -201,65 +200,31 @@ const toc = [
 /** `code` spans inside table text. */
 const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/`([^`]+)`/g, '<code>$1</code>');
 ---
-
-<Base
+<Docs
   title="Website chat SDK — Truplexy"
-  breadcrumbs={[{ name: 'Website chat SDK', path: '/docs/web-sdk' }]}
+  breadcrumbs={[{ name: 'Docs', path: '/docs' }, { name: 'Website chat SDK', path: '/docs/web-sdk' }]}
   description="Add Truplexy's AI support chat to any website in minutes: React, Next.js, Vue, Nuxt, Svelte, Angular, Astro, WordPress or plain HTML. Your chat key stays on your server."
+  eyebrow="Developers"
+  heading="Add Truplexy chat to any website"
+  lede="A ready-made chat widget, one small route on your server, and you’re live. It works with React, Next.js, Vue, Nuxt, Svelte, Angular, Astro, WordPress and plain HTML. Your chat key never reaches the browser."
+  toc={toc}
 >
-  <Nav />
-  <main id="main" class="relative overflow-x-clip">
-    <section class="relative pb-14 pt-[calc(var(--nav-h)+clamp(3rem,6vw,5rem))]" aria-labelledby="docs-title">
-      <div class="aurora" aria-hidden="true"></div>
-      <div class="container-t relative">
-        <div class="max-w-[760px]">
-          <p class="eyebrow">Developers</p>
-          <h1 id="docs-title" class="display mt-5 text-balance text-[clamp(2.2rem,1.5rem+2.6vw,3.4rem)]">Add Truplexy chat to any website</h1>
-          <p class="lede mt-5 max-w-[640px] text-pretty">
-            A ready-made chat widget, one small route on your server, and you’re live. It works with React, Next.js, Vue, Nuxt, Svelte, Angular, Astro, WordPress
-            and plain HTML. Your chat key never reaches the browser.
-          </p>
-          <div class="mt-8 flex flex-wrap gap-3">
-            <Button href={`${SITE.dashboardUrl}/`}>Get a chat key</Button>
-            <button type="button" class="btn btn-md btn-ghost" data-demo-open>
-              <span class="btn-roll"><span class="btn-text">Try the demo chat</span></span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
+  <Fragment slot="hero-actions">
+    <Button href={`${SITE.dashboardUrl}/`}>Get a chat key</Button>
+    <button type="button" class="btn btn-md btn-ghost" data-demo-open>
+      <span class="btn-roll"><span class="btn-text">Try the demo chat</span></span>
+    </button>
+  </Fragment>
 
-    <div class="container-t pb-[var(--section-y)]">
-      <div class="grid gap-12 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <nav class="hidden lg:block" aria-label="On this page">
-          <ul class="sticky top-[calc(var(--nav-h)+2rem)] grid gap-1 border-l border-line text-[0.875rem]">
-            {toc.map(([id, label]) => (
-              <li><a href={`#${id}`} class="-ml-px block border-l border-transparent py-1 pl-4 text-ink-muted transition-colors hover:border-ink hover:text-ink">{label}</a></li>
-            ))}
-          </ul>
-        </nav>
-
-        <article class="docs min-w-0 max-w-[820px]">
           <h2 id="how">How it works</h2>
-          <div class="flow" role="img" aria-label="The widget on your site talks to a route on your server, which calls Truplexy with your chat key. Team replies come back to the widget live.">
-            <div class="node">
-              <p class="mono">Your site</p>
-              <p class="node-title">The widget</p>
-              <p>Chat button, messages, handoff. No keys.</p>
-            </div>
-            <span class="arrow" aria-hidden="true"></span>
-            <div class="node node-accent">
-              <p class="mono">Your server</p>
-              <p class="node-title">One route</p>
-              <p>Holds the chat key. Signs each visitor’s session.</p>
-            </div>
-            <span class="arrow" aria-hidden="true"></span>
-            <div class="node">
-              <p class="mono">Truplexy</p>
-              <p class="node-title">The assistant</p>
-              <p>Answers, tickets, handoff to your team.</p>
-            </div>
-          </div>
+          <Flow
+            description="The widget on your site talks to a route on your server, which calls Truplexy with your chat key. Team replies come back to the widget live."
+            nodes={[
+              { label: 'Your site', title: 'The widget', text: 'Chat button, messages, handoff. No keys.' },
+              { label: 'Your server', title: 'One route', text: 'Holds the chat key. Signs each visitor’s session.' },
+              { label: 'Truplexy', title: 'The assistant', text: 'Answers, tickets, handoff to your team.' },
+            ]}
+          />
           <p>
             Visitors keep their conversation when they reload or come back, without accounts or a database: your route gives each one a signed session. When your team
             replies from Tickets, the reply appears in the widget live.
@@ -407,19 +372,15 @@ const result = await chat.sendMessage(conversation.id, "Hello");`} />
             </table>
           </div>
           <p>Still stuck? Email <a href={`mailto:${SITE.email}`}>{SITE.email}</a> with the <code>request_id</code>.</p>
-        </article>
-      </div>
-    </div>
-  </main>
-  <Footer />
-
-  <truplexy-chat
-    demo
-    heading="Truplexy demo"
-    subtitle="Canned replies. Nothing leaves this page."
-    greeting="Hi! I'm the widget in **demo mode**. Ask where order 12345 is, about returns, or to talk to a person."
-  ></truplexy-chat>
-</Base>
+  <Fragment slot="after">
+    <truplexy-chat
+      demo
+      heading="Truplexy demo"
+      subtitle="Canned replies. Nothing leaves this page."
+      greeting="Hi! I'm the widget in **demo mode**. Ask where order 12345 is, about returns, or to talk to a person."
+    ></truplexy-chat>
+  </Fragment>
+</Docs>
 
 <script>
   // The real widget, built from the SDK's source, in demo mode.
@@ -427,164 +388,3 @@ const result = await chat.sendMessage(conversation.id, "Hello");`} />
 
   for (const button of document.querySelectorAll('[data-demo-open]')) button.addEventListener('click', () => truplexy.open());
 </script>
-
-<style>
-  .docs {
-    font-size: 1rem;
-    line-height: 1.7;
-    color: var(--color-ink-muted);
-  }
-  .docs > :global(* + *) {
-    margin-top: 1rem;
-  }
-  .docs h2 {
-    margin-top: 3.5rem;
-    scroll-margin-top: calc(var(--nav-h) + 1.5rem);
-    font-size: clamp(1.45rem, 1.2rem + 0.8vw, 1.85rem);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-    color: var(--color-ink);
-  }
-  .docs h2:first-child {
-    margin-top: 0;
-  }
-  .docs h3 {
-    margin-top: 2rem;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--color-ink);
-  }
-  .docs strong {
-    color: var(--color-ink);
-  }
-  .docs a {
-    color: var(--color-accent);
-    font-weight: 600;
-  }
-  .docs a:hover {
-    text-decoration: underline;
-  }
-  .docs ol,
-  .docs ul {
-    padding-left: 1.3rem;
-  }
-  .docs ol {
-    list-style: decimal;
-  }
-  .docs ul {
-    list-style: disc;
-  }
-  .docs li + li {
-    margin-top: 0.4rem;
-  }
-  .docs :not(pre) > code,
-  .docs td code {
-    font-family: var(--font-mono);
-    font-size: 0.84em;
-    padding: 1px 6px;
-    border-radius: 6px;
-    background: var(--color-surface-2);
-    color: var(--color-ink);
-    overflow-wrap: anywhere;
-  }
-  .faint {
-    color: var(--color-ink-faint);
-  }
-  .table-wrap {
-    overflow-x: auto;
-    border: 1px solid var(--color-line);
-    border-radius: 14px;
-    background: var(--color-surface);
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-    line-height: 1.5;
-  }
-  th {
-    padding: 10px 14px;
-    text-align: left;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--color-ink-faint);
-    background: var(--color-surface-2);
-  }
-  td {
-    padding: 10px 14px;
-    border-top: 1px solid var(--color-line);
-    vertical-align: top;
-  }
-  td:first-child {
-    white-space: nowrap;
-  }
-  .flow {
-    display: grid;
-    gap: 10px;
-    align-items: stretch;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 720px) {
-    .flow {
-      grid-template-columns: 1fr 28px 1fr 28px 1fr;
-      align-items: center;
-    }
-  }
-  .node {
-    height: 100%;
-    padding: 16px 18px;
-    border: 1px solid var(--color-line);
-    border-radius: 16px;
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
-    font-size: 0.9rem;
-    line-height: 1.5;
-  }
-  .node .mono {
-    color: var(--color-ink-faint);
-    font-size: 0.68rem;
-  }
-  .node-title {
-    margin: 6px 0 4px;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--color-ink);
-  }
-  .node-accent {
-    border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-line));
-    background: var(--color-accent-soft);
-  }
-  .arrow {
-    justify-self: center;
-    width: 2px;
-    height: 22px;
-    background: linear-gradient(var(--color-blue), var(--color-indigo));
-    position: relative;
-  }
-  .arrow::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    bottom: -2px;
-    width: 8px;
-    height: 8px;
-    border-right: 2px solid var(--color-indigo);
-    border-bottom: 2px solid var(--color-indigo);
-    transform: translateX(-50%) rotate(45deg);
-  }
-  @media (min-width: 720px) {
-    .arrow {
-      width: 22px;
-      height: 2px;
-      background: linear-gradient(90deg, var(--color-blue), var(--color-indigo));
-    }
-    .arrow::after {
-      left: auto;
-      right: -1px;
-      bottom: auto;
-      top: 50%;
-      transform: translateY(-50%) rotate(-45deg);
-    }
-  }
-</style>

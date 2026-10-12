@@ -1,0 +1,64 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import Button from '../../components/ui/Button.astro';
+import ChannelIcon from '../../components/ui/ChannelIcon';
+import { SITE } from '../../data/site';
+import { GROUP_LABEL, channelsIn, type ChannelGroup } from '../../data/channels';
+import { GUIDES, docsHref } from '../../data/channel-guides';
+
+const groups = Object.keys(GROUP_LABEL) as ChannelGroup[];
+const toc = [['start', 'Start here'], ...groups.map((g) => [g, GROUP_LABEL[g]] as const)];
+---
+
+<Docs
+  title="Docs — Truplexy"
+  description="Setup guides for every Truplexy channel: the website chat SDK, messaging apps, store and help-desk platforms, team tools, and the REST API and webhooks."
+  breadcrumbs={[{ name: 'Docs', path: '/docs' }]}
+  eyebrow="Developers"
+  heading="Connect Truplexy to every channel"
+  lede="One guide per channel: what to set up on the platform, the server code to add, and how your team’s replies get back to the customer."
+  toc={toc}
+>
+  <Fragment slot="hero-actions">
+    <Button href="/docs/web-sdk">Website chat SDK</Button>
+    <Button href="/channels" variant="ghost" arrow={false}>About the channels</Button>
+  </Fragment>
+
+  <h2 id="start">Start here</h2>
+  <p>
+    Every guide follows the same three steps: <strong>issue a chat key</strong> in the <a href={SITE.dashboardUrl}>dashboard</a>, <strong>set the channel up</strong> on its platform,
+    and <strong>add a small piece of code</strong> to your server. The chat key stays on your server, never in a browser, app or theme file.
+  </p>
+  <ul class="cards">
+    {(['web', 'api', 'webhooks'] as const).map((id) => (
+      <li>
+        <a href={docsHref(id)} class="card-link">
+          <span class="icon"><ChannelIcon id={id} size={18} /></span>
+          <span>
+            <span class="name">{id === 'web' ? 'Website chat SDK' : id === 'api' ? 'REST API' : 'Webhooks'}</span>
+            <span class="blurb">{GUIDES[id].blurb}</span>
+          </span>
+        </a>
+      </li>
+    ))}
+  </ul>
+
+  {groups.map((g) => (
+    <>
+      <h2 id={g}>{GROUP_LABEL[g]}</h2>
+      <ul class="cards">
+        {channelsIn(g).map((c) => (
+          <li>
+            <a href={docsHref(c.id)} class="card-link">
+              <span class="icon"><ChannelIcon id={c.id} size={18} /></span>
+              <span>
+                <span class="name">{c.name} {c.status === 'soon' && <span class="soon-tag">Coming soon</span>}</span>
+                <span class="blurb">{GUIDES[c.id].blurb}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </>
+  ))}
+</Docs>

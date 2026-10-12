@@ -12,7 +12,7 @@ Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mir
 | `npm run dev` | Dev server on http://localhost:4321 |
 | `npm run build` | Static build to `dist/` |
 | `npm run check` | Type-check (`astro check`) |
-| `npm run verify` | Honesty audit of `dist/index.html` (run after build) |
+| `npm run verify` | Honesty audit of the built home, `/channels/*` and `/docs/*` pages (run after build) |
 | `npm run brand` | Regenerate trimmed logos, favicons and the OG card from `/logo` |
 
 ## Deploying
@@ -52,6 +52,15 @@ services: `dashboard` on `app.` hosts (`app.truplexy.com`), `site` on every othe
 ## Website SDK
 
 `sdk/` holds the website chat SDK: the `<truplexy-chat>` widget (`@truplexy/web`), React and Vue wrappers, the server route (`@truplexy/server`) and a WordPress plugin. It is its own npm workspace. Run `cd sdk && npm install && npm test`, and see `sdk/README.md`. The typed server client and contact-based identity flow are documented in `sdk/CHAT_API.md`; `API_REFERENCE.md` is the API contract.
+
+## Channel pages and docs
+
+Every channel in `src/data/channels.ts` gets two pages, both on the docs layout (`src/layouts/Docs.astro` + `src/styles/docs.css`: hero, sticky "On this page" list, `.docs` article):
+
+- `/channels/<id>` (`src/pages/channels/[id].astro`): what Truplexy does there, how it works, plans, FAQ. `/channels` lists them all.
+- `/docs/<id>` (`src/pages/docs/[id].astro`): the setup guide, with server code per language. `/docs` lists them all. Website chat keeps its own, longer guide at `/docs/web-sdk`.
+
+Adding a channel: add it to the registry, then add its entry to `GUIDES` in `src/data/channel-guides.ts` (`npm run check` fails on a missing one). Plan availability is read from `COMPARISON` in `src/data/pricing.ts` by `planLabel`. The server code is not written here: `src/data/snippets.ts` arranges the dashboard's snippet packs (`dashboard/src/features/integrations/snippets/`) into tabs, so the dashboard guides and these pages share one source. The provider-side steps in `channel-guides.ts` extend `dashboard/src/features/integrations/catalog.tsx`; update both when a platform's setup changes. Those snippet files must stay free of dashboard-only imports (`@/…`), since the site imports them.
 
 Its install guide is `src/pages/docs/web-sdk.astro` (`/docs/web-sdk`). That page reads the framework recipes from `dashboard/src/features/integrations/snippets/web-sdk.ts`, the same file the dashboard's Website chat guide uses. Its live demo widget is built from `sdk/packages/web/src`.
 

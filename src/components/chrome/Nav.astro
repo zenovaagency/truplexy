@@ -16,7 +16,7 @@ const soonText = soonNamed.map((c) => c.name).join(', ') + (soonMore > 0 ? ` and
 
 const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 const href = (h: string) => navHref(h, path === '/');
-const current = (h: string) => (h === path ? 'page' : undefined);
+const current = (h: string) => (h === path || (h === '/docs' && path.startsWith('/docs')) ? 'page' : undefined);
 
 const link =
   'inline-flex items-center gap-1 rounded-lg px-3 py-2 text-[0.875rem] font-medium text-ink-muted transition-colors hover:text-ink';
@@ -48,14 +48,16 @@ const link =
                       <p class="mono flex items-center gap-2 text-[0.68rem] text-ink-faint"><span class="live-dot" aria-hidden="true"></span>Live now</p>
                       <ul class:list={['mt-3 grid gap-1', !hasSoon && 'grid-cols-2']}>
                         {LIVE_CHANNELS.map((c) => (
-                          <li class="flex items-center gap-3 rounded-lg px-2 py-1.5">
-                            <span class="grid h-8 w-8 flex-none place-items-center rounded-lg border border-line bg-surface-2">
-                              <ChannelIcon id={c.id} size={15} />
-                            </span>
-                            <span class="leading-tight">
-                              <span class="block text-[0.875rem] font-semibold text-ink">{c.name}</span>
-                              {c.note && <span class="block text-[0.75rem] text-ink-faint">{c.note}</span>}
-                            </span>
+                          <li>
+                            <a href={`/channels/${c.id}`} data-dd-link class="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2">
+                              <span class="grid h-8 w-8 flex-none place-items-center rounded-lg border border-line bg-surface-2">
+                                <ChannelIcon id={c.id} size={15} />
+                              </span>
+                              <span class="leading-tight">
+                                <span class="block text-[0.875rem] font-semibold text-ink">{c.name}</span>
+                                {c.note && <span class="block text-[0.75rem] text-ink-faint">{c.note}</span>}
+                              </span>
+                            </a>
                           </li>
                         ))}
                       </ul>
@@ -72,13 +74,13 @@ const link =
                           ))}
                         </div>
                         <p class="mt-3 text-[0.8125rem] leading-snug text-ink-muted">{soonText}.</p>
-                        <a href={href('#channels')} data-dd-link class="mt-auto inline-flex items-center gap-1.5 pt-5 text-[0.8125rem] font-semibold text-accent hover:underline">
+                        <a href="/channels" data-dd-link class="mt-auto inline-flex items-center gap-1.5 pt-5 text-[0.8125rem] font-semibold text-accent hover:underline">
                           See all channels
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13m0 0-5.5-5.5M18 12l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
                         </a>
                       </div>
                     ) : (
-                      <a href={href('#channels')} data-dd-link class="mx-5 mb-3 inline-flex items-center gap-1.5 justify-self-start text-[0.8125rem] font-semibold text-accent hover:underline">
+                      <a href="/channels" data-dd-link class="mx-5 mb-3 inline-flex items-center gap-1.5 justify-self-start text-[0.8125rem] font-semibold text-accent hover:underline">
                         See all channels
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13m0 0-5.5-5.5M18 12l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
                       </a>

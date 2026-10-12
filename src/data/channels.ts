@@ -24,6 +24,7 @@ export type ChannelId =
   | 'email'
   | 'shopify'
   | 'woocommerce'
+  | 'wordpress'
   | 'hubspot'
   | 'zendesk'
   | 'slack'
@@ -68,6 +69,7 @@ export const CHANNELS: readonly Channel[] = [
   // Business platforms
   { id: 'shopify', name: 'Shopify', group: 'business', status: 'live', icon: '/brands/shopify.svg', color: INK },
   { id: 'woocommerce', name: 'WooCommerce', group: 'business', status: 'live', icon: '/brands/woocommerce.svg', color: INK },
+  { id: 'wordpress', name: 'WordPress', group: 'business', status: 'live', icon: '/brands/wordpress.svg', color: INK },
   { id: 'hubspot', name: 'HubSpot', group: 'business', status: 'live', icon: '/brands/hubspot.svg', color: INK },
   { id: 'zendesk', name: 'Zendesk', group: 'business', status: 'live', icon: '/brands/zendesk.svg', color: INK },
 

@@ -1,0 +1,61 @@
+---
+import Base from './Base.astro';
+import Nav from '../components/chrome/Nav.astro';
+import Footer from '../components/chrome/Footer.astro';
+import '../styles/docs.css';
+
+/**
+ * The documentation page shell: hero, sticky "On this page" list and the
+ * `.docs` article. /docs/web-sdk set the pattern; every docs and channel
+ * page uses it.
+ */
+interface Props {
+  title: string;
+  description: string;
+  breadcrumbs: { name: string; path: string }[];
+  eyebrow: string;
+  heading: string;
+  lede: string;
+  /** [anchor id, label] pairs for the "On this page" list. */
+  toc: readonly (readonly string[])[];
+}
+const { title, description, breadcrumbs, eyebrow, heading, lede, toc } = Astro.props;
+---
+
+<Base title={title} description={description} breadcrumbs={breadcrumbs}>
+  <Nav />
+  <main id="main" class="relative overflow-x-clip">
+    <section class="relative pb-14 pt-[calc(var(--nav-h)+clamp(3rem,6vw,5rem))]" aria-labelledby="docs-title">
+      <div class="aurora" aria-hidden="true"></div>
+      <div class="container-t relative">
+        <div class="max-w-[760px]">
+          <slot name="hero-top" />
+          <p class="eyebrow">{eyebrow}</p>
+          <h1 id="docs-title" class="display mt-5 text-balance text-[clamp(2.2rem,1.5rem+2.6vw,3.4rem)]">{heading}</h1>
+          <p class="lede mt-5 max-w-[640px] text-pretty">{lede}</p>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <slot name="hero-actions" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="container-t pb-[var(--section-y)]">
+      <div class="grid gap-12 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav class="hidden lg:block" aria-label="On this page">
+          <ul class="sticky top-[calc(var(--nav-h)+2rem)] grid gap-1 border-l border-line text-[0.875rem]">
+            {toc.map(([id, label]) => (
+              <li><a href={`#${id}`} class="-ml-px block border-l border-transparent py-1 pl-4 text-ink-muted transition-colors hover:border-ink hover:text-ink">{label}</a></li>
+            ))}
+          </ul>
+        </nav>
+
+        <article class="docs min-w-0 max-w-[820px]">
+          <slot />
+        </article>
+      </div>
+    </div>
+  </main>
+  <Footer />
+  <slot name="after" />
+</Base>

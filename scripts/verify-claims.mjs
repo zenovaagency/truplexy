@@ -4,14 +4,15 @@
  *   npm run verify
  *
  * 1. Every visible mention of a channel that is not live must sit close to a
- *    "Coming soon" label (badge, diagram node, status row or footer list).
+ *    "Coming soon" label (badge, diagram node, status row or footer list). This
+ *    covers the homepage and every built page under /channels and /docs.
  * 2. No chat bubble (demo conversation) may mention a channel that is not live.
  *
  * The list of non-live channels comes straight from the registry in
  * src/data/channels.ts (Node strips its types on import), so flipping a
  * channel to 'live' there updates this check too.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { SOON_CHANNELS } from '../src/data/channels.ts';
 
 const NOT_LIVE = SOON_CHANNELS.map((c) => c.name);
@@ -20,34 +21,58 @@ const WINDOW = 700; // characters of markup either side of a mention
 // Scripts, styles, comments and inline SVG carry no visible text (no
 // component uses SVG <text>); SVG path data would only pad the distance
 // between a channel name and its label.
-const html = readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8')
-  .replace(/<script[\s\S]*?<\/script>/g, '')
-  .replace(/<style[\s\S]*?<\/style>/g, '')
-  .replace(/<!--[\s\S]*?-->/g, '')
-  .replace(/<svg[\s\S]*?<\/svg>/g, '');
+const dist = new URL('../dist/', import.meta.url);
+const strip = (file) =>
+  readFileSync(file, 'utf8')
+    .replace(/<script[\s\S]*?<\/script>/g, '')
+    .replace(/<style[\s\S]*?<\/style>/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<svg[\s\S]*?<\/svg>/g, '');
+
+/** Every index.html under dist/<dir>. */
+function pagesUnder(dir) {
+  const root = new URL(dir, dist);
+  const walk = (path) =>
+    readdirSync(path).flatMap((name) => {
+      const full = new URL(name + (statSync(new URL(name, path)).isDirectory() ? '/' : ''), path);
+      return full.pathname.endsWith('/') ? walk(full) : name === 'index.html' ? [full] : [];
+    });
+  try {
+    return walk(root);
+  } catch {
+    return [];
+  }
+}
+
+const pages = [new URL('index.html', dist), ...pagesUnder('channels/'), ...pagesUnder('docs/')];
+const html = strip(pages[0]);
 
 let failures = 0;
 
 for (const name of NOT_LIVE) {
-  let from = 0;
   let count = 0;
-  for (;;) {
-    const i = html.indexOf(name, from);
-    if (i === -1) break;
-    from = i + name.length;
-    // Skip occurrences inside attribute values (aria-labels, titles, classes).
-    const lastOpen = html.lastIndexOf('<', i);
-    const lastClose = html.lastIndexOf('>', i);
-    if (lastOpen > lastClose) continue;
-    count++;
-    const near = html.slice(Math.max(0, i - WINDOW), i + WINDOW);
-    if (!/Coming soon/i.test(near)) {
-      failures++;
-      console.log(`✗ "${name}" mentioned without a nearby Coming soon label: …${html.slice(i - 60, i + 60).replace(/\s+/g, ' ')}…`);
+  for (const file of pages) {
+    const page = strip(file);
+    let from = 0;
+    for (;;) {
+      const i = page.indexOf(name, from);
+      if (i === -1) break;
+      from = i + name.length;
+      // Skip occurrences inside attribute values (aria-labels, titles, classes).
+      const lastOpen = page.lastIndexOf('<', i);
+      const lastClose = page.lastIndexOf('>', i);
+      if (lastOpen > lastClose) continue;
+      count++;
+      const near = page.slice(Math.max(0, i - WINDOW), i + WINDOW);
+      if (!/Coming soon/i.test(near)) {
+        failures++;
+        console.log(`✗ "${name}" mentioned without a nearby Coming soon label in ${file.pathname.split('/dist/')[1]}: …${page.slice(i - 60, i + 60).replace(/\s+/g, ' ')}…`);
+      }
     }
   }
   console.log(`  ${name.padEnd(16)} ${count} visible mention(s)`);
 }
+console.log(`  ${pages.length} pages checked`);
 
 // Demo text: chat bubbles, plus any element marked data-demo (the day-cycle's transcript).
 const bubbles = [...html.matchAll(/class="[^"]*\bbubble\b[^"]*"[^>]*>([\s\S]*?)<\/div>/g)].map((m) => m[1]);

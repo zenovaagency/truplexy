@@ -1,0 +1,118 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import Button from '../../components/ui/Button.astro';
+import ChannelIcon from '../../components/ui/ChannelIcon';
+import DataTable from '../../components/docs/DataTable.astro';
+import Flow from '../../components/docs/Flow.astro';
+import { SITE } from '../../data/site';
+import { CHANNELS, GROUP_LABEL, channel, type ChannelId } from '../../data/channels';
+import { GUIDES, availability, docsHref, planRows } from '../../data/channel-guides';
+
+export function getStaticPaths() {
+  return CHANNELS.map((c) => ({ params: { id: c.id } }));
+}
+
+const id = Astro.params.id as ChannelId;
+const ch = channel(id);
+const guide = GUIDES[id];
+const plan = availability(guide.planLabel);
+const rows = planRows(guide.planLabel);
+const live = ch.status === 'live';
+
+const toc: [string, string][] = [
+  ['what', `What Truplexy does on ${ch.name}`],
+  ['how', 'How it works'],
+  ['continuity', 'One conversation, every channel'],
+  ['plans', 'Plans'],
+  ['faq', 'Questions'],
+  ['related', 'Related channels'],
+];
+---
+
+<Docs
+  title={`${ch.name} — Truplexy`}
+  description={guide.summary}
+  breadcrumbs={[{ name: 'Channels', path: '/channels' }, { name: ch.name, path: `/channels/${id}` }]}
+  eyebrow={GROUP_LABEL[ch.group]}
+  heading={ch.name}
+  lede={guide.summary}
+  toc={toc}
+>
+  <Fragment slot="hero-top">
+    <div class="mb-5 flex items-center gap-3">
+      <span class="grid h-12 w-12 place-items-center rounded-2xl border border-line bg-surface shadow-sm" aria-hidden="true">
+        <ChannelIcon id={id} size={24} />
+      </span>
+      {live
+        ? <span class="chip"><span class="live-dot" aria-hidden="true"></span>Live now</span>
+        : <span class="soon-tag">Coming soon</span>}
+    </div>
+  </Fragment>
+  <Fragment slot="hero-actions">
+    {live ? (
+      <>
+        <Button href={docsHref(id)}>Read the setup guide</Button>
+        <Button href={`${SITE.dashboardUrl}/`} variant="ghost" arrow={false}>Get a chat key</Button>
+      </>
+    ) : (
+      <Button href={SITE.signupUrl}>Get started</Button>
+    )}
+  </Fragment>
+
+  <h2 id="what">What Truplexy does on {ch.name}</h2>
+  <ul>
+    {guide.capabilities.map((c) => <li set:html={c.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/`([^`]+)`/g, '<code>$1</code>')} />)}
+  </ul>
+
+  <h2 id="how">How it works</h2>
+  <Flow nodes={guide.flow} description={guide.flowLabel} />
+  <p>
+    {guide.kind === 'customer' && <>Your server sits in between and holds the chat key, so nothing secret reaches {ch.name}. When your team replies from Tickets, Truplexy signs a webhook to your server so it can deliver the message.</>}
+    {guide.kind === 'widget' && <>The chat key stays on your server, and your team’s replies show up in the chat by themselves.</>}
+    {guide.kind === 'team' && <>Customers stay on their own channel. {ch.name} is only where your team sees escalations and answers them.</>}
+    {guide.kind === 'developer' && <>Your server holds the chat key. Nothing secret ever reaches a browser or an app.</>}
+    {' '}The <a href={docsHref(id)}>setup guide</a> has every step and the code.
+  </p>
+
+  <h2 id="continuity">One conversation, every channel</h2>
+  <p>
+    {ch.name} is one of {CHANNELS.length} channels that share a single customer identity and history. A customer who writes on {ch.name} today and somewhere else tomorrow is the same
+    customer, with the same context, and your team sees the whole thread in one place.
+  </p>
+  <p>
+    When the assistant can’t help or the customer asks for a person, the conversation is handed to your team with everything said so far. They reply from Tickets, and the reply
+    goes back out on the channel the customer used.
+  </p>
+
+  <h2 id="plans">Plans</h2>
+  <p>
+    {ch.name} is available on {plan.text === 'Every plan' ? <strong>every plan</strong> : <strong>{plan.text}</strong>}.
+    {guide.planLabel === 'Telegram' || guide.planLabel === 'Discord' ? ' The Free plan includes one active channel connection: website chat, Telegram or Discord.' : ''}
+    {' '}See <a href="/pricing">pricing</a> for the limits on each plan.
+  </p>
+  {rows.length > 0 && <DataTable headers={['Plan', guide.planLabel]} rows={rows} codeFirst={false} />}
+
+  <h2 id="faq">Questions</h2>
+  {guide.faq.map(([q, a]) => (
+    <>
+      <h3>{q}</h3>
+      <p>{a}</p>
+    </>
+  ))}
+
+  <h2 id="related">Related channels</h2>
+  <ul class="cards">
+    {guide.related.map((r) => (
+      <li>
+        <a href={`/channels/${r}`} class="card-link">
+          <span class="icon"><ChannelIcon id={r} size={18} /></span>
+          <span>
+            <span class="name">{channel(r).name}</span>
+            <span class="blurb">{GUIDES[r].blurb}</span>
+          </span>
+        </a>
+      </li>
+    ))}
+  </ul>
+  <p><a href="/channels">See all channels →</a></p>
+</Docs>

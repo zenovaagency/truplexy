@@ -1,0 +1,281 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import Button from '../../components/ui/Button.astro';
+import ChannelIcon from '../../components/ui/ChannelIcon';
+import CodeTabs from '../../components/docs/CodeTabs.astro';
+import DataTable from '../../components/docs/DataTable.astro';
+import Flow from '../../components/docs/Flow.astro';
+import { SITE } from '../../data/site';
+import { channel, type ChannelId } from '../../data/channels';
+import { COMMON_TROUBLESHOOTING, DOC_CHANNEL_IDS, GUIDES, availability, docsHref } from '../../data/channel-guides';
+import { codeTabs, webhookTabs, verifyTabs } from '../../data/snippets';
+import { CHAT_API_ENDPOINTS, CUSTOMER_RULES } from '../../../dashboard/src/features/integrations/snippets/chat-api';
+
+export function getStaticPaths() {
+  return DOC_CHANNEL_IDS.map((id) => ({ params: { id } }));
+}
+
+const id = Astro.params.id as ChannelId;
+const ch = channel(id);
+const guide = GUIDES[id];
+const { kind } = guide;
+const plan = availability(guide.planLabel);
+
+const isApi = id === 'api';
+const isHooks = id === 'webhooks';
+const isCustom = id === 'custom';
+// Channels whose messages you relay (customers write there), or that you build yourself.
+const relays = kind === 'customer' || isCustom;
+
+const code = codeTabs(id);
+const hooks = webhookTabs(id);
+
+const tools = id === 'shopify' || id === 'woocommerce';
+
+const events = [
+  ['message.created', 'A person replied to a ticket of a chat API conversation.', '{ conversation_id, message }'],
+  ['ticket.updated', 'Such a ticket was opened, or its status or escalation changed.', '{ conversation_id, ticket }'],
+];
+const headers = [
+  ['X-Truplexy-Event', 'The event type.'],
+  ['X-Truplexy-Delivery', 'The event ID. A retry reuses it, so deduplicate on it.'],
+  ['X-Truplexy-Signature', '`t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">`'],
+];
+
+const platformHeading = kind === 'widget' ? '2. Install the plugin' : isCustom ? '2. Connect your platform' : `2. Set up ${ch.name}`;
+const toc: [string, string][] = [['how', 'How it works']];
+if (isHooks) {
+  toc.push(['setup', '1. Create the webhook'], ['events', 'Events'], ['delivery', 'Delivery'], ['verify', 'Verify the signature'], ['receiver', 'A receiver']);
+} else {
+  toc.push(['key', '1. Issue a chat key']);
+  if (isApi) toc.push(['calls', '2. Call the chat API'], ['code', 'Server code'], ['status', 'Reading the reply']);
+  else {
+    toc.push(['platform', platformHeading]);
+    if (code.length) toc.push(['code', kind === 'widget' ? 'The plugin' : '3. Add the server code']);
+    if (hooks.length) toc.push(['replies', kind === 'team' ? '4. Bring escalations to your team' : '4. Send team replies back']);
+    else if (kind === 'widget') toc.push(['replies', 'Your team’s replies']);
+  }
+  if (relays || isApi) toc.push(['identity', 'Customer identity']);
+}
+toc.push(['try', 'Try it'], ['troubleshooting', 'Troubleshooting'], ['next', 'Next steps']);
+
+const troubleshooting = [...guide.troubleshooting, ...(relays && !isCustom ? COMMON_TROUBLESHOOTING : [])];
+const channelLabel = guide.channelType === 'website' ? 'Website' : guide.channelType === 'custom' ? 'Custom' : ch.name;
+const where = kind === 'widget' ? 'your site' : isCustom ? 'your platform' : ch.name;
+const related = guide.related.filter((r) => r !== id);
+---
+
+<Docs
+  title={`${ch.name} setup guide — Truplexy`}
+  description={`Connect ${ch.name} to Truplexy: ${guide.summary}`}
+  breadcrumbs={[{ name: 'Docs', path: '/docs' }, { name: `${ch.name} guide`, path: `/docs/${id}` }]}
+  eyebrow={`Setup guide · ${ch.name}`}
+  heading={isHooks ? 'Receive Truplexy webhooks' : isApi ? 'Build on the Truplexy chat API' : isCustom ? 'Build a custom integration' : kind === 'team' ? `Work from ${ch.name}` : `Connect ${ch.name} to Truplexy`}
+  lede={guide.summary}
+  toc={toc}
+>
+  <Fragment slot="hero-top">
+    <div class="mb-5 flex items-center gap-3">
+      <span class="grid h-12 w-12 place-items-center rounded-2xl border border-line bg-surface shadow-sm" aria-hidden="true">
+        <ChannelIcon id={id} size={24} />
+      </span>
+      {ch.status === 'soon' && <span class="soon-tag">Coming soon</span>}
+    </div>
+  </Fragment>
+  <Fragment slot="hero-actions">
+    <Button href={`${SITE.dashboardUrl}/`}>{isHooks ? 'Set up the webhook' : 'Get a chat key'}</Button>
+    <Button href={`/channels/${id}`} variant="ghost" arrow={false}>About {ch.name}</Button>
+  </Fragment>
+
+  <h2 id="how">How it works</h2>
+  <Flow nodes={guide.flow} description={guide.flowLabel} />
+  {kind === 'customer' && (
+    <p>
+      {ch.name} sends each message to your server, your server asks Truplexy with a chat key, and sends the reply back. When your team replies from Tickets, Truplexy signs a
+      webhook to your server so it can deliver the message. Available on {plan.text === 'Every plan' ? 'every plan' : <strong>{plan.text}</strong>}{plan.detail ? ` (${plan.detail})` : ''}.
+    </p>
+  )}
+  {kind === 'widget' && (
+    <p>
+      The chat runs on your site and picks up your team’s replies itself, so there’s no webhook to set up. Available on {plan.text === 'Every plan' ? 'every plan' : <strong>{plan.text}</strong>}.
+    </p>
+  )}
+  {kind === 'team' && (
+    <p>
+      Customers never see {ch.name}. When a ticket is escalated, Truplexy calls your webhook; your server posts it for your team, and a teammate’s reply goes back to the customer on the
+      channel they came from. Available on <strong>{plan.text}</strong>.
+    </p>
+  )}
+  {kind === 'developer' && !isHooks && (
+    <p>
+      Your server holds the chat key and calls the Truplexy chat API; your product decides how messages get to the customer. Available on <strong>{plan.text}</strong>{plan.detail ? ` (${plan.detail})` : ''}.
+    </p>
+  )}
+  {isHooks && (
+    <p>
+      Webhooks tell your integration what your team did. They are sent for conversations started through the chat API, and are available on <strong>{plan.text}</strong>.
+    </p>
+  )}
+
+  {isHooks ? (
+    <Fragment>
+      <h2 id="setup">1. Create the webhook</h2>
+      <ol>
+        {guide.steps.map((s) => <li>{s}</li>)}
+      </ol>
+      <p>Each bot has one webhook. The URL is <code>https://</code>, up to 2000 characters, with no user name, password or <code>#</code> fragment. Saving with <code>enabled: false</code> pauses deliveries.</p>
+
+      <h2 id="events">Events</h2>
+      <DataTable headers={['Event', 'When', 'data']} rows={events} />
+      <p>Each delivery is <code>{'{id, type, created_at, data}'}</code>. Notes, playground conversations and anything the integration did itself are not delivered.</p>
+
+      <h2 id="delivery">Delivery</h2>
+      <DataTable headers={['Header', 'Value']} rows={headers} />
+      <p>Your receiver must answer <strong>2xx within 2.5 seconds</strong>. After no answer, a <code>429</code> or a <code>5xx</code>, the event is sent once more with the same delivery ID. A failed delivery shows in the webhook’s last delivery and never undoes the team’s change.</p>
+
+      <h2 id="verify">Verify the signature</h2>
+      <p>Compute the HMAC-SHA256 of <code>"&lt;t&gt;.&lt;raw body&gt;"</code> with your signing secret, compare it in constant time, and reject a <code>t</code> more than 5 minutes old. Use the raw bytes of the body, not re-serialised JSON.</p>
+      <CodeTabs group="verify" remember="lang" label="Your server language" tabs={verifyTabs()} />
+
+      <h2 id="receiver">A receiver</h2>
+      <p>A complete receiver: it verifies the delivery, acknowledges at once, then acts on <code>message.created</code>.</p>
+      {hooks.length > 0 && <CodeTabs group="receiver" remember="lang" label="Your server language" tabs={hooks} />}
+    </Fragment>
+  ) : (
+    <Fragment>
+      <h2 id="key">1. Issue a chat key</h2>
+      <ol>
+        <li>In the <a href={SITE.dashboardUrl}>dashboard</a>, open <strong>Integrations → Guides → {ch.name}</strong>.</li>
+        {guide.channelType
+          ? <li>Add a <strong>{channelLabel}</strong> channel, so tickets show where they came from, and issue its chat key.</li>
+          : <li>Issue a chat key for your server.</li>}
+        <li>Store it on your server as <code>TRUPLEXY_CHAT_KEY</code>, in <code>.env</code> or your host’s settings. Never put it in a website, mobile app or theme file: anyone could copy it.</li>
+      </ol>
+
+      {isApi ? (
+        <Fragment>
+          <h2 id="calls">2. Call the chat API</h2>
+          <ol>
+            {guide.steps.map((s) => <li>{s}</li>)}
+          </ol>
+          <DataTable
+            headers={['Method', 'Endpoint', 'Behavior']}
+            rows={CHAT_API_ENDPOINTS.map(([method, path, sdk, description]) => [sdk, `\`${method} ${path}\``, description])}
+          />
+          <p>A channel-bound key supplies the channel automatically; <code>channel_id</code> can override it. Disabled channels return <code>CHANNEL_DISABLED</code>.</p>
+
+          <h2 id="code">Server code</h2>
+          <p>Server code only: never call the chat API from a browser or an app.</p>
+          <CodeTabs group="code" remember="lang" label="Your server language" tabs={code} />
+
+          <h2 id="status">Reading the reply</h2>
+          <p>Show <code>reply</code> for answered, clarification and no-answer statuses. Offer a handoff button for <code>handoff_offered</code>: a handoff notifies the team while the AI continues, while an escalation silences the AI. For <code>escalated</code> and <code>context</code> the reply is null: send nothing.</p>
+        </Fragment>
+      ) : (
+        <Fragment>
+          <h2 id="platform">{platformHeading}</h2>
+          {guide.steps.length > 0 && (
+            <ol>
+              {guide.steps.map((s) => <li>{s}</li>)}
+            </ol>
+          )}
+          {guide.env.length > 0 && (
+            <Fragment>
+              <p>Environment variables the code reads, besides <code>TRUPLEXY_CHAT_KEY</code>:</p>
+              <DataTable headers={['Variable', 'What it is']} rows={guide.env} />
+            </Fragment>
+          )}
+
+          {code.length > 0 && (
+            <Fragment>
+              <h2 id="code">{kind === 'widget' ? 'The plugin' : '3. Add the server code'}</h2>
+              {kind === 'widget' ? (
+                <p>One file is the route and the widget. Save it, activate it, and the chat button appears on every page.</p>
+              ) : kind === 'team' ? (
+                <p>This code takes a teammate’s reply from {ch.name} and records it with <code>POST /conversations/{'{id}'}/replies</code>, so the customer receives it. Keep the mapping from {ch.name} threads to Truplexy conversations in your database.</p>
+              ) : (
+                <p>This handler keeps one Truplexy conversation per customer thread, asks Truplexy for the reply and sends it back on {where}. The second file calls the chat API; it is the same on every channel. The sample keeps threads in memory: use your database in production.</p>
+              )}
+              <CodeTabs group="code" remember="lang" label="Your server language" tabs={code} />
+              {tools && <p>Add order lookup and returns as tools under <strong>Tools</strong> in the dashboard, calling the {id === 'shopify' ? 'Shopify Admin' : 'WooCommerce REST'} API from your server.</p>}
+            </Fragment>
+          )}
+
+          {hooks.length > 0 ? (
+            <Fragment>
+              <h2 id="replies">{kind === 'team' ? '4. Bring escalations to your team' : '4. Send team replies back'}</h2>
+              {kind === 'team' ? (
+                <p>When a ticket is escalated, Truplexy calls your webhook with <code>ticket.updated</code> and <code>escalated: true</code>. Verify the signature, then post it for your team.</p>
+              ) : (
+                <p>When someone replies from Tickets, Truplexy calls your webhook with <code>message.created</code>. Verify the signature, then deliver the message on {where}.</p>
+              )}
+              <p>Set the webhook up under <strong>Integrations → Webhook</strong>; the <a href="/docs/webhooks">webhooks guide</a> has the full contract. This receiver and the signature check go with the code above.</p>
+              <CodeTabs group="receiver" remember="lang" label="Your server language" tabs={hooks} />
+            </Fragment>
+          ) : kind === 'widget' ? (
+            <Fragment>
+              <h2 id="replies">Your team’s replies</h2>
+              <p>When someone replies from Tickets, the chat shows it live, or within a few seconds where live updates aren’t available. Visitors keep their conversation when they reload or come back later.</p>
+            </Fragment>
+          ) : null}
+        </Fragment>
+      )}
+
+      {(relays || isApi) && (
+        <Fragment>
+          <h2 id="identity">Customer identity</h2>
+          <p>
+            Truplexy matches people by their contacts, so one person across channels is one customer. {guide.contactType && (kind === 'customer' ? <Fragment>On {ch.name}, send the person as a <code>{guide.contactType}</code> contact; </Fragment> : <Fragment>Contact types are yours to choose: <code>{guide.contactType}</code> works well for your own users' IDs; </Fragment>)}add any others you know, such as an email address.
+            Create the conversation with the returned <code>customer_id</code>, and its tickets inherit the customer and the channel.
+          </p>
+          <ul>{CUSTOMER_RULES.map((rule) => <li>{rule}</li>)}</ul>
+        </Fragment>
+      )}
+    </Fragment>
+  )}
+
+  <h2 id="try">Try it</h2>
+  {isHooks ? (
+    <ul>
+      <li>Open <strong>Integrations → Webhook</strong> and use <strong>Send test</strong>. Your receiver should get a <code>ping</code> and answer 2xx, even while deliveries are paused.</li>
+      <li>Reply to a ticket from Tickets and check that <code>message.created</code> arrives with a valid signature.</li>
+      <li>Escalate a ticket and check that <code>ticket.updated</code> arrives.</li>
+    </ul>
+  ) : kind === 'team' ? (
+    <ul>
+      <li>Escalate a conversation. It should appear in {ch.name} within a few seconds.</li>
+      <li>Reply in its thread. The customer should receive your reply on their own channel.</li>
+      <li>Open the ticket in Tickets and check that your reply is recorded.</li>
+    </ul>
+  ) : (
+    <ul>
+      <li>Send a message on {where}. The reply should arrive within a few seconds.</li>
+      {(relays || isApi) && <li>For an identified customer, open Customers and check the contact and conversation link. Any tickets should carry that customer too.</li>}
+      <li>Ask for a person. The conversation shows up under Tickets → Handoffs.</li>
+      <li>Take it over and reply from the ticket. Your reply should appear on {where}.</li>
+    </ul>
+  )}
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <DataTable headers={['Problem', 'Fix']} rows={troubleshooting} codeFirst={false} />
+  <p>Still stuck? Email <a href={`mailto:${SITE.email}`}>{SITE.email}</a> with the <code>request_id</code> from the error.</p>
+
+  <h2 id="next">Next steps</h2>
+  <ul class="cards">
+    {[
+      ...(isHooks ? [] : kind === 'widget' || isApi ? [] : [{ href: '/docs/webhooks', name: 'Webhooks', blurb: GUIDES.webhooks.blurb, id: 'webhooks' as ChannelId }]),
+      ...(id === 'web' || kind === 'widget' ? [{ href: '/docs/web-sdk', name: 'Website chat SDK', blurb: 'Every widget option, event and framework.', id: 'web' as ChannelId }] : []),
+      ...related.map((r) => ({ href: docsHref(r), name: channel(r).name, blurb: GUIDES[r].blurb, id: r })),
+    ].slice(0, 6).map((c) => (
+      <li>
+        <a href={c.href} class="card-link">
+          <span class="icon"><ChannelIcon id={c.id} size={18} /></span>
+          <span>
+            <span class="name">{c.name}</span>
+            <span class="blurb">{c.blurb}</span>
+          </span>
+        </a>
+      </li>
+    ))}
+  </ul>
+</Docs>

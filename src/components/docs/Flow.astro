@@ -1,0 +1,32 @@
+---
+/**
+ * The three-node "how it works" diagram from the web SDK guide: where the
+ * customer is, what your server does, what Truplexy does. The middle node is
+ * the accent one.
+ */
+export interface FlowNode {
+  /** Small mono label above the title. */
+  label: string;
+  title: string;
+  text: string;
+}
+interface Props {
+  nodes: readonly [FlowNode, FlowNode, FlowNode];
+  /** Spoken description of the whole diagram. */
+  description: string;
+}
+const { nodes, description } = Astro.props;
+---
+
+<div class="flow" role="img" aria-label={description}>
+  {nodes.map((n, i) => (
+    <>
+      {i > 0 && <span class="arrow" aria-hidden="true"></span>}
+      <div class:list={['node', i === 1 && 'node-accent']}>
+        <p class="mono">{n.label}</p>
+        <p class="node-title">{n.title}</p>
+        <p>{n.text}</p>
+      </div>
+    </>
+  ))}
+</div>
