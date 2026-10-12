@@ -2,6 +2,7 @@
 import Logo from './Logo.astro';
 import { NAV, SITE, navHref } from '../../data/site';
 import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
+import { channelHref } from '../../data/setup-guides';
 
 const year = new Date().getFullYear();
 const onHome = Astro.url.pathname === '/';
@@ -36,7 +37,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
         <ul class:list={['mt-4 text-[0.95rem]', SOON_CHANNELS.length > 0 ? 'space-y-2.5' : 'grid grid-cols-2 gap-x-5 gap-y-2.5 !text-[0.875rem]']}>
           {LIVE_CHANNELS.map((c) => (
             <li class="flex items-center gap-2">
-              <a href={`/channels/${c.id}`} class={link}>{c.name}</a>
+              <a href={channelHref(c.id)} class={link}>{c.name}</a>
               {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" title="Live" aria-label="Live"></span>}
             </li>
           ))}

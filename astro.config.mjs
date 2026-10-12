@@ -18,8 +18,8 @@ const PAGE_SOURCES = {
   '/': ['src/pages/index.astro', 'src/components/home', 'src/data'],
   '/pricing': ['src/pages/pricing.astro', 'src/components/pricing', 'src/data/pricing.ts', 'src/data/site.ts'],
   '/docs/web-sdk': ['src/pages/docs/web-sdk.astro', 'src/components/docs', 'src/layouts/Docs.astro', 'src/styles/docs.css', 'dashboard/src/features/integrations/snippets/web-sdk.ts'],
-  '/docs': ['src/pages/docs/index.astro', 'src/data/channel-guides.ts', 'src/data/channels.ts'],
-  '/channels': ['src/pages/channels/index.astro', 'src/data/channel-guides.ts', 'src/data/channels.ts'],
+  '/docs': ['src/pages/docs/index.astro', 'src/data/setup-guides.ts'],
+  '/channels': ['src/pages/channels/index.astro', 'src/data/channel-pages.ts', 'src/data/channels.ts'],
 };
 
 /**
@@ -28,13 +28,21 @@ const PAGE_SOURCES = {
  * @type {Record<string, string[]>}
  */
 const PREFIX_SOURCES = {
-  '/channels/': ['src/pages/channels/[id].astro', 'src/layouts/Docs.astro', 'src/styles/docs.css', 'src/data/channel-guides.ts', 'src/data/channels.ts', 'src/data/pricing.ts'],
+  '/channels/': [
+    'src/pages/channels/[id].astro',
+    'src/components/channels',
+    'src/layouts/Docs.astro',
+    'src/styles/docs.css',
+    'src/data/channel-pages.ts',
+    'src/data/channels.ts',
+    'src/data/pricing.ts',
+  ],
   '/docs/': [
     'src/pages/docs/[id].astro',
     'src/layouts/Docs.astro',
     'src/styles/docs.css',
     'src/components/docs',
-    'src/data/channel-guides.ts',
+    'src/data/setup-guides.ts',
     'src/data/channels.ts',
     'src/data/snippets.ts',
     'dashboard/src/features/integrations/snippets',

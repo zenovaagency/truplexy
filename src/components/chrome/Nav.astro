@@ -4,6 +4,7 @@ import Button from '../ui/Button.astro';
 import ChannelIcon from '../ui/ChannelIcon';
 import { NAV, SITE, navHref } from '../../data/site';
 import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
+import { channelHref } from '../../data/setup-guides';
 
 // Channels dropdown: every live channel by name, the flagship upcoming
 // messaging apps by name, the rest as a count. All read from the registry.
@@ -49,7 +50,7 @@ const link =
                       <ul class:list={['mt-3 grid gap-1', !hasSoon && 'grid-cols-2']}>
                         {LIVE_CHANNELS.map((c) => (
                           <li>
-                            <a href={`/channels/${c.id}`} data-dd-link class="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2">
+                            <a href={channelHref(c.id)} data-dd-link class="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2">
                               <span class="grid h-8 w-8 flex-none place-items-center rounded-lg border border-line bg-surface-2">
                                 <ChannelIcon id={c.id} size={15} />
                               </span>

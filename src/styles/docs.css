@@ -222,3 +222,16 @@
   font-size: 0.85rem;
   line-height: 1.45;
 }
+
+/* Key facts table (channel pages): row headers instead of a header row */
+.docs .glance th {
+  width: 32%;
+  border-top: 1px solid var(--color-line);
+  vertical-align: top;
+}
+.docs .glance td:first-of-type {
+  white-space: normal;
+}
+.docs .glance tr:first-child > * {
+  border-top: 0;
+}
