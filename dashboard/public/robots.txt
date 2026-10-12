@@ -1,0 +1,6 @@
+# The dashboard sits behind sign-in and must never appear in search. Crawling
+# stays allowed on purpose: every response carries `X-Robots-Tag: noindex`
+# (vercel.json) and index.html has <meta name="robots" content="noindex">,
+# and a crawler can only obey those if it is allowed to fetch the page.
+User-agent: *
+Allow: /

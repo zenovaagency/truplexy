@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://truplexy.com/sitemap-index.xml

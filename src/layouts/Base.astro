@@ -10,13 +10,27 @@ interface Props {
   description?: string;
   /** Pages that should stay out of search (404). */
   noindex?: boolean;
+  /**
+   * Trail from the home page to this one, for the BreadcrumbList schema.
+   * Home is added automatically; list only pages that exist.
+   */
+  breadcrumbs?: { name: string; path: string }[];
 }
-const { title = SITE.title, description = SITE.description, noindex = false } = Astro.props;
-const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url).href;
-const ogImage = new URL('/og-card.png', Astro.site ?? SITE.url).href;
+const { title = SITE.title, description = SITE.description, noindex = false, breadcrumbs } = Astro.props;
+const site = Astro.site ?? new URL(SITE.url);
+// One canonical form per page: no trailing slash (matches trailingSlash: 'never').
+const path = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const canonical = new URL(path, site).href;
+const ogImage = new URL('/og-card.png', site).href;
+const siteVerification = import.meta.env.PUBLIC_GOOGLE_SITE_VERIFICATION;
 
-// Organization + SoftwareApplication only. No offers, ratings or reviews:
-// none exist yet, and schema must describe what is visibly true on the page.
+const robots = noindex
+  ? 'noindex, follow'
+  : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+
+// Organization, WebSite and SoftwareApplication, plus breadcrumbs on inner
+// pages. No offers, ratings or reviews: schema must describe what is visibly
+// true on the page, and none of those exist yet.
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -29,6 +43,28 @@ const jsonLd = {
       slogan: SITE.tagline,
       email: SITE.email,
     },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE.url}/#website`,
+      name: SITE.name,
+      url: SITE.url,
+      description: SITE.description,
+      inLanguage: 'en',
+      publisher: { '@id': `${SITE.url}/#org` },
+    },
+    ...(breadcrumbs?.length
+      ? [
+          {
+            '@type': 'BreadcrumbList',
+            itemListElement: [{ name: 'Home', path: '/' }, ...breadcrumbs].map((crumb, i) => ({
+              '@type': 'ListItem',
+              position: i + 1,
+              name: crumb.name,
+              item: new URL(crumb.path, site).href,
+            })),
+          },
+        ]
+      : []),
     {
       '@type': 'SoftwareApplication',
       name: SITE.name,
@@ -58,8 +94,9 @@ const jsonLd = {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonical} />
-    {noindex && <meta name="robots" content="noindex" />}
+    {!noindex && <link rel="canonical" href={canonical} />}
+    <meta name="robots" content={robots} />
+    {siteVerification && <meta name="google-site-verification" content={siteVerification} />}
 
     <!-- Flag script support before first paint, so JS-only styles (e.g. the
          pricing toggle) apply without a flash. -->
@@ -78,7 +115,9 @@ const jsonLd = {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Truplexy — One conversation. Everywhere." />

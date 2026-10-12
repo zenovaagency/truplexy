@@ -5,6 +5,7 @@
       "root": ".",
       "framework": "astro",
       "routes": [
+        { "src": "^/(.+)/$", "status": 308, "headers": { "Location": "/$1" } },
         { "handle": "error" },
         { "src": "/(.*)", "status": 404, "dest": "/404.html" }
       ]
@@ -12,11 +13,25 @@
     "dashboard": {
       "root": "dashboard",
       "framework": "vite",
+      "headers": [
+        {
+          "source": "/(.*)",
+          "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+        }
+      ],
       "rewrites": [
         { "source": "/(.*)", "destination": "/index.html" }
       ]
     }
   },
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.truplexy.com" }],
+      "destination": "https://truplexy.com/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

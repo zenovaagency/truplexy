@@ -1,6 +1,11 @@
 {
+  "id": "/",
   "name": "Truplexy",
   "short_name": "Truplexy",
+  "description": "The AI customer-support layer that keeps one continuous conversation going across every channel.",
+  "lang": "en",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "/icon-192.png",

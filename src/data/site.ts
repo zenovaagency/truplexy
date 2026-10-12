@@ -1,8 +1,8 @@
 /**
  * Site-wide facts. Everything marked PLACEHOLDER is a stand-in until the real
  * value is confirmed — search the repo for "PLACEHOLDER" before launch.
- * `url` must also be mirrored in astro.config.mjs (`site`) and
- * public/robots.txt.
+ * `url` is the one place the domain is set: astro.config.mjs (`site`),
+ * canonical URLs, robots.txt and the sitemap all read it.
  */
 const email = 'hello@truplexy.com'; // PLACEHOLDER — real inbox
 
