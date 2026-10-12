@@ -97,6 +97,9 @@ const LIMIT_LABEL: Record<string, string> = {
 /** A record (or route) that doesn't exist, or that the caller can't see: the API answers both with 404. */
 export const isNotFoundError = (e: unknown) => isApiError(e) && (e.status === 404 || e.code === 'NOT_FOUND' || e.code.endsWith('_NOT_FOUND'));
 
+/** The server has no such route (yet): 405 or 501, as an older deployment answers a newer endpoint. */
+export const isUnsupportedError = (e: unknown) => isApiError(e) && (e.status === 405 || e.status === 501);
+
 /** The business or bot the tab is on is gone, or the person was removed from it. */
 export const isScopeLostError = (e: unknown) => hasCode(e, 'TENANT_NOT_FOUND', 'BOT_NOT_FOUND');
 

@@ -78,6 +78,7 @@ import type {
   PlatformModel,
   PlatformTemplate,
   PlatformUser,
+  PlatformUserDetail,
   PlatformUserQuery,
   PlatformUserStatus,
   Role,
@@ -88,6 +89,7 @@ import type {
 } from '@/lib/api/types';
 import { planUsage } from '@/lib/billing';
 import { cn } from '@/lib/cn';
+import { isUnsupportedError } from '@/lib/errors';
 import { contactOf, customerLabel } from '@/lib/customers';
 import { ContactChip } from '@/features/customers/CustomersPage';
 import { dayRange, formatCompact, formatCurrency, formatDate, formatMs, formatNumber, formatRelative, formatPerM, pluralize } from '@/lib/format';
@@ -1077,13 +1079,13 @@ export function PlatformUsers() {
           />
         )}
       </Card>
-      <UserSheet id={userId} onClose={() => open()} />
+      <UserSheet id={userId} listed={rows.find((r) => r.id === userId)} onClose={() => open()} />
       <InviteUserDialog open={inviting} onOpenChange={setInviting} onCreated={(u) => open(u.id)} />
     </Page>
   );
 }
 
-function UserSheet({ id, onClose }: { id?: string; onClose: () => void }) {
+function UserSheet({ id, listed, onClose }: { id?: string; listed?: PlatformUser; onClose: () => void }) {
   const me = useMe();
   const q = usePlatformUser(id);
   const tenants = usePlatformTenants();
@@ -1093,14 +1095,18 @@ function UserSheet({ id, onClose }: { id?: string; onClose: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
+  // An API without GET /platform/users/{id} can still show what the list loaded, minus the activity.
+  const u: PlatformUserDetail | undefined = q.data ?? (q.isError && isUnsupportedError(q.error) && listed ? { ...listed, activity: [] } : undefined);
+  const detailMissing = !q.data && Boolean(u);
+
   useEffect(() => {
-    if (!q.data) return;
-    setName(q.data.name);
-    setEmail(q.data.email);
-  }, [q.data]);
+    if (!u) return;
+    setName(u.name);
+    setEmail(u.email);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [u?.id, u?.name, u?.email]);
 
   if (!id) return <Sheet open={false} onOpenChange={() => {}} title="" />;
-  const u = q.data;
   const self = u?.id === me.data?.user.id;
   const deleted = u?.status === 'deleted';
   const tenantName = (tid: string) => u?.memberships.find((m) => m.tenant_id === tid)?.tenant_name ?? tenants.data?.find((t) => t.id === tid)?.name ?? tid;
@@ -1189,7 +1195,7 @@ function UserSheet({ id, onClose }: { id?: string; onClose: () => void }) {
     >
       {q.isPending ? (
         <SkeletonRows rows={6} />
-      ) : q.isError ? (
+      ) : q.isError && !u ? (
         <ErrorState
           error={q.error}
           onRetry={() => q.refetch()}
@@ -1199,6 +1205,11 @@ function UserSheet({ id, onClose }: { id?: string; onClose: () => void }) {
       ) : (
         u && (
           <div className="grid gap-6">
+            {detailMissing && (
+              <Callout tone="neutral" title="Showing what the list has">
+                This server doesn't send an account's recent activity yet.
+              </Callout>
+            )}
             {u.status === 'disabled' && (
               <Callout tone="warn" icon={<Ban />} title={u.disabled_at ? `Disabled ${formatRelative(u.disabled_at)}` : 'Disabled'}>
                 Every request with their token is refused, and they can't sign in.
