@@ -47,7 +47,7 @@ export default function ChannelIcon({ id, size = 16, colored = true, className, 
 
   if (c.icon) {
     // On a dark ground the logo sits on a light tile; the tile keeps the overall `size`.
-    const pad = onDark ? Math.max(2, Math.round(size * 0.14)) : 0;
+    const pad = onDark ? Math.max(1, Math.round(size * 0.06)) : 0;
     const inner = size - pad * 2;
     return (
       <span
