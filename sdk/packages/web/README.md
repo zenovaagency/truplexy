@@ -47,7 +47,7 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | `position` | `right`, `left` | `right` |
 | `mode` | `floating`, or `inline` for a chat box in the page | `floating` |
 | `open` | Start open | closed |
-| `show-sources` | Link the articles answers came from | off |
+| `show-sources` | Link the articles and web pages answers came from | off |
 | `demo` | Canned replies, no server | off |
 | `details` | `ask`: a name and email form before the first message; `off`: skip the form. Both modes attempt to open a ticket | `ask` |
 | `storage-key` | localStorage key for the conversation | `truplexy:<endpoint>` |

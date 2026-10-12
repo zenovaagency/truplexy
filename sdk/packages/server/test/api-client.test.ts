@@ -44,6 +44,7 @@ describe('chat API client', () => {
       [() => c.escalate('conv_1'), 'POST', '/conversations/conv_1/escalate', undefined],
       [() => c.resume('conv_1'), 'POST', '/conversations/conv_1/resume', undefined],
       [() => c.createTicket('conv_1', { priority: 'high' }), 'POST', '/conversations/conv_1/ticket', { priority: 'high' }],
+      [() => c.createTicket('conv_1', { subject: 'Order', keep_open: true }), 'POST', '/conversations/conv_1/ticket', { subject: 'Order', keep_open: true }],
       [() => c.closeTicket('conv_1'), 'POST', '/conversations/conv_1/ticket/close', undefined],
       [() => c.sendReply('conv_1', { content: 'hello', external_id: 'm1', escalate: true }), 'POST', '/conversations/conv_1/replies', { content: 'hello', external_id: 'm1', escalate: true }],
       [() => c.getRealtimeToken(), 'POST', '/realtime/token', undefined],

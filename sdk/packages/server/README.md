@@ -58,6 +58,7 @@ The same pattern works for Remix / React Router (`action`), Astro (`POST: APIRou
 | `sessionTtl` | Seconds a visitor keeps their conversation after their last message | 30 days |
 | `channelId` | Start conversations on this channel instead of the key's | the key's channel |
 | `allowedOrigins` | Sites allowed to call from another origin | same origin only |
+| `keepTicketsOpen` | Stop the tickets the route opens from closing on their own after a quiet spell | close per the business's auto-close time |
 | `authorize(request)` | Return `false` (403) or a `Response` to refuse: rate limits, sign-in | allow |
 | `customer(request)` | Trusted `{contacts, name?, metadata?}` for a new chat; null/undefined falls back to the visitor form | none |
 | `context(request)` | Private background for the assistant, sent once per conversation | none |

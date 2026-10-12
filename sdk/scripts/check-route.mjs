@@ -40,7 +40,8 @@ check('profile has only names and pictures', JSON.stringify(Object.keys(profile.
 
 const first = await post({ action: 'message', session: null, text: '  how do returns work  ' });
 check('message starts a conversation', first.status === 200 && typeof first.data.session === 'string' && typeof first.data.reply === 'string', first.text);
-check('message passes status and sources', first.data.status === 'answered' && Array.isArray(first.data.sources) && first.data.sources.length === 1, first.text);
+check('message passes status and sources', first.data.status === 'answered' && Array.isArray(first.data.sources) && first.data.sources.length === 2, first.text);
+check('web results pass through as sources', first.data.sources?.[1]?.kind === 'web' && first.data.sources[1].document_id === undefined, first.text);
 const session = first.data.session;
 check('the first message opens a ticket', typeof first.data.ticket?.id === 'string', first.text);
 
