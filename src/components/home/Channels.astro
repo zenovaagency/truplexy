@@ -4,6 +4,7 @@ import { BookOpen, Headset, UserRound, Workflow } from 'lucide-react';
 import ChannelIcon from '../ui/ChannelIcon';
 import mark from '../../assets/brand/mark.png';
 import { GROUP_LABEL, channelsIn, LIVE_CHANNELS, SOON_CHANNELS, type ChannelGroup } from '../../data/channels';
+import { channelHref } from '../../data/setup-guides';
 
 // Conversations arrive on the left; the systems Truplexy works with sit on
 // the right, beneath the capabilities that make up the layer itself.
@@ -62,7 +63,7 @@ const core = [
                   >
                     <ChannelIcon id={c.id} size={15} />
                     <span class="min-w-0 flex-1 truncate">
-                      <a href={`/channels/${c.id}`} class="after:absolute after:inset-0 after:rounded-xl hover:underline">{c.name}</a>
+                      <a href={channelHref(c.id)} class="after:absolute after:inset-0 after:rounded-xl hover:underline">{c.name}</a>
                       {c.note && <span class="block truncate text-[0.72rem] font-normal text-ink-faint">{c.note}</span>}
                     </span>
                     {c.status === 'live' ? <span class="live-dot" title="Live" aria-label="Live"></span> : <span class="soon-tag">Coming soon</span>}
@@ -122,7 +123,7 @@ const core = [
                     ]}
                   >
                     <ChannelIcon id={c.id} size={15} />
-                    <span class="min-w-0 flex-1 truncate"><a href={`/channels/${c.id}`} class="after:absolute after:inset-0 after:rounded-xl hover:underline">{c.name}</a></span>
+                    <span class="min-w-0 flex-1 truncate"><a href={channelHref(c.id)} class="after:absolute after:inset-0 after:rounded-xl hover:underline">{c.name}</a></span>
                     {c.status === 'live' ? <span class="live-dot" title="Live" aria-label="Live"></span> : <span class="soon-tag">Coming soon</span>}
                   </li>
                 ))}

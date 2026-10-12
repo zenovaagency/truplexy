@@ -3,57 +3,68 @@ import Docs from '../../layouts/Docs.astro';
 import Button from '../../components/ui/Button.astro';
 import ChannelIcon from '../../components/ui/ChannelIcon';
 import { SITE } from '../../data/site';
-import { GROUP_LABEL, channelsIn, type ChannelGroup } from '../../data/channels';
-import { GUIDES, docsHref } from '../../data/channel-guides';
+import { DOC_GROUPS, GUIDES, docsHref } from '../../data/setup-guides';
 
-const groups = Object.keys(GROUP_LABEL) as ChannelGroup[];
-const toc = [['start', 'Start here'], ...groups.map((g) => [g, GROUP_LABEL[g]] as const)];
+const WEB = { name: 'Website chat SDK', blurb: 'A chat widget for any site, with one route on your server. Every option, event and framework.' };
+const entry = (id: (typeof DOC_GROUPS)[number]['ids'][number]) => (id === 'web' ? WEB : GUIDES[id]);
+
+const concepts: [term: string, what: string, href: string, link: string][] = [
+  ['Chat key', 'The secret your server uses to talk to Truplexy. It can be bound to one channel, and never goes in a browser, app or theme.', '/docs/api#key', 'Issuing a key'],
+  ['Channel', 'Where a conversation came from: your website, WhatsApp, a custom platform. Each channel can be switched on or off on its own.', '/docs/api#custom-channel', 'Custom channels'],
+  ['Customer', 'One person, matched across channels by their contacts (email, phone number, platform ID), so their history follows them.', '/docs/api#identity', 'Customer identity'],
+  ['Ticket & handoff', 'When a person should help, the conversation becomes a ticket in Tickets with everything said so far. Your team replies from there.', '/docs/api#status', 'Handoff and escalation'],
+  ['Webhook', 'A signed event sent to your server when your team replies or a ticket changes, so your integration can deliver it.', '/docs/webhooks', 'Webhooks'],
+];
+
+const toc = [['quickstart', 'Quickstart'], ['concepts', 'Core concepts'], ...DOC_GROUPS.map((g) => [g.id, g.label] as const)];
 ---
 
 <Docs
   title="Docs — Truplexy"
-  description="Setup guides for every Truplexy channel: the website chat SDK, messaging apps, store and help-desk platforms, team tools, and the REST API and webhooks."
+  description="Set up Truplexy: a quickstart, the core concepts, and a setup guide for every channel, from the website chat SDK to WhatsApp, Shopify, Slack, the REST API and webhooks."
   breadcrumbs={[{ name: 'Docs', path: '/docs' }]}
-  eyebrow="Developers"
-  heading="Connect Truplexy to every channel"
-  lede="One guide per channel: what to set up on the platform, the server code to add, and how your team’s replies get back to the customer."
+  eyebrow="Docs"
+  heading="Set up Truplexy"
+  lede="Everything you need to put the assistant in front of your customers: a quickstart, the few ideas every guide relies on, and step-by-step setup for each channel."
   toc={toc}
 >
   <Fragment slot="hero-actions">
-    <Button href="/docs/web-sdk">Website chat SDK</Button>
-    <Button href="/channels" variant="ghost" arrow={false}>About the channels</Button>
+    <Button href={SITE.signupUrl}>Create an account</Button>
+    <Button href="/docs/web-sdk" variant="ghost" arrow={false}>Website chat SDK</Button>
   </Fragment>
 
-  <h2 id="start">Start here</h2>
-  <p>
-    Every guide follows the same three steps: <strong>issue a chat key</strong> in the <a href={SITE.dashboardUrl}>dashboard</a>, <strong>set the channel up</strong> on its platform,
-    and <strong>add a small piece of code</strong> to your server. The chat key stays on your server, never in a browser, app or theme file.
-  </p>
-  <ul class="cards">
-    {(['web', 'api', 'webhooks'] as const).map((id) => (
-      <li>
-        <a href={docsHref(id)} class="card-link">
-          <span class="icon"><ChannelIcon id={id} size={18} /></span>
-          <span>
-            <span class="name">{id === 'web' ? 'Website chat SDK' : id === 'api' ? 'REST API' : 'Webhooks'}</span>
-            <span class="blurb">{GUIDES[id].blurb}</span>
-          </span>
-        </a>
-      </li>
-    ))}
-  </ul>
+  <h2 id="quickstart">Quickstart</h2>
+  <ol>
+    <li><a href={SITE.signupUrl}>Create your account</a> and your business. Your first bot is ready to go.</li>
+    <li>Add what the assistant should know under <strong>Knowledge base</strong>: upload files or write articles. Try it in <strong>Playground</strong>.</li>
+    <li>Open <strong>Integrations → Guides</strong>, pick a channel and issue its chat key. Keep the key on your server.</li>
+    <li>Follow that channel’s guide below: the steps on the platform, then a small piece of server code.</li>
+    <li>Escalated conversations land in <strong>Tickets</strong>. Reply there, or from Slack or Teams, and the customer gets it on their own channel.</li>
+  </ol>
 
-  {groups.map((g) => (
+  <h2 id="concepts">Core concepts</h2>
+  <div class="table-wrap wrap-first">
+    <table>
+      <thead><tr><th>Term</th><th>What it means</th></tr></thead>
+      <tbody>
+        {concepts.map(([term, what, href, link]) => (
+          <tr><td><strong>{term}</strong></td><td>{what} <a href={href}>{link} →</a></td></tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  {DOC_GROUPS.map((g) => (
     <>
-      <h2 id={g}>{GROUP_LABEL[g]}</h2>
+      <h2 id={g.id}>{g.label}</h2>
       <ul class="cards">
-        {channelsIn(g).map((c) => (
+        {g.ids.map((id) => (
           <li>
-            <a href={docsHref(c.id)} class="card-link">
-              <span class="icon"><ChannelIcon id={c.id} size={18} /></span>
+            <a href={docsHref(id)} class="card-link">
+              <span class="icon"><ChannelIcon id={id} size={18} /></span>
               <span>
-                <span class="name">{c.name} {c.status === 'soon' && <span class="soon-tag">Coming soon</span>}</span>
-                <span class="blurb">{GUIDES[c.id].blurb}</span>
+                <span class="name">{entry(id).name}</span>
+                <span class="blurb">{entry(id).blurb}</span>
               </span>
             </a>
           </li>
@@ -61,4 +72,6 @@ const toc = [['start', 'Start here'], ...groups.map((g) => [g, GROUP_LABEL[g]] a
       </ul>
     </>
   ))}
+
+  <p>Want to know what a channel does before setting it up? See the <a href="/channels">channels</a>.</p>
 </Docs>
