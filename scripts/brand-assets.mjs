@@ -54,8 +54,41 @@ async function icon(size, { bg = null, pad = 0.14 } = {}) {
     .png();
 }
 
-await (await icon(32, { pad: 0.04 })).toFile(path.join(pub, 'favicon-32.png'));
-await (await icon(16, { pad: 0.02 })).toFile(path.join(pub, 'favicon-16.png'));
+const fav32 = await (await icon(32, { pad: 0.04 })).toBuffer();
+const fav16 = await (await icon(16, { pad: 0.02 })).toBuffer();
+await writeFile(path.join(pub, 'favicon-32.png'), fav32);
+await writeFile(path.join(pub, 'favicon-16.png'), fav16);
+
+/**
+ * Packs PNG buffers into a .ico. Browsers and crawlers request /favicon.ico
+ * regardless of the <link> tags, so it has to exist. Modern ICO readers accept
+ * PNG-compressed entries, which avoids a BMP encoder.
+ */
+function ico(entries) {
+  const head = Buffer.alloc(6);
+  head.writeUInt16LE(1, 2); // type: icon
+  head.writeUInt16LE(entries.length, 4);
+  let offset = 6 + entries.length * 16;
+  const dir = entries.map(({ size, png }) => {
+    const e = Buffer.alloc(16);
+    e.writeUInt8(size, 0); // width
+    e.writeUInt8(size, 1); // height
+    e.writeUInt16LE(1, 4); // colour planes
+    e.writeUInt16LE(32, 6); // bits per pixel
+    e.writeUInt32LE(png.length, 8);
+    e.writeUInt32LE(offset, 12);
+    offset += png.length;
+    return e;
+  });
+  return Buffer.concat([head, ...dir, ...entries.map((e) => e.png)]);
+}
+await writeFile(
+  path.join(pub, 'favicon.ico'),
+  ico([
+    { size: 16, png: fav16 },
+    { size: 32, png: fav32 },
+  ]),
+);
 // iOS ignores transparency and fills it with black, so the touch icon is opaque.
 await (await icon(180, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'apple-touch-icon.png'));
 await (await icon(192, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'icon-192.png'));
