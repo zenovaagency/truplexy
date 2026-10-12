@@ -29,6 +29,11 @@ export interface HandlerOptions {
    * once, as a `[Context only]` message, when a conversation starts.
    */
   context?: (request: Request) => string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Stop the tickets this route opens from closing on their own after a quiet
+   * spell (the business's auto-close time). Default false.
+   */
+  keepTicketsOpen?: boolean;
   /** Trusted identity for a new conversation. Null/undefined falls back to the visitor form. */
   customer?: (request: Request) => CustomerInput | null | undefined | Promise<CustomerInput | null | undefined>;
   /** Called with server-side failures. Defaults to `console.error`. Never receives the chat key. */
@@ -147,7 +152,7 @@ export function createHandler(options: HandlerOptions = {}): Handler {
           if (lines.length) await api.sendMessage(conv.id, `${CONTEXT_PREFIX}] ${lines.join('. ')}`.slice(0, MAX_TEXT));
         } catch (e) { report(safeError(e)); }
         // Background and automatic ticket creation remain best effort.
-        ticket = await api.createTicket(conv.id, { subject: name ? `Chat with ${name}` : 'Website chat' })
+        ticket = await api.createTicket(conv.id, { subject: name ? `Chat with ${name}` : 'Website chat', ...(options.keepTicketsOpen && { keep_open: true }) })
           .then(publicTicket, (e) => (report(safeError(e)), undefined));
         return conv.id;
       };

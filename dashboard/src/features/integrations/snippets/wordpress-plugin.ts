@@ -7,7 +7,7 @@ export const WORDPRESS_PLUGIN = String.raw`<?php
  * Plugin Name:       Truplexy Chat
  * Plugin URI:        https://truplexy.com/docs/web-sdk
  * Description:       Adds the Truplexy AI support chat to your site. Your chat key stays on the server.
- * Version:           0.1.0
+ * Version:           0.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * License:           MIT
@@ -21,20 +21,21 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-const TRUPLEXY_CHAT_VERSION = '0.1.0';
+const TRUPLEXY_CHAT_VERSION = '0.2.0';
 const TRUPLEXY_CHAT_CDN = 'https://cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js';
 
 function truplexy_chat_settings(): array {
     return wp_parse_args(get_option('truplexy_chat', []), [
-        'enabled'      => '1',
-        'chat_key'     => '',
-        'heading'      => '',
-        'subtitle'     => '',
-        'greeting'     => '',
-        'accent'       => '',
-        'position'     => 'right',
-        'theme'        => 'light',
-        'show_sources' => '',
+        'enabled'           => '1',
+        'chat_key'          => '',
+        'heading'           => '',
+        'subtitle'          => '',
+        'greeting'          => '',
+        'accent'            => '',
+        'position'          => 'right',
+        'theme'             => 'light',
+        'show_sources'      => '',
+        'keep_tickets_open' => '',
     ]);
 }
 
@@ -218,7 +219,10 @@ function truplexy_chat_start(WP_REST_Request $request, $raw): array {
     } catch (Throwable $e) { error_log('[truplexy-chat] Background context unavailable'); }
     $ticket = null;
     try {
-        $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", ['subject' => $name ? 'Chat with ' . $name : 'Website chat']);
+        $opening_ticket = ['subject' => $name ? 'Chat with ' . $name : 'Website chat'];
+        // Without keep_open, the ticket closes on its own after the business's auto-close time.
+        if (truplexy_chat_settings()['keep_tickets_open']) $opening_ticket['keep_open'] = true;
+        $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", $opening_ticket);
         $ticket = array_intersect_key($t, array_flip(['id', 'subject', 'status']));
     } catch (Truplexy_Chat_Error $e) { error_log('[truplexy-chat] ' . $e->api_code); }
     return [$conv, $ticket];
@@ -356,16 +360,17 @@ add_action('admin_init', function () {
             $in = is_array($in) ? $in : [];
             $old = truplexy_chat_settings();
             return [
-                'enabled'      => empty($in['enabled']) ? '' : '1',
+                'enabled'           => empty($in['enabled']) ? '' : '1',
                 // A blank key field keeps the saved key.
-                'chat_key'     => !empty($in['chat_key']) ? sanitize_text_field($in['chat_key']) : $old['chat_key'],
-                'heading'      => sanitize_text_field($in['heading'] ?? ''),
-                'subtitle'     => sanitize_text_field($in['subtitle'] ?? ''),
-                'greeting'     => sanitize_textarea_field($in['greeting'] ?? ''),
-                'accent'       => sanitize_hex_color($in['accent'] ?? '') ?: '',
-                'position'     => ($in['position'] ?? '') === 'left' ? 'left' : 'right',
-                'theme'        => in_array($in['theme'] ?? '', ['light', 'dark', 'auto'], true) ? $in['theme'] : 'light',
-                'show_sources' => empty($in['show_sources']) ? '' : '1',
+                'chat_key'          => !empty($in['chat_key']) ? sanitize_text_field($in['chat_key']) : $old['chat_key'],
+                'heading'           => sanitize_text_field($in['heading'] ?? ''),
+                'subtitle'          => sanitize_text_field($in['subtitle'] ?? ''),
+                'greeting'          => sanitize_textarea_field($in['greeting'] ?? ''),
+                'accent'            => sanitize_hex_color($in['accent'] ?? '') ?: '',
+                'position'          => ($in['position'] ?? '') === 'left' ? 'left' : 'right',
+                'theme'             => in_array($in['theme'] ?? '', ['light', 'dark', 'auto'], true) ? $in['theme'] : 'light',
+                'show_sources'      => empty($in['show_sources']) ? '' : '1',
+                'keep_tickets_open' => empty($in['keep_tickets_open']) ? '' : '1',
             ];
         },
     ]);
@@ -441,7 +446,11 @@ function truplexy_chat_settings_page() {
                 </tr>
                 <tr>
                     <th scope="row">Sources</th>
-                    <td><label><input type="checkbox" name="<?php echo esc_attr($field('show_sources')); ?>" value="1" <?php checked($s['show_sources'], '1'); ?>> Link the articles an answer came from</label></td>
+                    <td><label><input type="checkbox" name="<?php echo esc_attr($field('show_sources')); ?>" value="1" <?php checked($s['show_sources'], '1'); ?>> Link the articles and web pages an answer came from</label></td>
+                </tr>
+                <tr>
+                    <th scope="row">Tickets</th>
+                    <td><label><input type="checkbox" name="<?php echo esc_attr($field('keep_tickets_open')); ?>" value="1" <?php checked($s['keep_tickets_open'], '1'); ?>> Keep website chat tickets open until your team closes them</label></td>
                 </tr>
             </table>
             <?php submit_button(); ?>

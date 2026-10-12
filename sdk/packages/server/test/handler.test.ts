@@ -74,6 +74,18 @@ describe('createHandler', () => {
     expect(api.calls.every((c) => c.auth === `Bearer ${KEY}`)).toBe(true);
   });
 
+  it('asks for tickets that stay open with keepTicketsOpen', async () => {
+    const api = fakeApi({
+      'POST /conversations': () => [201, { id: CONV }],
+      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_1', subject: 'Website chat', status: 'open', keep_open: true }],
+      [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi!'),
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch, keepTicketsOpen: true });
+    const data = await (await handler(post({ action: 'message', text: 'hello' }))).json();
+    expect(api.calls[1].body).toEqual({ subject: 'Website chat', keep_open: true });
+    expect(data.ticket).toEqual({ id: 'tkt_1', subject: 'Website chat', status: 'open' });
+  });
+
   it('reuses the conversation of a valid session', async () => {
     const api = fakeApi({ [`POST /conversations/${CONV}/messages`]: reply('escalated', null) });
     const handler = createHandler({ ...base, fetch: api.fetch });

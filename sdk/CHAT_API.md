@@ -30,7 +30,7 @@ Options: `chatKey`, `apiBase` (default production `/v2`), and `fetch`. Environme
 | `upsertCustomer(input)` | `PUT /customer` | Customer; 201 new or 200 existing |
 | `createConversation({customer_id?, channel_id?}?)` | `POST /conversations` | Empty conversation; 201 |
 | `getConversation(id)` | `GET /conversations/{id}` | Latest 200 messages, oldest first |
-| `sendMessage(id, text)` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters |
+| `sendMessage(id, text)` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters. Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
 | `handoff(id)` | `POST /conversations/{id}/handoff` | Flags the conversation and adds confirmation; AI keeps replying |
 | `escalate(id)` | `POST /conversations/{id}/escalate` | Opens/escalates a ticket; AI stops replying; safe to repeat |
 | `resume(id)` | `POST /conversations/{id}/resume` | Ends escalation; ticket stays open; safe to repeat |

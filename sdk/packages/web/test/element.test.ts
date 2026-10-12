@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mount, TruplexyChatElement } from '../src/index';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
@@ -74,6 +74,29 @@ describe('<truplexy-chat>', () => {
     expect(bubbles[0]).toBe('where is order 12345');
     expect(el.client!.getState().ticket).toMatchObject({ subject: 'Chat with Ada Lovelace' });
     el.remove();
+  });
+
+  it('links web results as sources, next to cited documents', async () => {
+    const sources = [
+      { kind: 'web', title: 'Shipping times', url: 'https://help.example.com/shipping', score: 0.71 },
+      { document_id: 'doc_1', title: 'Returns', section: 'Refunds', url: 'https://shop.test/returns', score: 0.9 },
+      { document_id: 'doc_2', title: 'Internal notes', score: 0.8 },
+    ];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const { action } = JSON.parse(String(init.body));
+      const body = action === 'message' ? { session: 'S1', message: { id: 'msg_1' }, reply: 'About 3 days.', status: 'answered', sources } : action === 'history' ? { session: null } : {};
+      return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+    });
+    try {
+      const el = mount({ endpoint: '/api/truplexy', details: 'off', showSources: true, storageKey: 'truplexy:sources-test' });
+      await el.send('how long is shipping?');
+      await tick();
+      const links = [...el.shadowRoot!.querySelectorAll('.sources a')].map((a) => [a.textContent, a.getAttribute('href')]);
+      expect(links).toEqual([['Shipping times', 'https://help.example.com/shipping'], ['Returns · Refunds', 'https://shop.test/returns']]);
+      el.remove();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('links to Truplexy under the message box, in any language', () => {
