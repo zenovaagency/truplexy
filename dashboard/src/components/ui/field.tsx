@@ -35,7 +35,7 @@ export function Field({
       })
     : children;
   return (
-    <div className={cn('grid gap-1.5', className)}>
+    <div className={cn('grid content-start gap-1.5', className)}>
       {(label || aside) && (
         <div className="flex items-baseline justify-between gap-3">
           {label && (

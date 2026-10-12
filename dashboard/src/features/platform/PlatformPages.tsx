@@ -1223,7 +1223,7 @@ function UserSheet({ id, listed, onClose }: { id?: string; listed?: PlatformUser
             {!deleted && (
               <section className="grid gap-3">
                 <p className="mono text-ink-faint">Profile</p>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid items-start gap-3 sm:grid-cols-2">
                   <Field label="Name">
                     <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
                   </Field>
