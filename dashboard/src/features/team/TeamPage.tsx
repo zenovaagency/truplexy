@@ -440,7 +440,7 @@ export function RolesTab() {
           <tbody>
             {PERMISSION_GROUPS.map((g) => [
               <tr key={g.label}>
-                <td colSpan={6} className="bg-surface-2/50 py-2 font-mono text-[0.65rem] uppercase tracking-wider text-ink-faint">
+                <td colSpan={6} className="bg-surface-2/50 py-2 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-faint">
                   {g.label}
                 </td>
               </tr>,

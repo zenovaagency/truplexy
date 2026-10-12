@@ -348,7 +348,7 @@ export function BillingTab() {
           description="Pays for extra tokens and, once the month's tokens are used up, for each further reply."
         >
           <div className="grid gap-2">
-            <p className="font-mono text-3xl font-semibold tabular-nums text-ink">{formatCurrency(bl.balance)}</p>
+            <p className="text-3xl font-semibold tabular-nums text-ink">{formatCurrency(bl.balance)}</p>
             <p className="text-xs text-ink-faint">
               The Truplexy team tops up balances.{' '}
               <a className="font-medium text-accent hover:underline" href={TOP_UP_MAIL}>
@@ -360,7 +360,7 @@ export function BillingTab() {
         <Card title="Tokens this month" description={`${bl.plan.name} plan · ${formatMonth(bl.month)} · resets on the 1st (UTC)`}>
           {t.unlimited ? (
             <p className="text-[0.8125rem] text-ink-muted">
-              Unlimited. <span className="font-mono tabular-nums text-ink">{formatCompact(t.used)}</span> used so far.
+              Unlimited. <span className="tabular-nums text-ink">{formatCompact(t.used)}</span> used so far.
             </p>
           ) : (
             <div className="grid gap-2">
@@ -473,10 +473,10 @@ function ExtraTokens({ billing: bl }: { billing: Billing }) {
             <p className="text-xs text-ink-faint">
               {formatNumber(priced.tokens)} tokens · {formatPerM(priced.average_per_million)} per million on average
             </p>
-            <p className="font-mono text-2xl font-semibold tabular-nums text-ink">{formatCurrency(priced.price)}</p>
+            <p className="text-2xl font-semibold tabular-nums text-ink">{formatCurrency(priced.price)}</p>
             <ul className="grid gap-0.5 text-xs text-ink-muted">
               {priced.breakdown.map((x) => (
-                <li key={x.from_millions} className="font-mono tabular-nums">
+                <li key={x.from_millions} className="tabular-nums">
                   {formatNumber(x.millions)}M × {formatPerM(x.price_per_million)} = {formatCurrency(x.amount)}
                 </li>
               ))}
@@ -509,7 +509,7 @@ function ExtraTokens({ billing: bl }: { billing: Billing }) {
               {bl.addons.map((x) => (
                 <li key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                   <span className="font-medium text-ink">{formatCompact(x.tokens)} tokens</span>
-                  <span className="font-mono tabular-nums text-ink-muted">{formatCurrency(x.price)}</span>
+                  <span className="tabular-nums text-ink-muted">{formatCurrency(x.price)}</span>
                   <span className="text-xs text-ink-faint">
                     {x.actor} · {formatDateTime(x.created_at)}
                   </span>
@@ -556,13 +556,13 @@ function LedgerCard() {
                 header: 'Amount',
                 align: 'right',
                 cell: (e) => (
-                  <span className={cn('font-mono tabular-nums font-semibold', e.amount > 0 ? 'text-live' : 'text-ink')}>
+                  <span className={cn('tabular-nums font-semibold', e.amount > 0 ? 'text-live' : 'text-ink')}>
                     {e.amount > 0 ? '+' : '−'}
                     {formatCurrency(Math.abs(e.amount))}
                   </span>
                 ),
               },
-              { key: 'after', header: 'Balance', align: 'right', cell: (e) => <span className="font-mono tabular-nums text-ink-muted">{formatCurrency(e.balance_after)}</span> },
+              { key: 'after', header: 'Balance', align: 'right', cell: (e) => <span className="tabular-nums text-ink-muted">{formatCurrency(e.balance_after)}</span> },
             ]}
           />
           {q.hasNextPage && (

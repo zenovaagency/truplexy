@@ -224,7 +224,7 @@ export default function OverviewPage() {
                     className="grid gap-0.5 rounded-[10px] border border-line bg-surface px-2.5 py-1.5 transition-colors hover:border-line-strong"
                   >
                     <span className="text-xs text-ink-faint">{b.label}</span>
-                    <span className="font-mono text-sm font-semibold tabular-nums text-ink">{formatNumber(b.value)}</span>
+                    <span className="text-sm font-semibold tabular-nums text-ink">{formatNumber(b.value)}</span>
                   </Link>
                 ))}
               </div>
@@ -238,7 +238,7 @@ export default function OverviewPage() {
                       className="flex items-center gap-2 rounded-[10px] border border-line bg-surface px-2.5 py-1.5 transition-colors hover:border-line-strong"
                     >
                       <PriorityBadge priority={p} />
-                      <span className="font-mono text-xs tabular-nums text-ink">{s.backlog.by_priority[p] ?? 0}</span>
+                      <span className="text-xs tabular-nums text-ink">{s.backlog.by_priority[p] ?? 0}</span>
                     </Link>
                   ))}
                 </div>
@@ -307,7 +307,7 @@ export default function OverviewPage() {
                 <li key={r.label} className="grid gap-1.5">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-ink-muted">{r.label}</span>
-                    <span className={cn('font-mono text-xs tabular-nums', r.bad && r.v > 0.15 ? 'text-warn' : 'text-ink')}>{formatPercent(r.v, 1)}</span>
+                    <span className={cn('text-xs tabular-nums', r.bad && r.v > 0.15 ? 'text-warn' : 'text-ink')}>{formatPercent(r.v, 1)}</span>
                   </div>
                   <div className="h-1 overflow-hidden rounded-full bg-surface-3">
                     <div className="h-full rounded-full bg-[var(--chart-1)]" style={{ width: `${Math.max(1, r.v * 100)}%` }} />

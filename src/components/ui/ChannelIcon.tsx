@@ -30,9 +30,11 @@ interface Props {
   title?: string;
   /** Line weight for the lucide fallbacks; raise it at small sizes to match the solid brand marks. */
   strokeWidth?: number;
+  /** One light tint for every mark, for dark grounds where dark brand colours vanish. */
+  onDark?: boolean;
 }
 
-export default function ChannelIcon({ id, size = 16, colored = true, className, title, strokeWidth = 1.9 }: Props) {
+export default function ChannelIcon({ id, size = 16, colored = true, className, title, strokeWidth = 1.9, onDark = false }: Props) {
   const a11y = title ? { role: 'img', 'aria-label': title } : { 'aria-hidden': true as const };
 
   if (id === 'human') {
@@ -40,7 +42,7 @@ export default function ChannelIcon({ id, size = 16, colored = true, className, 
   }
 
   const c = channel(id);
-  const color = colored && c.status === 'live' ? c.color : 'var(--color-ink-faint)';
+  const color = onDark ? 'rgb(255 255 255 / 0.78)' : colored && c.status === 'live' ? c.color : 'var(--color-ink-faint)';
 
   if (c.path) {
     return (

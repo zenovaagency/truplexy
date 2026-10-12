@@ -37,7 +37,7 @@ function ChartTooltip({ active, payload, label, series, format }: TooltipContent
                 <span className="size-2 rounded-[2px]" style={{ background: color(s.slot) }} />
                 {s.label}
               </span>
-              <span className="font-mono tabular-nums text-ink">{format(Number(p.value ?? 0))}</span>
+              <span className="tabular-nums text-ink">{format(Number(p.value ?? 0))}</span>
             </li>
           );
         })}

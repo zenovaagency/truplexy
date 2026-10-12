@@ -189,7 +189,7 @@ function PlanUsage() {
     <Link to={href('settings/plan')} className="grid gap-2 rounded-[12px] border border-line bg-surface p-3 transition-colors hover:border-line-strong">
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className="font-semibold text-ink">AI replies</span>
-        <span className="font-mono tabular-nums text-ink-faint">
+        <span className="tabular-nums text-ink-faint">
           {formatCompact(used)} / {limit > 0 ? formatCompact(limit) : '∞'}
         </span>
       </div>

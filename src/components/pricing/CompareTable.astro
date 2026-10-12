@@ -6,7 +6,7 @@ import { COMPARISON, FOOTNOTES, PLANS } from '../../data/pricing';
 // The featured plan's column is tinted down the whole table; hovering a row
 // darkens every cell in it, tinted or not.
 const cell = (featured?: boolean) =>
-  featured ? 'bg-accent-soft/40 group-hover/row:bg-accent-soft/70' : 'group-hover/row:bg-surface-2';
+  featured ? 'bg-accent-soft/50 group-hover/row:bg-accent-soft/80' : 'group-hover/row:bg-surface-2';
 
 const listPlans = PLANS.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' and $1');
 
@@ -39,7 +39,7 @@ const label = 'sticky left-0 z-[1] bg-surface text-left';
             >
               <span class="flex items-center justify-center gap-2">
                 <span class="text-[1.05rem] font-bold tracking-tight text-ink">{plan.name}</span>
-                {plan.featured && <span class="chip bg-accent-soft !px-2 !py-0.5 text-[0.66rem] text-accent max-sm:hidden">Popular</span>}
+                {plan.featured && <span class="chip bg-accent-soft !px-2 !py-0.5 text-[0.66rem] font-semibold text-accent max-sm:hidden">Popular</span>}
               </span>
               <span class="mt-1 block text-[0.85rem] text-ink-faint">
                 <span class="font-semibold text-ink tabular-nums">${plan.price.monthly}</span> / month

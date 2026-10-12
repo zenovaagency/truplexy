@@ -25,7 +25,7 @@ export function Legend({ series, values, className }: { series: Series[]; values
         <li key={s.key} className="flex items-center gap-1.5 text-ink-muted">
           <span className="size-2.5 rounded-[3px]" style={{ background: `var(--chart-${s.slot})` }} />
           {s.label}
-          {values?.[s.key] != null && <span className="font-mono tabular-nums text-ink">{values[s.key]}</span>}
+          {values?.[s.key] != null && <span className="tabular-nums text-ink">{values[s.key]}</span>}
         </li>
       ))}
     </ul>
@@ -55,7 +55,7 @@ export function BarList({
         <li key={i.key} className="grid gap-1.5" title={`${typeof i.label === 'string' ? i.label : i.key}: ${format(i.value)}`}>
           <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
             <span className="truncate font-medium text-ink">{i.label}</span>
-            <span className="shrink-0 font-mono text-xs tabular-nums text-ink-muted">
+            <span className="shrink-0 text-xs tabular-nums text-ink-muted">
               {format(i.value)}
               {i.hint && <span className="ml-2 text-ink-faint">{i.hint}</span>}
             </span>
@@ -105,7 +105,7 @@ export function SplitBar({ parts, format = (n) => n.toLocaleString() }: { parts:
               <span className="size-2 rounded-[2px]" style={{ background: `var(--chart-${p.slot})` }} />
               {p.label}
             </span>
-            <span className="font-mono tabular-nums text-ink">{format(p.value)}</span>
+            <span className="tabular-nums text-ink">{format(p.value)}</span>
           </li>
         ))}
       </ul>

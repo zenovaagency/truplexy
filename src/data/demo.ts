@@ -19,6 +19,10 @@ export interface Msg {
   time?: string;
   /** Display name for human agents. */
   author?: string;
+  /** An internal note: shown to the team only, never sent to the customer. */
+  note?: boolean;
+  /** Day label for the transcript's day separators ("Today", "Tue"). */
+  day?: string;
 }
 
 /* ------------------------------------------------------------------ *
@@ -407,10 +411,36 @@ export const STATUS_LABEL: Record<InboxStatus, string> = {
   human: 'Human handoff',
 };
 
+/** The dashboard's ticket vocabulary, mirrored here for the Tickets recreation. */
+export type TicketStatus = 'open' | 'closed';
+export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type TicketFlag = 'escalated' | 'overdue' | 'handed_off' | 'reopened';
+
+export const FLAG_LABEL: Record<TicketFlag, string> = {
+  escalated: 'Escalated',
+  overdue: 'Overdue',
+  handed_off: 'Handed off',
+  reopened: 'Reopened',
+};
+
 export interface InboxThread {
   id: string;
   name: string;
+  email: string;
   initials: string;
+  /** The ticket's subject line, as it reads in the dashboard's list. */
+  subject: string;
+  ticketStatus: TicketStatus;
+  priority: TicketPriority;
+  flags: TicketFlag[];
+  /** Who owns the ticket; absent when unassigned. */
+  assignee?: string;
+  /** The customer wrote last and nobody on the team has answered. */
+  needsReply: boolean;
+  /** The assistant is paused: the team has this conversation. */
+  paused: boolean;
+  /** Rows of the properties panel's Timeline. */
+  timeline: { label: string; value: string; warn?: boolean }[];
   /** Channels used in this conversation, oldest first. The last is the source of the latest message. */
   channels: ChannelId[];
   topic: string;
@@ -429,6 +459,18 @@ export const INBOX: InboxThread[] = [
   {
     id: 'sarah',
     name: 'Sarah Ahmed',
+    email: 'sarah.ahmed@example.com',
+    subject: 'Change delivery address for #4821',
+    ticketStatus: 'closed',
+    priority: 'normal',
+    flags: [],
+    needsReply: false,
+    paused: false,
+    timeline: [
+      { label: 'Created', value: 'Today, 3:02 PM' },
+      { label: 'First response', value: 'Today, 3:02 PM' },
+      { label: 'Closed', value: '2 minutes ago' },
+    ],
     initials: 'SA',
     channels: ['web', 'telegram'],
     topic: 'Order change',
@@ -447,13 +489,26 @@ export const INBOX: InboxThread[] = [
     intent: 'Change delivery address',
     handoff: 'Not needed — resolved by AI',
     messages: [
-      ...HERO.first.messages.map((m, i) => ({ ...m, time: ['3:02 PM', '3:02 PM', '3:03 PM', '3:03 PM'][i] })),
-      ...HERO.second.messages.map((m, i) => ({ ...m, time: ['3:23 PM', '3:23 PM'][i] })),
+      ...HERO.first.messages.map((m, i) => ({ ...m, day: 'Today', time: ['3:02 PM', '3:02 PM', '3:03 PM', '3:03 PM'][i] })),
+      ...HERO.second.messages.map((m, i) => ({ ...m, day: 'Today', time: ['3:23 PM', '3:23 PM'][i] })),
     ],
   },
   {
     id: 'james',
     name: 'James Wong',
+    email: 'james.wong@example.com',
+    subject: 'Which plan fits a team of three?',
+    ticketStatus: 'open',
+    priority: 'normal',
+    flags: ['handed_off'],
+    needsReply: true,
+    paused: false,
+    timeline: [
+      { label: 'Created', value: 'Tue, 4:40 PM' },
+      { label: 'First response', value: 'Tue, 4:40 PM' },
+      { label: 'Customer wrote', value: '14 minutes ago' },
+      { label: 'Closes on its own', value: 'in 3 days' },
+    ],
     initials: 'JW',
     channels: ['web', 'telegram'],
     topic: 'Pricing',
@@ -466,19 +521,34 @@ export const INBOX: InboxThread[] = [
       { label: 'Linked channels', value: 'Website, Telegram' },
     ],
     previous: [
-      { when: 'Yesterday', channel: 'web', text: 'Compared Pro and Starter. Leaning Starter.' },
+      { when: 'Tuesday', channel: 'web', text: 'Compared Pro and Starter. Leaning Starter.' },
     ],
     summary: 'Small team comparing plans. Felt Pro was more than they need; came back on Telegram to confirm the cheaper option. Good fit for Starter.',
     intent: 'Choose a plan',
     handoff: 'Sales notified · lead qualified',
     messages: [
-      ...CONTEXT.before.messages.map((m) => ({ ...m, time: 'Tue 4:40 PM' })),
-      ...CONTEXT.after.messages.map((m) => ({ ...m, time: 'Wed 10:12 AM' })),
+      ...CONTEXT.before.messages.map((m) => ({ ...m, day: 'Tuesday', time: '4:40 PM' })),
+      ...CONTEXT.after.messages.map((m) => ({ ...m, day: 'Today', time: '10:12 AM' })),
     ],
   },
   {
     id: 'nabila',
     name: 'Nabila Islam',
+    email: 'nabila.islam@example.com',
+    subject: 'Shorten the sleeves on the Atlas Jacket',
+    ticketStatus: 'open',
+    priority: 'normal',
+    flags: ['handed_off'],
+    assignee: 'Maya Rahman',
+    needsReply: false,
+    paused: true,
+    timeline: [
+      { label: 'Created', value: 'Today, 5:09 PM' },
+      { label: 'First response', value: 'Today, 5:09 PM' },
+      { label: 'Customer wrote', value: '1 hour ago' },
+      { label: 'Team replied', value: '1 hour ago' },
+      { label: 'Closes on its own', value: 'in 3 days' },
+    ],
     initials: 'NI',
     channels: ['web', 'discord', 'telegram'],
     topic: 'Product question',
@@ -493,20 +563,35 @@ export const INBOX: InboxThread[] = [
       { when: 'Today 10:14 AM', channel: 'web', text: 'Asked about the Atlas Jacket in black.' },
       { when: 'Today 2:36 PM', channel: 'discord', text: 'Asked to see the black jacket again.' },
     ],
-    summary: 'Browsing the Atlas Jacket in Black across three channels. Confirmed Medium fits true to size. Asked about a sleeve alteration — handed to tailoring, who confirmed it.',
+    summary: 'Browsing the Atlas Jacket in Black across three channels. Confirmed Medium fits true to size. Asked about a sleeve alteration — handed to tailoring, who is checking the length with her.',
     intent: 'Purchase · alteration',
-    handoff: 'Completed by Maya · Tailoring',
-    messages: JOURNEY.flatMap((s) => s.messages.map((m) => ({ ...m, time: s.time }))),
+    handoff: 'With Maya · Tailoring',
+    messages: JOURNEY.flatMap((s) => s.messages.map((m) => ({ ...m, day: 'Today', time: s.time }))),
   },
   {
     id: 'daniel',
     name: 'Daniel Park',
+    email: 'daniel.park@example.com',
+    subject: 'Charged twice for September',
+    ticketStatus: 'open',
+    priority: 'high',
+    flags: ['escalated', 'overdue'],
+    assignee: 'Priya Nair',
+    needsReply: true,
+    paused: true,
+    timeline: [
+      { label: 'Created', value: 'Today, 1:16 PM' },
+      { label: 'First response', value: 'Today, 1:19 PM' },
+      { label: 'Customer wrote', value: '3 hours ago' },
+      { label: 'Team replied', value: '3 hours ago' },
+      { label: 'Closes on its own', value: 'in 3 days' },
+    ],
     initials: 'DP',
     channels: ['web', 'telegram'],
     topic: 'Billing',
     status: 'human',
     updated: '3h',
-    preview: "I've started the refund for the duplicate charge.",
+    preview: 'Perfect. Could the receipt go to my work email instead?',
     customer: [
       { label: 'Plan', value: 'Pro subscription' },
       { label: 'Issue', value: 'Duplicate September charge' },
@@ -522,13 +607,27 @@ export const INBOX: InboxThread[] = [
       { from: 'customer', channel: 'web', time: '1:16 PM', text: 'I was charged twice for September.' },
       { from: 'ai', channel: 'web', time: '1:16 PM', text: "Sorry about that. I can see two identical charges on 1 September. Refunds need a quick review from our billing team — I'm bringing them in now with everything we've covered." },
       { from: 'agent', channel: 'web', time: '1:19 PM', author: 'Priya · Billing', text: "Hi Daniel — I can see the duplicate September charge. I've started the refund; it should be back on your card in 3–5 business days." },
+      { from: 'agent', channel: 'web', time: '1:20 PM', author: 'Priya · Billing', note: true, text: 'Both charges confirmed on the card statement. Refunding the second one; he is on Pro, so no plan change needed.' },
       { from: 'customer', channel: 'telegram', time: '4:05 PM', text: 'Thanks. Will I get a confirmation?' },
       { from: 'agent', channel: 'telegram', time: '4:07 PM', author: 'Priya · Billing', text: "Yes — I'll message you here the moment it's processed." },
-    ],
+      { from: 'customer', channel: 'telegram', time: '4:12 PM', text: 'Perfect. Could the receipt go to my work email instead?' },
+    ].map((m) => ({ ...m, day: 'Today' })) as Msg[],
   },
   {
     id: 'rafi',
     name: 'Rafi Hasan',
+    email: 'rafi.hasan@example.com',
+    subject: 'Move renewal date to the 15th',
+    ticketStatus: 'closed',
+    priority: 'low',
+    flags: [],
+    needsReply: false,
+    paused: false,
+    timeline: [
+      { label: 'Created', value: 'Today, 10:31 AM' },
+      { label: 'First response', value: 'Today, 10:31 AM' },
+      { label: 'Closed', value: '5 hours ago' },
+    ],
     initials: 'RH',
     channels: ['api'],
     topic: 'Subscription',
@@ -546,7 +645,7 @@ export const INBOX: InboxThread[] = [
     messages: [
       { from: 'customer', channel: 'api', time: '10:31 AM', text: 'Can I move my renewal date to the 15th?' },
       { from: 'ai', channel: 'api', time: '10:31 AM', text: 'Yes. Your renewal moves to the 15th from next month, and nothing changes on this cycle. Want a reminder a few days before?' },
-    ],
+    ].map((m) => ({ ...m, day: 'Today' })) as Msg[],
   },
 ];
 

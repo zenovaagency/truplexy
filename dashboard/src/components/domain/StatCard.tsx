@@ -120,7 +120,7 @@ function DeltaPill({ delta }: { delta: StatDelta }) {
       title={delta.title}
       aria-label={delta.title ? `${delta.label} ${delta.title}` : delta.label}
       className={cn(
-        'inline-flex items-center gap-0.5 self-center rounded-full px-1.5 py-0.5 font-mono text-2xs font-semibold tabular-nums',
+        'inline-flex items-center gap-0.5 self-center rounded-full px-1.5 py-0.5 text-2xs font-semibold tabular-nums',
         delta.tone === 'good' && 'bg-resolved-soft text-resolved',
         delta.tone === 'bad' && 'bg-danger-soft text-danger',
         delta.tone === 'neutral' && 'bg-surface-2 text-ink-muted',

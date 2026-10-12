@@ -1,5 +1,5 @@
 ---
-import { Check } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 import Button from '../ui/Button.astro';
 import { PLANS, YEARLY_SAVING, type Billing } from '../../data/pricing';
 
@@ -98,19 +98,24 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
   <p class="sr-only" aria-live="polite" data-billing-status></p>
 
   <ul class="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
-    {PLANS.map((plan, i) => {
+    {PLANS.map((plan) => {
       const cols = reels(plan.price);
       const variants = priceVariants(plan.price);
       return (
       <li
         class:list={[
           'card relative flex flex-col p-6 sm:p-8',
-          plan.featured ? '!border-accent/40 !shadow-[var(--shadow-lg)] ring-4 ring-accent/10' : '!bg-paper',
+          plan.featured ? 'plan-featured' : '!bg-paper transition-colors hover:!border-line-strong',
         ]}
       >
         <div class="flex items-center justify-between gap-3">
           <h3 class="text-xl font-bold tracking-tight">{plan.name}</h3>
-          {plan.featured && <span class="chip bg-accent-soft !py-1 text-[0.72rem] text-accent">Most popular</span>}
+          {plan.featured && (
+            <span class="plan-pill chip">
+              <Sparkles size={12} strokeWidth={2.4} aria-hidden="true" />
+              Most popular
+            </span>
+          )}
         </div>
         <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-muted">{plan.blurb}</p>
 
@@ -186,6 +191,42 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
 </div>
 
 <style>
+  /* The featured card: a 1.5px brand-gradient border (the gradient is painted
+     under a white padding-box fill), a soft indigo glow and a slight lift. */
+  .plan-featured {
+    border: 1.5px solid transparent !important;
+    background:
+      linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
+      var(--gradient-brand) border-box !important;
+    box-shadow:
+      0 0 0 6px color-mix(in oklab, var(--color-accent) 6%, transparent),
+      0 24px 60px -12px var(--glow-a),
+      0 18px 44px -14px color-mix(in oklab, var(--color-violet) 40%, transparent) !important;
+  }
+
+  @media (min-width: 1024px) {
+    .plan-featured {
+      translate: 0 -8px;
+    }
+  }
+
+  /* "Most popular": a pill sitting on the top border, centred. */
+  .plan-pill {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    translate: -50% -50%;
+    gap: 0.35rem;
+    padding: 0.3rem 0.8rem;
+    /* No cyan stop: white text needs the darker end of the ramp (AA). */
+    background: linear-gradient(95deg, var(--color-indigo), var(--color-violet));
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    box-shadow: 0 6px 16px -4px color-mix(in oklab, var(--color-violet) 55%, transparent);
+  }
+
   /* Toggle thumb. The script measures the pressed button into --l/--t/--r/--b;
      the fallbacks roughly cover Monthly until it runs. Moves only animate once
      the first placement has painted. */

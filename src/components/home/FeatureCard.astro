@@ -8,9 +8,8 @@ interface Props {
   title: string;
   body: string;
   class?: string;
-  delay?: number;
 }
-const { title, body, class: className = '', delay = 0 } = Astro.props;
+const { title, body, class: className = '' } = Astro.props;
 ---
 
 <article

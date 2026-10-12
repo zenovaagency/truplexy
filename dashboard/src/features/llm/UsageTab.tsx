@@ -105,7 +105,7 @@ export default function UsageTab() {
             <span className="h-1.5 w-20 overflow-hidden rounded-full bg-surface-3">
               <span className="block h-full rounded-full bg-[var(--chart-1)]" style={{ width: `${(r.requests / u.requests) * 100}%` }} />
             </span>
-            <span className="font-mono text-xs tabular-nums text-ink-muted">{formatPercent(r.requests / u.requests)}</span>
+            <span className="text-xs tabular-nums text-ink-muted">{formatPercent(r.requests / u.requests)}</span>
           </span>
         ),
     },
@@ -118,7 +118,7 @@ export default function UsageTab() {
       align: 'right',
       cell: (r) =>
         r.price ? (
-          <span className="whitespace-nowrap font-mono text-xs tabular-nums text-ink-muted">
+          <span className="whitespace-nowrap text-xs tabular-nums text-ink-muted">
             {formatPerM(r.price.in)} / {formatPerM(r.price.out)}
           </span>
         ) : (
@@ -240,5 +240,5 @@ export default function UsageTab() {
 }
 
 function Num({ v, f }: { v: number | null; f: (n: number) => string }) {
-  return v == null ? <span className="text-ink-faint">—</span> : <span className="font-mono text-xs tabular-nums text-ink">{f(v)}</span>;
+  return v == null ? <span className="text-ink-faint">—</span> : <span className="text-xs tabular-nums text-ink">{f(v)}</span>;
 }

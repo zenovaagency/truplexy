@@ -6,34 +6,38 @@ import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
 
 const year = new Date().getFullYear();
 const onHome = Astro.url.pathname === '/';
+
+const link = 'text-white/60 transition-colors hover:text-white';
 ---
 
-<footer class="border-t border-line bg-surface">
-  <div class="container-t pb-10 pt-16">
+<!-- Same ink ground as the call to action above it, so the two read as one
+     band; a hairline marks where one ends. -->
+<footer class="relative overflow-hidden border-t border-white/10 bg-ink text-white">
+  <div class="container-t relative pt-16">
     <div class="grid gap-12 lg:grid-cols-[1.3fr_0.8fr_1.7fr_1fr]">
       <div>
-        <Logo height={28} />
+        <Logo height={28} onDark />
         <p class="mt-6 max-w-[320px] text-[clamp(1.5rem,1.2rem+1vw,2rem)] font-bold leading-tight tracking-tight">
           One conversation.
-          <span class="gradient-text block">Everywhere.</span>
+          <span class="footer-gradient block">Everywhere.</span>
         </p>
       </div>
 
       <nav aria-label="Footer">
-        <h2 class="mono text-ink-faint">Product</h2>
+        <h2 class="mono text-white/60">Product</h2>
         <ul class="mt-4 space-y-2.5 text-[0.95rem]">
           {NAV.map((item) => (
-            <li><a href={navHref(item.href, onHome)} class="text-ink-muted transition-colors hover:text-ink">{item.label}</a></li>
+            <li><a href={navHref(item.href, onHome)} class={link}>{item.label}</a></li>
           ))}
         </ul>
       </nav>
 
       <div>
-        <h2 class="mono text-ink-faint">Channels</h2>
+        <h2 class="mono text-white/60">Channels</h2>
         <ul class:list={['mt-4 text-[0.95rem]', SOON_CHANNELS.length > 0 ? 'space-y-2.5' : 'grid grid-cols-2 gap-x-5 gap-y-2.5 !text-[0.875rem]']}>
           {LIVE_CHANNELS.map((c) => (
-            <li class="flex items-center gap-2 text-ink-muted">
-              <ChannelIcon id={c.id} size={14} className="flex-none" />
+            <li class="flex items-center gap-2 text-white/60">
+              <ChannelIcon id={c.id} size={14} className="flex-none" onDark />
               {c.name}
               {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" title="Live" aria-label="Live"></span>}
             </li>
@@ -41,8 +45,8 @@ const onHome = Astro.url.pathname === '/';
         </ul>
         {SOON_CHANNELS.length > 0 && (
           <div class="mt-5">
-            <span class="soon-tag">Coming soon</span>
-            <ul class="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.82rem] text-ink-faint">
+            <span class="mono inline-flex rounded-full border border-dashed border-white/25 px-2 py-0.5 text-[0.625rem] text-white/60">Coming soon</span>
+            <ul class="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.82rem] text-white/60">
               {SOON_CHANNELS.map((c) => <li>{c.name}</li>)}
             </ul>
           </div>
@@ -50,18 +54,49 @@ const onHome = Astro.url.pathname === '/';
       </div>
 
       <div>
-        <h2 class="mono text-ink-faint">Talk to us</h2>
+        <h2 class="mono text-white/60">Talk to us</h2>
         <ul class="mt-4 space-y-2.5 text-[0.95rem]">
-          <li><a href={`mailto:${SITE.email}`} class="text-ink-muted transition-colors hover:text-ink">{SITE.email}</a></li>
-          <li><a href={SITE.demoUrl} class="text-ink-muted transition-colors hover:text-ink">Book a demo</a></li>
-          <li><a href={SITE.signupUrl} class="font-semibold text-accent transition-colors hover:text-ink">Get started →</a></li>
+          <li><a href={`mailto:${SITE.email}`} class={link}>{SITE.email}</a></li>
+          <li><a href={SITE.demoUrl} class={link}>Book a demo</a></li>
+          <li><a href={SITE.signupUrl} class="font-semibold text-white transition-colors hover:text-white/80">Get started →</a></li>
         </ul>
       </div>
     </div>
 
-    <div class="mt-14 flex flex-col gap-3 border-t border-line pt-6 text-[0.82rem] text-ink-faint sm:flex-row sm:items-center sm:justify-between">
+    <div class="mt-14 flex flex-col gap-3 border-t border-white/10 pt-6 text-[0.82rem] text-white/60 sm:flex-row sm:items-center sm:justify-between">
       <p>© {year} {SITE.name}. All rights reserved.</p>
       <p>Conversations shown on this page are illustrative samples.</p>
     </div>
   </div>
+
+  <!-- Oversized wordmark, fading out and cropped by the bottom edge. Decorative. -->
+  <p class="footer-word" aria-hidden="true">Truplexy</p>
 </footer>
+
+<style>
+  .footer-gradient {
+    background: linear-gradient(95deg, #45d4ff 0%, #8f9bff 50%, #d9b8ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    padding-bottom: 0.08em;
+  }
+
+  .footer-word {
+    margin: 1.5rem 0 0;
+    padding-inline: var(--gutter);
+    text-align: center;
+    font-size: clamp(4rem, 18vw, 16rem);
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 0.78;
+    height: 0.62em;
+    overflow: hidden;
+    user-select: none;
+    white-space: nowrap;
+    background: linear-gradient(to bottom, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+</style>

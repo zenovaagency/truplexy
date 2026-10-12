@@ -42,7 +42,7 @@ export function Count({ n, tone = 'neutral', className }: { n?: number; tone?: '
   return (
     <span
       className={cn(
-        'inline-grid h-[18px] min-w-[18px] place-items-center rounded-full px-1.5 font-mono text-[0.65rem] font-semibold tabular-nums',
+        'inline-grid h-[18px] min-w-[18px] place-items-center rounded-full px-1.5 text-[0.65rem] font-semibold tabular-nums',
         tone === 'accent' && 'bg-btn text-white',
         tone === 'danger' && 'bg-danger text-white dark:text-paper',
         tone === 'neutral' && 'bg-surface-3 text-ink-muted',
@@ -233,7 +233,7 @@ export function LimitBar({ label, used, limit, format = String }: { label: React
     <div className="grid gap-2">
       <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
         <span className="font-medium text-ink">{label}</span>
-        <span className="font-mono text-xs tabular-nums text-ink-muted">
+        <span className="text-xs tabular-nums text-ink-muted">
           {format(used)} / {limit > 0 ? format(limit) : 'Unlimited'}
         </span>
       </div>

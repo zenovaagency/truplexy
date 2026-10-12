@@ -110,11 +110,11 @@ export default function ModelTab() {
                     <span className="grid grid-cols-2 gap-2 rounded-[10px] bg-surface-2 px-3 py-2 text-xs">
                       <span className="grid">
                         <span className="text-ink-faint">Input / 1M</span>
-                        <span className="font-mono font-semibold tabular-nums text-ink">{formatPerM(p.inPerM)}</span>
+                        <span className="font-semibold tabular-nums text-ink">{formatPerM(p.inPerM)}</span>
                       </span>
                       <span className="grid">
                         <span className="text-ink-faint">Output / 1M</span>
-                        <span className="font-mono font-semibold tabular-nums text-ink">{formatPerM(p.outPerM)}</span>
+                        <span className="font-semibold tabular-nums text-ink">{formatPerM(p.outPerM)}</span>
                       </span>
                       <span className="col-span-2 border-t border-line pt-1.5 text-ink-muted">
                         ≈ <span className="font-semibold text-ink">{formatCurrency(replyCost(p, avg.in, avg.out) * 1000)}</span> per 1,000 replies

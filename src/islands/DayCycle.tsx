@@ -370,7 +370,7 @@ export default function DayCycle() {
                     }`}
                   >
                     <span className="flex items-center gap-3">
-                      <time className="w-[62px] flex-none font-mono text-[0.75rem] font-semibold text-ink tabular-nums">{d.time}</time>
+                      <time className="w-[62px] flex-none text-[0.75rem] font-semibold text-ink tabular-nums">{d.time}</time>
                       <span className={`h-2 w-2 flex-none rounded-full ${OUTCOME[d.state].dot}`} aria-hidden="true" />
                       <span className={`min-w-0 flex-1 truncate text-[0.9rem] ${on ? 'font-semibold text-ink' : 'font-medium text-ink-muted'}`}>
                         {d.title}

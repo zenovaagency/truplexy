@@ -385,7 +385,7 @@ export function SearchTab() {
                   {passages.map((p, i) => (
                     <li key={p.id} className="grid gap-1.5 rounded-[12px] border border-line p-3.5">
                       <div className="flex items-center gap-2">
-                        <span className="grid size-6 place-items-center rounded-[7px] bg-accent-soft font-mono text-xs font-bold text-accent">{i + 1}</span>
+                        <span className="grid size-6 place-items-center rounded-[7px] bg-accent-soft text-xs font-bold tabular-nums text-accent">{i + 1}</span>
                         <button type="button" onClick={() => openDoc(p.document_id)} className="truncate text-[0.8125rem] font-semibold text-ink hover:text-accent hover:underline">
                           {p.title}
                         </button>
@@ -416,7 +416,7 @@ export function SearchTab() {
                   <tbody>
                     {hits.map((h, i) => (
                       <tr key={h.id} className={cn(!h.selected && 'opacity-60')}>
-                        <td className="font-mono text-xs">{i + 1}</td>
+                        <td className="text-xs tabular-nums">{i + 1}</td>
                         <td>
                           <span className="flex items-center gap-2">
                             {h.selected && <CheckCircle2 className="size-3.5 shrink-0 text-live" aria-label="Selected" />}
@@ -426,13 +426,13 @@ export function SearchTab() {
                             </span>
                           </span>
                         </td>
-                        <td className="text-right font-mono text-xs">{h.keyword_rank ?? '—'}</td>
-                        <td className="text-right font-mono text-xs">
+                        <td className="text-right text-xs tabular-nums">{h.keyword_rank ?? '—'}</td>
+                        <td className="text-right text-xs tabular-nums">
                           {h.vector_rank ?? '—'}
                           {h.vector_score != null && <span className="ml-1 text-ink-faint">({h.vector_score.toFixed(2)})</span>}
                         </td>
-                        <td className="text-right font-mono text-xs">{h.fused_score?.toFixed(3) ?? '—'}</td>
-                        <td className="text-right font-mono text-xs">{h.rerank_score?.toFixed(3) ?? '—'}</td>
+                        <td className="text-right text-xs tabular-nums">{h.fused_score?.toFixed(3) ?? '—'}</td>
+                        <td className="text-right text-xs tabular-nums">{h.rerank_score?.toFixed(3) ?? '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -449,7 +449,7 @@ export function SearchTab() {
                       <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
                         <div className="h-full rounded-full bg-[var(--chart-1)]" style={{ width: `${Math.max(2, (t.v / Math.max(total, 1)) * 100)}%` }} />
                       </div>
-                      <span className="text-right font-mono text-xs tabular-nums text-ink">{formatMs(t.v)}</span>
+                      <span className="text-right text-xs tabular-nums text-ink">{formatMs(t.v)}</span>
                     </li>
                   ))}
                 </ul>

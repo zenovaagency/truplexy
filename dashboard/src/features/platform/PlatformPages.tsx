@@ -344,7 +344,7 @@ export function PlatformBusinesses() {
         </span>
       ),
     },
-    { key: 'balance', header: 'Balance', align: 'right', cell: (b) => <span className="font-mono tabular-nums text-ink">{formatCurrency(b.balance)}</span> },
+    { key: 'balance', header: 'Balance', align: 'right', cell: (b) => <span className="tabular-nums text-ink">{formatCurrency(b.balance)}</span> },
     { key: 'size', header: 'Team · bots', align: 'right', hideBelowLg: true, cell: (b) => <span className="tabular-nums text-ink-muted">{b.usage.members} · {b.usage.bots}</span> },
     { key: 'created', header: 'Created', align: 'right', hideBelowLg: true, cell: (b) => <span className="text-ink-muted">{formatDate(b.created_at)}</span> },
   ];
@@ -653,7 +653,7 @@ function DeletedBusinessSheet({ business: b, onClose }: { business: PlatformBusi
             </div>
             <div>
               <dt className="text-ink-faint">Balance</dt>
-              <dd className="font-mono tabular-nums text-ink">{formatCurrency(b.balance)}</dd>
+              <dd className="tabular-nums text-ink">{formatCurrency(b.balance)}</dd>
             </div>
           </dl>
           <p className="text-xs text-ink-faint">Restoring brings it back exactly as it was, with its members, bots, keys and balance.</p>
@@ -712,7 +712,7 @@ function BalanceSection({ business: b }: { business: PlatformBusiness }) {
           <Wallet className="size-5" />
         </span>
         <span className="grid">
-          <span className="font-mono text-xl font-semibold tabular-nums text-ink">{formatCurrency(b.balance)}</span>
+          <span className="text-xl font-semibold tabular-nums text-ink">{formatCurrency(b.balance)}</span>
           <span className="text-xs text-ink-faint">Pays for extra tokens and for replies past the month's tokens.</span>
         </span>
       </div>
@@ -1872,7 +1872,7 @@ export function PlatformModels() {
                 align: 'right',
                 cell: (m) => (
                   <span className="grid justify-items-end">
-                    <span className="whitespace-nowrap font-mono text-xs tabular-nums text-ink">{formatPerM(m.input_price_per_mtok)} / {formatPerM(m.output_price_per_mtok)}</span>
+                    <span className="whitespace-nowrap text-xs tabular-nums text-ink">{formatPerM(m.input_price_per_mtok)} / {formatPerM(m.output_price_per_mtok)}</span>
                     <span className="text-[0.68rem] text-ink-faint">{m.pricing_synced_at ? `synced ${formatRelative(m.pricing_synced_at)}` : 'entered by hand'}</span>
                   </span>
                 ),
@@ -1890,7 +1890,7 @@ export function PlatformModels() {
                   </Tip>
                 ),
               },
-              { key: 'billed', header: 'Billed in / out', align: 'right', cell: (m) => <span className="whitespace-nowrap font-mono text-xs font-semibold tabular-nums text-ink">{formatPerM(m.billed_input_price_per_mtok)} / {formatPerM(m.billed_output_price_per_mtok)}</span> },
+              { key: 'billed', header: 'Billed in / out', align: 'right', cell: (m) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-ink">{formatPerM(m.billed_input_price_per_mtok)} / {formatPerM(m.billed_output_price_per_mtok)}</span> },
               {
                 key: 'openrouter',
                 header: 'OpenRouter now',
@@ -1903,7 +1903,7 @@ export function PlatformModels() {
                   return (
                     <span className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
                       {drift && <Badge tone="warn" className="px-1.5 py-0 text-[0.65rem]">Differs</Badge>}
-                      <span className="font-mono text-xs tabular-nums text-ink-muted">{formatPerM(p.inPerM)} / {formatPerM(p.outPerM)}</span>
+                      <span className="text-xs tabular-nums text-ink-muted">{formatPerM(p.inPerM)} / {formatPerM(p.outPerM)}</span>
                     </span>
                   );
                 },
@@ -2087,7 +2087,7 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
         {markup != null && !fromServer && (
           <p className="rounded-[12px] bg-surface-2 px-3 py-2 text-xs text-ink-muted">
             Businesses pay{' '}
-            <span className="font-mono font-semibold tabular-nums text-ink">
+            <span className="font-semibold tabular-nums text-ink">
               {formatPerM(+(m.input_price_per_mtok * markup).toFixed(6))} / {formatPerM(+(m.output_price_per_mtok * markup).toFixed(6))}
             </span>{' '}
             per million tokens in / out ({+(fee! + commission!).toFixed(2)}% on top of OpenRouter).

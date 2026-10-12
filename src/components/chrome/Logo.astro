@@ -5,6 +5,7 @@
  */
 import { Image } from 'astro:assets';
 import wordDark from '../../assets/brand/wordmark-dark.png';
+import wordLight from '../../assets/brand/wordmark-light.png';
 
 interface Props {
   /** Rendered height in px. */
@@ -12,11 +13,14 @@ interface Props {
   class?: string;
   /** Set when the logo is not itself a link (e.g. inside one). */
   alt?: string;
+  /** Use the light-text master, for dark grounds. */
+  onDark?: boolean;
 }
-const { height = 30, class: className = '', alt = 'Truplexy' } = Astro.props;
-const width = Math.round((wordDark.width / wordDark.height) * height);
+const { height = 30, class: className = '', alt = 'Truplexy', onDark = false } = Astro.props;
+const src = onDark ? wordLight : wordDark;
+const width = Math.round((src.width / src.height) * height);
 ---
 
 <span class:list={['inline-flex items-center', className]}>
-  <Image src={wordDark} alt={alt} width={width} height={height} densities={[1, 2]} loading="eager" />
+  <Image src={src} alt={alt} width={width} height={height} densities={[1, 2]} loading="eager" />
 </span>

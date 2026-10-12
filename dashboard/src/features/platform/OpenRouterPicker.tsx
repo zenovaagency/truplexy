@@ -42,7 +42,7 @@ export function OpenRouterPicker({ onPick }: { onPick: (m: OpenRouterModel) => v
                       <span className="truncate font-medium text-ink">{m.name}</span>
                       <span className="truncate font-mono text-[0.68rem] text-ink-faint">{m.id}</span>
                     </span>
-                    <span className="grid shrink-0 text-right font-mono text-[0.68rem] tabular-nums text-ink-muted">
+                    <span className="grid shrink-0 text-right text-[0.68rem] tabular-nums text-ink-muted">
                       <span>
                         {formatPerM(m.inPerM)} / {formatPerM(m.outPerM)}
                       </span>
