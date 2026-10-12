@@ -1,6 +1,5 @@
 ---
 import Logo from './Logo.astro';
-import ChannelIcon from '../ui/ChannelIcon';
 import { NAV, SITE, navHref } from '../../data/site';
 import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
 
@@ -36,9 +35,8 @@ const link = 'text-white/60 transition-colors hover:text-white';
         <h2 class="mono text-white/60">Channels</h2>
         <ul class:list={['mt-4 text-[0.95rem]', SOON_CHANNELS.length > 0 ? 'space-y-2.5' : 'grid grid-cols-2 gap-x-5 gap-y-2.5 !text-[0.875rem]']}>
           {LIVE_CHANNELS.map((c) => (
-            <li class="flex items-center gap-2 text-white/60">
-              <ChannelIcon id={c.id} size={14} className="flex-none" onDark />
-              {c.name}
+            <li class="flex items-center gap-2">
+              <a href={navHref('#channels', onHome)} class={link}>{c.name}</a>
               {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" title="Live" aria-label="Live"></span>}
             </li>
           ))}
