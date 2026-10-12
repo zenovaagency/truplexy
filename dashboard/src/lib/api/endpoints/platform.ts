@@ -149,11 +149,27 @@ export function useRejectDeletion() {
 
 /* Accounts -------------------------------------------------------------- */
 
+/**
+ * Fills the fields an API that predates account management leaves out, so a
+ * page never reads `undefined.tone` or `undefined.length` while rendering.
+ */
+function normalizeUser<T extends Partial<PlatformUser>>(u: T): T & Pick<PlatformUser, 'name' | 'status' | 'memberships'> {
+  return {
+    ...u,
+    name: u.name ?? '',
+    status: u.status ?? (u.deleted_at ? 'deleted' : u.disabled_at ? 'disabled' : 'active'),
+    memberships: u.memberships ?? [],
+  };
+}
+
 export function usePlatformUsers(params: Omit<PlatformUserQuery, 'cursor'>) {
   return useInfiniteQuery({
     queryKey: qk.platform('users', 'list', params),
     queryFn: ({ pageParam, signal }) =>
-      api<{ data: PlatformUser[]; next_cursor?: string }>('/platform/users', { signal, query: { limit: 50, ...params, cursor: pageParam } }),
+      api<{ data?: PlatformUser[]; next_cursor?: string }>('/platform/users', { signal, query: { limit: 50, ...params, cursor: pageParam } }).then((r) => ({
+        data: (r.data ?? []).map(normalizeUser),
+        next_cursor: r.next_cursor,
+      })),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor,
     placeholderData: keepPreviousData,
@@ -164,7 +180,8 @@ export function usePlatformUsers(params: Omit<PlatformUserQuery, 'cursor'>) {
 export function usePlatformUser(id: string | undefined) {
   return useQuery({
     queryKey: qk.platform('users', 'detail', id),
-    queryFn: ({ signal }) => api<PlatformUserDetail>(`/platform/users/${id}`, { signal }),
+    queryFn: ({ signal }) =>
+      api<PlatformUserDetail>(`/platform/users/${id}`, { signal }).then((u) => ({ ...normalizeUser(u), activity: u.activity ?? [] })),
     enabled: Boolean(id),
   });
 }

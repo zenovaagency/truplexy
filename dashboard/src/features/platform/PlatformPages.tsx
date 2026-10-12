@@ -1045,8 +1045,8 @@ export function PlatformUsers() {
                 key: 'status',
                 header: 'Status',
                 cell: (u) => (
-                  <Badge tone={USER_STATUS[u.status].tone} dot>
-                    {USER_STATUS[u.status].label}
+                  <Badge tone={(USER_STATUS[u.status] ?? USER_STATUS.active).tone} dot>
+                    {(USER_STATUS[u.status] ?? USER_STATUS.active).label}
                   </Badge>
                 ),
               },
