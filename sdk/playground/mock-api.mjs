@@ -138,7 +138,7 @@ export function mockApi(base, { latency = 150, replyLatency = 900, autoAgent = t
       const [status, reply, sources] = /person|human|agent/i.test(text)
         ? ['handoff_offered', 'I can bring in someone from the team. Want me to?', []]
         : /return|refund/i.test(text)
-          ? ['answered', 'You can return any item within **30 days**:\n\n1. Open your order\n2. Choose *Return*\n3. Print the label', [{ document_id: 'doc_1', title: 'Returns policy', url: 'https://example.com/returns', score: 0.91 }]]
+          ? ['answered', 'You can return any item within **30 days**:\n\n1. Open your order\n2. Choose *Return*\n3. Print the label', [{ document_id: 'doc_1', title: 'Returns policy', url: 'https://example.com/returns', score: 0.91 }, { kind: 'web', title: 'Return shipping labels', url: 'https://carrier.example.org/returns', score: 0.64 }]]
           : ['answered', `You said: “${text}”. Try asking about returns, for a person, or type "limit" to see an error.`, []];
       add(conv, 'assistant', reply);
       return json(200, { message, reply, status, sources });

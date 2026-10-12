@@ -2,11 +2,13 @@
 export type ReplyStatus = 'answered' | 'clarification_required' | 'no_answer' | 'handoff_offered' | 'handoff' | 'escalated' | 'context';
 
 export interface Source {
-  document_id: string;
+  /** Web results have kind "web" and a url instead of a document. */
+  kind?: 'document' | 'web';
+  document_id?: string;
   title: string;
   section?: string;
   url?: string;
-  score: number;
+  score?: number;
 }
 
 export interface ChatMessage {
@@ -18,7 +20,7 @@ export interface ChatMessage {
   /** The team member who wrote it, for a person's reply. */
   agent?: string;
   createdAt: string;
-  /** Cited documents, for an answered reply. */
+  /** Cited documents and web pages, for an answered reply. */
   sources?: Source[];
   /** A visitor message on its way. */
   pending?: boolean;

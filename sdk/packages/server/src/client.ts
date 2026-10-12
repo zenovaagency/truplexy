@@ -23,7 +23,11 @@ export interface Conversation {
 }
 export interface ConversationInput { channel_id?: string; customer_id?: string }
 export type ReplyStatus = 'answered' | 'clarification_required' | 'no_answer' | 'handoff_offered' | 'handoff' | 'escalated' | 'context';
-export interface Source { document_id: string; title: string; section?: string; url?: string; score: number }
+export interface Source {
+  /** Web results have kind "web" and a url instead of a document. */
+  kind?: 'document' | 'web';
+  document_id?: string; title: string; section?: string; url?: string; score?: number;
+}
 export interface MessageResult { message: Message; reply: string | null; status: ReplyStatus; sources: Source[] }
 export interface TicketInput {
   subject?: string;

@@ -4,7 +4,7 @@ Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: MIT
 
 AI customer support that keeps one conversation going, with handoff to your team. Your chat key stays on your server.
@@ -65,6 +65,10 @@ The widget stores its signed session and details in the browser. reset() retains
 Visitors can send 20 messages a minute by default. Change it with `add_filter('truplexy_chat_rate_limit', fn () => 40);`, or return 0 for no limit.
 
 == Changelog ==
+
+= 0.2.0 =
+* Settings: "Keep website chat tickets open" stops the tickets the chat opens from closing on their own after your business's auto-close time.
+* Sources can link web pages the assistant searched as well as your articles.
 
 = 0.1.0 =
 * First release.
