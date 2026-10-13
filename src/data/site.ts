@@ -22,18 +22,54 @@ export const SITE = {
   demoUrl: `mailto:${email}?subject=${encodeURIComponent('Book a Truplexy demo')}`,
 } as const;
 
-/** Home-page sections in page order, then the standalone pages. */
-export const NAV = [
-  { label: 'Features', href: '#features' },
-  { label: 'Try it', href: '#try' },
-  { label: 'Channels', href: '#channels' },
-  { label: 'Continuity', href: '#continuous' },
-  { label: 'Pricing', href: '/pricing' },
-  { label: 'Docs', href: '/docs' },
-] as const;
+export interface NavLink {
+  label: string;
+  href: string;
+  blurb?: string;
+}
+
+/** What Truplexy does, as sections of the home page. */
+export const PRODUCT_LINKS: NavLink[] = [
+  { label: 'Human-like AI', href: '#features', blurb: 'Replies with the right tone, and no canned loops' },
+  { label: 'Live demo', href: '#try', blurb: 'Be the customer and try it yourself' },
+  { label: 'Smart handoff', href: '#handoff', blurb: 'Your team steps in when a person adds value' },
+  { label: 'Unified inbox', href: '#inbox', blurb: 'Every conversation and ticket in one place' },
+  { label: 'Always on', href: '#continuous', blurb: 'Support that doesn’t clock out' },
+];
+
+export const DOCS_LINKS: NavLink[] = [
+  { label: 'Documentation', href: '/docs', blurb: 'Setup guides for every channel' },
+  { label: 'Quickstart', href: '/docs#quickstart', blurb: 'From sign-up to first reply' },
+  { label: 'Website chat SDK', href: '/docs/web-sdk', blurb: 'A chat widget for any site' },
+  { label: 'REST API', href: '/docs/api', blurb: 'Connect a platform of your own' },
+  { label: 'Webhooks', href: '/docs/webhooks', blurb: 'Signed events when your team replies' },
+];
+
+export const CHANGELOG_HREF = '/changelog';
+
+export type NavMenu = 'product' | 'channels' | 'resources';
 
 /**
- * Resolves a NAV href for the page it's rendered on. Section anchors only
+ * The nav bar. A menu opens a dropdown; `match` lists the paths that mark
+ * the item as the current section.
+ */
+export const NAV: { label: string; href: string; menu?: NavMenu; match: string[] }[] = [
+  { label: 'Product', href: '/', menu: 'product', match: [] },
+  { label: 'Channels', href: '/channels', menu: 'channels', match: ['/channels'] },
+  { label: 'Resources', href: '/docs', menu: 'resources', match: ['/docs', CHANGELOG_HREF] },
+  { label: 'Pricing', href: '/pricing', match: ['/pricing'] },
+];
+
+/** The site's main pages, for flat lists (404). */
+export const PAGES: NavLink[] = [
+  { label: 'Channels', href: '/channels' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'Docs', href: '/docs' },
+  { label: 'Changelog', href: CHANGELOG_HREF },
+];
+
+/**
+ * Resolves a link for the page it's rendered on. Section anchors only
  * exist on the home page, so everywhere else they point back to it.
  */
 export function navHref(href: string, onHome: boolean) {

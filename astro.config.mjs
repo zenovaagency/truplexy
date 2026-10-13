@@ -20,6 +20,7 @@ const PAGE_SOURCES = {
   '/docs/web-sdk': ['src/pages/docs/web-sdk.astro', 'src/components/docs', 'src/layouts/Docs.astro', 'src/styles/docs.css', 'dashboard/src/features/integrations/snippets/web-sdk.ts'],
   '/docs': ['src/pages/docs/index.astro', 'src/data/setup-guides.ts'],
   '/channels': ['src/pages/channels/index.astro', 'src/data/channel-pages.ts', 'src/data/channels.ts'],
+  '/changelog': ['src/pages/changelog.astro', 'src/data/changelog.ts'],
 };
 
 /**
