@@ -308,7 +308,7 @@ const mobileLink = 'flex items-center gap-3 rounded-lg py-2.5 text-[1.0625rem] f
 
 
 <script>
-  import { lockScroll, getLenis, NAV_OFFSET } from '../../lib/scroll';
+  import { lockScroll } from '../../lib/scroll';
 
   const header = document.getElementById('site-nav')!;
   const onScroll = () => header.toggleAttribute('data-scrolled', window.scrollY > 8);
@@ -381,16 +381,9 @@ const mobileLink = 'flex items-center gap-3 rounded-lg py-2.5 text-[1.0625rem] f
   menu.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') setOpen(false);
   });
+  // Closing unlocks scrolling first; same-page anchors are then handled by the
+  // document-level listener in lib/scroll.ts, links to other pages just navigate.
   menu.querySelectorAll<HTMLAnchorElement>('[data-menu-link]').forEach((a) =>
-    a.addEventListener('click', (e) => {
-      const href = a.getAttribute('href')!;
-      setOpen(false);
-      const lenis = getLenis();
-      // Only same-page sections glide; links to other pages just navigate.
-      if (lenis && href.startsWith('#')) {
-        e.preventDefault();
-        lenis.scrollTo(href, { offset: NAV_OFFSET });
-      }
-    }),
+    a.addEventListener('click', () => setOpen(false)),
   );
 </script>
