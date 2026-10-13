@@ -256,14 +256,14 @@ export function channelHref(id: ChannelId): string {
 
 const PLAN_NAME = Object.fromEntries(PLANS.map((p) => [p.id, p.name])) as Record<PlanId, string>;
 
-/** "Free, Starter and Pro" style summary of where a channel is available, from the pricing table. */
+/** "Starter and Pro" style summary of where a channel is available, from the pricing table. */
 export function availability(label: string): { text: string; detail?: string } {
   const row = COMPARISON.flatMap((g) => g.rows).find((r) => r.label === label);
   if (!row) return { text: 'See pricing' };
-  const ids = (['free', 'starter', 'pro'] as PlanId[]).filter((p) => row.values[p]);
+  const ids = PLANS.map((p) => p.id).filter((p) => row.values[p]);
   const list = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]);
   const detail = ids.map((p) => row.values[p]).find((v) => typeof v === 'string');
-  if (ids.length === 3 && !detail) return { text: 'Every plan' };
+  if (ids.length === PLANS.length && !detail) return { text: 'Every plan' };
   if (detail) {
     const parts = ids.map((p) => `${typeof row.values[p] === 'string' ? row.values[p] : 'Included'} on ${PLAN_NAME[p]}`);
     return { text: list(ids.map((p) => PLAN_NAME[p])), detail: parts.join(', ') };
