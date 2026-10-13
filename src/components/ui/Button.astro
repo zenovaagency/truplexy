@@ -13,8 +13,9 @@ interface Props {
   size?: 'md' | 'sm';
   arrow?: boolean;
   class?: string;
+  [attr: `data-${string}`]: string | undefined;
 }
-const { href, variant = 'primary', size = 'md', arrow = true, class: className = '' } = Astro.props;
+const { href, variant = 'primary', size = 'md', arrow = true, class: className = '', ...rest } = Astro.props;
 
 const variants = {
   primary: 'btn-primary',
@@ -25,7 +26,7 @@ const variants = {
 };
 ---
 
-<a href={href} class:list={['btn', `btn-${size}`, variants[variant], className]}>
+<a href={href} class:list={['btn', `btn-${size}`, variants[variant], className]} {...rest}>
   <span class="btn-roll"><span class="btn-text"><slot /></span></span>
   {arrow && (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="btn-arrow">

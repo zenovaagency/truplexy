@@ -4,10 +4,12 @@ import type {
   DeletionRequest,
   Billing,
   BillingAddon,
+  BillingInterval,
   BotConfig,
   Business,
   BusinessTypeId,
   Channel,
+  CheckoutPlan,
   Customer,
   LedgerEntry,
   Limits,
@@ -1861,6 +1863,39 @@ route('POST', '/billing/token-addons', 'billing.write', (c) => {
   audit(c, 'billing.token_addon', c.tenant.id, { millions, price: q.price });
   return created({ addon: a, billing: billingOf(c.tenant) });
 });
+
+/* Plan subscription (Paddle). The mock skips the overlay: starting checkout begins the trial at once. */
+
+const isCheckoutPlan = (v: unknown): v is CheckoutPlan => v === 'starter' || v === 'pro';
+const isBillingInterval = (v: unknown): v is BillingInterval => v === 'monthly' || v === 'yearly';
+const TRIAL_MS = 7 * 24 * 3600 * 1000;
+
+route('GET', '/billing/subscription', 'usage.read', (c) => ({ subscription: c.tenant.subscription ?? null }));
+
+route('POST', '/billing/checkout', 'billing.write', (c) => {
+  const { plan, interval } = c.body ?? {};
+  if (!isCheckoutPlan(plan) || !isBillingInterval(interval)) throw invalid('plan must be starter or pro, interval monthly or yearly.');
+  if (c.tenant.subscription && c.tenant.subscription.status !== 'canceled') throw err(409, 'SUBSCRIPTION_EXISTS', 'This business already has a subscription. Change it from Plan & usage.');
+  const trialEnd = new Date(Date.now() + TRIAL_MS).toISOString();
+  c.tenant.subscription = { status: 'trialing', plan, interval, trial_ends_at: trialEnd, current_period_end: trialEnd, cancel_at: null };
+  c.tenant.plan = plan;
+  audit(c, 'billing.subscription_started', c.tenant.id, { plan, interval });
+  return { transaction_id: newId('txn') };
+});
+
+route('POST', '/billing/subscription/change', 'billing.write', (c) => {
+  const { plan, interval } = c.body ?? {};
+  const sub = c.tenant.subscription;
+  if (!sub || sub.status === 'canceled') throw err(404, 'NO_SUBSCRIPTION', 'This business has no subscription to change.');
+  if (!isCheckoutPlan(plan) || !isBillingInterval(interval)) throw invalid('plan must be starter or pro, interval monthly or yearly.');
+  sub.plan = plan;
+  sub.interval = interval;
+  c.tenant.plan = plan;
+  audit(c, 'billing.subscription_changed', c.tenant.id, { plan, interval });
+  return { subscription: sub };
+});
+
+route('POST', '/billing/portal', 'billing.write', () => ({ url: 'https://sandbox-customer-portal.paddle.com/' }));
 
 route('GET', '/playground/conversations/current', 'playground.run', (c) => ({ conversation: c.db.playground[pgKey(c)] ?? null }));
 

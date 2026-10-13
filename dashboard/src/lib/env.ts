@@ -7,6 +7,9 @@ export const env = {
   supabaseKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
   dashboardUrl: trim(import.meta.env.VITE_DASHBOARD_URL || window.location.origin),
   useMocks: import.meta.env.VITE_USE_MOCKS === 'true',
+  /** Paddle.js client-side token (test_… in sandbox, live_… in production). Safe to ship. */
+  paddleToken: import.meta.env.VITE_PADDLE_CLIENT_TOKEN || '',
+  paddleEnv: import.meta.env.VITE_PADDLE_ENV === 'production' ? 'production' : 'sandbox',
 } as const;
 
 export const authConfigured = env.useMocks || Boolean(env.supabaseUrl && env.supabaseKey);

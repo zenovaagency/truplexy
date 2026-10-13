@@ -1,4 +1,4 @@
-import type { AddonQuote, Business, LedgerKind, TokenAddon } from '@/lib/api/types';
+import type { AddonQuote, BillingInterval, Business, CheckoutPlan, LedgerKind, TokenAddon } from '@/lib/api/types';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -44,3 +44,15 @@ export const LEDGER_KIND: Record<LedgerKind, { label: string; tone: 'live' | 'wa
   token_addon: { label: 'Extra tokens', tone: 'accent' },
   overage: { label: 'Reply past tokens', tone: 'neutral' },
 };
+
+/** Days of free trial on every self-serve plan. Keep in step with the Paddle price and the site's TRIAL_DAYS. */
+export const TRIAL_DAYS = 7;
+
+/**
+ * Prices shown before checkout, in USD per month. Paddle's checkout is the
+ * authority on what is charged; keep in step with the site's pricing.ts.
+ */
+export const CHECKOUT_PLANS: { id: CheckoutPlan; name: string; blurb: string; price: Record<BillingInterval, number> }[] = [
+  { id: 'starter', name: 'Starter', blurb: 'AI support on every channel for small teams.', price: { monthly: 29, yearly: 23 } },
+  { id: 'pro', name: 'Pro', blurb: 'Adds integrations, web search and the full API.', price: { monthly: 79, yearly: 63 } },
+];

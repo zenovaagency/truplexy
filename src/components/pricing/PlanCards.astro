@@ -1,7 +1,7 @@
 ---
 import { Check, Sparkles } from 'lucide-react';
 import Button from '../ui/Button.astro';
-import { PLANS, TRIAL_DAYS, YEARLY_SAVING, type Billing } from '../../data/pricing';
+import { PLANS, TRIAL_DAYS, YEARLY_SAVING, signupAttrs, type Billing } from '../../data/pricing';
 
 interface Props {
   /** Link to the full comparison on /pricing. Off on that page itself. */
@@ -157,7 +157,7 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
         {plan.trial && <p class="mono mt-4 text-[0.66rem] text-accent">{TRIAL_DAYS}-day free trial</p>}
 
         <div class="mt-7">
-          <Button href={plan.cta.href} variant={plan.featured ? 'primary' : 'ghost'} arrow={false} class="w-full">
+          <Button href={plan.cta.href} variant={plan.featured ? 'primary' : 'ghost'} arrow={false} class="w-full" {...signupAttrs(plan)}>
             {plan.cta.label}
           </Button>
         </div>
@@ -338,6 +338,10 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
         options.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
         place();
         status.textContent = billing === 'yearly' ? 'Showing yearly prices, billed annually.' : 'Showing monthly prices.';
+        // Sign-up buttons (here and in the compare table) carry the chosen period into checkout.
+        document.querySelectorAll<HTMLAnchorElement>(`[data-signup-${billing}]`).forEach((a) => {
+          a.href = a.dataset[billing === 'yearly' ? 'signupYearly' : 'signupMonthly']!;
+        });
       }),
     );
   });

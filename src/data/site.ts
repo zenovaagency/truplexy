@@ -16,8 +16,8 @@ export const SITE = {
   email,
   // The dashboard, served by the `dashboard` service in vercel.json.
   dashboardUrl: 'https://app.truplexy.com',
-  // PLACEHOLDER — swap for the real sign-up flow.
-  signupUrl: `mailto:${email}?subject=${encodeURIComponent('Get started with Truplexy')}`,
+  // Create an account in the dashboard. Plan buttons use `signupHref` (pricing.ts) to carry a plan through.
+  signupUrl: 'https://app.truplexy.com/sign-in?mode=signup',
   // PLACEHOLDER — swap for the real booking link (Calendly, Cal.com, …).
   demoUrl: `mailto:${email}?subject=${encodeURIComponent('Book a Truplexy demo')}`,
 } as const;
