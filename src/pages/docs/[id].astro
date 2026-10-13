@@ -49,9 +49,7 @@ const heading = isHooks
     ? 'Build on the Truplexy chat API'
     : isWordPress
       ? 'Install the WordPress plugin'
-      : kind === 'team'
-        ? `Work from ${ch.name}`
-        : `Connect ${ch.name} to Truplexy`;
+      : `Connect ${ch.name} to Truplexy`;
 
 const platformHeading = kind === 'widget' ? '2. Install the plugin' : `2. Set up ${ch.name}`;
 const toc: [string, string][] = [['before', 'Before you start']];
@@ -64,7 +62,7 @@ if (isHooks) {
   } else {
     toc.push(['platform', platformHeading]);
     if (code.length) toc.push(['code', kind === 'widget' ? 'The plugin' : '3. Add the server code']);
-    if (hooks.length) toc.push(['replies', kind === 'team' ? '4. Bring escalations to your team' : '4. Send team replies back']);
+    if (hooks.length) toc.push(['replies', '4. Send team replies back']);
     else if (kind === 'widget') toc.push(['replies', 'Your team’s replies']);
     if (isWordPress) toc.push(['woocommerce', 'WooCommerce stores']);
   }
@@ -142,7 +140,7 @@ const next = guide.next.slice(0, 3);
     <Fragment>
       <h2 id="key">1. Issue a chat key</h2>
       <ol>
-        <li>In the <a href={SITE.dashboardUrl}>dashboard</a>, open <strong>Integrations → Guides → {isApi ? 'REST API' : ch.name}</strong>.</li>
+        <li>In the <a href={SITE.dashboardUrl}>dashboard</a>, open <strong>Integrations → Add a channel → {isApi ? 'REST API' : ch.name}</strong>.</li>
         {guide.channelType
           ? <li>Add a <strong>{channelLabel}</strong> channel, so tickets show where they came from, and issue its chat key.</li>
           : <li>Issue a chat key for your server.</li>}
@@ -193,24 +191,17 @@ const next = guide.next.slice(0, 3);
               <h2 id="code">{kind === 'widget' ? 'The plugin' : '3. Add the server code'}</h2>
               {kind === 'widget' ? (
                 <p>One file is the route and the widget. Save it, activate it, and the chat button appears on every page.</p>
-              ) : kind === 'team' ? (
-                <p>This code takes a teammate’s reply from {ch.name} and records it with <code>POST /conversations/{'{id}'}/replies</code>, so the customer receives it. Keep the mapping from {ch.name} threads to Truplexy conversations in your database.</p>
               ) : (
                 <p>This handler keeps one Truplexy conversation per customer thread, asks Truplexy for the reply and sends it back on {where}. The second file calls the chat API; it is the same on every channel. The sample keeps threads in memory: use your database in production.</p>
               )}
               <CodeTabs group="code" remember="lang" label="Your server language" tabs={code} />
-              {id === 'shopify' && <p>Add order lookup and returns as tools under <strong>Tools</strong> in the dashboard, calling the Shopify Admin API from your server.</p>}
             </Fragment>
           )}
 
           {hooks.length > 0 ? (
             <Fragment>
-              <h2 id="replies">{kind === 'team' ? '4. Bring escalations to your team' : '4. Send team replies back'}</h2>
-              {kind === 'team' ? (
-                <p>When a ticket is escalated, Truplexy calls your webhook with <code>ticket.updated</code> and <code>escalated: true</code>. Verify the signature, then post it for your team.</p>
-              ) : (
-                <p>When someone replies from Tickets, Truplexy calls your webhook with <code>message.created</code>. Verify the signature, then deliver the message on {where}.</p>
-              )}
+              <h2 id="replies">4. Send team replies back</h2>
+              <p>When someone replies from Tickets, Truplexy calls your webhook with <code>message.created</code>. Verify the signature, then deliver the message on {where}.</p>
               <p>Set the webhook up under <strong>Integrations → Webhook</strong> and keep its signing secret as <code>TRUPLEXY_WEBHOOK_SECRET</code>; the <a href="/docs/webhooks">webhooks guide</a> has the full contract.</p>
               <CodeTabs group="receiver" remember="lang" label="Your server language" tabs={hooks} />
             </Fragment>
@@ -256,12 +247,6 @@ const next = guide.next.slice(0, 3);
       <li>Open <strong>Integrations → Webhook</strong> and use <strong>Send test</strong>. Your receiver should get a <code>ping</code> and answer 2xx, even while deliveries are paused.</li>
       <li>Reply to a ticket from Tickets and check that <code>message.created</code> arrives with a valid signature.</li>
       <li>Escalate a ticket and check that <code>ticket.updated</code> arrives.</li>
-    </ul>
-  ) : kind === 'team' ? (
-    <ul>
-      <li>Escalate a conversation. It should appear in {ch.name} within a few seconds.</li>
-      <li>Reply in its thread. The customer should receive your reply on their own channel.</li>
-      <li>Open the ticket in Tickets and check that your reply is recorded.</li>
     </ul>
   ) : (
     <ul>

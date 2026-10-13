@@ -7,13 +7,15 @@
  *    "Coming soon" label (badge, diagram node, status row or footer list). This
  *    covers the homepage and every built page under /channels and /docs.
  * 2. No chat bubble (demo conversation) may mention a channel that is not live.
+ * 3. Platforms connected in one click (`connect` in the registry) have no
+ *    setup docs: no /docs/<id> page, and their channel page doesn't link to one.
  *
  * The list of non-live channels comes straight from the registry in
  * src/data/channels.ts (Node strips its types on import), so flipping a
  * channel to 'live' there updates this check too.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { SOON_CHANNELS } from '../src/data/channels.ts';
+import { CONNECT_CHANNELS, SOON_CHANNELS } from '../src/data/channels.ts';
 
 const NOT_LIVE = SOON_CHANNELS.map((c) => c.name);
 const WINDOW = 700; // characters of markup either side of a mention
@@ -85,6 +87,29 @@ for (const b of [...bubbles, ...marked]) {
   }
 }
 console.log(`  ${bubbles.length} demo bubbles + ${marked.length} marked demo lines checked`);
+
+// One-click Connect platforms: no docs page, and no link from their channel page into /docs.
+const built = (path) => {
+  try {
+    return statSync(new URL(path, dist)).isFile();
+  } catch {
+    return false;
+  }
+};
+for (const c of CONNECT_CHANNELS) {
+  if (built(`docs/${c.id}/index.html`)) {
+    failures++;
+    console.log(`✗ ${c.name} connects in one click but has a docs page at /docs/${c.id}`);
+  }
+  if (built(`channels/${c.id}/index.html`)) {
+    const page = strip(new URL(`channels/${c.id}/index.html`, dist));
+    if (/href="\/docs\/(?!web-sdk|api|webhooks)/.test(page.replace(/<header[\s\S]*?<\/header>|<footer[\s\S]*?<\/footer>/g, ''))) {
+      failures++;
+      console.log(`✗ /channels/${c.id} links to a setup guide; it should point at Connect in the dashboard`);
+    }
+  }
+}
+console.log(`  ${CONNECT_CHANNELS.length} one-click platforms checked for setup docs`);
 
 if (failures) {
   console.log(`\nHonesty audit FAILED (${failures}).`);

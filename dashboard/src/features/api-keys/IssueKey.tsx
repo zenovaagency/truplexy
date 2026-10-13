@@ -68,7 +68,8 @@ export function IssueKeyForm({
           value={channel}
           onChange={(e) => setChannel(e.target.value)}
           placeholder="No channel"
-          options={(channels.data ?? []).map((c) => ({ value: c.id, label: c.active ? `${c.name} · ${c.type_label}` : `${c.name} (off)`, disabled: !c.active }))}
+          // Connected channels run on Truplexy's own app and take no key.
+          options={(channels.data ?? []).filter((c) => !c.connection).map((c) => ({ value: c.id, label: c.active ? `${c.name} · ${c.type_label}` : `${c.name} (off)`, disabled: !c.active }))}
         />
       </Field>
       <Button type="submit" size={compact ? 'sm' : 'sm'} variant="accent" loading={create.isPending} disabled={!name.trim()} leading={<KeyRound />}>

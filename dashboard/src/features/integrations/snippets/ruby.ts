@@ -112,35 +112,6 @@ def on_event(event)
 end`,
 
   integrations: {
-    shopify: {
-      handler: `require "sinatra"
-require "openssl"
-require "rack/utils"
-require_relative "truplexy"
-
-# App Proxy: https://{shop}/apps/support/chat → https://your-server.com/shopify/chat
-post "/shopify/chat" do
-  halt 401 unless valid_proxy_signature?(request.query_string, ENV.fetch("SHOPIFY_SECRET"))
-  body = JSON.parse(request.body.read)
-  signed_in = params["logged_in_customer_id"].to_s
-  # Implement guest_session_id with your server's verified guest session.
-  customer = signed_in.empty? ? "guest:#{guest_session_id(request)}" : "user:#{signed_in}"
-  identity = signed_in.empty? ? nil : { contacts: [{ type: "shopify", value: "#{params['shop']}:#{signed_in}" }] }
-  content_type :json
-  Truplexy.ask("shop:#{params["shop"]}:#{customer}", body["text"], identity).to_json
-end
-
-# Shopify signs proxy requests: sorted "key=value" pairs, joined without separators.
-def valid_proxy_signature?(query, secret)
-  pairs = Rack::Utils.parse_query(query)
-  signature = pairs.delete("signature").to_s
-  message = pairs.sort.map { |k, v| "#{k}=#{Array(v).join(",")}" }.join
-  Rack::Utils.secure_compare(OpenSSL::HMAC.hexdigest("SHA256", secret, message), signature)
-end`,
-      deliver: `# Push to the storefront widget through your own socket or long-poll endpoint.
-notify_storefront(thread, from: agent, text: text)`,
-    },
-
     api: {
       file: 'example.rb',
       handler: `require_relative "truplexy"

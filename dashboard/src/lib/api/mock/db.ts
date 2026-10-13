@@ -160,7 +160,7 @@ export interface MockDb {
   customers: MockCustomer[];
 }
 
-export const DB_VERSION = 9;
+export const DB_VERSION = 10;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {
@@ -180,15 +180,26 @@ export function loadDb(seed: () => MockDb): MockDb {
 }
 
 let saveTimer = 0;
-export function saveDb(db: MockDb) {
+let pending: MockDb | null = null;
+
+function flush() {
   clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(db));
-    } catch {
-      /* quota or blocked: the state lives for this page only */
-    }
-  }, 50);
+  if (!pending) return;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(pending));
+  } catch {
+    /* quota or blocked: the state lives for this page only */
+  }
+  pending = null;
+}
+
+// A change made just before the page navigates away (e.g. Connect's redirect) is still saved.
+if (typeof window !== 'undefined') window.addEventListener('pagehide', flush);
+
+export function saveDb(db: MockDb) {
+  pending = db;
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(flush, 50);
 }
 
 export function clearDb() {

@@ -243,6 +243,19 @@ export interface ChannelType {
   icon: string;
   /** False for a hidden type one of the bot's channels still uses; don't offer it for new channels. */
   offered: boolean;
+  /** 'oauth': channels of the type are added with POST /channels/connect (the platform's own sign-in), not POST /channels. */
+  connect: ChannelConnectMethod;
+}
+
+export type ChannelConnectMethod = 'oauth' | null;
+
+/** A channel's link to the platform, for channels added with POST /channels/connect. */
+export interface ChannelConnection {
+  /** needs_reauth: the platform revoked or expired access; reconnect to resume. */
+  status: 'connected' | 'needs_reauth' | 'error';
+  /** The account it's connected to, e.g. a Page, workspace, store or phone number. */
+  account_name: string;
+  connected_at: string;
 }
 
 /** A place the bot talks to customers, such as a Discord server or a website's chat widget. */
@@ -256,6 +269,8 @@ export interface Channel {
   description: string;
   /** The platform's own ID, e.g. a Discord server ID. */
   external_id: string;
+  /** Set for a channel added with Connect; null for one the business runs itself with a chat key. */
+  connection: ChannelConnection | null;
   /** The business's switch. */
   enabled: boolean;
   /** A platform admin's switch; the business can't undo it. */
@@ -1167,6 +1182,8 @@ export interface PlatformChannelType {
   icon: string;
   /** A hidden type isn't offered for new channels; channels already of it keep working. */
   status: 'active' | 'hidden';
+  /** Set by the API for platforms it has an app for; read-only here. */
+  connect: ChannelConnectMethod;
   sort_order: number;
   /** Inactivity time for channels of the type; null leaves it to each business. 0 = never. */
   auto_close_hours: number | null;

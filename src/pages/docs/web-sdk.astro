@@ -16,7 +16,7 @@ const serverTabs: Tab[] = [
     label: 'WordPress',
     files: [],
     html: `<ol>
-<li>In the dashboard, open <strong>Integrations → Guides → WordPress</strong> and copy the plugin file.</li>
+<li>In the dashboard, open <strong>Integrations → Add a channel → WordPress</strong> and copy the plugin file.</li>
 <li>Save it as <code>wp-content/plugins/truplexy-chat/truplexy-chat.php</code> and activate it under Plugins.</li>
 <li>Add <code>define('TRUPLEXY_CHAT_KEY', 'tpx_…');</code> to <code>wp-config.php</code>.</li>
 <li>Style the chat under <strong>Settings → Truplexy Chat</strong>.</li>
@@ -232,7 +232,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
 
           <h2 id="key">1. Issue a chat key</h2>
           <ol>
-            <li>In the <a href={SITE.dashboardUrl}>dashboard</a>, open <strong>Integrations → Guides → Website chat</strong>.</li>
+            <li>In the <a href={SITE.dashboardUrl}>dashboard</a>, open <strong>Integrations → Add a channel → Website chat</strong>.</li>
             <li>Add a <strong>Website</strong> channel, so tickets show they came from your site, and issue its chat key.</li>
             <li>Store it on your server as <code>TRUPLEXY_CHAT_KEY</code>, in <code>.env</code> or your host’s settings. Never put it in front-end code.</li>
           </ol>

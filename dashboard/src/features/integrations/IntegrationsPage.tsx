@@ -1,5 +1,5 @@
 import { ChatApiReference, CustomerGuide } from './ChatApiGuide';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Outlet, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CircleDot,
   KeyRound,
+  Link2,
   Lock,
   Pause,
   Pencil,
@@ -22,7 +23,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useApiKeys } from '@/lib/api/endpoints/business';
-import { useChannelIcon, useChannels, useChannelTypes, useCreateChannel, useDeleteChannel, useUpdateChannel } from '@/lib/api/endpoints/channels';
+import { useChannelIcon, useChannels, useChannelTypes, useConnectChannel, useCreateChannel, useDeleteChannel, useUpdateChannel } from '@/lib/api/endpoints/channels';
 import { useDeleteWebhook, useRotateWebhookSecret, useSaveWebhook, useTestWebhook, useWebhook } from '@/lib/api/endpoints/bot';
 import type { Channel, ChannelInput, Webhook, WebhookDelivery } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -37,6 +38,7 @@ import {
   CodeBlock,
   DataTable,
   DescList,
+  Dialog,
   EmptyState,
   ErrorState,
   Field,
@@ -74,7 +76,7 @@ export default function IntegrationsPage() {
       <SubNav
         items={[
           { to: href('integrations'), label: 'Your channels', icon: <Radio />, end: true },
-          { to: href('integrations/guides'), label: 'Guides', icon: <BookOpen /> },
+          { to: href('integrations/guides'), label: 'Add a channel', icon: <Plus /> },
           {
             to: href('integrations/webhook'),
             label: (
@@ -100,7 +102,9 @@ export function CatalogTab() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [group, setGroup] = useState<IntegrationGroup | 'all' | 'connected'>('all');
-  const open = INTEGRATIONS.find((i) => i.id === params.get('guide'));
+  // Connect integrations have no guide, even from an old ?guide= link.
+  const open = INTEGRATIONS.find((i) => i.id === params.get('guide') && !i.connect);
+  const [failed, clearFailed] = useConnectReturn();
 
   /** Its active channels when it has a channel type; otherwise keys named after it. */
   const connected = (i: Integration): unknown[] => (i.channelType ? channelsFor(i, channels.data ?? []) : keysFor(i, keys.data ?? [], scope.bot));
@@ -147,6 +151,8 @@ export function CatalogTab() {
         </div>
       </div>
 
+      {failed && <ConnectError failed={failed} onDismiss={clearFailed} />}
+
       {!list.length && <EmptyState compact icon={<Search />} title="No channels match" />}
 
       {groups.map((g) => (
@@ -156,19 +162,11 @@ export function CatalogTab() {
             {list
               .filter((i) => i.group === g)
               .map((i) => {
+                if (i.connect) return <ConnectCard key={i.id} i={i} channels={(channels.data ?? []).filter((c) => c.type === i.channelType)} />;
                 const n = connected(i).length;
                 const card = (
                   <>
-                    <div className="flex items-start gap-3">
-                      <IntegrationIcon i={i} />
-                      <div className="grid min-w-0 flex-1 gap-0.5">
-                        <span className="flex items-center gap-2 font-semibold text-ink">
-                          {i.name}
-                          {i.teamSide && <Badge tone="outline" className="px-1.5 py-0 text-[0.65rem]">For your team</Badge>}
-                        </span>
-                        <span className="text-[0.8125rem] leading-snug text-ink-muted">{i.blurb}</span>
-                      </div>
-                    </div>
+                    <CardHead i={i} />
                     <div className="mt-auto flex items-center justify-between pt-3">
                       {n ? (
                         <Badge tone="live" dot>
@@ -181,7 +179,7 @@ export function CatalogTab() {
                     </div>
                   </>
                 );
-                const cls = 'panel flex min-h-[148px] flex-col p-4 text-left transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md';
+                const cls = cn(CARD, 'transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md');
                 return i.id === 'webhooks' ? (
                   <Link key={i.id} to={href('integrations/webhook')} className={cls}>
                     {card}
@@ -198,6 +196,203 @@ export function CatalogTab() {
 
       <GuideSheet integration={open} onClose={() => setParams((p) => (p.delete('guide'), p), { replace: true })} />
     </div>
+  );
+}
+
+const CARD = 'panel flex min-h-[148px] flex-col p-4 text-left';
+
+/** A catalog card's top: logo, name and blurb. */
+function CardHead({ i }: { i: Integration }) {
+  return (
+    <div className="flex items-start gap-3">
+      <IntegrationIcon i={i} />
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        <span className="flex items-center gap-2 font-semibold text-ink">
+          {i.name}
+          {i.teamSide && <Badge tone="outline" className="px-1.5 py-0 text-[0.65rem]">For your team</Badge>}
+        </span>
+        <span className="text-[0.8125rem] leading-snug text-ink-muted">{i.blurb}</span>
+      </div>
+    </div>
+  );
+}
+
+/** A platform with an app marketplace: one Connect button, no guide or code. */
+function ConnectCard({ i, channels }: { i: Integration; channels: Channel[] }) {
+  const { href } = useScopeCtx();
+  const stale = channels.find((c) => c.connection && c.connection.status !== 'connected');
+  const first = channels[0];
+  return (
+    <div className={CARD}>
+      <CardHead i={i} />
+      <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+        {stale ? (
+          <>
+            <Badge tone="warn" dot>Reconnect needed</Badge>
+            <ConnectButton i={i} channelId={stale.id} size="xs" variant="soft">
+              Reconnect
+            </ConnectButton>
+          </>
+        ) : first ? (
+          <>
+            <Badge tone="live" dot className="min-w-0">
+              <span className="truncate">
+                {channels.length > 1 ? `Connected · ${channels.length} accounts` : first.connection ? `Connected · ${first.connection.account_name}` : 'Connected'}
+              </span>
+            </Badge>
+            <Link to={href('integrations')} className="shrink-0 text-[0.8125rem] font-semibold text-accent hover:underline">
+              Manage →
+            </Link>
+          </>
+        ) : (
+          <>
+            <span className="text-xs text-ink-faint">Not connected</span>
+            <ConnectButton i={i} size="xs" />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sends the person to the platform's own sign-in to approve Truplexy's app.
+ * Shopify and Zendesk first need to know which store or account.
+ */
+function ConnectButton({
+  i,
+  channelId,
+  size = 'sm',
+  variant = 'accent',
+  children,
+}: {
+  i: Integration;
+  /** Reconnects this channel instead of adding one. */
+  channelId?: string;
+  size?: 'xs' | 'sm';
+  variant?: 'accent' | 'soft';
+  children?: React.ReactNode;
+}) {
+  const { can } = useScopeCtx();
+  const connect = useConnectChannel();
+  const [asking, setAsking] = useState(false);
+  const [account, setAccount] = useState('');
+  const ask = i.connect?.ask;
+  // Stays busy after success: the browser is on its way to the platform.
+  const busy = connect.isPending || connect.isSuccess;
+  const go = () => {
+    if (i.channelType) connect.mutate({ type: i.channelType, channel_id: channelId, account: ask ? account.trim() : undefined });
+  };
+
+  if (!can('channels.write'))
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-ink-faint">
+        <Lock className="size-3" /> Ask an admin to connect
+      </span>
+    );
+  return (
+    <>
+      <Button size={size} variant={variant} leading={<Link2 />} loading={busy && !asking} onClick={() => (ask ? setAsking(true) : go())}>
+        {children ?? 'Connect'}
+      </Button>
+      {ask && (
+        <Dialog
+          open={asking}
+          onOpenChange={setAsking}
+          size="sm"
+          title={`Connect ${i.name}`}
+          description={ask.hint}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setAsking(false)}>
+                Cancel
+              </Button>
+              <Button variant="accent" leading={<Link2 />} loading={busy} disabled={!account.trim()} onClick={go}>
+                Continue to {i.name}
+              </Button>
+            </>
+          }
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (account.trim()) go();
+            }}
+          >
+            <Field label={ask.label}>
+              <div className="flex items-center gap-2">
+                <Input autoFocus value={account} onChange={(e) => setAccount(e.target.value.slice(0, 100))} placeholder={ask.placeholder} className="flex-1" />
+                {ask.suffix && <span className="shrink-0 font-mono text-[0.8125rem] text-ink-muted">{ask.suffix}</span>}
+              </div>
+            </Field>
+          </form>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+/** Why the platform sent the person back without connecting, by the API's connect_error code. */
+const CONNECT_ERRORS: Record<string, string> = {
+  ACCESS_DENIED: 'The sign-in was cancelled, or not every permission Truplexy asks for was approved. Connect again and approve them all.',
+  NO_ACCOUNT: 'No account was picked, such as a WhatsApp number, Facebook Page or Slack channel. Connect again and pick one.',
+  ACCOUNT_IN_USE: 'That account is already connected to another Truplexy bot. Disconnect it there first.',
+  STATE_EXPIRED: 'The sign-in took too long. Connect again.',
+  PLAN_LIMIT_REACHED: "Your plan doesn't include this channel. Upgrade under Settings → Plan.",
+};
+
+/**
+ * After the platform's sign-in, the API returns here with ?connected=<channel>
+ * or ?connect_error=<code>&type=<type>. Says so once and tidies the URL.
+ */
+function useConnectReturn() {
+  const [params, setParams] = useSearchParams();
+  const channels = useChannels();
+  const connected = params.get('connected');
+  const code = params.get('connect_error');
+  const type = params.get('type') ?? '';
+  const [failed, setFailed] = useState<{ code: string; type: string } | null>(null);
+  const told = useRef('');
+
+  useEffect(() => {
+    if (!connected || !channels.data || told.current === connected) return;
+    told.current = connected;
+    const c = channels.data.find((x) => x.id === connected);
+    notifySuccess(c ? `${c.type_label} connected${c.connection ? ` · ${c.connection.account_name}` : ''}` : 'Connected');
+    setParams((p) => (p.delete('connected'), p), { replace: true });
+  }, [connected, channels.data, setParams]);
+
+  useEffect(() => {
+    if (!code) return;
+    setFailed({ code, type });
+    setParams((p) => (p.delete('connect_error'), p.delete('type'), p), { replace: true });
+  }, [code, type, setParams]);
+
+  return [failed, () => setFailed(null)] as const;
+}
+
+function ConnectError({ failed, onDismiss }: { failed: { code: string; type: string }; onDismiss: () => void }) {
+  const i = INTEGRATIONS.find((x) => x.connect && x.channelType === failed.type);
+  return (
+    <Callout
+      tone="danger"
+      icon={<AlertTriangle />}
+      title={`${i?.name ?? 'The platform'} wasn't connected`}
+      action={
+        <span className="flex items-center gap-2">
+          {i && (
+            <ConnectButton i={i} size="xs" variant="soft">
+              Try again
+            </ConnectButton>
+          )}
+          <Button size="xs" variant="quiet" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        </span>
+      }
+    >
+      {CONNECT_ERRORS[failed.code] ?? `Something went wrong on the way back (${failed.code}). Connect again, or contact support if it keeps happening.`}
+    </Callout>
   );
 }
 
@@ -237,7 +432,9 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
   const firstActive = ofType.find((c) => c.active)?.id ?? '';
   useEffect(() => setChannelId(firstActive), [i?.id, firstActive]);
   const picked = ofType.find((c) => c.id === channelId);
-  const [lang, setLang] = useLang(i?.langs ?? []);
+  const langs = i?.langs ?? [];
+  const steps = i?.steps ?? [];
+  const [lang, setLang] = useLang(langs);
   const pack = useLangPack(lang);
   const code = pack.data?.integrations[i?.id ?? ''];
   const hook = code && pack.data && (code.receiver ?? (code.deliver || code.escalation ? pack.data.receiver(code) : null));
@@ -271,10 +468,10 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
           <Callout tone="warn" icon={<ShieldCheck />} title="Keys stay on your server">
             Never put a chat key in a website, mobile app or theme file. Anyone could copy it.
           </Callout>
-          {i.langs.length > 0 && i.id !== 'web' && (
+          {langs.length > 0 && i.id !== 'web' && (
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <span className="text-[0.8125rem] text-ink-muted">Your server's language</span>
-              <LangPicker langs={i.langs} value={lang} onChange={setLang} />
+              <LangPicker langs={langs} value={lang} onChange={setLang} />
             </div>
           )}
 
@@ -308,8 +505,8 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
             </Step>
 
             <Step n={2} title={i.id === 'web' ? 'Add the route to your server' : i.widget ? 'Install the plugin' : i.teamSide ? `Set up ${i.name}` : `Receive ${i.name} messages`}>
-              <ol className={cn('grid gap-1.5 text-[0.8125rem] text-ink-muted marker:text-ink-faint', i.steps.length > 1 && 'list-decimal pl-5')}>
-                {i.steps.map((s) => (
+              <ol className={cn('grid gap-1.5 text-[0.8125rem] text-ink-muted marker:text-ink-faint', steps.length > 1 && 'list-decimal pl-5')}>
+                {steps.map((s) => (
                   <li key={s}>{s}</li>
                 ))}
               </ol>
@@ -523,20 +720,34 @@ export function ChannelsTab() {
   const confirm = useConfirm();
   const writable = can('channels.write');
   const [edit, setEdit] = useState<Channel | 'new' | null>(null);
+  const [failed, clearFailed] = useConnectReturn();
 
   const onDelete = (c: Channel) =>
-    confirm({
-      title: `Delete “${c.name}”?`,
-      description: c.api_keys
-        ? `${pluralize(c.api_keys, 'active API key')} still ${c.api_keys === 1 ? 'uses' : 'use'} it. Revoke them under API keys first.`
-        : "Its conversations and tickets keep the channel's name and type.",
-      confirmLabel: 'Delete channel',
-      tone: 'danger',
-      onConfirm: () => del.mutateAsync(c.id),
-    });
+    confirm(
+      c.connection
+        ? {
+            title: `Disconnect “${c.name}”?`,
+            description: `Truplexy's app is removed from ${c.connection.account_name} and stops answering there. Its conversations and tickets keep the channel's name and type.`,
+            confirmLabel: 'Disconnect',
+            tone: 'danger',
+            onConfirm: () => del.mutateAsync(c.id),
+          }
+        : {
+            title: `Delete “${c.name}”?`,
+            description: c.api_keys
+              ? `${pluralize(c.api_keys, 'active API key')} still ${c.api_keys === 1 ? 'uses' : 'use'} it. Revoke them under API keys first.`
+              : "Its conversations and tickets keep the channel's name and type.",
+            confirmLabel: 'Delete channel',
+            tone: 'danger',
+            onConfirm: () => del.mutateAsync(c.id),
+          },
+    );
 
   const toggle = (c: Channel, enabled: boolean) =>
-    update.mutate({ id: c.id, patch: { enabled } }, { onSuccess: () => notifySuccess(enabled ? `${c.name} is on` : `${c.name} is off. Its keys stop working.`) });
+    update.mutate(
+      { id: c.id, patch: { enabled } },
+      { onSuccess: () => notifySuccess(enabled ? `${c.name} is on` : c.connection ? `${c.name} is off. Messages there get no answer.` : `${c.name} is off. Its keys stop working.`) },
+    );
 
   const columns: Column<Channel>[] = [
     {
@@ -549,7 +760,12 @@ export function ChannelsTab() {
             <span className="truncate font-semibold text-ink">{c.name}</span>
             <span className="truncate text-xs text-ink-faint">
               {c.type_label}
-              {c.external_id && (
+              {c.connection ? (
+                <>
+                  {' · '}
+                  {c.connection.account_name}
+                </>
+              ) : c.external_id && (
                 <>
                   {' · '}
                   <span className="font-mono">{c.external_id}</span>
@@ -571,16 +787,38 @@ export function ChannelsTab() {
         </Link>
       ),
     },
-    { key: 'keys', header: 'Keys', align: 'right', hideBelowLg: true, cell: (c) => <span className="tabular-nums text-ink-muted">{formatNumber(c.api_keys)}</span> },
+    {
+      key: 'keys',
+      header: 'Keys',
+      align: 'right',
+      hideBelowLg: true,
+      cell: (c) =>
+        c.connection ? (
+          <Tip content="Connected with Truplexy's app: no key needed">
+            <span className="text-ink-faint">—</span>
+          </Tip>
+        ) : (
+          <span className="tabular-nums text-ink-muted">{formatNumber(c.api_keys)}</span>
+        ),
+    },
     {
       key: 'actions',
       header: <span className="sr-only">Actions</span>,
       align: 'right',
       hideOnCard: !writable,
-      cell: (c) =>
-        writable ? (
+      cell: (c) => {
+        if (!writable) return null;
+        const reconnect = c.connection && c.connection.status !== 'connected' ? INTEGRATIONS.find((i) => i.connect && i.channelType === c.type) : undefined;
+        return (
           <span className="flex items-center justify-end gap-1">
-            <Tip content={c.disabled_by_platform ? 'Turned off by Truplexy' : c.enabled ? 'Turn off: its keys stop working' : 'Turn on'}>
+            {reconnect && (
+              <span className="mr-1">
+                <ConnectButton i={reconnect} channelId={c.id} size="xs" variant="soft">
+                  Reconnect
+                </ConnectButton>
+              </span>
+            )}
+            <Tip content={c.disabled_by_platform ? 'Turned off by Truplexy' : c.enabled ? (c.connection ? 'Turn off: it stops answering' : 'Turn off: its keys stop working') : 'Turn on'}>
               <span className="mr-1 inline-flex">
                 <Switch checked={c.active} disabled={c.disabled_by_platform || update.isPending} onCheckedChange={(v) => toggle(c, v)} />
               </span>
@@ -590,27 +828,34 @@ export function ChannelsTab() {
                 <Pencil />
               </Button>
             </Tip>
-            <Tip content="Delete">
-              <Button size="xs" icon variant="quiet" className="hover:text-danger" onClick={() => void onDelete(c)} aria-label={`Delete ${c.name}`}>
+            <Tip content={c.connection ? 'Disconnect' : 'Delete'}>
+              <Button size="xs" icon variant="quiet" className="hover:text-danger" onClick={() => void onDelete(c)} aria-label={`${c.connection ? 'Disconnect' : 'Delete'} ${c.name}`}>
                 <Trash2 />
               </Button>
             </Tip>
           </span>
-        ) : null,
+        );
+      },
     },
   ];
 
   return (
     <div className="grid gap-5">
+      {failed && <ConnectError failed={failed} onDismiss={clearFailed} />}
       <Card
         flush
         title={`Channels of ${bot.name}`}
         description="Each place customers reach the assistant, such as a Discord server or your website's chat. Tickets show which channel they came from."
         actions={
           writable && (
-            <Button variant="accent" size="sm" leading={<Plus />} onClick={() => setEdit('new')}>
-              Add channel
-            </Button>
+            <span className="flex items-center gap-2">
+              <Button asChild variant="soft" size="sm" leading={<Link2 />}>
+                <Link to={href('integrations/guides')}>Connect a platform</Link>
+              </Button>
+              <Button variant="accent" size="sm" leading={<Plus />} onClick={() => setEdit('new')}>
+                Add channel
+              </Button>
+            </span>
           )
         }
       >
@@ -627,17 +872,11 @@ export function ChannelsTab() {
               <EmptyState
                 icon={<Radio />}
                 title="No channels yet"
-                description="Add one for each place you connect, then issue its API key, so you can tell tickets apart and switch a channel off on its own."
+                description="Connect WhatsApp, Slack, Shopify and other platforms in one click, or add a channel for each place you run yourself and issue its API key."
                 action={
-                  writable ? (
-                    <Button variant="accent" leading={<Plus />} onClick={() => setEdit('new')}>
-                      Add your first channel
-                    </Button>
-                  ) : (
-                    <Button asChild variant="soft">
-                      <Link to={href('integrations/guides')}>Browse the guides</Link>
-                    </Button>
-                  )
+                  <Button asChild variant={writable ? 'accent' : 'soft'} leading={<Plus />}>
+                    <Link to={href('integrations/guides')}>Add your first channel</Link>
+                  </Button>
                 }
               />
             }
@@ -649,8 +888,9 @@ export function ChannelsTab() {
           </p>
         )}
       </Card>
-      <Callout tone="neutral" icon={<KeyRound />} title="Bind a key to each channel">
-        Issue a chat API key with the channel picked, and every conversation it starts is marked with that channel. Turning the channel off stops its keys until you turn it back on.{' '}
+      <Callout tone="neutral" icon={<KeyRound />} title="Bind a key to each channel you run">
+        Connected platforms need no key. For a channel your own server runs, issue a chat API key with the channel picked, and every conversation it starts is marked with that channel. Turning the
+        channel off stops its keys until you turn it back on.{' '}
         <Link to={href('integrations/guides')} className="font-semibold text-accent hover:underline">
           Setup guides →
         </Link>
@@ -686,9 +926,12 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; o
   }, [channel]);
   const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setC((x) => ({ ...x, [k]: v }));
 
-  // Offered types, plus the channel's own type when it is hidden now.
+  const { href } = useScopeCtx();
+  const connected = Boolean(existing?.connection);
+  // Offered types, plus the channel's own type when it is hidden now. Platforms
+  // with an app are added with Connect, never by hand.
   const options = (types.data ?? [])
-    .filter((t) => t.offered || t.id === existing?.type)
+    .filter((t) => (t.offered && !t.connect) || t.id === existing?.type)
     .map((t) => ({ value: t.id, label: t.offered ? t.label : `${t.label} (no longer offered)` }));
   const valid = Boolean(c.type && c.name.trim());
   const saving = create.isPending || update.isPending;
@@ -731,23 +974,48 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; o
             Its keys don't work, and only Truplexy can turn it back on. Contact support if you think this is a mistake.
           </Callout>
         )}
-        <Field label="Type">
-          <Select value={c.type} onChange={(e) => set('type', e.target.value)} placeholder={types.isPending ? 'Loading…' : 'Pick a type'} options={options} />
+        <Field
+          label="Type"
+          hint={
+            connected ? (
+              `Connected to ${existing?.connection?.account_name}.`
+            ) : existing ? undefined : (
+              <>
+                WhatsApp, Messenger, Instagram, Discord, Slack, Teams, Shopify, HubSpot and Zendesk are added with Connect under{' '}
+                <Link to={href('integrations/guides')} onClick={onClose} className="text-accent hover:underline">
+                  Add a channel
+                </Link>
+                .
+              </>
+            )
+          }
+        >
+          <Select value={c.type} onChange={(e) => set('type', e.target.value)} disabled={connected} placeholder={types.isPending ? 'Loading…' : 'Pick a type'} options={options} />
         </Field>
-        <Field label="Name" hint="Unique among this bot's channels, e.g. “Acme Discord” or “Storefront chat”." aside={`${c.name.length}/80`}>
+        <Field label="Name" hint="Unique among this bot's channels, e.g. “Acme Telegram” or “Storefront chat”." aside={`${c.name.length}/80`}>
           <Input value={c.name} onChange={(e) => set('name', e.target.value.slice(0, 80))} />
         </Field>
         <Field label="Description" optional aside={`${c.description.length}/300`}>
           <Textarea rows={3} value={c.description} onChange={(e) => set('description', e.target.value.slice(0, 300))} />
         </Field>
-        <Field label="External ID" optional hint="The platform's own ID for it, such as a Discord server ID or a phone number." aside={`${c.external_id.length}/128`}>
-          <Input value={c.external_id} onChange={(e) => set('external_id', e.target.value.slice(0, 128))} className="font-mono text-xs" />
-        </Field>
+        {!connected && (
+          <Field label="External ID" optional hint="The platform's own ID for it, such as a Discord server ID or a phone number." aside={`${c.external_id.length}/128`}>
+            <Input value={c.external_id} onChange={(e) => set('external_id', e.target.value.slice(0, 128))} className="font-mono text-xs" />
+          </Field>
+        )}
         <Switch
           checked={c.enabled}
           onCheckedChange={(v) => set('enabled', v)}
           label="On"
-          description={c.enabled ? 'Keys bound to it work.' : "Keys bound to it are refused until it's back on."}
+          description={
+            connected
+              ? c.enabled
+                ? 'The assistant answers there.'
+                : "Messages there get no answer until it's back on."
+              : c.enabled
+                ? 'Keys bound to it work.'
+                : "Keys bound to it are refused until it's back on."
+          }
         />
         <AutoCloseField
           value={c.auto_close_hours ?? null}

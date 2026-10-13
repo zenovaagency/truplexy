@@ -20,6 +20,11 @@ const BRANDS: Record<string, string> = {
   signal: '/brands/signal.svg',
   slack: '/brands/slack.svg',
   teams: '/brands/microsoft-teams.svg',
+  shopify: '/brands/shopify.svg',
+  hubspot: '/brands/hubspot.svg',
+  zendesk: '/brands/zendesk.svg',
+  wordpress: '/brands/wordpress.svg',
+  woocommerce: '/brands/woocommerce.svg',
 };
 
 const GLYPHS: Record<string, LucideIcon> = {
@@ -72,12 +77,19 @@ export function ChannelBadge({ name, icon, muted, className }: { name: string; i
   );
 }
 
-export function ChannelStatusBadge({ channel: c }: { channel: Pick<Channel, 'enabled' | 'disabled_by_platform'> }) {
+export function ChannelStatusBadge({ channel: c }: { channel: Pick<Channel, 'enabled' | 'disabled_by_platform'> & Partial<Pick<Channel, 'connection'>> }) {
   if (c.disabled_by_platform)
     return (
       <Tip content="Turned off by Truplexy. Its keys don't work, and only Truplexy can turn it back on.">
         <Badge tone="danger" dot>Disabled by Truplexy</Badge>
       </Tip>
     );
-  return c.enabled ? <Badge tone="live" dot>Active</Badge> : <Badge tone="neutral" dot>Off</Badge>;
+  if (!c.enabled) return <Badge tone="neutral" dot>Off</Badge>;
+  if (c.connection && c.connection.status !== 'connected')
+    return (
+      <Tip content="The platform stopped Truplexy's access, so messages there get no answer. Reconnect to resume.">
+        <Badge tone="warn" dot>Reconnect needed</Badge>
+      </Tip>
+    );
+  return <Badge tone="live" dot>Active</Badge>;
 }
