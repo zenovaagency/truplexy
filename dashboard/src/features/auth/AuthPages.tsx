@@ -391,11 +391,24 @@ export function OnboardingPage() {
   const me = useMe();
   const create = useCreateTenant();
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  // A plan picked on the pricing page rides through sign-up in `next`; checkout opens on the Plan tab.
+  const chosen = params.get('plan');
+  const chosenInterval = params.get('billing');
   const [type, setType] = useState<BusinessTypeId | null>(null);
   const [name, setName] = useState('');
   const [step, setStep] = useState<1 | 2>(1);
   const selected = types.data?.find((t) => t.id === type);
   const hasBusiness = (me.data?.memberships.length ?? 0) > 0;
+
+  // Already has a business and came from a pricing button: subscribe that one instead of making another.
+  const existing = me.data?.memberships.find((m) => m.bots.length);
+  const planPick = chosen === 'starter' || chosen === 'pro';
+  if (planPick && existing) {
+    const link = scopeLink({ tenant: existing.tenant_id, bot: existing.bots[0]!.id }, 'settings/plan');
+    const q = new URLSearchParams({ checkout: chosen, billing: chosenInterval === 'yearly' ? 'yearly' : 'monthly' });
+    return <Navigate to={`${link.to}?${q}`} state={link.state} replace />;
+  }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -404,6 +417,12 @@ export function OnboardingPage() {
       { name: name.trim(), business_type: type },
       {
         onSuccess: ({ tenant, bot_id }) => {
+          if (chosen === 'starter' || chosen === 'pro') {
+            const link = scopeLink({ tenant: tenant.id, bot: bot_id }, 'settings/plan');
+            const q = new URLSearchParams({ checkout: chosen, billing: chosenInterval === 'yearly' ? 'yearly' : 'monthly' });
+            nav(`${link.to}?${q}`, { state: link.state, replace: true });
+            return;
+          }
           const link = scopeLink({ tenant: tenant.id, bot: bot_id });
           nav(link.to, { state: link.state, replace: true });
         },

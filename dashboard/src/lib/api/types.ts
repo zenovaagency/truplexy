@@ -849,6 +849,25 @@ export interface Billing {
   addons: BillingAddon[];
 }
 
+/** The paid plans sold through Paddle. Enterprise is sales-led. */
+export type CheckoutPlan = 'starter' | 'pro';
+export type BillingInterval = 'monthly' | 'yearly';
+
+/** Paddle's subscription statuses, as the API reports them. */
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'canceled';
+
+export interface Subscription {
+  status: SubscriptionStatus;
+  plan: CheckoutPlan;
+  interval: BillingInterval;
+  /** Set while trialing: the first charge happens then. */
+  trial_ends_at: string | null;
+  /** The next renewal, or the end of the paid period once canceled. */
+  current_period_end: string | null;
+  /** Set when a cancellation is scheduled: access ends then. */
+  cancel_at: string | null;
+}
+
 export type LedgerKind = 'credit' | 'debit' | 'token_addon' | 'overage';
 
 export interface LedgerEntry {

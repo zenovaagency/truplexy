@@ -30,7 +30,19 @@ export interface Plan {
   cta: { label: string; href: string };
 }
 
-const trialCta = { label: `Start ${TRIAL_DAYS}-day free trial`, href: SITE.signupUrl };
+/**
+ * Where a plan's button goes: dashboard sign-up, with the plan and billing
+ * period carried in `next`. After sign-up and onboarding the dashboard opens
+ * that plan's Paddle checkout.
+ */
+export const signupHref = (plan: PlanId, billing: Billing = 'monthly') =>
+  `${SITE.dashboardUrl}/sign-in?mode=signup&next=${encodeURIComponent(`/onboarding?plan=${plan}&billing=${billing}`)}`;
+
+/** Data attributes that let the billing toggle re-point a plan's button. Empty for plans without a sign-up flow. */
+export const signupAttrs = (plan: Plan) =>
+  plan.trial ? { 'data-signup-monthly': signupHref(plan.id, 'monthly'), 'data-signup-yearly': signupHref(plan.id, 'yearly') } : {};
+
+const trialCta = (id: PlanId) => ({ label: `Start ${TRIAL_DAYS}-day free trial`, href: signupHref(id) });
 
 export const PLANS: Plan[] = [
   {
@@ -49,7 +61,7 @@ export const PLANS: Plan[] = [
       'Human handoff with full context',
       'REST API (limited)',
     ],
-    cta: trialCta,
+    cta: trialCta('starter'),
   },
   {
     id: 'pro',
@@ -64,7 +76,7 @@ export const PLANS: Plan[] = [
       'Full REST API & webhooks',
       'Priority support',
     ],
-    cta: trialCta,
+    cta: trialCta('pro'),
   },
   {
     id: 'enterprise',

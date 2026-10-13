@@ -17,6 +17,7 @@ import type {
   PlatformTemplate,
   PlaygroundConversation,
   Role,
+  Subscription,
   Ticket,
   TicketMessage,
   TenantDeletion,
@@ -64,6 +65,8 @@ export interface MockTenant {
   /** Set while the business is deleted and not purged yet. */
   deleted_at?: string;
   logo_url?: string;
+  /** The Paddle subscription, once one is started. */
+  subscription?: Subscription;
 }
 
 export interface MockMembership {

@@ -1336,7 +1336,7 @@ export function verify(rawBody, header, secret) {
 
 ### Billing: balance and extra tokens
 
-Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; Free sells none, and Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. There is no payment provider: a platform admin credits balances (`POST /platform/tenants/{id}/balance`).
+Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; Free sells none, and Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. Balances are not paid through Paddle: a platform admin credits them (`POST /platform/tenants/{id}/balance`). The plan itself is paid by subscription, below.
 
 **Pricing.** Extra tokens cost a flat price per million, up to a monthly maximum:
 
@@ -1405,6 +1405,82 @@ Offer `min_millions` to `max_millions` in steps of `step_millions`. For the pric
 - `400 INVALID_REQUEST`: `millions` isn't on the slider.
 - `400 ADDON_NOT_AVAILABLE`: the plan sells no extra tokens (Free), or the business's tokens are unlimited (Enterprise, or an override of 0), so it needs none.
 - `402 INSUFFICIENT_BALANCE`: the balance is below the price; nothing changes.
+
+### Billing: plan subscription (Paddle)
+
+Starter and Pro are sold as Paddle subscriptions. [Paddle](https://www.paddle.com) is the Merchant of Record: it takes the card, charges tax and issues invoices. Every paid price has a **7-day trial that requires a card**, so a subscription is `trialing` from the moment checkout completes and is first charged when the trial ends. Enterprise is sold by hand and has no subscription. Paddle is off until `PADDLE_API_KEY` is set; its endpoints then answer `503 PAYMENT_NOT_CONFIGURED`.
+
+**The plan follows Paddle.** The dashboard never sets `plan` itself. Paddle's webhook (below) moves a business to the plan of its subscription, so the two cannot disagree. A platform admin can still set a plan by hand with `PATCH /platform/tenants/{id}`; the next webhook for that business overwrites it, except that a business on `enterprise` is never moved by a subscription event.
+
+**Flow.** The dashboard calls `POST /billing/checkout`, opens Paddle's overlay with the returned `transaction_id` (Paddle.js, client-side token), and the customer enters a card. Paddle then sends `subscription.*` webhooks and the API activates the plan. After the overlay reports success the dashboard re-reads `GET /billing/subscription` and `GET /tenant` for a few seconds until the plan changes.
+
+**Configuration** (API environment, never the dashboard):
+
+| Variable | Value |
+| --- | --- |
+| `PADDLE_ENV` | `sandbox` (default) or `production`. Selects `sandbox-api.paddle.com` or `api.paddle.com`. |
+| `PADDLE_API_KEY` | A server-side API key (`pdl_sdbx_…` in sandbox, `pdl_live_…` in production) that can write transactions, subscriptions and customer portal sessions. Empty turns checkout off. |
+| `PADDLE_WEBHOOK_SECRET` | The notification destination's endpoint secret (`pdl_ntfset_…`). Empty turns the webhook off. |
+| `PADDLE_PRICE_STARTER_MONTHLY`, `PADDLE_PRICE_STARTER_YEARLY`, `PADDLE_PRICE_PRO_MONTHLY`, `PADDLE_PRICE_PRO_YEARLY` | The four `pri_…` IDs. All four are required when the API key or the secret is set. |
+
+Startup fails if a key doesn't match `PADDLE_ENV` or a price is missing. The Paddle sandbox prices are `pri_01m4vmb2hfbhstnq7kkakx1t74` (Starter monthly), `pri_01m4vmb2v11m6hnsnnksqfvr53` (Starter yearly), `pri_01m4vmb3s4sqycmzzwqcvk8d57` (Pro monthly) and `pri_01m4vmb42a0x2qadtp6956d45v` (Pro yearly). The dashboard needs only `VITE_PADDLE_CLIENT_TOKEN` and `VITE_PADDLE_ENV`.
+
+**Storage** (`migrations/0026_paddle_subscriptions.sql`, applied by hand):
+
+- `billing_subscriptions`: one row per business: `tenant_id`, `paddle_customer_id`, `paddle_subscription_id`, `status`, `plan`, `interval`, `trial_ends_at`, `current_period_end`, `cancel_at`, `provider_updated_at`. A new subscription after a canceled one replaces the row.
+- `paddle_events`: the IDs of webhook events already handled, so a repeated delivery is skipped.
+
+#### `GET /billing/subscription`
+
+`usage.read`. **200** `{subscription}`, where `subscription` is `null` when the business has never subscribed:
+
+```text
+subscription: {
+  status,              // trialing | active | past_due | paused | canceled
+  plan,                // starter | pro
+  interval,            // monthly | yearly
+  trial_ends_at,       // ISO time while trialing, else null
+  current_period_end,  // next renewal, or the end of the paid period once canceled
+  cancel_at            // set when a cancellation is scheduled: access ends then
+} | null
+```
+
+#### `POST /billing/checkout`
+
+`billing.write`. `{plan, interval}` with `plan` = `starter` or `pro` and `interval` = `monthly` or `yearly`. Creates a Paddle transaction for that price, with `custom_data.tenant_id` set to the business (Paddle copies it to the subscription), and returns **200** `{transaction_id}` (`txn_…`) for Paddle.js `Checkout.open({transactionId})`. A business that has been a customer before keeps its Paddle customer. Price IDs never reach the browser.
+
+**Errors:** `400 INVALID_REQUEST`, `409 SUBSCRIPTION_EXISTS` (the business has a subscription that isn't `canceled`: change it with the endpoint below), `503 PAYMENT_NOT_CONFIGURED`, `502 PAYMENT_PROVIDER_ERROR` (Paddle failed; nothing changed).
+
+#### `POST /billing/subscription/change`
+
+`billing.write`. `{plan, interval}`. Moves the existing subscription to another plan or billing period. While trialing nothing is billed and the new price applies when the trial ends; otherwise Paddle prorates and charges or credits the difference at once. **200** `{subscription}`, as Paddle now has it. Asking for the plan the business is already on changes nothing.
+
+**Errors:** `400 INVALID_REQUEST`, `404 NO_SUBSCRIPTION`, `503 PAYMENT_NOT_CONFIGURED`, `502 PAYMENT_PROVIDER_ERROR`.
+
+#### `POST /billing/portal`
+
+`billing.write`. Opens a Paddle customer-portal session for the business's customer, where the customer updates their card, downloads invoices and cancels. **200** `{url}`; the dashboard navigates to it.
+
+**Errors:** `404 NO_SUBSCRIPTION` (the business has never subscribed), `503 PAYMENT_NOT_CONFIGURED`, `502 PAYMENT_PROVIDER_ERROR`.
+
+#### `POST /webhooks/paddle`
+
+v2 only. No token and no scope: Paddle calls it, and the signature on the raw body is the authentication.
+
+1. The `Paddle-Signature` header (`ts=<unix>;h1=<hex>`) must be the HMAC-SHA256 of `<ts>:<raw body>` under `PADDLE_WEBHOOK_SECRET`, with a timestamp within a minute. During a secret rotation Paddle sends one `h1` per secret and any may match. Otherwise **400** `INVALID_SIGNATURE` and nothing is processed.
+2. Events other than `subscription.*` are acknowledged and ignored. An event already handled (same `event_id`) is acknowledged and skipped.
+3. A `subscription.*` event is applied and answered **200** `{ok: true}`. A database failure answers **5xx**, so Paddle delivers the event again.
+
+| Event | Effect |
+| --- | --- |
+| `subscription.created`, `.activated`, `.trialing`, `.updated`, `.resumed`, `.past_due`, `.paused` | The business is found from `data.custom_data.tenant_id`, else from the subscription it already has. The row is written from the event: `status`, plan and interval from the price ID, `trial_ends_at` from `items[0].trial_dates.ends_at`, `current_period_end` from `next_billed_at`, `cancel_at` from a `scheduled_change` with `action: "cancel"`. The business moves to that plan (`past_due` and `paused` keep it; Paddle retries a failed payment). |
+| `.canceled` | The row becomes `canceled` and the business returns to `free`. Paddle sends it when access has ended; a cancellation scheduled for the end of the period arrives earlier as `.updated` with `cancel_at`. |
+
+An event is ignored, but still marked handled, when its price isn't one of the four configured, its business doesn't exist, another live subscription already belongs to the business, or it is older than what is stored (`updated_at`). A business on `enterprise` is never moved by an event. Each applied event adds an entry to the business's activity log (`GET /audit`), with actor `paddle`.
+
+**Deleting a business** (`DELETE /platform/tenants/{id}` or approving a deletion request) cancels its subscription in Paddle at once, so it is not billed again. The cancellation webhook returns the business to `free`, so a restored business comes back on Free. The subscription row is erased with the rest of the business when it is purged.
+
+**Testing in the sandbox.** Create the notification destination (`https://<api>/v2/webhooks/paddle`, the `subscription.*` events), then use Paddle's simulations (`subscription.created`, `.canceled`, `.past_due`) against it and read the deliveries under Notifications. Pay in the overlay with the test card `4242 4242 4242 4242`.
 
 ### Playground
 

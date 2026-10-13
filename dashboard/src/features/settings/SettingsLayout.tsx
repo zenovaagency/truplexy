@@ -32,6 +32,7 @@ import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber
 import { AUTO_CLOSE_MAX_HOURS, AutoCloseField } from '@/components/domain/AutoCloseField';
 import { ImageUploader } from '@/components/domain/ImageUploader';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
+import { SubscriptionCard } from './SubscriptionCard';
 import { useDebounce } from '@/hooks';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
@@ -246,7 +247,9 @@ export function PlanTab() {
         )}
       </Card>
 
-      <Card title="Plans" description="Plans are set by the Truplexy team. Get in touch to change yours." flush>
+      <SubscriptionCard plan={b.plan} />
+
+      <Card title="Plans" description="What each plan includes. Start or change yours in the subscription above." flush>
         {plans.isPending ? (
           <SkeletonRows rows={3} className="p-4" />
         ) : plans.isError ? (
@@ -296,9 +299,9 @@ export function PlanTab() {
                 <Link to={href('settings/billing')}>Extra tokens</Link>
               </Button>
             )}
-            <Button asChild variant="accent" size="xs">
-              <a href="mailto:hello@truplexy.com?subject=Plan%20change">
-                Contact us <ArrowRight />
+            <Button asChild variant="ghost" size="xs">
+              <a href="mailto:hello@truplexy.com?subject=Enterprise%20plan">
+                Talk to sales about Enterprise <ArrowRight />
               </a>
             </Button>
           </div>
@@ -318,6 +321,7 @@ const limitText = (n: number) => (n > 0 ? formatNumber(n) : 'Unlimited');
 const TOP_UP_MAIL = 'mailto:hello@truplexy.com?subject=Balance%20top-up';
 
 export function BillingTab() {
+  const { href } = useScopeCtx();
   const q = useBilling();
   if (q.isPending) return <Card><SkeletonRows rows={4} /></Card>;
   if (q.isError) return <Card><ErrorState error={q.error} onRetry={() => q.refetch()} /></Card>;
@@ -383,9 +387,9 @@ export function BillingTab() {
             ) : (
               <>
                 The {bl.plan.name} plan doesn't include extra tokens.{' '}
-                <a className="font-medium text-accent hover:underline" href="mailto:hello@truplexy.com?subject=Plan%20change">
-                  Contact us to change plan
-                </a>
+                <Link className="font-medium text-accent hover:underline" to={href('settings/plan')}>
+                  See plans
+                </Link>
               </>
             )}
           </p>

@@ -29,7 +29,7 @@ const toc = [
   <ul>
     <li>The first payment for a paid plan (Starter or Pro) is refundable in full within <strong>{days} days</strong> of purchase.</li>
     <li>After that, payments are not refunded, but you can cancel at any time and keep access until the period you paid for ends.</li>
-    <li>The Free plan costs nothing, so there is nothing to refund.</li>
+    <li>The {LEGAL.trialDays}-day free trial costs nothing. Cancel before it ends and you are not charged, so there is nothing to refund.</li>
   </ul>
   <p>
     Our orders are processed by {LEGAL.paddle.name}, which is the Merchant of Record. Refunds are paid back through {LEGAL.paddle.name} to the payment method you used.
@@ -42,9 +42,9 @@ const toc = [
     monthly or yearly billing.
   </p>
   <ul>
-    <li>The {days} days start on the day the payment is taken.</li>
+    <li>The {days} days start on the day the payment is taken. If you started with the free trial, that is the day the trial ends and your payment method is first charged.</li>
     <li>It applies once per customer. If you cancel, get a refund and later buy again, the new purchase is not eligible for the {days}-day refund.</li>
-    <li>If you ask in time, a refund of a first payment ends the paid plan and your account returns to the Free plan.</li>
+    <li>If you ask in time, a refund of a first payment ends the paid plan and your account moves to a limited no-charge tier.</li>
   </ul>
 
   <h2 id="not-refundable">What isn’t refundable</h2>
@@ -59,7 +59,7 @@ const toc = [
   <h2 id="cancel">Cancelling</h2>
   <p>
     You can cancel a paid plan at any time. Cancelling stops the next renewal. You keep the plan, and its limits, until the
-    end of the period you have already paid for, and then your account moves to the Free plan. We do not refund the
+    end of the period you have already paid for, and then your account moves to a limited no-charge tier. We do not refund the
     unused part of a period after the {days}-day window.
   </p>
   <p>

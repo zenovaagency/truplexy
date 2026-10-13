@@ -1,3 +1,4 @@
+import { TRIAL_DAYS } from './pricing';
 import { SITE } from './site';
 
 /**
@@ -26,7 +27,9 @@ export const LEGAL = {
   /** Truplexy is for businesses, so account holders must be adults. */
   minimumAge: '18',
   /** Shown as "Last updated". Bump it whenever a policy changes. */
-  updated: '13 October 2026',
+  updated: '14 October 2026',
+  /** Length of the free trial on Starter and Pro (from pricing.ts). */
+  trialDays: TRIAL_DAYS,
   /** Refund window for the first payment on a paid plan, in days. */
   refundWindowDays: 14,
   /** Checkout provider and Merchant of Record. */
