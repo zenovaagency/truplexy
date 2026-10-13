@@ -1,0 +1,224 @@
+---
+import Docs from '../layouts/Docs.astro';
+import { SITE } from '../data/site';
+import { LEGAL } from '../data/legal';
+
+const toc = [
+  ['agreement', 'Agreement'],
+  ['service', 'The service'],
+  ['accounts', 'Accounts'],
+  ['plans', 'Plans and payment'],
+  ['your-content', 'Your content and data'],
+  ['ai', 'AI output'],
+  ['acceptable-use', 'Acceptable use'],
+  ['third-parties', 'Connected platforms'],
+  ['ours', 'Our rights'],
+  ['availability', 'Availability and changes'],
+  ['termination', 'Cancellation and termination'],
+  ['warranty', 'Disclaimers'],
+  ['liability', 'Limit of liability'],
+  ['indemnity', 'Indemnity'],
+  ['law', 'Governing law'],
+  ['general', 'General'],
+  ['contact', 'Contact'],
+] as const;
+---
+
+<Docs
+  title="Terms of Service — Truplexy"
+  description="The terms that apply when you use Truplexy: accounts, plans and payment, your content, AI output, acceptable use, cancellation and liability."
+  breadcrumbs={[{ name: 'Terms of Service', path: '/terms' }]}
+  eyebrow="Legal"
+  heading="Terms of Service"
+  lede={`The rules for using Truplexy, written to be read. Last updated ${LEGAL.updated}.`}
+  toc={toc}
+>
+  <h2 id="agreement">Agreement</h2>
+  <p>
+    These terms are a contract between <a href={LEGAL.entityUrl}>{LEGAL.entity}</a> (“we”, “us”), which operates Truplexy, and the
+    business or person who creates an account (“you”). By creating an account, or by using Truplexy at {SITE.url} or {' '}{SITE.dashboardUrl}, you accept them. If you accept on behalf of a company, you confirm you can bind it.
+  </p>
+  <p>
+    Our <a href="/privacy">Privacy Notice</a> and <a href="/refunds">Refund Policy</a> form part of this agreement. If you
+    and we have signed a separate written agreement for your account, it takes priority where the two conflict.
+  </p>
+  <p>
+    Truplexy is for businesses. You must be at least {LEGAL.minimumAge} and be using it for your business, not as a consumer.
+  </p>
+
+  <h2 id="service">The service</h2>
+  <p>
+    Truplexy is an AI customer-support service. It keeps one continuous conversation with each of your customers across the
+    channels you connect, answers from the knowledge base you provide, hands conversations to your team when a person
+    should step in, and gives your team a shared inbox. The channels and features available are described on our <a href="/channels">channels</a>, <a href="/pricing">pricing</a> and <a href="/docs">docs</a> pages. Channels marked
+    “Coming soon” are not part of the service until they launch.
+  </p>
+
+  <h2 id="accounts">Accounts</h2>
+  <ul>
+    <li>Give accurate details and keep them current. Keep your password, sign-in links and chat keys secret.</li>
+    <li>You are responsible for everything done through your account, including by team members and invited people you give a role to (owner, admin, editor, agent or viewer).</li>
+    <li>Tell us at <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a> at once if you think your account or a chat key has been compromised.</li>
+    <li>One person can own a limited number of businesses; the limit is shown in the dashboard.</li>
+  </ul>
+
+  <h2 id="plans">Plans and payment</h2>
+  <p>
+    Each plan sets monthly limits on AI tokens, conversations, AI agents and team members, and includes a conversation
+    history period. Current prices and limits are on the <a href="/pricing">pricing page</a>; the page in force when you
+    buy is the one that applies to that purchase. Prices are in US dollars and exclude taxes unless stated.
+  </p>
+  <ul>
+    <li><strong>Free plan.</strong> Free of charge, with the limits shown on the pricing page. We may change or end it with notice.</li>
+    <li><strong>Paid plans.</strong> Billed monthly or yearly in advance, and renewed automatically for the same period at the then-current price until you cancel.</li>
+    <li><strong>Token add-ons and usage.</strong> When your plan’s monthly tokens run out, further replies and add-on tokens are paid from your account balance. Add-on tokens last for the month they are bought in. If your balance reaches zero, the assistant stops replying until you add funds or the next month starts.</li>
+    <li><strong>Plan changes.</strong> You can move to a different plan at any time. A change to a plan with a lower price, or to a shorter billing period, takes effect at the end of the period you have paid for.</li>
+    <li><strong>Price changes.</strong> We will tell you at least 30 days before a price change takes effect for your plan. If you do not agree, cancel before it takes effect.</li>
+  </ul>
+
+  <h3>Paddle is the seller of record</h3>
+  <p>
+    Our order process is run by {LEGAL.paddle.name}. {LEGAL.paddle.name} ({LEGAL.paddle.entity}) is the Merchant of Record
+    for our orders. It takes your payment, collects and pays any sales tax or VAT, issues your invoice and handles
+    payment-related questions. Its <a href={LEGAL.paddle.terms} rel="noopener noreferrer">checkout buyer terms</a> apply to the purchase itself. Refunds
+    are covered by our <a href="/refunds">Refund Policy</a>.
+  </p>
+  <p>
+    Non-payment may lead to suspension of paid features. We may move an account that has lapsed to the Free plan, and
+    limits and history periods then follow that plan.
+  </p>
+
+  <h2 id="your-content">Your content and data</h2>
+  <p>
+    “Your content” means everything you or your team put into Truplexy or send through it: knowledge-base files and
+    articles, settings, and the conversations, customer details and tickets that pass between you and your customers
+    (“customer data”).
+  </p>
+  <ul>
+    <li><strong>You own it.</strong> We do not claim ownership of your content. You give us the rights we need to host it, process it, and run the service for you: store it, send it to the AI model providers we use to write replies, and show it to your team.</li>
+    <li><strong>You are responsible for it.</strong> You promise you have the right to use your content with Truplexy, and that you have told your customers, and obtained any consent the law requires, for the processing described in this agreement. That includes telling them they are talking to an AI assistant where the law or the platform requires it.</li>
+    <li><strong>Roles.</strong> For customer data, you decide why and how it is processed and we process it on your behalf. Our <a href="/privacy#roles">Privacy Notice</a> sets out what that means. If you need a data-processing agreement, contact us.</li>
+    <li><strong>Deletion.</strong> You can delete customers, tickets and knowledge-base files in the dashboard. If you ask to delete a business, an administrator approves it and the business can be restored for 30 days; after that its data is permanently erased.</li>
+  </ul>
+
+  <h2 id="ai">AI output</h2>
+  <p>
+    Truplexy writes replies with AI language models. They can be wrong, out of date or incomplete, and the same question can
+    get different answers. You are responsible for how you use the service, including the knowledge you give the assistant,
+    the tone and limits you set, and when conversations are handed to a person. Do not rely on the assistant alone for
+    legal, medical, financial, safety-critical or other high-stakes advice. Review the conversations in your inbox, and
+    use the handoff settings to put a person in front of questions that matter.
+  </p>
+
+  <h2 id="acceptable-use">Acceptable use</h2>
+  <p>You must not use Truplexy to:</p>
+  <ul>
+    <li>break the law, or send content that is unlawful, defamatory, harassing, hateful, or infringes someone’s rights;</li>
+    <li>send spam, run phishing or fraud, or impersonate a person or business;</li>
+    <li>deceive people into thinking they are speaking with a human where the law or the platform requires you to tell them it is an AI;</li>
+    <li>collect or process payment-card numbers, government ID numbers, health records or other sensitive data through the service unless we have agreed in writing that it is suitable;</li>
+    <li>use the assistant to make decisions that have legal or similarly significant effects on people without human review;</li>
+    <li>probe, scan or test the security of the service, overload it, or get around limits, authentication or usage metering;</li>
+    <li>reverse engineer the service, or resell or provide it to others as a competing service, except where you are a business using it for your own customers;</li>
+    <li>use outputs or the service to build or train a competing AI product, or violate the terms of the AI providers or messaging platforms involved.</li>
+  </ul>
+  <p>
+    We may remove content, limit features or suspend an account that breaks this section or puts the service or other
+    customers at risk. Where we reasonably can, we will tell you first.
+  </p>
+
+  <h2 id="third-parties">Connected platforms</h2>
+  <p>
+    Many channels connect through platforms we do not run, such as Meta (WhatsApp, Messenger and Instagram), Telegram,
+    Discord, Slack, Microsoft Teams, Shopify, WordPress, HubSpot and Zendesk. Your use of those is governed by their own
+    terms and policies, and they can change, restrict or end access to their platforms. We are not responsible for them.
+    By connecting a platform you authorise us to access it on your behalf as far as the connection needs, and you can
+    disconnect at any time.
+  </p>
+  <p>
+    The AI replies are generated using third-party model providers. Where they are used, their terms about acceptable
+    use apply to the content you send through the service.
+  </p>
+
+  <h2 id="ours">Our rights</h2>
+  <p>
+    Truplexy, including its software, design, documentation and name, belongs to {LEGAL.entity} and its licensors. While
+    your agreement is in force, we give you a limited, non-exclusive, non-transferable right to use the service for your
+    business. Our open-source SDK and plugins are licensed under their own licences, as shown in their repositories.
+  </p>
+  <p>
+    If you send us feedback or suggestions, we may use them without obligation to you. We may use aggregated and
+    de-identified usage data (not your content) to run, secure and improve the service.
+  </p>
+
+  <h2 id="availability">Availability and changes</h2>
+  <p>
+    We work to keep Truplexy available but do not promise it will be uninterrupted or error-free, and we do not offer a
+    service-level commitment unless it is agreed in writing. We may update, add or remove features, and will give
+    reasonable notice of a change that materially reduces what a paid plan does.
+  </p>
+  <p>
+    We may change these terms. For a material change we will email the account owner or show a notice in the dashboard at
+    least 30 days before it applies. If you keep using Truplexy after the date, you accept the new terms; if you do not
+    agree, cancel before then.
+  </p>
+
+  <h2 id="termination">Cancellation and termination</h2>
+  <ul>
+    <li><strong>By you.</strong> You can cancel a paid plan at any time in the dashboard or by emailing us. Cancellation stops the next renewal; you keep access until the end of the period you have paid for. Refunds are covered by the <a href="/refunds">Refund Policy</a>. You can stop using the service or ask us to delete your business at any time.</li>
+    <li><strong>By us.</strong> We may suspend or end your access if you materially break these terms and do not fix it within a reasonable time after we tell you, straight away where the breach is serious or puts others at risk, or if the law requires. We may also stop offering the service entirely, with at least 60 days’ notice and a pro-rata refund of prepaid fees for the period after it ends.</li>
+    <li><strong>What happens next.</strong> Your right to use the service ends. Your data is kept for the periods in our <a href="/privacy#retention">Privacy Notice</a> and then erased. Sections that by their nature should survive (content ownership, payment due, disclaimers, liability, governing law) do.</li>
+  </ul>
+
+  <h2 id="warranty">Disclaimers</h2>
+  <p>
+    The service is provided “as is” and “as available”. To the fullest extent the law allows, we disclaim all warranties,
+    express or implied, including merchantability, fitness for a particular purpose, non-infringement, and that AI output
+    will be accurate or suitable for your purposes. Nothing here limits rights you have by law that cannot be excluded.
+  </p>
+
+  <h2 id="liability">Limit of liability</h2>
+  <p>To the fullest extent the law allows:</p>
+  <ul>
+    <li>we are not liable for indirect, incidental, special, consequential or punitive losses, or for lost profits, revenue, goodwill or data, even if we were told they were possible; and</li>
+    <li>our total liability for all claims relating to the service is limited to the amount you paid us in the 12 months before the event that gave rise to the claim (or US$100 if you are on the Free plan).</li>
+  </ul>
+  <p>
+    Nothing in these terms limits liability that cannot be limited by law, including for death or personal injury caused
+    by negligence, or for fraud.
+  </p>
+
+  <h2 id="indemnity">Indemnity</h2>
+  <p>
+    You will defend and compensate us against claims, losses and costs (including reasonable legal fees) that come from
+    your content, from how you use the service, or from your breach of these terms or the law, except to the extent we
+    caused them.
+  </p>
+
+  <h2 id="law">Governing law</h2>
+  <p>
+    These terms are governed by the laws of {LEGAL.law}, without regard to conflict-of-law rules. The courts of
+    {LEGAL.courts} have exclusive jurisdiction, except that either of us may seek urgent relief to protect intellectual property or
+    confidential information in any competent court. Please contact us first at <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a>; most issues are settled without a dispute.
+  </p>
+
+  <h2 id="general">General</h2>
+  <ul>
+    <li><strong>Entire agreement.</strong> These terms, with the documents they refer to, are the whole agreement and replace earlier discussions.</li>
+    <li><strong>If part is invalid.</strong> The rest still applies. If we do not enforce something, we have not given it up.</li>
+    <li><strong>Assignment.</strong> You may not transfer your account or rights without our written consent. We may transfer ours as part of a merger, acquisition or sale of the business.</li>
+    <li><strong>Force majeure.</strong> Neither of us is liable for failures caused by events beyond reasonable control, including outages at internet, cloud or messaging platforms.</li>
+    <li><strong>Notices.</strong> We may send notices to the email on your account or show them in the dashboard. Send yours to the address below.</li>
+  </ul>
+
+  <h2 id="contact">Contact</h2>
+  <p>
+    {LEGAL.entity}<br />
+    <a href={LEGAL.entityUrl}>{LEGAL.entityHost}</a><br />
+    {LEGAL.address}<br />
+    <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a>
+  </p>
+  <p>
+    See also: <a href="/privacy">Privacy Notice</a> · <a href="/refunds">Refund Policy</a>
+  </p>
+</Docs>

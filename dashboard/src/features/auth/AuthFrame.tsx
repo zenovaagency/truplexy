@@ -4,6 +4,15 @@ import wordmarkLight from '@/assets/brand/wordmark-light.webp';
 import { BrandMark } from '@/components/layout/Brand';
 import { cn } from '@/lib/cn';
 
+/** The public site. The dashboard host rewrites every path to this app, so legal pages need absolute links. */
+export const SITE_URL = 'https://truplexy.com';
+
+const LEGAL_LINKS = [
+  ['Terms', '/terms'],
+  ['Privacy', '/privacy'],
+  ['Refunds', '/refunds'],
+] as const;
+
 const POINTS = [
   'One assistant for web chat, WhatsApp, Telegram, Discord, Shopify and more',
   'Answers from your own knowledge base, in a human voice',
@@ -57,7 +66,14 @@ export function AuthFrame({ children, aside = true }: { children: ReactNode; asi
           <BrandMark className="h-7" />
         </div>
         <div className="relative mx-auto my-auto w-full max-w-[400px] py-10">{children}</div>
-        <p className="relative text-center text-xs text-ink-faint">© {new Date().getFullYear()} Truplexy</p>
+        <p className="relative flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center text-xs text-ink-faint">
+          <span>© {new Date().getFullYear()} Truplexy</span>
+          {LEGAL_LINKS.map(([label, path]) => (
+            <a key={path} className="hover:text-ink hover:underline" href={`${SITE_URL}${path}`} target="_blank" rel="noopener noreferrer">
+              {label}
+            </a>
+          ))}
+        </p>
       </main>
     </div>
   );

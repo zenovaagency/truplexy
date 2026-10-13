@@ -1,0 +1,224 @@
+---
+import Docs from '../layouts/Docs.astro';
+import { SITE } from '../data/site';
+import { LEGAL } from '../data/legal';
+
+const toc = [
+  ['roles', 'Who we are'],
+  ['collect', 'What we collect'],
+  ['use', 'How we use it'],
+  ['ai', 'AI processing'],
+  ['sharing', 'Who we share it with'],
+  ['widget', 'The chat widget'],
+  ['site', 'This website'],
+  ['retention', 'How long we keep it'],
+  ['security', 'Security'],
+  ['transfers', 'International transfers'],
+  ['rights', 'Your rights'],
+  ['children', 'Children'],
+  ['changes', 'Changes'],
+  ['contact', 'Contact'],
+] as const;
+
+// Third parties that may handle data when the service runs, and why.
+const processors: [name: string, role: string, data: string][] = [
+  ['Vercel', 'Hosting for this website, the dashboard and the API', 'All data passes through it'],
+  ['Supabase', 'Sign-in and real-time updates', 'Account details, session data'],
+  ['Cloudflare', 'File storage (R2), database (D1), search index (Vectorize) and embeddings (Workers AI)', 'Knowledge-base files and passages, stored records'],
+  ['OpenRouter and the model providers behind it', 'Writes the assistant’s replies', 'Messages and the knowledge passages needed to answer them'],
+  ['Tavily', 'Optional web search, only where an assistant is set up to use it', 'Search queries'],
+  ['Google', 'Optional “Continue with Google” sign-in', 'Name, email and profile picture you approve'],
+  ['jsDelivr', 'Delivers the chat widget script to your website', 'Your visitors’ IP address and browser details, as for any file request'],
+  ['Paddle', 'Takes payment as Merchant of Record, handles tax and invoices', 'Billing details, payment data, purchase history'],
+];
+---
+
+<Docs
+  title="Privacy Notice — Truplexy"
+  description="What personal data Truplexy collects, how it is used (including by AI models), who it is shared with, how long it is kept, and your choices."
+  breadcrumbs={[{ name: 'Privacy Notice', path: '/privacy' }]}
+  eyebrow="Legal"
+  heading="Privacy Notice"
+  lede={`What we collect, why, who handles it, and the choices you have. Last updated ${LEGAL.updated}.`}
+  toc={toc}
+>
+  <h2 id="roles">Who we are</h2>
+  <p>
+    Truplexy is operated by <a href={LEGAL.entityUrl}>{LEGAL.entity}</a>, based in {LEGAL.address} (“we”, “us”). This notice covers this
+    website ({SITE.url}), the dashboard ({SITE.dashboardUrl}), the API and the chat widget. Our role depends on whose data it is:
+  </p>
+  <ul>
+    <li>
+      <strong>Our customers’ account data.</strong> Information about the people who sign up and run Truplexy for their
+      business (their sign-in details, team members, billing). For this, we decide why and how it is used: we are the <em>controller</em>.
+    </li>
+    <li>
+      <strong>Our customers’ customer data.</strong> The messages and details of the people who chat with a business
+      through Truplexy. The business decides why this is collected and what it is used for; we process it on the
+      business’s behalf: we are the <em>processor</em>. If you are such a person and want to see, correct or delete your
+      data, ask the business you contacted first. We will help them respond. Their privacy notice applies to you as well.
+    </li>
+  </ul>
+
+  <h2 id="collect">What we collect</h2>
+  <h3>Account and team data</h3>
+  <ul>
+    <li>Your email address, name and password (stored hashed by our sign-in provider), or the name, email and profile picture from Google if you use Google sign-in.</li>
+    <li>Your role in a business, invitations you send or accept, a profile picture or business logo you upload, and a record of important actions in the dashboard (an audit log).</li>
+    <li>Billing details such as plan, balance and purchase history. Payment-card details go to Paddle; we do not receive or store them.</li>
+    <li>Messages you send us, such as support requests.</li>
+  </ul>
+
+  <h3>Customer data, which businesses put through Truplexy</h3>
+  <ul>
+    <li>A customer’s name and contact details: email, phone number, and handles on messaging platforms such as WhatsApp, Telegram, Discord or Slack, as supplied by the business or its customers.</li>
+    <li>Conversations: what the customer wrote, what the assistant and team replied, tickets, notes, AI summaries, and the channel each message came from.</li>
+    <li>Optional extra fields (“metadata”) the business chooses to attach to a customer.</li>
+    <li>Dates when a customer was first and last seen, and counts of their conversations and tickets.</li>
+  </ul>
+  <p>
+    Customers can type anything into a conversation. Businesses should tell them not to share passwords, payment-card
+    numbers or other sensitive information, and our <a href="/terms#acceptable-use">terms</a> say the service is not for
+    processing that kind of data.
+  </p>
+
+  <h3>Knowledge base and settings</h3>
+  <p>
+    Files and articles a business uploads so the assistant can answer from them, and the passages and search embeddings
+    we derive from them, plus the business’s assistant and channel settings. Connected platforms such as Meta or Shopify
+    give us access tokens; these are stored encrypted and removed when you disconnect.
+  </p>
+
+  <h3>Usage and technical data</h3>
+  <p>
+    Token counts, estimated cost, request logs, error logs and IP address and device information that our hosting and
+    security tooling record when the service is used. We use these to run, bill for and protect the service.
+  </p>
+
+  <h2 id="use">How we use it</h2>
+  <ul>
+    <li><strong>To provide the service:</strong> create and secure accounts, run conversations across channels, keep one thread per customer, hand off to a person, show usage and balances.</li>
+    <li><strong>To take payment and keep records</strong> through Paddle, and to meet tax and accounting duties.</li>
+    <li><strong>To keep the service safe:</strong> detect abuse, fraud and security incidents, enforce our terms and limits.</li>
+    <li><strong>To support you</strong> and send service messages: sign-in links, invitations, security and billing notices, and changes to our terms.</li>
+    <li><strong>To improve Truplexy,</strong> using aggregated and de-identified statistics, and error and performance logs. We do not use customer data to advertise to anyone, and we do not sell personal data.</li>
+  </ul>
+  <p>
+    Where the law requires a legal basis, ours are: performing our contract with you, our legitimate interests in running,
+    securing and improving the service, legal obligations, and consent where we ask for it (you can withdraw it any time).
+    For customer data we act only on the business’s instructions.
+  </p>
+
+  <h2 id="ai">AI processing</h2>
+  <p>
+    Truplexy uses AI language models to write replies. Plainly:
+  </p>
+  <ul>
+    <li><strong>What is sent.</strong> To answer a customer, we send the relevant part of the conversation and the passages from the business’s knowledge base needed to answer it to a model provider, through OpenRouter. We do not send the business’s unrelated data.</li>
+    <li><strong>Who processes it.</strong> The model providers behind OpenRouter act as our sub-processors. Which model is used depends on the business’s settings, so the provider can differ. Each provider’s own terms govern how long it keeps requests.</li>
+    <li><strong>Embeddings.</strong> Knowledge-base text is turned into numeric vectors for search using Cloudflare Workers AI, and stored in Cloudflare.</li>
+    <li><strong>Automated replies.</strong> Replies are produced automatically and can be wrong. A business can set when a person takes over, and its team can read and correct any conversation. We do not make legal or similarly significant decisions about people using these replies.</li>
+    <li><strong>Training.</strong> {LEGAL.entity} does not train or fine-tune AI models on your content or your customers’ conversations. Model providers are independent companies: how they handle requests sent to them, including whether they keep them or use them for training, is set by their own terms and policies, which we cannot change. If this matters for your business, tell us before you connect sensitive data and keep it out of your knowledge base and conversations.</li>
+  </ul>
+
+  <h2 id="sharing">Who we share it with</h2>
+  <p>
+    We do not sell personal data. We share it with the service providers below who help us run Truplexy, only as far as
+    they need to, and under contracts that restrict their use of it:
+  </p>
+  <div class="table-wrap wrap-first">
+    <table>
+      <thead><tr><th>Provider</th><th>What it does</th><th>Data involved</th></tr></thead>
+      <tbody>
+        {processors.map(([name, role, data]) => <tr><td>{name}</td><td>{role}</td><td>{data}</td></tr>)}
+      </tbody>
+    </table>
+  </div>
+  <p>
+    We also exchange messages with the platforms a business connects (for example WhatsApp, Messenger, Instagram,
+    Telegram, Discord, Slack, Microsoft Teams, Shopify, HubSpot, Zendesk and WordPress). That is how a customer’s
+    message reaches Truplexy and how replies go back. Those platforms are independent and have their own privacy
+    notices.
+  </p>
+  <p>
+    We may disclose data if the law requires it, to protect rights, safety or security, or in a merger, acquisition or
+    sale of the business (we will tell you and your choices will be respected). We may share a business’s data with
+    people it authorises, such as team members and invited users.
+  </p>
+
+  <h2 id="widget">The chat widget</h2>
+  <p>
+    When a business puts the website chat widget on its site, the visitor may be asked for a name and email before the
+    first message. Those details and a signed session token are kept in the browser’s local storage on that site, so the
+    conversation continues on the next visit; the widget does not set cookies. Clearing the browser’s site data removes
+    them. Messages and the details given are processed for the business as described above. The widget script is served
+    from jsDelivr.
+  </p>
+
+  <h2 id="site">This website</h2>
+  <p>
+    This marketing site ({SITE.url}) does not use advertising or analytics cookies, tracking pixels or third-party
+    analytics, and has no cookie banner. Our hosting provider keeps standard server logs (IP address, browser,
+    requested page) for security and reliability. If you email us, we keep the message and your address to reply.
+  </p>
+
+  <h2 id="retention">How long we keep it</h2>
+  <ul>
+    <li><strong>Conversation history</strong> is kept for the period of the business’s plan: 7 days on Free, 90 days on Starter and 1 year on Pro.</li>
+    <li><strong>Account data</strong> is kept while the account is open. When a user deletes their account, we anonymise it: the email is replaced and the name removed.</li>
+    <li><strong>Deleted businesses</strong> can be restored for 30 days. After that, all of their records, knowledge-base files and search vectors are permanently erased.</li>
+    <li><strong>Customers</strong> a business deletes are removed from its customer list. Past conversations and tickets are kept for the plan’s history period.</li>
+    <li><strong>Billing and tax records</strong> are kept as long as the law requires, typically several years.</li>
+    <li><strong>Backups and logs</strong> expire on a rolling schedule after deletion.</li>
+  </ul>
+
+  <h2 id="security">Security</h2>
+  <p>
+    We protect data with measures such as encrypted connections (HTTPS), encrypted storage of platform access tokens,
+    role-based access inside each business, separation between businesses, and limited access for our own staff. No system
+    is perfectly secure. If a breach affects your data we will tell you as the law requires.
+  </p>
+
+  <h2 id="transfers">International transfers</h2>
+  <p>
+    Our providers operate in several countries, so data may be processed outside the country where you live, including
+    in the United States. Where the law requires, we rely on safeguards such as standard contractual clauses or an adequacy
+    decision. Ask us if you want to know more about the safeguards used.
+  </p>
+
+  <h2 id="rights">Your rights</h2>
+  <p>
+    Depending on where you live, you may have the right to know what we hold about you, to get a copy, to have it
+    corrected or deleted, to restrict or object to some uses, to receive it in a portable format, to withdraw consent,
+    and to complain to your data-protection authority. To use a right regarding account data, email <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>. We will respond within the time the law sets,
+    after checking it is you. Rights regarding customer data are normally exercised through the business you chatted with.
+  </p>
+  <p>
+    You can also delete knowledge-base files, customers and tickets in the dashboard, and change or close your account
+    there. We do not make decisions about you based solely on automated processing that significantly affect you.
+  </p>
+
+  <h2 id="children">Children</h2>
+  <p>
+    Truplexy is for businesses and not meant for anyone under {LEGAL.minimumAge}. We do not knowingly collect their data
+    for our own purposes. If you think a child has given us data, contact us and we will delete it. A business that runs a
+    chat for children is responsible for doing so lawfully.
+  </p>
+
+  <h2 id="changes">Changes</h2>
+  <p>
+    We will update this page when our practices change, and revise the date at the top. For material changes we will email
+    account owners or show a notice in the dashboard before they take effect.
+  </p>
+
+  <h2 id="contact">Contact</h2>
+  <p>
+    {LEGAL.entity}<br />
+    <a href={LEGAL.entityUrl}>{LEGAL.entityHost}</a><br />
+    {LEGAL.address}<br />
+    <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>
+  </p>
+  <p>
+    See also: <a href="/terms">Terms of Service</a> · <a href="/refunds">Refund Policy</a>
+  </p>
+</Docs>

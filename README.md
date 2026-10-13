@@ -72,5 +72,7 @@ Search for `PLACEHOLDER`:
 - `src/data/site.ts` — contact email, sign-up URL and demo-booking URL (currently
   `mailto:` links). The domain (`url`) set there feeds `astro.config.mjs` (`site`), canonical URLs,
   `robots.txt` and the sitemap.
-- `src/components/home/Context.astro` — the one-line privacy note under "No unnecessary
-  repetition". Confirm it matches how Truplexy actually handles conversation data.
+- `src/data/legal.ts` — the operator, address, governing law and minimum age behind `/terms`,
+  `/privacy` and `/refunds`. Have a lawyer review all three pages. Zenova Agency is unregistered
+  for now: once it is, update `entity` and `address` there and re-check the name on the Paddle
+  account. The contact email comes from `SITE.email` (see above).
