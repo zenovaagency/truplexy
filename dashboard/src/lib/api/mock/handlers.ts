@@ -750,10 +750,26 @@ function channelOf(c: Ctx, id: unknown, botId = c.botId) {
 
 const offeredType = (db: MockDb, id: unknown) => db.channelTypes.find((t) => t.id === id && t.status === 'active');
 
+/** The account a demo Connect "signs in" to, by type; `account` is the shop or Zendesk subdomain typed in. */
+const DEMO_ACCOUNT: Record<string, (account: string) => string> = {
+  whatsapp: () => 'Your business · +1 415 555 0188',
+  messenger: () => 'Your Facebook Page',
+  instagram: () => '@yourbusiness',
+  discord: () => 'Your community server',
+  shopify: (a) => `${a}.myshopify.com`,
+  hubspot: () => 'HubSpot portal 24419870',
+  zendesk: (a) => `${a}.zendesk.com`,
+  slack: () => 'Your workspace · #support',
+  teams: () => 'Support team · General',
+};
+
 /** Validates POST and PATCH /channels fields; `ch` is the channel being changed. */
 function applyChannel(c: Ctx, ch: Partial<MockChannel>, b: any, existing?: MockChannel) {
   if (b.type !== undefined && (!existing || b.type !== existing.type)) {
-    if (!offeredType(c.db, b.type)) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `Channel type ${b.type} isn't offered.`);
+    const type = offeredType(c.db, b.type);
+    if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `Channel type ${b.type} isn't offered.`);
+    if (type.connect) throw err(400, 'CHANNEL_TYPE_NEEDS_CONNECT', `${type.label} channels are added with POST /channels/connect.`);
+    if (existing?.connection) throw invalid("A connected channel's type can't change.");
     ch.type = b.type;
   }
   if (b.name !== undefined) {
@@ -777,7 +793,7 @@ route('GET', '/channel-types', 'channels.read', (c) => {
     data: c.db.channelTypes
       .filter((t) => t.status === 'active' || used.has(t.id))
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map((t) => ({ id: t.id, label: t.label, description: t.description, icon: t.icon, offered: t.status === 'active' })),
+      .map((t) => ({ id: t.id, label: t.label, description: t.description, icon: t.icon, offered: t.status === 'active', connect: t.connect ?? null })),
   };
 });
 
@@ -792,11 +808,53 @@ route('POST', '/channels', 'channels.write', (c) => {
   if (b.type === undefined) throw invalid('type is required.');
   if (b.name === undefined) throw invalid('name is required.');
   const now = nowIso();
-  const ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, description: '', external_id: '', enabled: true, disabled_by_platform: false, created_at: now, updated_at: now } as MockChannel;
+  const ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, description: '', external_id: '', connection: null, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now } as MockChannel;
   applyChannel(c, ch, b);
   c.db.channels.push(ch);
   audit(c, 'channel.created', ch.id, { name: ch.name, type: ch.type });
   return created(channelOut(c.db, ch));
+});
+
+/**
+ * Starts the platform's sign-in. The real API returns the platform's consent
+ * URL and finishes on its own callback; the demo skips the platform and
+ * returns straight to `return_to` with the channel already connected.
+ */
+route('POST', '/channels/connect', 'channels.write', (c) => {
+  const b = c.body ?? {};
+  const type = offeredType(c.db, b.type);
+  if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `Channel type ${b.type} isn't offered.`);
+  if (!type.connect) throw invalid(`${type.label} channels aren't added with Connect.`);
+  let back: URL;
+  try {
+    back = new URL(str(b.return_to, 'return_to', 1, 2000)!);
+  } catch {
+    throw invalid('return_to must be a dashboard URL.');
+  }
+  if (back.origin !== window.location.origin) throw invalid('return_to must be a dashboard URL.');
+  let account = '';
+  if (type.id === 'shopify' || type.id === 'zendesk') {
+    account = (str(b.account, 'account', 1, 100) ?? '').trim().toLowerCase().replace(/\.(myshopify|zendesk)\.com$/, '');
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(account)) throw invalid(type.id === 'shopify' ? 'account must be the store’s myshopify.com name.' : 'account must be the Zendesk subdomain.');
+  }
+  const now = nowIso();
+  const connection = { status: 'connected' as const, account_name: DEMO_ACCOUNT[type.id]?.(account) ?? type.label, connected_at: now };
+  let ch: MockChannel;
+  if (b.channel_id !== undefined) {
+    ch = channelOf(c, b.channel_id);
+    if (ch.type !== type.id) throw invalid('channel_id is a channel of another type.');
+    Object.assign(ch, { connection, updated_at: now });
+    audit(c, 'channel.updated', ch.id, { name: ch.name, connected: connection.account_name });
+  } else {
+    const taken = new Set(botChannels(c).map((x) => x.name.toLowerCase()));
+    let name = type.label;
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${type.label} ${n}`;
+    ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: type.id, name, description: '', external_id: account, connection, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
+    c.db.channels.push(ch);
+    audit(c, 'channel.created', ch.id, { name: ch.name, type: ch.type, connected: connection.account_name });
+  }
+  back.searchParams.set('connected', ch.id);
+  return { authorize_url: back.toString() };
 });
 
 route('GET', '/channels/:id', 'channels.read', (c) => channelOut(c.db, channelOf(c, c.params.id)));
@@ -813,7 +871,7 @@ route('PATCH', '/channels/:id', 'channels.write', (c) => {
 
 route('DELETE', '/channels/:id', 'channels.write', (c) => {
   const ch = channelOf(c, c.params.id);
-  const keys = c.db.apiKeys.filter((k) => k.channel_id === ch.id && k.status === 'active').length;
+  const keys = ch.connection ? 0 : c.db.apiKeys.filter((k) => k.channel_id === ch.id && k.status === 'active').length;
   if (keys) throw err(409, 'CHANNEL_IN_USE', `${keys} active chat API key${keys === 1 ? ' is' : 's are'} bound to this channel. Revoke them first.`);
   // Its tickets keep its name and type.
   const label = c.db.channelTypes.find((t) => t.id === ch.type)?.label;
@@ -2596,7 +2654,7 @@ route('POST', '/platform/channel-types', 'platform', ({ db, body }) => {
   if (b.label === undefined) throw invalid('label is required.');
   if (db.channelTypes.some((t) => t.id === b.id)) throw err(409, 'CHANNEL_TYPE_EXISTS', `Channel type ${b.id} exists.`);
   const now = nowIso();
-  const t = { id: b.id, label: '', description: '', icon: '', status: 'active', sort_order: 0, auto_close_hours: null, created_at: now, updated_at: now } as MockDb['channelTypes'][number];
+  const t = { id: b.id, label: '', description: '', icon: '', status: 'active', connect: null, sort_order: 0, auto_close_hours: null, created_at: now, updated_at: now } as MockDb['channelTypes'][number];
   applyChannelType(t, b);
   db.channelTypes.push(t);
   return created(channelTypeOut(db, t));

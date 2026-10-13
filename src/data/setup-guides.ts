@@ -8,31 +8,26 @@
  * code comes from that folder's snippet packs (see ./snippets.ts), and plan
  * availability is read from COMPARISON in ./pricing.ts.
  */
-import type { ChannelId } from './channels';
+import { isConnect, type ChannelId } from './channels';
+import { SITE } from './site';
 import { COMPARISON, PLANS, type PlanId } from './pricing';
 
 /**
  * - customer: people chat on the platform; your server relays messages.
- * - team: your team works there; escalations go in, replies come out.
  * - widget: a plugin on your site; no webhook needed.
  * - developer: you build against the API.
  */
-export type SetupKind = 'customer' | 'team' | 'widget' | 'developer';
+export type SetupKind = 'customer' | 'widget' | 'developer';
 
-/** Channels with a guide of their own. Website chat has the longer /docs/web-sdk. */
+/**
+ * Channels with a guide of their own. Website chat has the longer /docs/web-sdk.
+ * Platforms with an app marketplace (WhatsApp, Slack, Shopify…) have none: they
+ * connect from the dashboard in one click (`connect` in ./channels.ts).
+ */
 export type DocId =
   | 'telegram'
-  | 'discord'
-  | 'whatsapp'
-  | 'messenger'
-  | 'instagram'
   | 'email'
-  | 'shopify'
   | 'wordpress'
-  | 'hubspot'
-  | 'zendesk'
-  | 'slack'
-  | 'teams'
   | 'api'
   | 'webhooks';
 
@@ -108,109 +103,12 @@ export const GUIDES: Record<DocId, SetupGuide> = {
       ['It answers privately but not in a group', 'The handler ignores messages without text and messages sent as a channel. Check how the bot is added to the group.'],
     ],
     planLabel: 'Telegram',
-    next: ['webhooks', 'discord', 'whatsapp'],
+    next: ['webhooks', 'email', 'api'],
   },
 
-  discord: {
-    kind: 'customer',
-    name: 'Discord',
-    blurb: 'A bot application and a long-running process on your server.',
-    summary: 'Create a Discord bot, invite it to your server, and run a small process that asks Truplexy and replies in channels or DMs.',
-    needs: ['Access to the Discord Developer Portal and a server where you can invite bots.', 'A host that keeps a process running: the bot holds a connection open to Discord.'],
-    flow: [
-      { label: 'Discord', title: 'Your bot', text: 'A member writes in a channel or DM. The bot keeps a connection open to Discord.' },
-      { label: 'Your server', title: 'The bot process', text: 'Holds the chat key. Keeps one Truplexy conversation per channel and member.' },
-      { label: 'Truplexy', title: 'The assistant', text: 'Answers, opens tickets, hands off to your team.' },
-    ],
-    flowLabel: 'A member writes to your Discord bot. The bot, running on your server, asks Truplexy with your chat key and replies in Discord.',
-    contactType: 'discord',
-    channelType: 'discord',
-    steps: [
-      'In the Discord Developer Portal, create an application, add a bot, and turn on the Message Content intent.',
-      'Invite the bot to your server with the “Send Messages” and “Read Message History” permissions.',
-      'Run the bot from the code below on your server, as a long-lived process.',
-    ],
-    env: [['DISCORD_TOKEN', 'The bot token from the Developer Portal.']],
-    troubleshooting: [
-      ['The bot is online but ignores messages', 'The Message Content intent is off. Turn it on in the Developer Portal and restart the bot.'],
-      ['The bot goes offline', 'Unlike the webhook channels, this bot keeps a connection open. Run it as a long-lived process, not a serverless function.'],
-    ],
-    planLabel: 'Discord',
-    next: ['webhooks', 'telegram', 'slack'],
-  },
 
-  whatsapp: {
-    kind: 'customer',
-    name: 'WhatsApp',
-    blurb: 'A Meta app with WhatsApp, a verified webhook and a handler.',
-    summary: 'Connect your WhatsApp Business number through the Meta Cloud API: verify a webhook on your server and reply through the API.',
-    needs: ['A Meta for Developers app with the WhatsApp product and a business phone number.', httpsServer],
-    flow: relayFlow('WhatsApp', 'business number'),
-    flowLabel: 'A customer messages your WhatsApp business number. Meta calls your server, which asks Truplexy with your chat key and sends the reply back through the Cloud API.',
-    contactType: 'whatsapp',
-    channelType: 'whatsapp',
-    steps: [
-      'In Meta for Developers, create an app with the WhatsApp product and a business phone number.',
-      'Set the webhook callback URL to your server’s /whatsapp route and subscribe to “messages”. Meta checks it with a verification handshake, which the code below answers.',
-      'Store the permanent access token, the phone number ID and your verify token as server secrets.',
-    ],
-    env: [
-      ['WA_VERIFY_TOKEN', 'A string you choose; Meta sends it back during the webhook handshake.'],
-      ['WA_TOKEN', 'The permanent access token.'],
-      ['WA_PHONE_ID', 'The ID of your business phone number.'],
-    ],
-    troubleshooting: [
-      ['Meta can’t verify the webhook', 'The verify token you typed in Meta must equal WA_VERIFY_TOKEN, and the GET /whatsapp route must be deployed and reachable over https.'],
-      ['Messages arrive but no reply is sent', 'Check WA_TOKEN and WA_PHONE_ID. The handler only answers text messages.'],
-    ],
-    planLabel: 'WhatsApp',
-    next: ['webhooks', 'messenger', 'instagram'],
-  },
 
-  messenger: {
-    kind: 'customer',
-    name: 'Messenger',
-    blurb: 'Your Facebook Page, a Meta webhook and a handler.',
-    summary: 'Connect your Facebook Page: subscribe a Meta webhook to its messages and reply through the Send API from your server.',
-    needs: ['A Facebook Page and a Meta for Developers app.', httpsServer],
-    flow: relayFlow('Messenger', 'Facebook Page'),
-    flowLabel: 'A customer messages your Facebook Page. Meta calls your server, which asks Truplexy with your chat key and sends the reply back.',
-    contactType: 'messenger',
-    steps: [
-      'In Meta for Developers, add the Messenger product to your app and connect your Page.',
-      'Set the webhook to your /messenger route and subscribe to “messages”.',
-      'Keep the Page access token as a server secret.',
-    ],
-    env: [['FB_PAGE_TOKEN', 'The Page access token.']],
-    troubleshooting: [
-      ['No messages reach your server', 'Check that the webhook is subscribed to “messages” for your Page and that the /messenger route is public over https.'],
-      ['Replies fail to send', 'Check FB_PAGE_TOKEN: it must be the access token for the Page that received the message.'],
-    ],
-    planLabel: 'Facebook Messenger',
-    next: ['webhooks', 'instagram', 'whatsapp'],
-  },
 
-  instagram: {
-    kind: 'customer',
-    name: 'Instagram',
-    blurb: 'A professional account, a Meta webhook and a handler.',
-    summary: 'Connect your Instagram professional account: subscribe a Meta webhook to Direct messages and reply from your server.',
-    needs: ['An Instagram professional account connected to a Facebook Page, and a Meta for Developers app.', httpsServer],
-    flow: relayFlow('Instagram', 'business account'),
-    flowLabel: 'A customer sends your Instagram account a Direct message. Meta calls your server, which asks Truplexy with your chat key and sends the reply back.',
-    contactType: 'instagram',
-    steps: [
-      'Connect your Instagram professional account to a Facebook Page, then add the Instagram product in Meta for Developers.',
-      'Subscribe the webhook to “messages” on your /instagram route.',
-    ],
-    env: [['IG_PAGE_TOKEN', 'The access token for the Page connected to the account.']],
-    troubleshooting: [
-      ['No messages reach your server', 'The account must be a professional account connected to a Facebook Page, and the webhook subscribed to “messages” on your public /instagram route.'],
-      ['The assistant answers itself', 'The handler skips echoes of your own messages (`is_echo`). Keep that check if you change the code.'],
-    ],
-    planLabel: 'Instagram',
-    next: ['webhooks', 'messenger', 'whatsapp'],
-  },
 
   email: {
     kind: 'customer',
@@ -237,36 +135,9 @@ export const GUIDES: Record<DocId, SetupGuide> = {
       ['The handler is called twice for one email', 'Inbound mail services retry on slow answers. Answer 200 first, then call Truplexy.'],
     ],
     planLabel: 'Email',
-    next: ['webhooks', 'hubspot', 'zendesk'],
+    next: ['webhooks', 'telegram', 'api'],
   },
 
-  shopify: {
-    kind: 'customer',
-    name: 'Shopify',
-    blurb: 'A theme app extension, an App Proxy and order-lookup tools.',
-    summary: 'Add a chat to your Shopify storefront with a theme app extension, route it through an App Proxy to your server, and add order-lookup tools.',
-    needs: ['A Shopify app for your store, with a theme app extension and an App Proxy.', httpsServer],
-    flow: [
-      { label: 'Shopify', title: 'Your storefront', text: 'A shopper chats in your theme. Shopify’s App Proxy signs and forwards the message.' },
-      { label: 'Your server', title: 'The proxy handler', text: 'Verifies Shopify’s signature. Holds the chat key and the Admin API token.' },
-      { label: 'Truplexy', title: 'The assistant', text: 'Answers, calls your order tools, hands off to your team.' },
-    ],
-    flowLabel: 'A shopper chats on your storefront. Shopify’s App Proxy forwards the signed message to your server, which asks Truplexy with your chat key.',
-    contactType: 'shopify',
-    steps: [
-      'Add a theme app extension (an app embed block) with your chat UI to the storefront.',
-      'Send messages through a Shopify App Proxy, so they reach your server signed by Shopify. Never put the chat key in the theme.',
-      'Implement guestSessionId / guest_session_id with a server-issued, verified session. Guests stay anonymous; only the signed logged_in_customer_id identifies a Shopify customer.',
-      'Add tools for order lookup and returns under Tools in the dashboard, calling the Shopify Admin API from your server.',
-    ],
-    env: [['SHOPIFY_SECRET', 'Your app’s secret, used to verify the App Proxy signature.']],
-    troubleshooting: [
-      ['Requests are rejected as unsigned', 'Verify the App Proxy signature with your app secret on every request, and only trust `logged_in_customer_id` after it passes.'],
-      ['Every shopper looks like the same person', 'Issue a verified guest session per visitor; do not reuse one identifier for guests.'],
-    ],
-    planLabel: 'Shopify',
-    next: ['webhooks', 'wordpress', 'api'],
-  },
 
   wordpress: {
     kind: 'widget',
@@ -292,116 +163,12 @@ export const GUIDES: Record<DocId, SetupGuide> = {
       ['The chat says it can’t connect', 'The plugin adds /wp-json/truplexy/v1/chat. Make sure the REST API isn’t blocked by a security plugin or firewall rule.'],
     ],
     planLabel: 'Website chat',
-    next: ['shopify', 'api', 'webhooks'],
+    next: ['api', 'webhooks'],
   },
 
-  hubspot: {
-    kind: 'customer',
-    name: 'HubSpot',
-    blurb: 'A private app, a conversations webhook and a handler.',
-    summary: 'Answer threads in your HubSpot conversations inbox: a private app with the conversations scopes, a webhook on new messages, and a handler on your server.',
-    needs: ['A HubSpot account where you can create private apps and webhooks.', httpsServer],
-    flow: relayFlow('HubSpot', 'conversations inbox'),
-    flowLabel: 'A new message arrives in your HubSpot conversations inbox. HubSpot calls your server, which asks Truplexy with your chat key and posts the reply to the thread.',
-    contactType: 'hubspot',
-    steps: [
-      'Create a HubSpot private app with the conversations.read and conversations.write scopes.',
-      'Set HUBSPOT_ACCOUNT_ID to your account ID; sender actor IDs are stored with that account prefix.',
-      'Subscribe a webhook to “conversation.newMessage” pointing at your /hubspot route.',
-    ],
-    env: [
-      ['HUBSPOT_TOKEN', 'The private app’s access token.'],
-      ['HUBSPOT_ACCOUNT_ID', 'Your HubSpot account ID.'],
-      ['HS_ACTOR', 'The actor the replies are posted as.'],
-    ],
-    troubleshooting: [
-      ['Webhook events arrive but nothing is posted', 'Check that the private app has both conversations.read and conversations.write, and that HUBSPOT_TOKEN belongs to it.'],
-      ['Customers are duplicated', 'Set HUBSPOT_ACCOUNT_ID: actor IDs are stored with the account prefix so they stay unique.'],
-    ],
-    planLabel: 'HubSpot',
-    next: ['webhooks', 'zendesk', 'email'],
-  },
 
-  zendesk: {
-    kind: 'customer',
-    name: 'Zendesk',
-    blurb: 'A trigger, a webhook and an agent account to reply as.',
-    summary: 'Answer new Zendesk tickets: a trigger calls your server, which asks Truplexy and posts the reply as a comment from an agent account.',
-    needs: ['Zendesk admin access, and an agent account the assistant replies as.', httpsServer],
-    flow: relayFlow('Zendesk', 'ticket queue'),
-    flowLabel: 'A new Zendesk ticket triggers a webhook to your server, which asks Truplexy with your chat key and posts the reply as a comment on the ticket.',
-    contactType: 'zendesk',
-    steps: [
-      'In Zendesk Admin Center, add a webhook to your /zendesk route and a trigger on “Ticket is created”.',
-      'Use an API token for an agent account the assistant replies as.',
-      'Include ticket_id, description and requester_id as strings in the trigger’s JSON body (requester_id uses {{ticket.requester.id}}).',
-    ],
-    env: [
-      ['ZENDESK_SUBDOMAIN', 'Your Zendesk subdomain.'],
-      ['ZENDESK_EMAIL', 'The agent account the assistant replies as.'],
-      ['ZENDESK_TOKEN', 'An API token for that account.'],
-    ],
-    troubleshooting: [
-      ['The trigger fires but nothing is posted', 'Make sure ticket_id, description and requester_id are strings in the trigger body, and that the API token belongs to an agent account.'],
-      ['Replies are posted as the wrong person', 'The assistant replies as the account in ZENDESK_EMAIL. Use a dedicated agent for it.'],
-    ],
-    planLabel: 'Zendesk',
-    next: ['webhooks', 'hubspot', 'email'],
-  },
 
-  slack: {
-    kind: 'team',
-    name: 'Slack',
-    blurb: 'A Slack app and a bridge that posts escalations and returns replies.',
-    summary: 'Post escalated conversations to a Slack channel and send your team’s thread replies back to the customer: a Slack app, the Truplexy webhook and a small bridge.',
-    needs: ['A Slack workspace where you can create apps.', httpsServer, 'The Truplexy webhook, set up from the webhooks guide.'],
-    flow: [
-      { label: 'Truplexy', title: 'An escalation', text: 'A conversation needs a person. Truplexy signs a webhook to your server.' },
-      { label: 'Your server', title: 'A small bridge', text: 'Verifies the webhook, posts to Slack and maps each thread to its conversation.' },
-      { label: 'Slack', title: 'Your support channel', text: 'A teammate replies in the thread; the bridge sends it back to Truplexy.' },
-    ],
-    flowLabel: 'Truplexy sends an escalation webhook to your server, which posts it to Slack. A teammate’s reply in the thread goes back to Truplexy and on to the customer.',
-    steps: [
-      'Create a Slack app with chat:write, and Event Subscriptions for message.channels.',
-      'Post each escalation (the ticket.updated webhook with escalated: true) to a support channel.',
-      'When a teammate replies in that thread, record it with POST /conversations/{id}/replies so the customer gets it.',
-    ],
-    env: [
-      ['SLACK_BOT_TOKEN', 'The Slack app’s bot token.'],
-      ['SLACK_SIGNING_SECRET', 'The Slack app’s signing secret.'],
-    ],
-    troubleshooting: [
-      ['Escalations never appear in Slack', 'Check that the webhook under Integrations → Webhook points at your server and that your receiver handles `ticket.updated` with `escalated: true`.'],
-      ['Thread replies aren’t delivered', 'The app needs Event Subscriptions for message.channels, and the bridge must map the Slack thread back to its conversation ID.'],
-    ],
-    planLabel: 'Slack',
-    next: ['webhooks', 'teams', 'api'],
-  },
 
-  teams: {
-    kind: 'team',
-    name: 'Microsoft Teams',
-    blurb: 'An Azure bot and a bridge that posts escalation cards.',
-    summary: 'Post escalated conversations as cards in a Microsoft Teams channel and send thread replies back to the customer: an Azure bot, the Truplexy webhook and a small bridge.',
-    needs: ['An Azure subscription for Azure Bot Service, and a team you can add the bot to.', httpsServer, 'The Truplexy webhook, set up from the webhooks guide.'],
-    flow: [
-      { label: 'Truplexy', title: 'An escalation', text: 'A conversation needs a person. Truplexy signs a webhook to your server.' },
-      { label: 'Your server', title: 'A bot', text: 'Verifies the webhook, posts a card and maps each thread to its conversation.' },
-      { label: 'Teams', title: 'Your support channel', text: 'A teammate replies in the thread; the bot sends it back to Truplexy.' },
-    ],
-    flowLabel: 'Truplexy sends an escalation webhook to your server, which posts a card to Teams. A teammate’s reply in the thread goes back to Truplexy and on to the customer.',
-    steps: [
-      'Register a bot in Azure Bot Service and add it to your support team in Teams.',
-      'Post escalations as cards in a channel; replies in the card’s thread go back with POST /conversations/{id}/replies.',
-    ],
-    env: [],
-    troubleshooting: [
-      ['Escalations never appear in Teams', 'Check that the webhook under Integrations → Webhook points at your server and that your receiver handles `ticket.updated` with `escalated: true`.'],
-      ['Thread replies aren’t delivered', 'The bot must be added to the team, and must map the Teams thread back to its conversation ID before calling /replies.'],
-    ],
-    planLabel: 'Microsoft Teams',
-    next: ['webhooks', 'slack', 'api'],
-  },
 
   api: {
     kind: 'developer',
@@ -425,7 +192,7 @@ export const GUIDES: Record<DocId, SetupGuide> = {
     env: [],
     troubleshooting: COMMON_TROUBLESHOOTING,
     planLabel: 'REST API',
-    next: ['webhooks', 'slack'],
+    next: ['webhooks', 'telegram'],
   },
 
   webhooks: {
@@ -453,7 +220,7 @@ export const GUIDES: Record<DocId, SetupGuide> = {
       ['No events for something your integration did', 'By design: notes, playground conversations and anything the integration did itself are not delivered.'],
     ],
     planLabel: 'Webhooks',
-    next: ['api', 'slack', 'teams'],
+    next: ['api', 'email'],
   },
 };
 
@@ -461,19 +228,25 @@ export const DOC_IDS = Object.keys(GUIDES) as DocId[];
 
 /** The /docs home, grouped by where each guide is used. */
 export const DOC_GROUPS: { id: string; label: string; ids: (DocId | 'web')[] }[] = [
-  { id: 'website', label: 'Website & stores', ids: ['web', 'wordpress', 'shopify'] },
-  { id: 'messaging', label: 'Messaging apps', ids: ['whatsapp', 'messenger', 'instagram', 'telegram', 'discord', 'email'] },
-  { id: 'helpdesk', label: 'Help desks & CRM', ids: ['hubspot', 'zendesk'] },
-  { id: 'team', label: 'Team tools', ids: ['slack', 'teams'] },
+  { id: 'website', label: 'Website & stores', ids: ['web', 'wordpress'] },
+  { id: 'messaging', label: 'Messaging', ids: ['telegram', 'email'] },
   { id: 'build', label: 'Build your own', ids: ['api', 'webhooks'] },
 ];
 
+/** Channels that have setup docs: everything except the one-click Connect platforms. */
+export type DocChannelId = Exclude<ChannelId, 'discord' | 'whatsapp' | 'messenger' | 'instagram' | 'shopify' | 'hubspot' | 'zendesk' | 'slack' | 'teams'>;
+
 /** Where the setup for a channel is documented. */
-export function docsHref(id: ChannelId): string {
+export function docsHref(id: DocChannelId): string {
   if (id === 'web') return '/docs/web-sdk';
   if (id === 'woocommerce') return '/docs/wordpress#woocommerce';
   if (id === 'custom') return '/docs/api#custom-channel';
   return `/docs/${id}`;
+}
+
+/** Where to set a channel up: its docs, or for a Connect platform, the dashboard's Connect button. */
+export function setupHref(id: ChannelId): string {
+  return isConnect(id) ? `${SITE.dashboardUrl}/integrations/guides` : docsHref(id as DocChannelId);
 }
 
 /** Where a channel links to: its overview page, or for developer tools (which aren't channels customers use), their docs. */

@@ -7,7 +7,7 @@ import ChannelDemo from '../../components/channels/ChannelDemo.astro';
 import { SITE } from '../../data/site';
 import { GROUP_LABEL, channel } from '../../data/channels';
 import { OVERVIEW_IDS, PAGES, type OverviewId } from '../../data/channel-pages';
-import { availability, docsHref } from '../../data/setup-guides';
+import { availability, setupHref } from '../../data/setup-guides';
 
 export function getStaticPaths() {
   return OVERVIEW_IDS.map((id) => ({ params: { id } }));
@@ -18,7 +18,9 @@ const ch = channel(id);
 const page = PAGES[id];
 const plan = availability(page.planLabel);
 const live = ch.status === 'live';
-const guide = docsHref(id);
+// Platforms with an app marketplace connect from the dashboard in one click; the rest have a setup guide.
+const connect = ch.connect === true;
+const guide = setupHref(id);
 
 const toc: [string, string][] = [
   ['demo', 'See it in action'],
@@ -58,7 +60,7 @@ const glance: [string, string][] = [
   </Fragment>
   <Fragment slot="hero-actions">
     <Button href={SITE.signupUrl}>Start free</Button>
-    <Button href={guide} variant="ghost" arrow={false}>Set up {ch.name}</Button>
+    <Button href={guide} variant="ghost" arrow={false}>{connect ? `Connect ${ch.name}` : `Set up ${ch.name}`}</Button>
   </Fragment>
 
   <h2 id="demo">See it in action</h2>
@@ -80,7 +82,9 @@ const glance: [string, string][] = [
       </tbody>
     </table>
   </div>
-  <p>The <a href={guide}>setup guide</a> has every step, and <a href="/pricing">pricing</a> has the limits on each plan.</p>
+  {connect
+    ? <p>Connect it from <a href={guide}>Integrations in the dashboard</a>: sign in to {ch.name}, approve the Truplexy app, and you’re live. No code or server needed. <a href="/pricing">Pricing</a> has the limits on each plan.</p>
+    : <p>The <a href={guide}>setup guide</a> has every step, and <a href="/pricing">pricing</a> has the limits on each plan.</p>}
 
   {page.faq.length > 0 && (
     <Fragment>

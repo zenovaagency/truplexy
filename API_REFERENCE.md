@@ -258,6 +258,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/channel-types` | `channels.read` | Channel types the bot may add (v2) |
 | `GET` | `/channels` | `channels.read` | List the bot's channels (v2) |
 | `POST` | `/channels` | `channels.write` | Add a channel (v2) |
+| `POST` | `/channels/connect` | `channels.write` | Connect a platform with its own sign-in (v2) |
+| `GET` | `/oauth/{type}/callback` | none (signed `state`) | Where the platform returns after its sign-in (v2) |
 | `GET` | `/channels/{id}` | `channels.read` | A channel (v2) |
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
@@ -647,6 +649,10 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 
 Scope headers; these act on the bot. A channel is a place the bot talks to customers, such as a Discord server, a website's chat widget or a WhatsApp number. Platform admins keep the catalog of channel types; a business adds channels of an offered type.
 
+There are two ways to add one:
+- **Connect.** Platforms with an app marketplace (`connect: "oauth"` in `GET /channel-types`: WhatsApp, Messenger, Instagram, Discord, Slack, Microsoft Teams, Shopify, HubSpot and Zendesk) run on Truplexy's own app. `POST /channels/connect` sends the person to the platform's sign-in; Truplexy keeps the platform's tokens, receives its webhooks and sends replies itself. The business writes no code and issues no key.
+- **By hand.** Every other type is added with `POST /channels`, and the business's own server talks to Truplexy with a chat API key bound to it.
+
 Channels tell the team where each ticket came from:
 - **Chat API keys.** A key issued with `channel_id` (`POST /api-keys`) marks every conversation it starts with the channel, and so every ticket opened for those conversations. `POST /conversations` may name another of the bot's channels instead.
 - **Dashboard tickets.** `POST /tickets` and `PATCH /tickets/{id}` set `channel_id` directly.
@@ -661,6 +667,9 @@ Channels tell the team where each ticket came from:
   type, type_label,                        // a type from GET /channel-types, e.g. discord / "Discord"
   name, description,                       // name is unique among the bot's channels
   external_id,                             // the platform's own ID, e.g. a Discord server ID; free text
+  connection,                              // null, or for a connected channel: {status, account_name, connected_at}
+                                           //   status: connected | needs_reauth (the platform revoked or expired access; reconnect) | error
+                                           //   account_name: the Page, number, workspace, store… it's connected to
   enabled,                                 // the business's switch
   disabled_by_platform,                    // a platform admin's switch
   active,                                  // enabled and not disabled_by_platform: its keys work
@@ -674,7 +683,7 @@ Channels tell the team where each ticket came from:
 
 #### `GET /channel-types`
 
-`channels.read`. **200** `{data: [{id, label, description, icon, offered}]}`, in the platform's order: the types the bot may add channels of, plus any hidden type one of its channels still uses (`offered: false`; don't offer it for new channels).
+`channels.read`. **200** `{data: [{id, label, description, icon, offered, connect}]}`, in the platform's order: the types the bot may add channels of, plus any hidden type one of its channels still uses (`offered: false`; don't offer it for new channels). `connect` is `"oauth"` for types added with `POST /channels/connect`, else `null`.
 
 #### `GET /channels`
 
@@ -698,7 +707,58 @@ Channels tell the team where each ticket came from:
 **Errors:**
 - `400 INVALID_REQUEST`
 - `400 CHANNEL_TYPE_NOT_ALLOWED`: the type isn't offered.
+- `400 CHANNEL_TYPE_NEEDS_CONNECT`: channels of the type are added with `POST /channels/connect`.
 - `409 CHANNEL_EXISTS`: the bot has a channel with this name.
+
+#### `POST /channels/connect`
+
+`channels.write`. Starts the platform's own sign-in for a `connect: "oauth"` type.
+
+| Field | Rules |
+| --- | --- |
+| `type` | Required. An offered `id` with `connect: "oauth"`. |
+| `return_to` | Required. A dashboard URL to come back to; other origins are refused. |
+| `account` | Shopify: the store's `myshopify.com` name. Zendesk: the subdomain. Required for those two, ignored otherwise. |
+| `channel_id` | Reconnects this channel (same type) instead of adding one, e.g. when its `connection.status` is `needs_reauth`. |
+
+**200** `{authorize_url}`. Send the browser there. The URL carries a signed, single-use `state` that expires in 15 minutes and names the business, bot, person and `return_to`. The platform's client ID and secret never leave the API. The scopes it asks for:
+
+| Type | Platform sign-in | Scopes |
+| --- | --- | --- |
+| `whatsapp` | Facebook Login for Business, WhatsApp Embedded Signup | `whatsapp_business_management`, `whatsapp_business_messaging` |
+| `messenger` | Facebook Login for Business | `pages_show_list`, `pages_messaging`, `pages_manage_metadata` |
+| `instagram` | Facebook Login for Business | `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_manage_metadata` |
+| `discord` | OAuth2 bot install | `bot`, `applications.commands`; Send Messages, Read Message History |
+| `slack` | Slack OAuth v2 | `chat:write`, `channels:history`, `users:read`, `incoming-webhook` (picks the support channel) |
+| `teams` | Microsoft identity platform, Teams app install | `TeamsAppInstallation.ReadWriteSelfForTeam`, `ChannelMessage.Send` |
+| `shopify` | Shopify app install | `read_orders`, `read_customers`, `read_returns` |
+| `hubspot` | HubSpot OAuth | `conversations.read`, `conversations.write` |
+| `zendesk` | Zendesk OAuth | `read`, `write` |
+
+**Errors:**
+- `400 INVALID_REQUEST`: a missing `type`, a `return_to` on another origin, or a missing or malformed `account`.
+- `400 CHANNEL_TYPE_NOT_ALLOWED`: the type isn't offered, or isn't added with Connect.
+- `404 CHANNEL_NOT_FOUND`: `channel_id` isn't one of the bot's channels.
+
+#### `GET /oauth/{type}/callback`
+
+Not called by dashboards: the platform redirects here after its sign-in. The API:
+1. Checks `state`.
+2. Exchanges the code for the platform's tokens and stores them encrypted. Long-lived tokens are refreshed by the API.
+3. Subscribes the platform's webhooks to the API's own receiver, so no customer server is involved.
+4. Adds the channel, named after the type (`WhatsApp`, then `WhatsApp 2`…), or updates `channel_id`'s. It sets `connection` and `external_id` (the number, Page, server, workspace, store or account ID).
+5. Writes `channel.created` or `channel.updated` to the audit log.
+6. Redirects to `return_to` with `?connected=<channel id>`.
+
+On failure it redirects to `return_to` with `?connect_error=<code>&type=<type>` instead. The codes:
+- `ACCESS_DENIED`: cancelled, or not every scope approved.
+- `NO_ACCOUNT`: no number, Page, server or channel picked.
+- `ACCOUNT_IN_USE`: that account is connected to another bot.
+- `STATE_EXPIRED`: the sign-in took too long, or `state` was used already.
+- `PLAN_LIMIT_REACHED`: the plan doesn't include the channel.
+- `PROVIDER_ERROR`: the platform failed.
+
+When the platform later revokes access (an app uninstalled, a password changed), the API sets `connection.status` to `needs_reauth` and stops answering there until it is reconnected.
 
 #### `GET /channels/{id}`
 
@@ -712,11 +772,11 @@ Channels tell the team where each ticket came from:
 
 #### `DELETE /channels/{id}`
 
-`channels.write`. Deletes the channel. Its conversations and tickets keep their `channel_id` and still show its name and type. **204**.
+`channels.write`. Deletes the channel. Its conversations and tickets keep their `channel_id` and still show its name and type. For a connected channel this disconnects it: the API revokes its tokens, or uninstalls Truplexy's app where the platform allows it. **204**.
 
 **Errors:**
 - `404 CHANNEL_NOT_FOUND`
-- `409 CHANNEL_IN_USE`: active chat API keys are bound to it. Revoke them first.
+- `409 CHANNEL_IN_USE`: active chat API keys are bound to it. Revoke them first. Connected channels take no keys, so they never get this.
 
 ### Bot configuration (workspace)
 
@@ -1715,7 +1775,7 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 
 #### `GET /platform/channel-types` (v2)
 
-**200** `{data: [{id, label, description, icon, status, sort_order, auto_close_hours, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `discord`, `slack`, `telegram`, `whatsapp`, `email` and `custom`.
+**200** `{data: [{id, label, description, icon, status, connect, sort_order, auto_close_hours, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `whatsapp`, `messenger`, `instagram`, `telegram`, `discord`, `email`, `shopify`, `hubspot`, `zendesk`, `slack`, `teams` and `custom`. `connect` is read-only: `"oauth"` for the types the API has an app for (all but `website`, `telegram`, `email` and `custom`), else `null`; types added here are `null`.
 
 #### `POST /platform/channel-types` (v2)
 
@@ -1896,7 +1956,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Bot configuration | `GET`/`PUT /workspace`, `GET /models`, `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
 | Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`) |
-| Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…`, and the chat API section as the integrator guide |
+| Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…` and `POST /channels/connect`, and the chat API section as the integrator guide |
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
 | Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
 | Team | `GET /members`, `PATCH`/`DELETE /members/{user_id}`, `GET`/`POST /invites`, `DELETE /invites/{id}`, `GET /audit` |
@@ -1926,6 +1986,7 @@ Every error has its HTTP status and this body:
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /models` and `GET /prompt-templates`, and fill required variables. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
+| 400 | `CHANNEL_TYPE_NEEDS_CONNECT` | Add the channel with `POST /channels/connect`. |
 | 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. |
 | 400 | `ADDON_NOT_AVAILABLE` | The plan sells no extra tokens (Free), or the business's tokens are unlimited and it needs none. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |

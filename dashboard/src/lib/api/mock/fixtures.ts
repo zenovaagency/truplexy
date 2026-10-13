@@ -604,15 +604,21 @@ function deletionHistory(dana: Person, owen: Person, ops: Person): Pick<MockDb, 
 function channelTypes(): MockDb['channelTypes'] {
   return (
     [
-      ['website', 'Website', "A chat widget on the business's own site or app."],
-      ['discord', 'Discord', 'A bot in a Discord server, in channels or DMs.'],
-      ['slack', 'Slack', 'A Slack app answering in a workspace.'],
-      ['telegram', 'Telegram', 'A Telegram bot in private chats and groups.'],
-      ['whatsapp', 'WhatsApp', 'A WhatsApp Business number through the Meta Cloud API.'],
-      ['email', 'Email', 'A support address, through an inbound mail webhook.'],
-      ['custom', 'Custom', 'Anything else built on the chat API.'],
+      ['website', 'Website', "A chat widget on the business's own site or app.", null],
+      ['whatsapp', 'WhatsApp', 'A WhatsApp Business number, connected with Meta.', 'oauth'],
+      ['messenger', 'Messenger', 'A Facebook Page inbox, connected with Meta.', 'oauth'],
+      ['instagram', 'Instagram', 'An Instagram professional account’s Direct messages, connected with Meta.', 'oauth'],
+      ['telegram', 'Telegram', 'A Telegram bot in private chats and groups.', null],
+      ['discord', 'Discord', 'The Truplexy bot in a Discord server, in channels or DMs.', 'oauth'],
+      ['email', 'Email', 'A support address, through an inbound mail webhook.', null],
+      ['shopify', 'Shopify', 'The Truplexy app on a Shopify store.', 'oauth'],
+      ['hubspot', 'HubSpot', 'A HubSpot conversations inbox.', 'oauth'],
+      ['zendesk', 'Zendesk', 'New tickets in a Zendesk account.', 'oauth'],
+      ['slack', 'Slack', 'The Truplexy app in a Slack workspace, for escalations.', 'oauth'],
+      ['teams', 'Microsoft Teams', 'The Truplexy app in a Teams team, for escalations.', 'oauth'],
+      ['custom', 'Custom', 'Anything else built on the chat API.', null],
     ] as const
-  ).map(([id, label, description], i) => ({ id, label, description, icon: id, status: 'active', sort_order: (i + 1) * 10, created_at: ago(120 * DAY), updated_at: ago(120 * DAY) }));
+  ).map(([id, label, description, connect], i) => ({ id, label, description, icon: id, status: 'active', connect, sort_order: (i + 1) * 10, created_at: ago(120 * DAY), updated_at: ago(120 * DAY) }));
 }
 
 /**
@@ -630,6 +636,7 @@ function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversatio
     name,
     description: '',
     external_id: '',
+    connection: null,
     enabled: true,
     disabled_by_platform: false,
     created_at: ago(days * DAY),
@@ -638,8 +645,15 @@ function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversatio
   });
   const site = ch('acme', 'website', 'Storefront chat', 100, { description: 'The chat bubble on acme.example.', external_id: 'acme.example' });
   const telegram = ch('acme', 'telegram', 'Acme Telegram', 60, { external_id: '@acmestore_bot' });
-  const whatsapp = ch('acme', 'whatsapp', 'WhatsApp support line', 70, { external_id: '+1 415 555 0134', enabled: false, description: 'Paused while the number moves to the new Meta account.' });
-  const nwDiscord = ch('northwind', 'discord', 'Northwind community', 30, { external_id: '1187340912665214976' });
+  const whatsapp = ch('acme', 'whatsapp', 'WhatsApp support line', 70, {
+    external_id: '+1 415 555 0134',
+    description: 'Meta asked for the connection to be renewed.',
+    connection: { status: 'needs_reauth', account_name: 'Acme Store · +1 415 555 0134', connected_at: ago(70 * DAY) },
+  });
+  const nwDiscord = ch('northwind', 'discord', 'Northwind community', 30, {
+    external_id: '1187340912665214976',
+    connection: { status: 'connected', account_name: 'Northwind Gaming', connected_at: ago(30 * DAY) },
+  });
   const bloomSite = ch('bloom-clinic', 'website', 'Clinic website', 25, { disabled_by_platform: true, description: 'Booking page chat.' });
   const channels = [site, telegram, whatsapp, nwDiscord, bloomSite];
 
@@ -650,8 +664,6 @@ function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversatio
   };
   bind('Website chat', site);
   bind('Telegram', telegram);
-  bind('WhatsApp', whatsapp);
-  bind('Discord', nwDiscord);
 
   const spread: Record<string, MockChannel[]> = { acme: [site, site, site, telegram, telegram, whatsapp], northwind: [nwDiscord], 'bloom-clinic': [bloomSite] };
   for (const conv of conversations) {

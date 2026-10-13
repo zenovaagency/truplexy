@@ -1,43 +1,6 @@
-import { indent, PUBLIC_API, type IntegrationCode, type LangPack } from './types';
+import { indent, PUBLIC_API, type LangPack } from './types';
 
-/** Go 1.22+: net/http with method patterns, standard library only (plus discordgo for Discord). */
-
-/** Meta's Messenger and Instagram webhooks share a shape. */
-const meta = (route: string, prefix: string, tokenEnv: string, skipEcho: boolean): IntegrationCode => ({
-  handler: `http.HandleFunc("POST /${route}", func(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Entry []struct {
-			Messaging []struct {
-				Sender  struct{ ID string }
-				Message struct {
-					Text   string
-					IsEcho bool \`json:"is_echo"\`
-				}
-			}
-		}
-	}
-	json.NewDecoder(r.Body).Decode(&body)
-	w.WriteHeader(http.StatusOK)   // answer Meta at once
-	go func() {
-		for _, e := range body.Entry {
-			for _, ev := range e.Messaging {
-				if ev.Message.Text == ""${skipEcho ? ' || ev.Message.IsEcho' : ''} {
-					continue
-				}
-				if a, err := ask("${prefix}:"+ev.Sender.ID, ev.Message.Text, identify("${route}", ev.Sender.ID)); err == nil && a.Reply != "" {
-					sendMeta(ev.Sender.ID, a.Reply)
-				}
-			}
-		}
-	}()
-})
-
-func sendMeta(id, text string) error {
-	return sendJSON("POST", "https://graph.facebook.com/v21.0/me/messages?access_token="+os.Getenv("${tokenEnv}"),
-		map[string]any{"recipient": map[string]string{"id": id}, "message": map[string]string{"text": text}}, nil)
-}`,
-  deliver: `sendMeta(strings.TrimPrefix(thread, "${prefix}:"), text)`,
-});
+/** Go 1.22+: net/http with method patterns, standard library only. */
 
 const pack: LangPack = {
   note: 'Register the http.HandleFunc routes inside main(); the functions sit beside it in package main.',
@@ -570,55 +533,6 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 }`,
     },
 
-    whatsapp: {
-      handler: `http.HandleFunc("GET /whatsapp", func(w http.ResponseWriter, r *http.Request) {   // Meta's verification handshake
-	q := r.URL.Query()
-	if q.Get("hub.verify_token") != os.Getenv("WA_VERIFY_TOKEN") {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-	io.WriteString(w, q.Get("hub.challenge"))
-})
-
-http.HandleFunc("POST /whatsapp", func(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Entry []struct {
-			Changes []struct {
-				Value struct {
-					Messages []struct {
-						From, Type string
-						Text       struct{ Body string }
-					}
-				}
-			}
-		}
-	}
-	json.NewDecoder(r.Body).Decode(&body)
-	w.WriteHeader(http.StatusOK)   // answer Meta at once
-	go func() {
-		for _, e := range body.Entry {
-			for _, c := range e.Changes {
-				for _, m := range c.Value.Messages {
-					if m.Type != "text" {
-						continue
-					}
-					if a, err := ask("wa:"+m.From, m.Text.Body, identify("whatsapp", m.From)); err == nil && a.Reply != "" {
-						sendWhatsApp(m.From, a.Reply)
-					}
-				}
-			}
-		}
-	}()
-})
-
-func sendWhatsApp(to, body string) error {
-	return sendJSON("POST", "https://graph.facebook.com/v21.0/"+os.Getenv("WA_PHONE_ID")+"/messages",
-		map[string]any{"messaging_product": "whatsapp", "to": to, "text": map[string]string{"body": body}},
-		map[string]string{"Authorization": "Bearer " + os.Getenv("WA_TOKEN")})
-}`,
-      deliver: `sendWhatsApp(strings.TrimPrefix(thread, "wa:"), text)`,
-    },
-
     telegram: {
       handler: `http.HandleFunc("POST /telegram", func(w http.ResponseWriter, r *http.Request) {
 	var update struct {
@@ -650,36 +564,6 @@ func sendTelegram(chatID, text string) error {
       deliver: `sendTelegram(strings.Split(thread, ":")[1], agent+": "+text)`,
     },
 
-    discord: {
-      handler: `// go get github.com/bwmarrin/discordgo — keeps a gateway connection open.
-var discord *discordgo.Session
-
-func startDiscord() error {
-	dg, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN"))
-	if err != nil {
-		return err
-	}
-	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages | discordgo.IntentMessageContent
-	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-		if m.Author.Bot || m.Content == "" {
-			return
-		}
-		s.ChannelTyping(m.ChannelID)
-		a, err := ask("dc:"+m.ChannelID+":"+m.Author.ID, m.Content, identify("discord", m.Author.ID))
-		if err == nil && a.Reply != "" {
-			s.ChannelMessageSendReply(m.ChannelID, a.Reply, m.Reference())
-		}
-	})
-	discord = dg
-	return dg.Open()
-}`,
-      deliver: `channelID := strings.Split(thread, ":")[1]
-discord.ChannelMessageSend(channelID, "**"+agent+":** "+text)`,
-    },
-
-    messenger: meta('messenger', 'fb', 'FB_PAGE_TOKEN', false),
-    instagram: meta('instagram', 'ig', 'IG_PAGE_TOKEN', true),
-
     email: {
       handler: `http.HandleFunc("POST /inbound-email", func(w http.ResponseWriter, r *http.Request) {
 	var mail struct{ From, Subject, TextBody, MessageID string }   // Postmark's fields
@@ -693,85 +577,6 @@ discord.ChannelMessageSend(channelID, "**"+agent+":** "+text)`,
 	}()
 })`,
       deliver: `sendEmail(strings.TrimPrefix(thread, "mail:"), "Re: your request", text, "")`,
-    },
-
-    hubspot: {
-      handler: `type hsMessage struct {
-    Text, Direction, ChannelID, ChannelAccountID string
-    Senders []struct { ActorID string; DeliveryIdentifiers []struct { Type, Value string } }
-}
-
-var lastChannel sync.Map   // thread → its channel, for your team's replies
-
-func hubspot(method, path string, body, out any) error {
-	return sendJSON(method, "https://api.hubapi.com/conversations/v3/conversations/threads/"+path, body,
-		map[string]string{"Authorization": "Bearer " + os.Getenv("HUBSPOT_TOKEN")}, out)
-}
-
-http.HandleFunc("POST /hubspot", func(w http.ResponseWriter, r *http.Request) {
-	var events []struct {
-		ObjectID  int64
-		MessageID string
-	}
-	json.NewDecoder(r.Body).Decode(&events)
-	w.WriteHeader(http.StatusOK)
-	go func() {
-		for _, e := range events {
-			thread := strconv.FormatInt(e.ObjectID, 10)
-			var msg hsMessage
-			if hubspot("GET", thread+"/messages/"+e.MessageID, nil, &msg) != nil || msg.Direction != "INCOMING" {
-				continue
-			}
-			lastChannel.Store(thread, msg)
-            if len(msg.Senders) == 0 { continue }
-            sender := msg.Senders[0]
-            kind, value := "hubspot", ""
-            if sender.ActorID != "" { value = os.Getenv("HUBSPOT_ACCOUNT_ID") + ":" + sender.ActorID
-            } else { for _, d := range sender.DeliveryIdentifiers { if d.Type == "HS_EMAIL_ADDRESS" { kind, value = "email", d.Value; break } } }
-            if value == "" { continue } // no usable customer identity
-            if a, err := ask("hs:"+thread, msg.Text, identify(kind, value)); err == nil && a.Reply != "" {
-				hubspotSend(thread, a.Reply)
-			}
-		}
-	}()
-})
-
-func hubspotSend(thread, text string) error {
-	v, _ := lastChannel.Load(thread)
-	ch, _ := v.(hsMessage)
-	return hubspot("POST", thread+"/messages", map[string]string{
-		"type": "MESSAGE", "text": text, "senderActorId": os.Getenv("HS_ACTOR"),
-		"channelId": ch.ChannelID, "channelAccountId": ch.ChannelAccountID,
-	}, nil)
-}`,
-      deliver: `hubspotSend(strings.TrimPrefix(thread, "hs:"), text)`,
-    },
-
-    zendesk: {
-      handler: `http.HandleFunc("POST /zendesk", func(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		TicketID    string \`json:"ticket_id"\`
-        RequesterID string \`json:"requester_id"\`
-		Description string
-	}   // fields from your trigger's JSON body
-	json.NewDecoder(r.Body).Decode(&in)
-	w.WriteHeader(http.StatusOK)
-	go func() {
-        if in.RequesterID == "" { return } // configure requester_id in your trigger body
-        a, err := ask("zd:"+in.TicketID, in.Description, identify("zendesk", os.Getenv("ZENDESK_SUBDOMAIN")+":"+in.RequesterID))
-		if err == nil && a.Reply != "" && a.Status == "answered" {
-			zendeskComment(in.TicketID, a.Reply)
-		}
-	}()
-})
-
-func zendeskComment(ticketID, text string) error {
-	auth := base64.StdEncoding.EncodeToString([]byte(os.Getenv("ZENDESK_EMAIL") + "/token:" + os.Getenv("ZENDESK_TOKEN")))
-	return sendJSON("PUT", "https://"+os.Getenv("ZENDESK_SUBDOMAIN")+".zendesk.com/api/v2/tickets/"+ticketID,
-		map[string]any{"ticket": map[string]any{"comment": map[string]any{"body": text, "public": true}}},
-		map[string]string{"Authorization": "Basic " + auth})
-}`,
-      deliver: `zendeskComment(strings.TrimPrefix(thread, "zd:"), text)`,
     },
 
     api: {

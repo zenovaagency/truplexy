@@ -24,12 +24,18 @@ export interface Integration {
   glyph?: LucideIcon;
   /** The channel type this integration adds (see GET /channel-types). */
   channelType?: string;
+  /**
+   * Platforms with an app marketplace: Truplexy's own app connects them with the
+   * platform's sign-in (POST /channels/connect). No guide, code or chat key.
+   * `ask` is the one thing the platform needs to know first.
+   */
+  connect?: { ask?: { label: string; placeholder: string; suffix?: string; hint: string } };
   /** Words in a key name that mean this integration is set up, for integrations with no channel type. */
-  match: string[];
-  /** Setup on the platform's side, in order. */
-  steps: string[];
+  match?: string[];
+  /** Setup on the platform's side, in order. Guides only. */
+  steps?: string[];
   /** Server languages with a guide, most common first. Code is in snippets/<lang>.ts. */
-  langs: Lang[];
+  langs?: Lang[];
   /** Internal tools reply as the team instead of chatting as the customer. */
   teamSide?: boolean;
   /** Customers chat in the Truplexy widget, which picks up the team's replies itself: no webhook. */
@@ -57,16 +63,10 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'whatsapp',
     name: 'WhatsApp',
     group: 'messaging',
-    blurb: 'Answer customers on WhatsApp Business through the Meta Cloud API.',
+    blurb: 'Answer customers on your WhatsApp Business number. Sign in with Meta and pick the number.',
     icon: '/brands/whatsapp.svg',
     color: 'var(--color-ink)',
-    match: ['whatsapp', 'wa '],
-    langs: ['node', 'python', 'php', 'go'],
-    steps: [
-      'In Meta for Developers, create an app with the WhatsApp product and a business phone number.',
-      'Set the webhook callback URL to your server\'s /whatsapp route and subscribe to "messages".',
-      'Store the permanent access token and phone number ID as server secrets.',
-    ],
+    connect: {},
   },
   {
     id: 'telegram',
@@ -88,45 +88,30 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'discord',
     name: 'Discord',
     group: 'messaging',
-    blurb: 'A support bot for your community server, in channels or DMs.',
+    blurb: 'Add the Truplexy bot to your community server, for channels and DMs.',
     icon: '/brands/discord.svg',
     color: 'var(--color-ink)',
-    match: ['discord'],
-    langs: ['node', 'python', 'go', 'csharp'],
-    steps: [
-      'In the Discord Developer Portal, create an application, add a bot, and turn on the Message Content intent.',
-      'Invite it to your server with the "Send Messages" and "Read Message History" permissions.',
-      'Run the bot below on your server; it keeps a persistent connection to Discord.',
-    ],
+    connect: {},
   },
   {
     id: 'messenger',
+    channelType: 'messenger',
     name: 'Messenger',
     group: 'messaging',
-    blurb: 'Reply to messages sent to your Facebook Page.',
+    blurb: 'Reply to messages sent to your Facebook Page. Sign in with Meta and pick the Page.',
     icon: '/brands/messenger.svg',
     color: 'var(--color-ink)',
-    match: ['messenger', 'facebook'],
-    langs: ['node', 'python', 'php', 'go'],
-    steps: [
-      'In Meta for Developers, add the Messenger product to your app and connect your Page.',
-      'Set the webhook to your /messenger route and subscribe to "messages".',
-      'Keep the Page access token as a server secret.',
-    ],
+    connect: {},
   },
   {
     id: 'instagram',
+    channelType: 'instagram',
     name: 'Instagram',
     group: 'messaging',
-    blurb: 'Answer Instagram Direct messages to your business account.',
+    blurb: 'Answer Instagram Direct messages to your professional account. Sign in with Meta.',
     icon: '/brands/instagram.svg',
     color: 'var(--color-ink)',
-    match: ['instagram', 'ig'],
-    langs: ['node', 'python', 'php', 'go'],
-    steps: [
-      'Connect your Instagram professional account to a Facebook Page, then add the Instagram product in Meta for Developers.',
-      'Subscribe the webhook to "messages" on your /instagram route.',
-    ],
+    connect: {},
   },
   {
     id: 'email',
@@ -145,19 +130,13 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'shopify',
+    channelType: 'shopify',
     name: 'Shopify',
     group: 'business',
-    blurb: 'A chat on your storefront that can look up orders and returns.',
+    blurb: 'Install the Truplexy app: a chat on your storefront that can look up orders and returns.',
     icon: '/brands/shopify.svg',
     color: 'var(--color-ink)',
-    match: ['shopify'],
-    langs: ['node', 'ruby', 'php', 'python'],
-    steps: [
-      'Add a theme app extension (app embed block) with your chat UI to the storefront.',
-      'Send messages through a Shopify App Proxy, so they reach your server signed by Shopify. Never put the chat key in the theme.',
-      'Implement guestSessionId / guest_session_id with a server-issued, verified session. Guests stay anonymous; only the signed logged_in_customer_id identifies a Shopify customer.',
-      'Add tools for order lookup and returns under Tools, using the Admin API on your server.',
-    ],
+    connect: { ask: { label: 'Your store', placeholder: 'your-store', suffix: '.myshopify.com', hint: 'Shopify asks you to approve the Truplexy app on this store.' } },
   },
   {
     id: 'woocommerce',
@@ -193,64 +172,45 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'hubspot',
+    channelType: 'hubspot',
     name: 'HubSpot',
     group: 'business',
     blurb: 'Answer HubSpot conversations inbox threads automatically.',
     icon: '/brands/hubspot.svg',
     color: 'var(--color-ink)',
-    match: ['hubspot'],
-    langs: ['node', 'python', 'php', 'go'],
-    steps: [
-      'Create a HubSpot private app with the conversations.read and conversations.write scopes.',
-      'Set HUBSPOT_ACCOUNT_ID to your account ID; sender actor IDs are stored with that account prefix.',
-      'Subscribe a webhook to "conversation.newMessage" pointing at your /hubspot route.',
-    ],
+    connect: {},
   },
   {
     id: 'zendesk',
+    channelType: 'zendesk',
     name: 'Zendesk',
     group: 'business',
     blurb: 'Suggest or send first replies on new Zendesk tickets.',
     icon: '/brands/zendesk.svg',
     color: 'var(--color-ink)',
-    match: ['zendesk'],
-    langs: ['node', 'python', 'php', 'go'],
-    steps: [
-      'In Zendesk Admin Center, add a webhook to your /zendesk route and a trigger on "Ticket is created".',
-      'Use an API token for an agent account the assistant replies as. Include ticket_id, description and requester_id as strings in the trigger JSON body (requester_id uses {{ticket.requester.id}}).',
-    ],
+    connect: { ask: { label: 'Your Zendesk', placeholder: 'yourcompany', suffix: '.zendesk.com', hint: 'Sign in as a Zendesk admin to approve the Truplexy app.' } },
   },
   {
     id: 'slack',
     channelType: 'slack',
     name: 'Slack',
     group: 'internal',
-    blurb: 'Get escalations in Slack and reply to customers from a thread.',
+    blurb: 'Get escalations in a Slack channel and reply to customers from the thread.',
     icon: '/brands/slack.svg',
     color: 'var(--color-ink)',
-    match: ['slack'],
-    langs: ['node', 'python', 'java'],
     teamSide: true,
-    steps: [
-      'Create a Slack app with chat:write, and Event Subscriptions for message.channels.',
-      'Post each escalation (webhook ticket.updated with escalated: true) to a support channel.',
-      'When a teammate replies in that thread, record it with POST /conversations/{id}/replies so the customer gets it.',
-    ],
+    connect: {},
   },
   {
     id: 'teams',
+    channelType: 'teams',
     name: 'Microsoft Teams',
     group: 'internal',
     blurb: 'Route escalations to a Teams channel and answer from there.',
     icon: '/brands/microsoft-teams.svg',
     color: 'var(--color-ink)',
-    match: ['teams', 'microsoft'],
-    langs: ['csharp', 'node', 'python'],
     teamSide: true,
-    steps: [
-      'Register a bot in Azure Bot Service and add it to your support team in Teams.',
-      'Post escalations as cards in a channel; replies in the card\'s thread go back with /replies.',
-    ],
+    connect: {},
   },
   {
     id: 'api',
@@ -275,9 +235,6 @@ export const INTEGRATIONS: Integration[] = [
     blurb: 'Signed events when your team replies or a ticket changes.',
     glyph: Webhook,
     color: 'var(--color-ink)',
-    match: [],
-    langs: [],
-    steps: [],
   },
 ];
 
@@ -288,8 +245,9 @@ export function channelsFor(i: Integration, channels: Channel[]) {
 
 /** Active chat keys for this bot that look like they belong to an integration. */
 export function keysFor(i: Integration, keys: ApiKey[], botId: string) {
-  if (!i.match.length) return [];
-  return keys.filter((k) => k.status === 'active' && k.bot_id === botId && i.match.some((m) => k.name.toLowerCase().includes(m)));
+  const match = i.match ?? [];
+  if (!match.length) return [];
+  return keys.filter((k) => k.status === 'active' && k.bot_id === botId && match.some((m) => k.name.toLowerCase().includes(m)));
 }
 
 export function IntegrationIcon({ i, size = 40, className }: { i: Integration; size?: number; className?: string }) {

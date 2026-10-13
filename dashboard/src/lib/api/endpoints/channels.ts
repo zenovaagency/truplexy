@@ -49,6 +49,31 @@ export function useCreateChannel() {
   });
 }
 
+export interface ConnectInput {
+  type: string;
+  /** Shopify: the store's myshopify.com name. Zendesk: the subdomain. */
+  account?: string;
+  /** Reconnects this channel instead of adding one. */
+  channel_id?: string;
+}
+
+/**
+ * Sends the person to the platform to sign in and approve. The API finishes
+ * the connection on its own callback, then returns to the current page with
+ * ?connected=<channel id>, or ?connect_error=<code>&type=<type>.
+ */
+export function useConnectChannel() {
+  const scope = useScope();
+  return useMutation({
+    mutationFn: (body: ConnectInput) => {
+      const back = new URL(window.location.href);
+      for (const k of ['connected', 'connect_error', 'type', 'guide']) back.searchParams.delete(k);
+      return api<{ authorize_url: string }>('/channels/connect', { method: 'POST', body: { ...body, return_to: back.toString() }, scope });
+    },
+    onSuccess: ({ authorize_url }) => window.location.assign(authorize_url),
+  });
+}
+
 export function useUpdateChannel() {
   const scope = useScope();
   const invalidate = useInvalidateChannels();
@@ -65,7 +90,7 @@ export function useDeleteChannel() {
   return useMutation({
     mutationFn: (id: string) => api<void>(`/channels/${id}`, { method: 'DELETE', scope }),
     onSuccess: invalidate,
-    meta: { success: 'Channel deleted. Its tickets keep its name.' },
+    meta: { success: 'Channel removed. Its tickets keep its name.' },
   });
 }
 

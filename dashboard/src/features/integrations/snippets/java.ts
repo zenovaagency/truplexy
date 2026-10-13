@@ -162,42 +162,6 @@ class TruplexyWebhook {
 }`,
 
   integrations: {
-    slack: {
-      file: 'SlackApp.java',
-      handler: `// Bolt for Java: com.slack.api:bolt-jetty
-import com.slack.api.bolt.App;
-import com.slack.api.bolt.jetty.SlackAppServer;
-import com.slack.api.model.event.MessageEvent;
-import java.util.Map;
-import java.util.Objects;
-
-public class SlackApp {
-    static final App slack = new App();   // reads SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET
-
-    public static void main(String[] args) throws Exception {
-        // A teammate replied in the escalation's Slack thread → send it to the customer.
-        slack.event(MessageEvent.class, (payload, ctx) -> {
-            MessageEvent e = payload.getEvent();
-            if (e.getThreadTs() == null || e.getBotId() != null || e.getSubtype() != null) return ctx.ack();
-            String conversationId = conversationForSlackThread(e.getThreadTs());
-            String author = ctx.client().usersInfo(r -> r.user(e.getUser())).getUser().getRealName();
-            Truplexy.call("/conversations/" + conversationId + "/replies", Map.of(
-                "content", e.getText(),
-                "author", author,
-                "external_id", Objects.requireNonNullElse(e.getClientMsgId(), e.getTs())));
-            return ctx.ack();
-        });
-        new SlackAppServer(slack).start();   // POST /slack/events on port 3000
-    }
-}`,
-      escalation: `// Post it to #support; replies in its thread come back through the message listener.
-var post = SlackApp.slack.client().chatPostMessage(r -> r
-    .token(System.getenv("SLACK_BOT_TOKEN"))
-    .channel("#support")
-    .text("Escalated: " + ticket.path("subject").asText()));
-saveSlackThread(post.getTs(), conversationId);`,
-    },
-
     api: {
       handler: `import java.util.Map;
 

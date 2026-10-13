@@ -9,32 +9,6 @@ if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();   // an
 /** The Truplexy Chat plugin: the widget's route, a settings page, and the widget on every page. */
 const wordpress: IntegrationCode = { file: 'truplexy-chat.php', standalone: true, handler: WORDPRESS_PLUGIN };
 
-/** Meta's Messenger and Instagram webhooks share a shape. */
-const meta = (route: string, prefix: string, tokenEnv: string, skipEcho: boolean): IntegrationCode => ({
-  file: `${route}.php`,
-  handler: `<?php // ${route}.php — the webhook URL in Meta's dashboard
-require __DIR__ . '/truplexy.php';
-
-$body = json_decode(file_get_contents('php://input'), true);
-${answerNow}
-
-foreach ($body['entry'] ?? [] as $entry) {
-    foreach ($entry['messaging'] ?? [] as $ev) {
-        $text = $ev['message']['text'] ?? '';
-        if ($text === ''${skipEcho ? " || !empty($ev['message']['is_echo'])" : ''}) continue;
-        $r = ask('${prefix}:' . $ev['sender']['id'], $text, ['contacts' => [['type' => '${route}', 'value' => $ev['sender']['id']]]]);
-        if ($r['reply']) send_meta($ev['sender']['id'], $r['reply']);
-    }
-}
-
-function send_meta(string $id, string $text): void {
-    post_json('https://graph.facebook.com/v21.0/me/messages?access_token=' . getenv('${tokenEnv}'),
-        ['recipient' => ['id' => $id], 'message' => ['text' => $text]]);
-}`,
-  deliver: `post_json('https://graph.facebook.com/v21.0/me/messages?access_token=' . getenv('${tokenEnv}'),
-    ['recipient' => ['id' => substr($thread, ${prefix.length + 1})], 'message' => ['text' => $text]]);`,
-});
-
 const pack: LangPack = {
   files: { server: 'chat.php', helper: 'truplexy.php', webhook: 'webhook.php', verify: 'verify.php' },
 
@@ -340,38 +314,6 @@ try {
 }`,
     },
 
-    whatsapp: {
-      file: 'whatsapp.php',
-      handler: `<?php // whatsapp.php — the webhook URL in Meta's dashboard
-require __DIR__ . '/truplexy.php';
-
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {   // Meta's verification handshake (PHP turns "hub.x" into "hub_x")
-    if (($_GET['hub_verify_token'] ?? '') !== getenv('WA_VERIFY_TOKEN')) {
-        http_response_code(403);
-        exit;
-    }
-    exit($_GET['hub_challenge']);
-}
-
-$body = json_decode(file_get_contents('php://input'), true);
-${answerNow}
-
-foreach ($body['entry'][0]['changes'][0]['value']['messages'] ?? [] as $msg) {
-    if ($msg['type'] !== 'text') continue;
-    $r = ask('wa:' . $msg['from'], $msg['text']['body'], ['contacts' => [['type' => 'whatsapp', 'value' => $msg['from']]]]);
-    if ($r['reply']) send_whatsapp($msg['from'], $r['reply']);
-}
-
-function send_whatsapp(string $to, string $body): void {
-    post_json('https://graph.facebook.com/v21.0/' . getenv('WA_PHONE_ID') . '/messages',
-        ['messaging_product' => 'whatsapp', 'to' => $to, 'text' => ['body' => $body]],
-        ['Authorization: Bearer ' . getenv('WA_TOKEN')]);
-}`,
-      deliver: `post_json('https://graph.facebook.com/v21.0/' . getenv('WA_PHONE_ID') . '/messages',
-    ['messaging_product' => 'whatsapp', 'to' => substr($thread, 3), 'text' => ['body' => $text]],
-    ['Authorization: Bearer ' . getenv('WA_TOKEN')]);`,
-    },
-
     telegram: {
       file: 'telegram.php',
       handler: `<?php // telegram.php — the URL you gave setWebhook
@@ -392,9 +334,6 @@ if (!empty($msg['text']) && !empty($msg['from']) && empty($msg['sender_chat'])) 
     ['chat_id' => explode(':', $thread)[1], 'text' => "$agent: $text"]);`,
     },
 
-    messenger: meta('messenger', 'fb', 'FB_PAGE_TOKEN', false),
-    instagram: meta('instagram', 'ig', 'IG_PAGE_TOKEN', true),
-
     email: {
       file: 'inbound-email.php',
       handler: `<?php // inbound-email.php — Postmark's inbound webhook
@@ -408,101 +347,8 @@ if ($r['reply']) send_email($mail['From'], 'Re: ' . $mail['Subject'], $r['reply'
       deliver: `send_email(substr($thread, 5), 'Re: your request', $text);`,
     },
 
-    shopify: {
-      file: 'shopify-chat.php',
-      handler: `<?php // App Proxy: https://{shop}/apps/support/chat → https://your-server.com/shopify-chat.php
-require __DIR__ . '/truplexy.php';
-
-if (!valid_proxy_signature($_SERVER['QUERY_STRING'] ?? '', getenv('SHOPIFY_SECRET'))) {
-    http_response_code(401);
-    exit;
-}
-$in = json_decode(file_get_contents('php://input'), true);
-$signedIn = $_GET['logged_in_customer_id'] ?? '';
-// Implement guest_session_id() using your server's verified guest session.
-$customer = $signedIn ? 'user:' . $signedIn : 'guest:' . guest_session_id();
-$identity = $signedIn ? ['contacts' => [['type' => 'shopify', 'value' => $_GET['shop'] . ':' . $signedIn]]] : null;
-header('Content-Type: application/json');
-echo json_encode(ask("shop:{$_GET['shop']}:$customer", $in['text'], $identity));
-
-// Shopify signs proxy requests: sorted "key=value" pairs, joined without separators.
-function valid_proxy_signature(string $query, string $secret): bool {
-    $pairs = [];
-    $signature = '';
-    foreach (explode('&', $query) as $part) {
-        [$k, $v] = array_map('urldecode', explode('=', $part, 2) + [1 => '']);
-        if ($k === 'signature') $signature = $v;
-        else $pairs[$k][] = $v;
-    }
-    ksort($pairs);
-    $message = implode('', array_map(fn ($k) => "$k=" . implode(',', $pairs[$k]), array_keys($pairs)));
-    return hash_equals(hash_hmac('sha256', $message, $secret), $signature);
-}`,
-      deliver: `// Keep the reply for the storefront widget, which polls for it.
-store_reply($thread, ['from' => $agent, 'text' => $text]);`,
-    },
-
     woocommerce: wordpress,
     wordpress,
-
-    hubspot: {
-      file: 'hubspot.php',
-      handler: `<?php // hubspot.php — your app's webhook URL
-require __DIR__ . '/truplexy.php';
-
-const HUBSPOT_THREADS = 'https://api.hubapi.com/conversations/v3/conversations/threads/';
-$auth = ['Authorization: Bearer ' . getenv('HUBSPOT_TOKEN')];
-
-$events = json_decode(file_get_contents('php://input'), true);
-${answerNow}
-
-foreach ($events as $e) {
-    $msg = post_json(HUBSPOT_THREADS . "{$e['objectId']}/messages/{$e['messageId']}", null, $auth, 'GET');
-    if ($msg['direction'] !== 'INCOMING') continue;
-    save_last_channel($e['objectId'], $msg);   // so your team's replies use the same channel
-    $sender = $msg['senders'][0] ?? [];
-    $contacts = [];
-    if (!empty($sender['actorId'])) $contacts[] = ['type' => 'hubspot', 'value' => getenv('HUBSPOT_ACCOUNT_ID') . ':' . $sender['actorId']];
-    else foreach ($sender['deliveryIdentifiers'] ?? [] as $d) {
-        if ($d['type'] === 'HS_EMAIL_ADDRESS') { $contacts[] = ['type' => 'email', 'value' => $d['value']]; break; }
-    }
-    if (!$contacts) throw new RuntimeException('HubSpot sender identity is missing');
-    $r = ask('hs:' . $e['objectId'], $msg['text'], ['contacts' => $contacts]);
-    if ($r['reply']) {
-        post_json(HUBSPOT_THREADS . "{$e['objectId']}/messages", [
-            'type' => 'MESSAGE', 'text' => $r['reply'], 'senderActorId' => getenv('HS_ACTOR'),
-            'channelId' => $msg['channelId'], 'channelAccountId' => $msg['channelAccountId'],
-        ], $auth);
-    }
-}`,
-      deliver: `$threadId = substr($thread, 3);
-$channel = last_channel($threadId);
-post_json("https://api.hubapi.com/conversations/v3/conversations/threads/$threadId/messages", [
-    'type' => 'MESSAGE', 'text' => $text, 'senderActorId' => getenv('HS_ACTOR'),
-    'channelId' => $channel['channelId'], 'channelAccountId' => $channel['channelAccountId'],
-], ['Authorization: Bearer ' . getenv('HUBSPOT_TOKEN')]);`,
-    },
-
-    zendesk: {
-      file: 'zendesk.php',
-      handler: `<?php // zendesk.php — the webhook your "Ticket is created" trigger calls
-require __DIR__ . '/truplexy.php';
-
-$in = json_decode(file_get_contents('php://input'), true);   // fields from your trigger's JSON body
-${answerNow}
-
-if (empty($in['requester_id'])) throw new RuntimeException('Configure requester_id in the Zendesk trigger body');
-$r = ask('zd:' . $in['ticket_id'], $in['description'], ['contacts' => [['type' => 'zendesk', 'value' => getenv('ZENDESK_SUBDOMAIN') . ':' . $in['requester_id']]]]);
-if ($r['reply'] && $r['status'] === 'answered') zendesk_comment($in['ticket_id'], $r['reply']);
-
-// Keep this in a shared file: the webhook uses it too.
-function zendesk_comment($ticketId, string $text): void {
-    $auth = base64_encode(getenv('ZENDESK_EMAIL') . '/token:' . getenv('ZENDESK_TOKEN'));
-    post_json('https://' . getenv('ZENDESK_SUBDOMAIN') . ".zendesk.com/api/v2/tickets/$ticketId",
-        ['ticket' => ['comment' => ['body' => $text, 'public' => true]]], ["Authorization: Basic $auth"], 'PUT');
-}`,
-      deliver: `zendesk_comment(substr($thread, 3), $text);`,
-    },
 
     api: {
       file: 'example.php',

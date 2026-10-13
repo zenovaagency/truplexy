@@ -44,6 +44,12 @@ export interface Channel {
   color: string;
   /** Optional qualifier shown under the name in the ecosystem diagram. */
   note?: string;
+  /**
+   * The platform has an app marketplace, so Truplexy's own app connects it
+   * with one click in the dashboard. Such channels have an overview page but
+   * no setup docs or server code.
+   */
+  connect?: true;
 }
 
 export const GROUP_LABEL: Record<ChannelGroup, string> = {
@@ -60,22 +66,22 @@ export const CHANNELS: readonly Channel[] = [
   // Customer messaging
   { id: 'web', name: 'Website chat', group: 'messaging', status: 'live', color: INDIGO },
   { id: 'telegram', name: 'Telegram', group: 'messaging', status: 'live', icon: '/brands/telegram.svg', color: INK },
-  { id: 'discord', name: 'Discord', group: 'messaging', status: 'live', icon: '/brands/discord.svg', color: INK },
-  { id: 'whatsapp', name: 'WhatsApp', group: 'messaging', status: 'live', icon: '/brands/whatsapp.svg', color: INK },
-  { id: 'messenger', name: 'Messenger', group: 'messaging', status: 'live', icon: '/brands/messenger.svg', color: INK },
-  { id: 'instagram', name: 'Instagram', group: 'messaging', status: 'live', icon: '/brands/instagram.svg', color: INK },
+  { id: 'discord', name: 'Discord', group: 'messaging', status: 'live', icon: '/brands/discord.svg', color: INK, connect: true },
+  { id: 'whatsapp', name: 'WhatsApp', group: 'messaging', status: 'live', icon: '/brands/whatsapp.svg', color: INK, connect: true },
+  { id: 'messenger', name: 'Messenger', group: 'messaging', status: 'live', icon: '/brands/messenger.svg', color: INK, connect: true },
+  { id: 'instagram', name: 'Instagram', group: 'messaging', status: 'live', icon: '/brands/instagram.svg', color: INK, connect: true },
   { id: 'email', name: 'Email', group: 'messaging', status: 'live', color: INK },
 
   // Business platforms
-  { id: 'shopify', name: 'Shopify', group: 'business', status: 'live', icon: '/brands/shopify.svg', color: INK },
+  { id: 'shopify', name: 'Shopify', group: 'business', status: 'live', icon: '/brands/shopify.svg', color: INK, connect: true },
   { id: 'woocommerce', name: 'WooCommerce', group: 'business', status: 'live', icon: '/brands/woocommerce.svg', color: INK },
   { id: 'wordpress', name: 'WordPress', group: 'business', status: 'live', icon: '/brands/wordpress.svg', color: INK },
-  { id: 'hubspot', name: 'HubSpot', group: 'business', status: 'live', icon: '/brands/hubspot.svg', color: INK },
-  { id: 'zendesk', name: 'Zendesk', group: 'business', status: 'live', icon: '/brands/zendesk.svg', color: INK },
+  { id: 'hubspot', name: 'HubSpot', group: 'business', status: 'live', icon: '/brands/hubspot.svg', color: INK, connect: true },
+  { id: 'zendesk', name: 'Zendesk', group: 'business', status: 'live', icon: '/brands/zendesk.svg', color: INK, connect: true },
 
   // Internal collaboration
-  { id: 'slack', name: 'Slack', group: 'internal', status: 'live', icon: '/brands/slack.svg', color: INK },
-  { id: 'teams', name: 'Microsoft Teams', group: 'internal', status: 'live', icon: '/brands/microsoft-teams.svg', color: INK },
+  { id: 'slack', name: 'Slack', group: 'internal', status: 'live', icon: '/brands/slack.svg', color: INK, connect: true },
+  { id: 'teams', name: 'Microsoft Teams', group: 'internal', status: 'live', icon: '/brands/microsoft-teams.svg', color: INK, connect: true },
 
   // Developer
   { id: 'api', name: 'REST API', group: 'developer', status: 'live', color: INK },
@@ -92,6 +98,11 @@ export function channel(id: ChannelId): Channel {
 }
 
 export const isLive = (id: ChannelId) => channel(id).status === 'live';
+
+/** Connected from the dashboard in one click, with no docs or code. */
+export const isConnect = (id: ChannelId) => channel(id).connect === true;
+
+export const CONNECT_CHANNELS = CHANNELS.filter((c) => c.connect);
 
 export const LIVE_CHANNELS = CHANNELS.filter((c) => c.status === 'live');
 export const SOON_CHANNELS = CHANNELS.filter((c) => c.status === 'soon');
