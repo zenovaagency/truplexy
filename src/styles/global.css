@@ -73,14 +73,6 @@
   }
 }
 
-/* Frosted surface. A utility (not a component class) so it takes variants,
-   e.g. data-[scrolled]:glass on the nav. */
-@utility glass {
-  background: color-mix(in oklab, var(--color-surface) 80%, transparent);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-}
-
 @layer components {
   .container-t {
     width: 100%;
