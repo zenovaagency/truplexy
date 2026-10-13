@@ -17,7 +17,7 @@ import { Button, Callout, EmptyState, ErrorState, Field, Input, Skeleton } from 
 import { Splash } from '@/app/guards';
 import { StatusScreen } from '@/app/errors';
 import { BrandMark } from '@/components/layout/Brand';
-import { AuthFrame } from './AuthFrame';
+import { AuthFrame, SITE_URL } from './AuthFrame';
 
 /**
  * Only this site's own pages are followed after sign-in. Email templates may pass `{{ .RedirectTo }}`, a full
@@ -217,6 +217,20 @@ export function SignInPage() {
             {mode === 'magic' ? 'Use a password instead' : 'Email me a sign-in link instead'}
           </button>
         </form>
+
+        {mode === 'signup' && (
+          <p className="text-center text-xs text-ink-faint">
+            By creating an account you agree to the{' '}
+            <a className="font-semibold text-ink-muted hover:underline" href={`${SITE_URL}/terms`} target="_blank" rel="noopener noreferrer">
+              Terms of Service
+            </a>{' '}
+            and the{' '}
+            <a className="font-semibold text-ink-muted hover:underline" href={`${SITE_URL}/privacy`} target="_blank" rel="noopener noreferrer">
+              Privacy Notice
+            </a>
+            .
+          </p>
+        )}
 
         <p className="text-center text-[0.8125rem] text-ink-muted">
           {mode === 'signup' ? 'Already have an account? ' : 'New to Truplexy? '}

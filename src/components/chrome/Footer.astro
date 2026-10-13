@@ -3,6 +3,7 @@ import Logo from './Logo.astro';
 import { CHANGELOG_HREF, DOCS_LINKS, PRODUCT_LINKS, SITE, navHref } from '../../data/site';
 import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
 import { channelHref } from '../../data/setup-guides';
+import { LEGAL_PAGES } from '../../data/legal';
 
 const year = new Date().getFullYear();
 const onHome = Astro.url.pathname === '/';
@@ -78,6 +79,11 @@ const link = 'text-white/60 transition-colors hover:text-white';
 
     <div class="mt-14 flex flex-col gap-3 border-t border-white/10 pt-6 text-[0.82rem] text-white/60 sm:flex-row sm:items-center sm:justify-between">
       <p>© {year} {SITE.name}. All rights reserved.</p>
+      <nav aria-label="Legal">
+        <ul class="flex flex-wrap gap-x-5 gap-y-1">
+          {LEGAL_PAGES.map((page) => <li><a href={page.href} class={link}>{page.label}</a></li>)}
+        </ul>
+      </nav>
       <p>Conversations shown on this page are illustrative samples.</p>
     </div>
   </div>
