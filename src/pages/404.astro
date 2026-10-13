@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import Nav from '../components/chrome/Nav.astro';
 import Footer from '../components/chrome/Footer.astro';
 import Button from '../components/ui/Button.astro';
-import { NAV, SITE, navHref } from '../data/site';
+import { PAGES, SITE } from '../data/site';
 ---
 
 <Base title="Page not found — Truplexy" noindex>
@@ -38,10 +38,10 @@ import { NAV, SITE, navHref } from '../data/site';
         <p class="mono text-[var(--color-ink-faint)]">Or jump to</p>
         <ul class="flex max-w-[520px] flex-wrap justify-center gap-2">
           {
-            NAV.map((item) => (
+            PAGES.map((item) => (
               <li>
                 <a
-                  href={navHref(item.href, false)}
+                  href={item.href}
                   class="chip border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-muted)] transition-colors hover:border-[var(--color-line-strong)] hover:text-[var(--color-ink)]"
                 >
                   {item.label}

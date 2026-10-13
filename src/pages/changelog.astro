@@ -1,0 +1,58 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/chrome/Nav.astro';
+import Footer from '../components/chrome/Footer.astro';
+import FinalCta from '../components/home/FinalCta.astro';
+import { CHANGELOG, formatChangeDate } from '../data/changelog';
+import { SITE } from '../data/site';
+---
+
+<Base
+  title="Changelog — Truplexy"
+  breadcrumbs={[{ name: 'Changelog', path: '/changelog' }]}
+  description="What’s new in Truplexy: releases of the website chat SDK, new dashboard features, channels and plans, newest first."
+>
+  <Nav />
+  <main id="main" class="relative overflow-x-clip">
+    <section class="relative pb-[var(--section-y)] pt-[calc(var(--nav-h)+clamp(3rem,6vw,5.5rem))]" aria-labelledby="changelog-title">
+      <div class="aurora" aria-hidden="true"></div>
+      <div class="container-t relative">
+        <div class="mx-auto max-w-[760px] text-center">
+          <p class="eyebrow">Changelog</p>
+          <h1 id="changelog-title" class="display mt-5 text-balance text-[clamp(2.3rem,1.5rem+3vw,3.75rem)]">
+            What’s new in Truplexy.
+          </h1>
+          <p class="lede mx-auto mt-6 max-w-[600px] text-pretty">
+            New features, channels and SDK releases, newest first.
+          </p>
+        </div>
+
+        <ol class="mx-auto mt-16 max-w-[880px]">
+          {CHANGELOG.map((entry) => (
+            <li class="grid gap-3 border-t border-line py-10 first:border-t-0 first:pt-0 md:grid-cols-[180px_1fr] md:gap-10">
+              <div class="md:pt-1">
+                <time datetime={entry.date} class="mono text-[0.75rem] text-ink-faint">{formatChangeDate(entry.date)}</time>
+              </div>
+              <article class="card !bg-paper p-6 sm:p-7">
+                <span class="mono inline-flex rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-[0.625rem] text-ink-muted">{entry.tag}</span>
+                <h2 class="mt-3 text-[1.25rem] font-bold leading-snug tracking-tight text-ink">{entry.title}</h2>
+                <ul class="mt-4 grid gap-2.5 text-[0.95rem] leading-relaxed text-ink-muted">
+                  {entry.items.map((item) => (
+                    <li class="relative pl-5 before:absolute before:left-0 before:top-[0.7em] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent">{item}</li>
+                  ))}
+                </ul>
+              </article>
+            </li>
+          ))}
+        </ol>
+
+        <p class="mt-8 text-center text-[0.9rem] text-ink-faint">
+          Want to see it in action? <a href={SITE.demoUrl} class="font-semibold text-accent hover:underline">Book a demo</a>, or read the <a href="/docs" class="font-semibold text-accent hover:underline">docs</a>.
+        </p>
+      </div>
+    </section>
+
+    <FinalCta />
+  </main>
+  <Footer />
+</Base>
