@@ -1,0 +1,268 @@
+---
+import { ArrowRightLeft, Inbox, Mail, Search, Tag, UserRound } from 'lucide-react';
+import type { ChannelDemoData } from '../../../data/channel-pages';
+import { initials, times, type HelpdeskVariant } from './shared';
+
+/**
+ * Your team's help desk, with Truplexy working inside it: the customer's
+ * message, the answer posted on the thread, and any change it makes.
+ */
+
+interface Props {
+  variant: HelpdeskVariant;
+  demo: ChannelDemoData;
+}
+const { variant, demo } = Astro.props;
+const at = times(demo.lines.length);
+const SUPPORT = 'Loom & Lane Support';
+
+const assigned = demo.lines.find((l) => l.from === 'event' && /assigned to/i.test(l.text))?.text.replace(/^assigned to /i, '');
+const ticket = variant === 'zendesk' ? demo.context.match(/#\d+/)?.[0] : undefined;
+
+const fields: [string, string][] =
+  variant === 'zendesk'
+    ? [
+        ['Requester', demo.customer],
+        ['Assignee', assigned ?? 'Support'],
+        ['Type', 'Question'],
+        ['Priority', 'Normal'],
+      ]
+    : [
+        ['Contact', demo.customer],
+        ['Email', `${demo.customer.split(' ')[0].toLowerCase()}@example.com`],
+        ['Lifecycle stage', 'Customer'],
+        ['Owner', assigned ?? 'Support'],
+      ];
+---
+
+<div class={`hd v-${variant}`}>
+  <div class="hd-top" aria-hidden="true">
+    {variant === 'zendesk' ? (
+      <>
+        <span class="hd-tab is-active">{ticket} {demo.subject}</span>
+        <span class="hd-tab">Views</span>
+      </>
+    ) : (
+      <>
+        <b>Inbox</b>
+        <span>Contacts</span>
+        <span>Conversations</span>
+      </>
+    )}
+    <Search size={15} className="hd-search" />
+  </div>
+
+  <div class="hd-wrap">
+    {variant === 'hubspot' && (
+      <div class="hd-list" aria-hidden="true">
+        <p class="hd-list-head"><Inbox size={14} />Support inbox</p>
+        <span class="hd-item is-active"><b>{demo.customer}</b>{demo.subject}</span>
+        <span class="hd-item"><b>Mateo García</b>Sizing question</span>
+        <span class="hd-item"><b>Lena Fischer</b>Shipping to Berlin</span>
+      </div>
+    )}
+
+    <div class="hd-main">
+      <div class="hd-subject">
+        <p>{demo.subject}</p>
+        <span class="hd-status">Open</span>
+      </div>
+
+      <div class="hd-thread">
+        {demo.lines.map((l, i) =>
+          l.from === 'event' ? (
+            <p class="hd-event" data-line><ArrowRightLeft size={13} aria-hidden="true" />{l.text}</p>
+          ) : (
+            <article class={`hd-msg from-${l.from}`} data-line>
+              <span class="hd-ava" aria-hidden="true">{l.from === 'customer' ? initials(demo.customer) : 'L&L'}</span>
+              <div class="hd-body">
+                <p class="hd-meta">
+                  <b>{l.from === 'customer' ? demo.customer : l.from === 'agent' ? l.author : SUPPORT}</b>
+                  {l.from !== 'customer' && <span class="hd-kind">{variant === 'zendesk' ? 'Public reply' : 'Chat'}</span>}
+                  <span class="hd-time">{at[i]} AM</span>
+                </p>
+                <p class="hd-text whitespace-pre-line">{l.text}</p>
+              </div>
+            </article>
+          ),
+        )}
+      </div>
+
+      <div class="hd-compose" aria-hidden="true">
+        <span class="hd-mode"><b>{variant === 'zendesk' ? 'Public reply' : 'Chat'}</b><span>{variant === 'zendesk' ? 'Internal note' : 'Comment'}</span></span>
+        <span class="hd-input">Reply to {demo.customer.split(' ')[0]}…</span>
+      </div>
+    </div>
+
+    <aside class="hd-props" aria-hidden="true">
+      <p class="hd-props-head">{variant === 'zendesk' ? <><Tag size={13} />Ticket</> : <><UserRound size={13} />About this contact</>}</p>
+      {fields.map(([k, v]) => (
+        <p class="hd-field"><span>{k}</span><b>{k === 'Email' ? <><Mail size={12} />{v}</> : v}</b></p>
+      ))}
+    </aside>
+  </div>
+</div>
+
+<style>
+  .hd {
+    --top: #03363d;
+    --accent: #1f73b7;
+    --bg: #fff;
+    --side: #f8f9f9;
+    --line: #e9ebed;
+    --muted: #68737d;
+
+    width: 100%;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #d9dce5;
+    border-radius: 14px;
+    background: var(--bg);
+    box-shadow: 0 30px 60px -28px rgb(14 18 34 / 0.4);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #2f3941;
+  }
+  .v-hubspot {
+    --top: #2d3e50;
+    --accent: #ff7a59;
+    --side: #f5f8fa;
+    --line: #dfe3eb;
+    --muted: #516f90;
+    color: #33475b;
+  }
+
+  .hd-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 14px;
+    background: var(--top);
+    color: rgb(255 255 255 / 0.75);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .hd-top b { color: #fff; box-shadow: inset 0 -3px 0 var(--accent); padding: 10px 0; }
+  .v-hubspot .hd-top > * { padding: 10px 0; }
+  .hd-tab {
+    overflow: hidden;
+    max-width: 260px;
+    margin-top: 6px;
+    padding: 6px 12px;
+    border-radius: 6px 6px 0 0;
+    text-overflow: ellipsis;
+  }
+  .hd-tab.is-active { background: #fff; color: #2f3941; font-weight: 600; }
+  .hd-top :global(.hd-search) { margin-left: auto; flex: none; }
+
+  .hd-wrap { display: flex; min-height: 0; flex: 1; }
+
+  .hd-list {
+    display: flex;
+    width: 190px;
+    flex: none;
+    flex-direction: column;
+    border-right: 1px solid var(--line);
+    background: var(--side);
+  }
+  .hd-list-head { display: flex; align-items: center; gap: 6px; padding: 12px; font-weight: 600; }
+  .hd-item {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 12px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .hd-item b { color: #33475b; }
+  .hd-item.is-active { background: #e5f5f8; box-shadow: inset 3px 0 0 #00bda5; }
+
+  .hd-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+  .hd-subject {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .hd-status {
+    padding: 1px 8px;
+    border-radius: 4px;
+    background: #cc3340;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+  }
+  .v-hubspot .hd-status { background: #00bda5; text-transform: none; }
+
+  .hd-thread {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    padding: 12px 18px;
+  }
+  .hd-msg { display: flex; gap: 10px; padding: 8px 0; }
+  .hd-ava {
+    display: grid;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: 50%;
+    background: #c2c8cc;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .hd-msg.from-ai .hd-ava,
+  .hd-msg.from-agent .hd-ava { background: #1b1d22; }
+  .hd-body { min-width: 0; flex: 1; }
+  .v-hubspot .hd-msg .hd-text { margin-top: 4px; padding: 8px 12px; border-radius: 6px; background: #f5f8fa; }
+  .v-hubspot .hd-msg.from-ai .hd-text { background: #eaf0f6; }
+  .hd-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+  .hd-kind { font-size: 11.5px; color: var(--muted); }
+  .hd-time { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .hd-text { overflow-wrap: anywhere; }
+  .hd-event {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 42px;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .hd-compose { margin: 0 18px 14px; border: 1px solid var(--line); border-radius: 6px; }
+  .hd-mode { display: flex; gap: 14px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .hd-mode b { color: #2f3941; }
+  .hd-input { display: block; padding: 10px 12px; color: var(--muted); }
+
+  .hd-props {
+    width: 200px;
+    flex: none;
+    padding: 14px;
+    border-left: 1px solid var(--line);
+    background: var(--side);
+  }
+  .hd-props-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-weight: 600; }
+  .hd-field { display: flex; flex-direction: column; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+  .hd-field b { display: flex; align-items: center; gap: 4px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: #fff; font-weight: 500; color: #2f3941; overflow-wrap: anywhere; }
+
+  @media (max-width: 860px) {
+    .hd-list { display: none; }
+  }
+  @media (max-width: 640px) {
+    .hd-props { display: none; }
+    .hd-thread, .hd-subject { padding-left: 14px; padding-right: 14px; }
+    .hd-compose { margin: 0 14px 12px; }
+  }
+</style>
