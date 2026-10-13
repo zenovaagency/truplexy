@@ -1,109 +1,113 @@
 ---
-import ChannelIcon from '../ui/ChannelIcon';
-import type { ChannelId } from '../../data/channels';
-import type { DemoLine } from '../../data/channel-pages';
+import { channel } from '../../data/channels';
+import type { ChannelDemoData, OverviewId } from '../../data/channel-pages';
+import SiteWidget from './demo/SiteWidget.astro';
+import PhoneChat from './demo/PhoneChat.astro';
+import TeamChat from './demo/TeamChat.astro';
+import EmailThread from './demo/EmailThread.astro';
+import HelpdeskTicket from './demo/HelpdeskTicket.astro';
+import type { HelpdeskVariant, PhoneVariant, SiteVariant, TeamVariant } from './demo/shared';
 
 /**
- * A sample conversation on one channel, played line by line when it scrolls
- * into view. Without JavaScript, or with reduced motion, every line shows at
- * once.
+ * A sample conversation drawn the way it looks on the platform once Truplexy
+ * is added: the widget on the store's site, the customer's phone, the team's
+ * workspace, an inbox or a help desk. Lines play one by one when it scrolls
+ * into view; without JavaScript, or with reduced motion, they all show at once.
  */
+type Skin =
+  | { skin: 'site'; variant: SiteVariant }
+  | { skin: 'phone'; variant: PhoneVariant }
+  | { skin: 'team'; variant: TeamVariant }
+  | { skin: 'email' }
+  | { skin: 'helpdesk'; variant: HelpdeskVariant };
+
+const SKIN: Record<OverviewId, Skin> = {
+  web: { skin: 'site', variant: 'site' },
+  shopify: { skin: 'site', variant: 'shopify' },
+  woocommerce: { skin: 'site', variant: 'woocommerce' },
+  wordpress: { skin: 'site', variant: 'wordpress' },
+  whatsapp: { skin: 'phone', variant: 'whatsapp' },
+  telegram: { skin: 'phone', variant: 'telegram' },
+  messenger: { skin: 'phone', variant: 'messenger' },
+  instagram: { skin: 'phone', variant: 'instagram' },
+  discord: { skin: 'team', variant: 'discord' },
+  slack: { skin: 'team', variant: 'slack' },
+  teams: { skin: 'team', variant: 'teams' },
+  email: { skin: 'email' },
+  zendesk: { skin: 'helpdesk', variant: 'zendesk' },
+  hubspot: { skin: 'helpdesk', variant: 'hubspot' },
+};
+
 interface Props {
-  id: ChannelId;
-  context: string;
-  lines: DemoLine[];
+  id: OverviewId;
+  demo: ChannelDemoData;
 }
-const { id, context, lines } = Astro.props;
+const { id, demo } = Astro.props;
+const s = SKIN[id];
 ---
 
-<figure class="channel-demo" data-channel-demo>
-  <div class="demo-head">
-    <span class="demo-icon" aria-hidden="true"><ChannelIcon id={id} size={18} /></span>
-    <span class="min-w-0 flex-1 truncate font-semibold text-ink">{context}</span>
+<figure class="channel-demo" data-channel-demo aria-label={`Sample conversation on ${channel(id).name}`}>
+  <div class={`demo-stage is-${s.skin}`}>
+    {s.skin === 'site' && <SiteWidget variant={s.variant} demo={demo} />}
+    {s.skin === 'phone' && <PhoneChat variant={s.variant} demo={demo} />}
+    {s.skin === 'team' && <TeamChat variant={s.variant} demo={demo} />}
+    {s.skin === 'email' && <EmailThread demo={demo} />}
+    {s.skin === 'helpdesk' && <HelpdeskTicket variant={s.variant} demo={demo} />}
+  </div>
+  <figcaption class="demo-caption">
+    <span class="mono">Illustration · fictional store and customers</span>
     <button type="button" class="demo-replay" data-replay hidden>Replay</button>
-  </div>
-  <div class="demo-body">
-    {lines.map((l) =>
-      l.from === 'event' ? (
-        <p class="demo-event" data-line>{l.text}</p>
-      ) : (
-        <div class={`bubble bubble-${l.from} whitespace-pre-line`} data-line>
-          {l.author && <span class="mb-0.5 block text-[0.72rem] font-semibold opacity-70">{l.author}</span>}
-          {l.text}
-        </div>
-      ),
-    )}
-  </div>
-  <figcaption class="demo-caption mono">Sample conversation · fictional store and customers</figcaption>
+  </figcaption>
 </figure>
 
 <style>
   .channel-demo {
-    max-width: 560px;
+    margin: 0;
+  }
+  .demo-stage {
+    display: flex;
+    justify-content: center;
+    padding: 28px;
     border: 1px solid var(--color-line);
     border-radius: 20px;
-    background: var(--color-surface);
-    box-shadow: var(--shadow-md);
-    overflow: hidden;
+    background:
+      radial-gradient(120% 80% at 50% 0%, var(--color-surface) 0%, transparent 70%),
+      var(--color-surface-2);
   }
-  .demo-head {
+  .demo-stage.is-phone {
+    padding: 32px 16px;
+  }
+  .demo-caption {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--color-line);
-    background: var(--color-surface-2);
-    font-size: 0.875rem;
-  }
-  .demo-icon {
-    display: grid;
-    flex: none;
-    width: 30px;
-    height: 30px;
-    place-items: center;
-    border: 1px solid var(--color-line);
-    border-radius: 9px;
-    background: var(--color-surface);
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 4px 0;
+    font-size: 0.7rem;
+    color: var(--color-ink-faint);
   }
   .demo-replay {
     flex: none;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--color-accent);
   }
   .demo-replay:hover {
     text-decoration: underline;
   }
-  .demo-body {
-    display: flex;
-    min-height: 220px;
-    flex-direction: column;
-    gap: 10px;
-    padding: 18px 16px;
-  }
-  .demo-event {
-    align-self: center;
-    margin: 4px 0;
-    padding: 3px 10px;
-    border: 1px solid var(--color-line);
-    border-radius: 999px;
-    background: var(--color-surface-2);
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--color-ink-faint);
-    text-align: center;
-  }
-  .demo-caption {
-    padding: 0 16px 14px;
-    font-size: 0.66rem;
-    color: var(--color-ink-faint);
-  }
-  [data-line] {
+  .channel-demo :global([data-line]) {
     transition: opacity 0.35s ease, transform 0.35s ease;
   }
-  .is-waiting [data-line]:not(.is-shown) {
+  .channel-demo:global(.is-waiting) :global([data-line]:not(.is-shown)) {
     opacity: 0;
     transform: translateY(6px);
+  }
+
+  @media (max-width: 560px) {
+    .demo-stage {
+      padding: 14px 10px;
+      border-radius: 16px;
+    }
   }
 </style>
 

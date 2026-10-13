@@ -1,0 +1,157 @@
+---
+import { Archive, ArrowLeft, Forward, Reply, Star, Trash2 } from 'lucide-react';
+import type { ChannelDemoData } from '../../../data/channel-pages';
+import { initials, times } from './shared';
+
+/** The customer's own inbox: one email thread with the store's support address. */
+interface Props {
+  demo: ChannelDemoData;
+}
+const { demo } = Astro.props;
+const at = times(demo.lines.length);
+const SUPPORT = { name: 'Loom & Lane Support', address: 'support@loomandlane.example' };
+const customerAddress = `${demo.customer.split(' ')[0].toLowerCase()}@example.com`;
+---
+
+<div class="mail">
+  <div class="ml-bar" aria-hidden="true">
+    <ArrowLeft size={18} /><Archive size={17} /><Trash2 size={17} />
+    <span class="ml-search">Search mail</span>
+  </div>
+
+  <div class="ml-body">
+    <p class="ml-subject">{demo.subject}<span class="ml-label">Inbox</span></p>
+
+    {demo.lines.map((l, i) =>
+      l.from === 'event' ? (
+        <p class="ml-event" data-line>{l.text}</p>
+      ) : (
+        <article class="ml-msg" data-line>
+          <span class={`ml-ava ${l.from === 'customer' ? 'is-me' : ''}`} aria-hidden="true">
+            {l.from === 'customer' ? initials(demo.customer) : 'L&L'}
+          </span>
+          <div class="ml-main">
+            <p class="ml-from">
+              <b>{l.from === 'customer' ? demo.customer : l.author ?? SUPPORT.name}</b>
+              <span class="ml-addr">&lt;{l.from === 'customer' ? customerAddress : SUPPORT.address}&gt;</span>
+              <span class="ml-time">{at[i]} AM<Star size={14} aria-hidden="true" /></span>
+            </p>
+            <p class="ml-to">{l.from === 'customer' ? `to ${SUPPORT.address}` : 'to me'}</p>
+            <p class="ml-text whitespace-pre-line">{l.text}</p>
+          </div>
+        </article>
+      ),
+    )}
+
+    <div class="ml-actions" aria-hidden="true">
+      <span><Reply size={15} />Reply</span>
+      <span><Forward size={15} />Forward</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .mail {
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid #d9dce5;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 30px 60px -28px rgb(14 18 34 / 0.4);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #1f1f1f;
+  }
+  .ml-bar {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #eceff1;
+    background: #f6f8fc;
+    color: #444746;
+  }
+  .ml-search {
+    flex: 1;
+    max-width: 320px;
+    margin-left: auto;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: #e9eef6;
+    font-size: 13px;
+    color: #5f6368;
+  }
+  .ml-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 18px 20px;
+  }
+  .ml-subject {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 10px 48px;
+    font-size: 20px;
+  }
+  .ml-label {
+    padding: 0 6px;
+    border-radius: 4px;
+    background: #ddd;
+    font-size: 11.5px;
+    color: #444746;
+  }
+  .ml-msg {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #eceff1;
+  }
+  .ml-ava {
+    display: grid;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 50%;
+    background: #1b1d22;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .ml-ava.is-me { background: #7b1fa2; }
+  .ml-main { min-width: 0; flex: 1; }
+  .ml-from { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+  .ml-addr { font-size: 12px; color: #5f6368; }
+  .ml-time {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    font-size: 12px;
+    color: #5f6368;
+  }
+  .ml-to { font-size: 12px; color: #5f6368; }
+  .ml-text { margin-top: 8px; overflow-wrap: anywhere; }
+  .ml-event { margin: 6px 0 6px 48px; font-size: 12px; color: #5f6368; }
+  .ml-actions { display: flex; gap: 10px; margin: 14px 0 0 48px; }
+  .ml-actions span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border: 1px solid #747775;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #444746;
+  }
+
+  @media (max-width: 560px) {
+    .ml-addr { display: none; }
+    .ml-subject, .ml-event, .ml-actions { margin-left: 0; }
+    .ml-body { padding: 14px; }
+  }
+</style>

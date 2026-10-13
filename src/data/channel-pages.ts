@@ -21,6 +21,19 @@ export interface DemoLine {
   author?: string;
 }
 
+/** A sample conversation, drawn in the platform's own look by ChannelDemo. */
+export interface ChannelDemoData {
+  /** Where it happens, e.g. "Loom & Lane · WhatsApp". The demo's accessible label. */
+  context: string;
+  /** The customer's display name. */
+  customer: string;
+  /** The thread subject, for email and help desks. */
+  subject?: string;
+  /** The page the website chat sits on, as a URL path. */
+  page?: string;
+  lines: DemoLine[];
+}
+
 export interface ChannelPage {
   /** One line for cards and lists. */
   blurb: string;
@@ -31,11 +44,7 @@ export interface ChannelPage {
   /** How a conversation runs, from the customer's side. */
   journey: [FlowNodeText, FlowNodeText, FlowNodeText];
   journeyLabel: string;
-  demo: {
-    /** Shown in the frame's header, e.g. "Loom & Lane · WhatsApp". */
-    context: string;
-    lines: DemoLine[];
-  };
+  demo: ChannelDemoData;
   /** How Truplexy recognises a person here. */
   recognisedBy: string;
   /** Where your team answers from. */
@@ -73,6 +82,8 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A visitor asks a question in the chat on your website, Truplexy answers right away, and your team steps in from Tickets when a person should help.',
     demo: {
       context: `${STORE} · Website chat`,
+      customer: 'Daniel Park',
+      page: '/account/billing',
       lines: [
         { from: 'customer', text: 'I was charged twice for September.' },
         { from: 'ai', text: 'Sorry about that — I can see both charges. I’m bringing in billing to review the refund.' },
@@ -104,6 +115,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A customer messages your Telegram bot, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `${STORE} bot · Telegram`,
+      customer: 'Rafi Hasan',
       lines: [
         { from: 'customer', text: 'Can I swap my shirt for a Large?' },
         { from: 'ai', text: 'Yes. I’ve set up the exchange — the courier brings the Large on Friday and collects the Medium.' },
@@ -131,6 +143,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A member writes to your Discord bot, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `#help · ${STORE} community`,
+      customer: 'Nabila Islam',
       lines: [
         { from: 'customer', text: 'What was the black one you showed me earlier?' },
         { from: 'event', text: 'Remembered from the website chat this morning' },
@@ -158,6 +171,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A customer messages your WhatsApp number, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `${STORE} · WhatsApp`,
+      customer: 'Imran Kabir',
       lines: [
         { from: 'customer', text: 'Do you deliver to Chattogram? And is there a discount on 20 jackets?' },
         { from: 'ai', text: 'Yes — Chattogram takes 2–3 days. Bulk pricing is our team’s call, so I’ve passed it on for 9 AM.' },
@@ -186,6 +200,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A customer messages your Facebook Page, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `${STORE} · Messenger`,
+      customer: 'Lena Fischer',
       lines: [
         { from: 'customer', text: 'Hi from Berlin — do you ship to Germany?' },
         { from: 'ai', text: 'We do. International orders arrive in 7–10 business days, tracked all the way.' },
@@ -213,6 +228,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A customer sends your Instagram account a Direct message, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `@loomandlane · Instagram Direct`,
+      customer: 'Tasnim Akter',
       lines: [
         { from: 'customer', text: 'Is the Atlas Jacket back in Medium?' },
         { from: 'ai', text: 'It is — Medium came back in this morning, in Black and Olive. Want me to hold one for you?' },
@@ -241,8 +257,10 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A customer emails your support address, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `support@loomandlane.example · Email`,
+      customer: 'Sarah Ahmed',
+      subject: 'Order #4821',
       lines: [
-        { from: 'customer', text: 'Subject: Order #4821\n\nHi, can I still change the delivery address on my order?' },
+        { from: 'customer', text: 'Hi, can I still change the delivery address on my order?' },
         { from: 'ai', text: 'Hi Sarah — yes, #4821 hasn’t been dispatched yet. Reply with the new address and I’ll update it.' },
         { from: 'customer', text: 'Gulshan 2, please.' },
         { from: 'ai', text: 'Done — #4821 will now be delivered to Gulshan 2.' },
@@ -269,6 +287,8 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A shopper asks a question in the chat on your Shopify store, Truplexy answers and looks up their order, and your team steps in from Tickets when needed.',
     demo: {
       context: `${STORE} storefront · Shopify`,
+      customer: 'James Wong',
+      page: '/products/atlas-jacket',
       lines: [
         { from: 'customer', text: 'Where is my order?' },
         { from: 'event', text: 'Looked up order #4821' },
@@ -297,6 +317,8 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A shopper asks a question in the chat on your WooCommerce store, Truplexy answers and looks up their order, and your team steps in from Tickets when needed.',
     demo: {
       context: `${STORE} store · WooCommerce`,
+      customer: 'Ayesha Karim',
+      page: '/shop/linen-shirt',
       lines: [
         { from: 'customer', text: 'Has my order shipped yet? It’s #4821.' },
         { from: 'event', text: 'Looked up order #4821' },
@@ -324,6 +346,8 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A visitor asks a question in the chat on your WordPress site, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `${STORE} blog · WordPress`,
+      customer: 'Omar Faruk',
+      page: '/journal/caring-for-linen',
       lines: [
         { from: 'customer', text: 'How do I wash the linen shirts?' },
         { from: 'ai', text: 'Cold, gentle cycle, and hang to dry. Linen softens with every wash, so skip the fabric softener.' },
@@ -350,6 +374,8 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A new message arrives in your HubSpot inbox, Truplexy answers right away, and your team steps in from Tickets when needed.',
     demo: {
       context: `HubSpot inbox · ${STORE}`,
+      customer: 'James Wong',
+      subject: 'Moving my renewal date',
       lines: [
         { from: 'customer', text: 'Can I move my renewal date to the 15th?' },
         { from: 'ai', text: 'Yes. Your renewal moves to the 15th from next month, and nothing changes on this cycle. Want a reminder a few days before?' },
@@ -380,6 +406,8 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'A customer opens a Zendesk ticket, Truplexy posts the first reply within seconds, and your team takes it from there when needed.',
     demo: {
       context: `Ticket #3107 · Zendesk`,
+      customer: 'Sarah Ahmed',
+      subject: 'Discount code not working',
       lines: [
         { from: 'customer', text: 'My discount code SPRING10 isn’t working at checkout.' },
         { from: 'ai', author: 'Loom & Lane Support', text: 'Thanks for writing in! SPRING10 ended on Sunday, but WELCOME5 still gives you 5% off. If you’d like, our team can look at matching the spring discount.' },
@@ -411,6 +439,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'When a conversation needs a person it is posted to your Slack support channel, and a teammate’s thread reply goes back to the customer on their own channel.',
     demo: {
       context: '#support · Slack',
+      customer: 'Imran Kabir',
       lines: [
         { from: 'ai', author: 'Truplexy', text: 'Escalated from WhatsApp · Imran Kabir\nBulk discount on 20 jackets, delivered to Chattogram' },
         { from: 'agent', author: 'Arif · Sales', text: 'For 20 jackets we can do 15% off, delivered by Thursday. Shall I send the invoice?' },
@@ -441,6 +470,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
     journeyLabel: 'When a conversation needs a person it is posted as a card to your Teams channel, and a teammate’s thread reply goes back to the customer on their own channel.',
     demo: {
       context: 'Support › Escalations · Microsoft Teams',
+      customer: 'Daniel Park',
       lines: [
         { from: 'ai', author: 'Truplexy', text: 'Escalated from Website chat · Daniel Park\nCharged twice for September' },
         { from: 'agent', author: 'Priya · Billing', text: 'Hi Daniel — I can see the duplicate charge. I’ve started your refund.' },

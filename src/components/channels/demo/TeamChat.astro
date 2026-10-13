@@ -1,0 +1,358 @@
+---
+import { getImage } from 'astro:assets';
+import { Bell, CircleCheck, Hash, MessageSquare, Plus, Reply, Search, SmilePlus, Users } from 'lucide-react';
+import mark from '../../../assets/brand/mark.png';
+import type { ChannelDemoData, DemoLine } from '../../../data/channel-pages';
+import { initials, times, type TeamVariant } from './shared';
+
+/**
+ * A desktop workspace app. On Discord it's the store's community server, where
+ * customers and the store's bot talk in a channel. On Slack and Teams it's the
+ * team's own workspace: Truplexy posts the escalation, a teammate replies in
+ * the thread, and the reply goes back to the customer.
+ */
+
+interface Props {
+  variant: TeamVariant;
+  demo: ChannelDemoData;
+}
+const { variant, demo } = Astro.props;
+const at = times(demo.lines.length);
+const logo = await getImage({ src: mark, width: 72, format: 'webp' });
+
+const SIDEBAR: Record<TeamVariant, { title: string; items: string[]; active: string }> = {
+  discord: { title: 'Loom & Lane', items: ['welcome', 'announcements', 'help', 'new-arrivals'], active: 'help' },
+  slack: { title: 'Loom & Lane', items: ['general', 'support', 'sales', 'random'], active: 'support' },
+  teams: { title: 'Support', items: ['General', 'Escalations', 'Returns'], active: 'Escalations' },
+};
+const side = SIDEBAR[variant];
+const header = variant === 'teams' ? 'Support › Escalations' : side.active;
+
+/** Discord: every line is its own message. Slack and Teams: the first is the post, the rest its thread. */
+const indexed = demo.lines.map((l, i) => ({ ...l, time: at[i], i }));
+const [post, ...thread] = indexed;
+const replies = thread.filter((t) => t.from !== 'event').length;
+
+const nameOf = (l: DemoLine) => {
+  if (l.from === 'customer') return variant === 'discord' ? demo.customer.toLowerCase().replace(' ', '.') : demo.customer;
+  if (l.from === 'agent') return l.author ?? 'Teammate';
+  return variant === 'discord' ? 'Loom & Lane' : (l.author ?? 'Truplexy');
+};
+const tagOf = (l: DemoLine) => (l.from === 'ai' ? (variant === 'discord' ? 'BOT' : variant === 'slack' ? 'APP' : null) : null);
+const timeLabel = (t: string) => (variant === 'discord' ? `Today at ${t} AM` : `${t} AM`);
+---
+
+<div class={`tc v-${variant}`}>
+  {variant === 'discord' && (
+    <div class="tc-rail" aria-hidden="true">
+      <span class="tc-server is-active">L&amp;L</span>
+      <span class="tc-server"></span>
+      <span class="tc-server"><Plus size={18} /></span>
+    </div>
+  )}
+  {variant === 'teams' && (
+    <div class="tc-rail" aria-hidden="true">
+      <span class="tc-railitem"><Bell size={18} />Activity</span>
+      <span class="tc-railitem"><MessageSquare size={18} />Chat</span>
+      <span class="tc-railitem is-active"><Users size={18} />Teams</span>
+    </div>
+  )}
+
+  <div class="tc-side" aria-hidden="true">
+    <p class="tc-ws">{side.title}</p>
+    {variant === 'teams' && <p class="tc-group">Loom &amp; Lane</p>}
+    {side.items.map((c) => (
+      <span class:list={['tc-chan', { 'is-active': c === side.active }]}>
+        {variant !== 'teams' && <Hash size={15} />}{c}
+      </span>
+    ))}
+  </div>
+
+  <div class="tc-main">
+    <div class="tc-head">
+      {variant !== 'teams' && <Hash size={18} aria-hidden="true" />}
+      <span class="tc-head-name">{header}</span>
+      {variant === 'teams' && <span class="tc-tabs" aria-hidden="true"><b>Posts</b><span>Files</span></span>}
+      <Search size={16} aria-hidden="true" className="tc-search" />
+    </div>
+
+    <div class="tc-feed">
+      {variant === 'discord' ? (
+        indexed.map((l) =>
+          l.from === 'event' ? (
+            <p class="tc-sys" data-line>{l.text}</p>
+          ) : (
+            <div class="tc-msg" data-line>
+              <span class={`tc-ava from-${l.from}`} aria-hidden="true">{l.from === 'ai' ? 'L&L' : initials(demo.customer)}</span>
+              <div class="tc-msg-body">
+                <p class="tc-meta"><b>{nameOf(l)}</b>{tagOf(l) && <span class="tc-tag">{tagOf(l)}</span>}<span class="tc-time">{timeLabel(l.time)}</span></p>
+                <p class="tc-text whitespace-pre-line">{l.text}</p>
+              </div>
+            </div>
+          ),
+        )
+      ) : (
+        <div class="tc-post" data-line>
+          <div class="tc-msg">
+            <img class="tc-ava tc-logo" src={logo.src} width="36" height="36" alt="" />
+            <div class="tc-msg-body">
+              <p class="tc-meta"><b>{nameOf(post)}</b>{tagOf(post) && <span class="tc-tag">{tagOf(post)}</span>}<span class="tc-time">{timeLabel(post.time)}</span></p>
+              <p class="tc-text tc-first whitespace-pre-line">{post.text}</p>
+            </div>
+          </div>
+          <div class="tc-thread">
+            {variant === 'slack' && <p class="tc-replies" aria-hidden="true">{replies === 1 ? '1 reply' : `${replies} replies`}</p>}
+            {thread.map((l) =>
+              l.from === 'event' ? (
+                <p class="tc-context" data-line><CircleCheck size={14} aria-hidden="true" />{l.text}</p>
+              ) : (
+                <div class="tc-msg tc-reply" data-line>
+                  <span class={`tc-ava from-${l.from}`} aria-hidden="true">{initials(nameOf(l))}</span>
+                  <div class="tc-msg-body">
+                    <p class="tc-meta"><b>{nameOf(l)}</b><span class="tc-time">{timeLabel(l.time)}</span></p>
+                    <p class="tc-text whitespace-pre-line">{l.text}</p>
+                  </div>
+                </div>
+              ),
+            )}
+            {variant === 'teams' && <span class="tc-replybox" aria-hidden="true"><Reply size={15} />Reply</span>}
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div class="tc-compose" aria-hidden="true">
+      {variant === 'teams' ? (
+        <span>Start a post</span>
+      ) : (
+        <><Plus size={17} /><span>Message #{side.active}</span><SmilePlus size={17} /></>
+      )}
+    </div>
+  </div>
+</div>
+
+<style>
+  .tc {
+    --bg: #fff;
+    --ink: #1d1c1d;
+    --muted: #616061;
+    --line: #e8e8e8;
+    --side: #3f0e40;
+    --side-ink: rgb(255 255 255 / 0.72);
+    --side-active: #1164a3;
+    --tag: #e8e8e8;
+    --tag-ink: #616061;
+    --compose: #fff;
+
+    display: flex;
+    width: 100%;
+    min-height: 440px;
+    overflow: hidden;
+    border: 1px solid #d9dce5;
+    border-radius: 14px;
+    background: var(--bg);
+    box-shadow: 0 30px 60px -28px rgb(14 18 34 / 0.4);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+
+  .v-discord {
+    --bg: #313338;
+    --ink: #dbdee1;
+    --muted: #949ba4;
+    --line: #3f4147;
+    --side: #2b2d31;
+    --side-ink: #949ba4;
+    --side-active: #404249;
+    --tag: #5865f2;
+    --tag-ink: #fff;
+    --compose: #383a40;
+    border-color: #1e1f22;
+  }
+  .v-teams {
+    --bg: #f5f5f5;
+    --ink: #242424;
+    --muted: #616161;
+    --line: #e0e0e0;
+    --side: #ebebeb;
+    --side-ink: #424242;
+    --side-active: #fff;
+  }
+
+  .tc-rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .v-discord .tc-rail { width: 64px; background: #1e1f22; }
+  .tc-server {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border-radius: 50%;
+    background: #313338;
+    color: #23a559;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .tc-server.is-active { border-radius: 14px; background: #5865f2; color: #fff; }
+  .v-teams .tc-rail { width: 68px; background: #ebebeb; border-right: 1px solid #e0e0e0; }
+  .tc-railitem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 0;
+    font-size: 10.5px;
+    color: #616161;
+  }
+  .tc-railitem.is-active { color: #5b5fc7; font-weight: 600; }
+
+  .tc-side {
+    display: flex;
+    width: 190px;
+    flex: none;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 8px;
+    background: var(--side);
+    color: var(--side-ink);
+  }
+  .tc-ws { margin: 0 8px 12px; font-size: 15px; font-weight: 800; color: #fff; }
+  .v-discord .tc-ws { margin: -12px -8px 10px; padding: 14px 16px; border-bottom: 1px solid #1e1f22; font-weight: 600; }
+  .v-teams .tc-ws { color: #242424; font-weight: 700; }
+  .tc-group { margin: 0 8px 4px; font-size: 12px; color: #616161; }
+  .tc-chan {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .tc-chan.is-active { background: var(--side-active); color: #fff; }
+  .v-teams .tc-chan { padding-left: 22px; }
+  .v-teams .tc-chan.is-active { color: #242424; font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
+
+  .tc-main {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+  .tc-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .tc-head-name { font-weight: 700; color: var(--ink); }
+  .v-discord .tc-head { box-shadow: 0 1px 0 rgb(0 0 0 / 0.2); border: 0; }
+  .v-teams .tc-head { background: #fff; }
+  .tc-tabs { display: flex; gap: 14px; margin-left: 18px; font-size: 13px; }
+  .tc-tabs b { color: #5b5fc7; box-shadow: 0 2px 0 #5b5fc7; padding-bottom: 2px; }
+  .tc-head :global(.tc-search) { margin-left: auto; }
+
+  .tc-feed {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 14px;
+    overflow: hidden;
+    padding: 16px;
+  }
+  .tc-msg { display: flex; gap: 10px; }
+  .tc-msg-body { min-width: 0; }
+  .tc-ava {
+    display: grid;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 8px;
+    background: #e8912d;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .tc-logo { object-fit: cover; background: #fff; border: 1px solid var(--line); }
+  .tc-ava.from-agent { background: #2bac76; }
+  .v-discord .tc-ava { width: 40px; height: 40px; border-radius: 50%; }
+  .v-discord .tc-ava.from-ai { background: #5865f2; }
+  .v-discord .tc-ava.from-customer { background: #eb459e; }
+  .v-teams .tc-ava { border-radius: 50%; }
+  .v-teams .tc-ava.from-agent { background: #c19c00; }
+  .tc-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+  .tc-meta b { font-weight: 800; }
+  .v-discord .tc-meta b { font-weight: 500; color: #f2f3f5; }
+  .v-teams .tc-meta b { font-weight: 600; }
+  .tc-tag {
+    padding: 0 4px;
+    border-radius: 3px;
+    background: var(--tag);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    color: var(--tag-ink);
+  }
+  .tc-time { font-size: 12px; color: var(--muted); }
+  .tc-text { overflow-wrap: anywhere; }
+  .tc-first::first-line { font-weight: 700; }
+  .tc-sys { padding-left: 50px; font-size: 13px; font-style: italic; color: var(--muted); }
+
+  .tc-post { display: flex; flex-direction: column; gap: 10px; }
+  .tc-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-left: 46px;
+  }
+  .v-slack .tc-thread { padding-left: 12px; border-left: 2px solid var(--line); }
+  .tc-replies { font-size: 13px; font-weight: 700; color: #1264a3; }
+  .tc-reply .tc-ava { width: 28px; height: 28px; font-size: 11px; }
+  .tc-context { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+  .tc-context :global(svg) { color: #2bac76; }
+
+  .v-teams .tc-post {
+    padding: 14px;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  }
+  .v-teams .tc-post::before { content: ''; display: block; margin: -14px -14px 4px; height: 3px; border-radius: 8px 8px 0 0; background: #5b5fc7; }
+  .v-teams .tc-thread { margin-left: 0; padding-top: 10px; border-top: 1px solid #f0f0f0; }
+  .tc-replybox { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #5b5fc7; }
+
+  .tc-compose {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 16px 14px;
+    padding: 10px 12px;
+    border: 1px solid #cfcfcf;
+    border-radius: 8px;
+    background: var(--compose);
+    color: var(--muted);
+  }
+  .tc-compose span { flex: 1; }
+  .v-discord .tc-compose { border: 0; }
+  .v-teams .tc-compose { justify-content: center; border: 0; background: #5b5fc7; color: #fff; font-weight: 600; flex: none; align-self: flex-start; }
+
+  @media (max-width: 640px) {
+    .tc-side { display: none; }
+    .v-teams .tc-rail { display: none; }
+  }
+  @media (max-width: 420px) {
+    .v-discord .tc-rail { display: none; }
+    .tc-tabs { display: none; }
+  }
+</style>

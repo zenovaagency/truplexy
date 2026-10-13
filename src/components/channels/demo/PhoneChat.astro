@@ -1,0 +1,395 @@
+---
+import { Camera, CheckCheck, ChevronLeft, Image, Info, Mic, Paperclip, Phone, Plus, Smile, ThumbsUp, Video } from 'lucide-react';
+import type { ChannelDemoData } from '../../../data/channel-pages';
+import { times, type PhoneVariant } from './shared';
+
+/**
+ * The customer's phone, in the messaging app they already use. Their messages
+ * go out on the right; the store's (Truplexy, or a teammate) come in on the left.
+ */
+
+interface Props {
+  variant: PhoneVariant;
+  demo: ChannelDemoData;
+}
+const { variant, demo } = Astro.props;
+const at = times(demo.lines.length);
+
+const HEAD: Record<PhoneVariant, { title: string; sub: string }> = {
+  whatsapp: { title: 'Loom & Lane', sub: 'Business account' },
+  telegram: { title: 'Loom & Lane', sub: 'bot' },
+  messenger: { title: 'Loom & Lane', sub: 'Clothing store' },
+  instagram: { title: 'loomandlane', sub: 'Loom & Lane' },
+};
+const head = HEAD[variant];
+/** WhatsApp and Telegram print the time inside each bubble; the others group by a timestamp above. */
+const inlineTime = variant === 'whatsapp' || variant === 'telegram';
+---
+
+<div class={`phone v-${variant}`}>
+  <div class="ph-status" aria-hidden="true">
+    <span>9:41</span>
+    <span class="ph-sys"><i></i><i></i><i></i><b></b></span>
+  </div>
+
+  <div class="ph-head">
+    <ChevronLeft size={22} aria-hidden="true" />
+    <span class="ph-avatar" aria-hidden="true">L&amp;L</span>
+    <span class="ph-who">
+      <span class="ph-title">{head.title}</span>
+      <span class="ph-sub">{head.sub}</span>
+    </span>
+    <span class="ph-actions" aria-hidden="true">
+      {variant === 'telegram' ? <Info size={19} /> : <><Phone size={18} /><Video size={20} /></>}
+    </span>
+  </div>
+
+  <div class="ph-body">
+    <p class="ph-day">{inlineTime ? 'Today' : `Today ${at[0]}`}</p>
+    {demo.lines.map((l, i) =>
+      l.from === 'event' ? (
+        <p class="ph-note" data-line>{l.text}</p>
+      ) : (
+        <div class={`ph-row ${l.from === 'customer' ? 'out' : 'in'}`} data-line>
+          {l.from !== 'customer' && variant === 'messenger' && <span class="ph-mini" aria-hidden="true">L</span>}
+          <div class="ph-bubble">
+            {l.from === 'agent' && l.author && <span class="ph-author">{l.author}</span>}
+            <span class="whitespace-pre-line">{l.text}</span>
+            {inlineTime && (
+              <span class="ph-meta">
+                {at[i]}
+                {l.from === 'customer' && <CheckCheck size={15} aria-label="Read" />}
+              </span>
+            )}
+          </div>
+        </div>
+      ),
+    )}
+  </div>
+
+  <div class="ph-compose" aria-hidden="true">
+    {variant === 'whatsapp' && (
+      <>
+        <span class="ph-field"><Smile size={19} /><span>Message</span><Paperclip size={18} /><Camera size={18} /></span>
+        <span class="ph-round"><Mic size={18} /></span>
+      </>
+    )}
+    {variant === 'telegram' && (
+      <>
+        <Paperclip size={20} />
+        <span class="ph-field"><span>Message</span><Smile size={19} /></span>
+        <Mic size={20} />
+      </>
+    )}
+    {variant === 'messenger' && (
+      <>
+        <Plus size={20} /><Camera size={20} /><Image size={20} />
+        <span class="ph-field"><span>Aa</span><Smile size={18} /></span>
+        <ThumbsUp size={20} />
+      </>
+    )}
+    {variant === 'instagram' && (
+      <span class="ph-field">
+        <span class="ph-round"><Camera size={16} /></span>
+        <span>Message…</span>
+        <Mic size={19} /><Image size={19} />
+      </span>
+    )}
+  </div>
+</div>
+
+<style>
+  .phone {
+    --head-bg: #fff;
+    --head-ink: #050505;
+    --head-sub: #65676b;
+    --wall: #fff;
+    --in-bg: #fff;
+    --in-ink: #111b21;
+    --out-bg: #d9fdd3;
+    --out-ink: #111b21;
+    --meta: #667781;
+    --tick: #53bdeb;
+    --accent: #0084ff;
+    --compose-bg: #fff;
+
+    display: flex;
+    width: 100%;
+    max-width: 340px;
+    height: 600px;
+    flex-direction: column;
+    overflow: hidden;
+    border: 8px solid #1b1d22;
+    border-radius: 44px;
+    background: var(--wall);
+    box-shadow: 0 30px 60px -24px rgb(14 18 34 / 0.45);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14.5px;
+    line-height: 1.38;
+    color: var(--in-ink);
+  }
+
+  /* WhatsApp: green bar, beige doodle wallpaper, green outgoing bubbles. */
+  .v-whatsapp {
+    --head-bg: #008069;
+    --head-ink: #fff;
+    --head-sub: rgb(255 255 255 / 0.8);
+    --wall: #efeae2;
+    --accent: #00a884;
+    --compose-bg: #f0f2f5;
+  }
+  .v-whatsapp .ph-body {
+    background-image: radial-gradient(rgb(0 0 0 / 0.045) 1.2px, transparent 1.3px), radial-gradient(rgb(0 0 0 / 0.03) 1px, transparent 1.1px);
+    background-size: 22px 22px, 15px 15px;
+    background-position: 0 0, 9px 11px;
+  }
+  .v-whatsapp .ph-avatar { background: #dfe5e7; color: #54656f; }
+
+  /* Telegram: white bar, green wallpaper, pale green outgoing bubbles. */
+  .v-telegram {
+    --head-sub: #6d7f8f;
+    --wall: #a9c99a;
+    --out-bg: #effdde;
+    --meta: #5ea152;
+    --tick: #5ea152;
+    --accent: #3390ec;
+  }
+  .v-telegram .ph-body {
+    background-image: linear-gradient(160deg, #cfe2b6 0%, #a8c98f 45%, #8cb88f 100%);
+  }
+  .v-telegram .ph-row.in .ph-meta { color: #a1aab3; }
+  .v-telegram .ph-avatar { background: linear-gradient(#72d5fd, #2a9ef1); color: #fff; }
+
+  /* Messenger: white, blue-to-violet outgoing, grey incoming with a small avatar. */
+  .v-messenger {
+    --in-bg: #f0f0f0;
+    --in-ink: #050505;
+    --out-ink: #fff;
+    --accent: #0a7cff;
+  }
+  .v-messenger .ph-row.out .ph-bubble { background: linear-gradient(135deg, #0a7cff, #a033ff); }
+  .v-messenger .ph-bubble { border-radius: 18px; }
+  .v-messenger .ph-avatar,
+  .v-messenger .ph-mini { background: #1b1d22; color: #fff; }
+
+  /* Instagram: white, blue outgoing, grey incoming, ringed avatar. */
+  .v-instagram {
+    --in-bg: #efefef;
+    --in-ink: #000;
+    --out-bg: #3797f0;
+    --out-ink: #fff;
+    --head-sub: #737373;
+    --accent: #000;
+  }
+  .v-instagram .ph-bubble { border-radius: 22px; }
+  .v-instagram .ph-avatar {
+    background: #1b1d22;
+    color: #fff;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #d62976;
+    background-clip: padding-box;
+  }
+  .v-instagram .ph-head { border-bottom: 1px solid #efefef; }
+  .v-instagram .ph-title { font-weight: 700; }
+
+  .v-messenger .ph-head,
+  .v-telegram .ph-head { box-shadow: 0 1px 0 rgb(0 0 0 / 0.08); }
+
+  .ph-status {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 22px 4px;
+    background: var(--head-bg);
+    color: var(--head-ink);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .ph-sys {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .ph-sys i {
+    width: 3px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+  .ph-sys i:nth-child(1) { height: 5px; }
+  .ph-sys i:nth-child(2) { height: 7px; }
+  .ph-sys i:nth-child(3) { height: 9px; }
+  .ph-sys b {
+    width: 20px;
+    height: 10px;
+    margin-left: 5px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    background: linear-gradient(90deg, currentColor 70%, transparent 70%) content-box;
+    padding: 1px;
+  }
+
+  .ph-head {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 9px 6px;
+    background: var(--head-bg);
+    color: var(--head-ink);
+  }
+  .ph-head :global(svg) { flex: none; color: var(--accent); }
+  .v-whatsapp .ph-head :global(svg) { color: #fff; }
+  .ph-avatar {
+    display: grid;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .ph-who {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+  .ph-title {
+    overflow: hidden;
+    font-size: 15.5px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ph-sub {
+    font-size: 12px;
+    color: var(--head-sub);
+  }
+  .ph-actions {
+    display: flex;
+    gap: 16px;
+  }
+
+  .ph-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    padding: 10px 10px 12px;
+  }
+  .ph-day {
+    align-self: center;
+    margin-bottom: 4px;
+    padding: 3px 10px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    color: #8696a0;
+  }
+  .v-whatsapp .ph-day { background: #fff; color: #54656f; box-shadow: 0 1px 0.5px rgb(11 20 26 / 0.13); }
+  .v-telegram .ph-day { background: rgb(0 0 0 / 0.18); color: #fff; border-radius: 999px; }
+
+  .ph-note {
+    align-self: center;
+    max-width: 90%;
+    margin: 4px 0;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    text-align: center;
+    color: #65676b;
+  }
+  .v-whatsapp .ph-note { background: #ffeecd; color: #54656f; box-shadow: 0 1px 0.5px rgb(11 20 26 / 0.13); }
+  .v-telegram .ph-note { background: rgb(0 0 0 / 0.2); color: #fff; border-radius: 999px; }
+
+  .ph-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  .ph-row.out { justify-content: flex-end; }
+  .ph-bubble {
+    position: relative;
+    max-width: 80%;
+    padding: 6px 9px 7px;
+    border-radius: 8px;
+    background: var(--in-bg);
+    color: var(--in-ink);
+    box-shadow: 0 1px 0.5px rgb(11 20 26 / 0.13);
+    overflow-wrap: anywhere;
+  }
+  .v-messenger .ph-bubble,
+  .v-instagram .ph-bubble { padding: 8px 12px; box-shadow: none; }
+  .out .ph-bubble {
+    background: var(--out-bg);
+    color: var(--out-ink);
+  }
+  .v-telegram .ph-bubble { border-radius: 12px; }
+  .ph-author {
+    display: block;
+    margin-bottom: 1px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #1fa855;
+  }
+  .v-telegram .ph-author { color: #3390ec; }
+  .v-messenger .ph-author,
+  .v-instagram .ph-author { color: #65676b; font-weight: 500; font-size: 11.5px; }
+  .ph-meta {
+    display: inline-flex;
+    float: right;
+    align-items: center;
+    gap: 3px;
+    margin: 6px 0 -3px 10px;
+    font-size: 11px;
+    color: var(--meta);
+  }
+  .ph-meta :global(svg) { color: var(--tick); }
+  .ph-mini {
+    display: grid;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .ph-compose {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px 16px;
+    background: var(--compose-bg);
+    color: var(--accent);
+  }
+  .v-telegram .ph-compose { color: #8e959b; }
+  .ph-field {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 22px;
+    background: #fff;
+    color: #8696a0;
+  }
+  .ph-field > span:not(.ph-round) { flex: 1; }
+  .v-telegram .ph-field { padding: 6px 4px; background: transparent; }
+  .v-messenger .ph-field { background: #f0f2f5; color: #65676b; }
+  .v-instagram .ph-field { padding: 5px 12px 5px 5px; border: 1px solid #dbdbdb; color: #000; }
+  .v-instagram .ph-field > span:not(.ph-round) { color: #737373; }
+  .ph-round {
+    display: grid;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border-radius: 50%;
+    background: #00a884;
+    color: #fff;
+  }
+  .v-instagram .ph-round { width: 32px; height: 32px; background: #3797f0; }
+</style>
