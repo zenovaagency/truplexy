@@ -10,6 +10,9 @@ import { pathToFileURL } from 'node:url';
  * "a person" to see a handoff, then a teammate's reply 5 seconds later
  * (picked up by polling: the mock has no realtime).
  */
+// A stand-in logo, so the header picture shows without hosting an image.
+const LOGO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#e5484d"/><text x="32" y="43" font-family="system-ui,sans-serif" font-size="32" font-weight="700" text-anchor="middle" fill="#fff">A</text></svg>')}`;
+
 export function mockApi(base, { latency = 150, replyLatency = 900, autoAgent = true } = {}) {
   const conversations = new Map();
   const customers = new Map();
@@ -82,7 +85,7 @@ export function mockApi(base, { latency = 150, replyLatency = 900, autoAgent = t
       return json(200, conv.ticket);
     }
     if (path === '/profile') {
-      return json(200, { business: { name: 'Acme Shop' }, bot: { id: 'support', name: 'Shop assistant' } });
+      return json(200, { business: { name: 'Acme Shop', logo_url: LOGO }, bot: { id: 'support', name: 'Shop assistant' } });
     }
     if (path === '/realtime/token') return json(503, { error: { code: 'REALTIME_NOT_CONFIGURED', message: 'off' } });
 
