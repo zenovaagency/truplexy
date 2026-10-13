@@ -2,16 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "site",
+      "name": "dashboard-mock",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 4321
-    },
-    {
-      "name": "site-preview",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["astro", "preview", "--port", "4322"],
-      "port": 4322
+      "runtimeArgs": ["--prefix", "dashboard", "run", "dev:mock"],
+      "port": 5173
     }
   ]
 }
