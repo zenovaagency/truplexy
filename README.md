@@ -72,5 +72,7 @@ Search for `PLACEHOLDER`:
 - `src/data/site.ts` — contact email, sign-up URL and demo-booking URL (currently
   `mailto:` links). The domain (`url`) set there feeds `astro.config.mjs` (`site`), canonical URLs,
   `robots.txt` and the sitemap.
-- `src/components/home/Context.astro` — the one-line privacy note under "No unnecessary
-  repetition". Confirm it matches how Truplexy actually handles conversation data.
+- `src/data/legal.ts` — the registered legal name and number, postal address, governing law,
+  minimum age and privacy contact behind `/terms`, `/privacy` and `/refunds`. The pages print
+  these as written, so an unfilled one is visible. Also settle the AI-training statement in
+  `src/pages/privacy.astro` (search "PLACEHOLDER"), and have a lawyer review all three pages.

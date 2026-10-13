@@ -1,0 +1,110 @@
+---
+import Docs from '../layouts/Docs.astro';
+import { LEGAL } from '../data/legal';
+
+const days = LEGAL.refundWindowDays;
+const toc = [
+  ['summary', 'In short'],
+  ['first-payment', `${days}-day refund`],
+  ['not-refundable', 'What isn’t refundable'],
+  ['cancel', 'Cancelling'],
+  ['balance', 'Balance and add-ons'],
+  ['request', 'How to ask'],
+  ['law', 'Your legal rights'],
+  ['errors', 'Billing errors'],
+  ['contact', 'Contact'],
+] as const;
+---
+
+<Docs
+  title="Refund Policy — Truplexy"
+  description={`Truplexy refund policy: a ${days}-day refund on your first payment for a paid plan, how cancelling works, and how to ask.`}
+  breadcrumbs={[{ name: 'Refund Policy', path: '/refunds' }]}
+  eyebrow="Legal"
+  heading="Refund Policy"
+  lede={`Try a paid plan with a ${days}-day safety net. Last updated ${LEGAL.updated}.`}
+  toc={toc}
+>
+  <h2 id="summary">In short</h2>
+  <ul>
+    <li>The first payment for a paid plan (Starter or Pro) is refundable in full within <strong>{days} days</strong> of purchase.</li>
+    <li>After that, payments are not refunded, but you can cancel at any time and keep access until the period you paid for ends.</li>
+    <li>The Free plan costs nothing, so there is nothing to refund.</li>
+  </ul>
+  <p>
+    Our orders are processed by {LEGAL.paddle.name}, which is the Merchant of Record. Refunds are paid back through {LEGAL.paddle.name} to the payment method you used.
+  </p>
+
+  <h2 id="first-payment">{days}-day refund on your first payment</h2>
+  <p>
+    If you buy a paid plan and it is not for you, ask for a refund within {days} days of the date of that first payment and
+    we will refund it in full, no questions asked. This covers the first payment for your account, whether you chose
+    monthly or yearly billing.
+  </p>
+  <ul>
+    <li>The {days} days start on the day the payment is taken.</li>
+    <li>It applies once per customer. If you cancel, get a refund and later buy again, the new purchase is not eligible for the {days}-day refund.</li>
+    <li>If you ask in time, a refund of a first payment ends the paid plan and your account returns to the Free plan.</li>
+  </ul>
+
+  <h2 id="not-refundable">What isn’t refundable</h2>
+  <ul>
+    <li><strong>Renewals.</strong> Automatic renewals of monthly or yearly plans. Cancel before the renewal date if you do not want to be charged.</li>
+    <li><strong>Used tokens and usage.</strong> Token add-ons that have been used, and replies already billed against your balance (including overage), because the AI model cost has been incurred.</li>
+    <li><strong>Payments after the {days} days</strong> of your first payment, and upgrades after that window, other than as described under <a href="#law">Your legal rights</a> and <a href="#errors">Billing errors</a>.</li>
+    <li><strong>Accounts closed for breaking our <a href="/terms#acceptable-use">acceptable-use rules</a>.</strong></li>
+    <li><strong>Third-party costs,</strong> such as fees charged by messaging platforms or other services you connect.</li>
+  </ul>
+
+  <h2 id="cancel">Cancelling</h2>
+  <p>
+    You can cancel a paid plan at any time. Cancelling stops the next renewal. You keep the plan, and its limits, until the
+    end of the period you have already paid for, and then your account moves to the Free plan. We do not refund the
+    unused part of a period after the {days}-day window.
+  </p>
+  <p>
+    Downgrading to a cheaper plan or to a shorter billing period works the same way: it takes effect at the end of the
+    paid period. If we end the service altogether, we will refund prepaid fees for the time left, as stated in the <a href="/terms#termination">Terms of Service</a>.
+  </p>
+
+  <h2 id="balance">Balance and add-ons</h2>
+  <p>
+    Funds you add to your account balance pay for token add-ons and for replies after your plan’s monthly tokens run out.
+    If you ask within {days} days of adding funds, we will refund the part of that payment you have not used. Used funds
+    and add-on tokens already consumed are not refundable. Add-on tokens expire at the end of the month they are bought
+    in; unused tokens do not roll over and are not refunded after the {days}-day window.
+  </p>
+
+  <h2 id="request">How to ask</h2>
+  <ol>
+    <li>Email <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a> from the address on your account, or contact {LEGAL.paddle.name} through the link in your payment receipt, within the {days} days.</li>
+    <li>Tell us the business name and, if you have it, the order or invoice number. A reason helps us improve but isn’t required.</li>
+    <li>We aim to reply within 3 business days. Approved refunds are issued through {LEGAL.paddle.name} to your original payment method, and your bank may take 5–10 business days to show it. We cannot refund to a different method.</li>
+  </ol>
+  <p>
+    {LEGAL.paddle.name}’s <a href={LEGAL.paddle.help} rel="noopener noreferrer">help centre</a> explains its side of
+    payments. Its <a href={LEGAL.paddle.terms} rel="noopener noreferrer">buyer terms</a> apply to the purchase too.
+  </p>
+
+  <h2 id="law">Your legal rights</h2>
+  <p>
+    This policy doesn’t take away rights you have under the law where you live, such as a statutory cooling-off period or a
+    remedy for a service that wasn’t as described. Where such a right applies, it applies in addition to this policy.
+  </p>
+
+  <h2 id="errors">Billing errors</h2>
+  <p>
+    If you were charged the wrong amount, charged twice, or charged after a cancellation that went through in time, tell us
+    and we will fix it and refund the difference, whenever it is spotted. Report it as soon as you can; the sooner, the
+    easier it is to trace.
+  </p>
+
+  <h2 id="contact">Contact</h2>
+  <p>
+    <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a><br />
+    {LEGAL.entityFull}, {LEGAL.address}
+  </p>
+  <p>
+    See also: <a href="/terms">Terms of Service</a> · <a href="/privacy">Privacy Notice</a>
+  </p>
+</Docs>
