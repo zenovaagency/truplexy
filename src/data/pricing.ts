@@ -3,86 +3,93 @@ import { SITE } from './site';
 /**
  * Plans. `PLANS` feeds the plan cards on the home page and /pricing;
  * `COMPARISON` feeds the full table on /pricing. Keep the two in step: a
- * feature a card names must read the same in the table.
+ * feature a card names must read the same in the table. List only what the
+ * product actually does.
  *
  * Yearly prices are the monthly price less 20%, rounded down to the dollar.
  */
 export type Billing = 'monthly' | 'yearly';
 
-export type PlanId = 'free' | 'starter' | 'pro';
+export type PlanId = 'starter' | 'pro' | 'enterprise';
+
+/** Self-serve plans start with a free trial this many days long. */
+export const TRIAL_DAYS = 7;
 
 export interface Plan {
   id: PlanId;
   name: string;
   blurb: string;
-  /** USD per month. `yearly` is the per-month price when billed annually. */
-  price: Record<Billing, number>;
+  /** USD per month. `yearly` is the per-month price when billed annually. Null is priced on request. */
+  price: Record<Billing, number> | null;
+  /** Starts with a `TRIAL_DAYS` free trial. */
+  trial?: boolean;
   featured?: boolean;
-  limits: string[];
-  /** Heading above the feature list, e.g. "Everything in Free, plus". */
+  /** Heading above the feature list, e.g. "Everything in Starter, plus". */
   includes: string;
   features: string[];
   cta: { label: string; href: string };
 }
 
+const trialCta = { label: `Start ${TRIAL_DAYS}-day free trial`, href: SITE.signupUrl };
+
 export const PLANS: Plan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    blurb: 'For trying Truplexy on one channel before you commit.',
-    price: { monthly: 0, yearly: 0 },
-    limits: ['100K AI tokens / month', '100 conversations / month', '1 AI agent · 3 team members'],
-    includes: 'Includes',
-    features: [
-      'Website chat, Telegram or Discord (1 connection)',
-      'Basic cross-channel customer identity',
-      'Human handoff with full context',
-      'Basic analytics',
-    ],
-    cta: { label: 'Start for free', href: SITE.signupUrl },
-  },
   {
     id: 'starter',
     name: 'Starter',
     blurb: 'For small teams putting AI support on every channel their customers use.',
     price: { monthly: 29, yearly: 23 },
+    trial: true,
     featured: true,
-    limits: ['1M AI tokens / month', '1,000 conversations / month', '3 AI agents · 10 team members'],
-    includes: 'Everything in Free, plus',
+    includes: 'Includes',
     features: [
-      'WhatsApp, Messenger, Instagram & Email',
-      'Shopify & WooCommerce',
-      '10 automation workflows',
+      'Website chat, WhatsApp, Messenger, Instagram, Telegram, Discord & Email',
+      'Shopify, WooCommerce & WordPress',
+      'Cross-channel customer identity & shared history',
+      'Knowledge base & custom tools',
+      'Human handoff with full context',
       'REST API (limited)',
-      'Remove Truplexy branding',
     ],
-    cta: { label: 'Get started', href: SITE.signupUrl },
+    cta: trialCta,
   },
   {
     id: 'pro',
     name: 'Pro',
     blurb: 'For growing teams that want Truplexy to take action and plug into their own systems.',
     price: { monthly: 79, yearly: 63 },
-    limits: ['10M AI tokens / month', '10,000 conversations / month', '10 AI agents · 25 team members'],
+    trial: true,
     includes: 'Everything in Starter, plus',
     features: [
       'HubSpot, Zendesk, Slack & Microsoft Teams',
-      '100 automation workflows',
-      'Full REST API, webhooks & custom integrations',
-      'Advanced analytics',
+      'Web search for your AI agent',
+      'Full REST API & webhooks',
       'Priority support',
     ],
-    cta: { label: 'Get started', href: SITE.signupUrl },
+    cta: trialCta,
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    blurb: 'For larger teams that need limits, onboarding and support shaped around their volume.',
+    price: null,
+    includes: 'Everything in Pro, plus',
+    features: [
+      'Custom limits for bots, team members and knowledge',
+      'Unlimited AI tokens available',
+      'Hands-on onboarding for your channels and tools',
+      'Dedicated support',
+    ],
+    cta: { label: 'Contact sales', href: SITE.demoUrl },
   },
 ];
 
+/** The plans with a list price. */
+export const PRICED = PLANS.filter((p): p is Plan & { price: Record<Billing, number> } => p.price !== null);
+
 /**
  * Percent saved by paying yearly, for the toggle badge. The smallest saving
- * across paid plans, so the badge never overstates it.
+ * across priced plans, so the badge never overstates it.
  */
-export const YEARLY_SAVING = Math.min(
-  ...PLANS.filter((p) => p.price.monthly > 0).map((p) => Math.round((1 - p.price.yearly / p.price.monthly) * 100)),
-);
+export const YEARLY_SAVING = Math.min(...PRICED.map((p) => Math.round((1 - p.price.yearly / p.price.monthly) * 100)));
 
 /** `true` is included, `false` is not, a string is shown as is. */
 export type Cell = boolean | string;
@@ -94,88 +101,73 @@ export interface CompareRow {
   note?: keyof typeof FOOTNOTES;
 }
 
-export const FOOTNOTES = {
-  '*': 'Free includes 1 active channel connection: website chat, Telegram or Discord.',
-} as const;
+export const FOOTNOTES: Record<string, string> = {};
 
-const all = { free: true, starter: true, pro: true };
-const paid = { free: false, starter: true, pro: true };
-const proOnly = { free: false, starter: false, pro: true };
-const row = (label: string, free: Cell, starter: Cell, pro: Cell): CompareRow => ({ label, values: { free, starter, pro } });
+const all = { starter: true, pro: true, enterprise: true };
+const proUp = { starter: false, pro: true, enterprise: true };
+const row = (label: string, starter: Cell, pro: Cell, enterprise: Cell): CompareRow => ({ label, values: { starter, pro, enterprise } });
 
 export const COMPARISON: { group: string; rows: CompareRow[] }[] = [
   {
-    group: 'Usage & limits',
+    group: 'AI & knowledge',
     rows: [
-      row('AI tokens included', '100K', '1M', '10M'),
-      row('Tickets / conversations per month', '100', '1,000', '10,000'),
-      row('AI bots / agents', '1', '3', '10'),
-      row('Team members', '3', '10', '25'),
-      row('Active channel connections', '1', '5', '15'),
-      row('Knowledge base storage', '5 MB', '50 MB', '250 MB'),
-      row('Knowledge sources / documents', '10', '100', '500'),
-      row('Customer profiles', '250', '5,000', '50,000'),
-      row('Conversation history', '7 days', '90 days', '1 year'),
+      row('Knowledge documents per bot', '100', '500', 'Custom'),
+      { label: 'Custom tools', values: all },
+      { label: 'Web search', values: proUp },
     ],
   },
   {
-    group: 'Customer memory & automation',
+    group: 'Customer memory',
     rows: [
-      row('Cross-channel customer identity', 'Basic', true, true),
-      row('Shared conversation history', 'Limited', true, true),
-      row('Persistent customer context', 'Basic', 'Standard', 'Advanced'),
+      { label: 'Cross-channel customer identity', values: all },
+      { label: 'Shared conversation history', values: all },
       { label: 'Human handoff', values: all },
-      row('Automation workflows', false, '10', '100'),
     ],
   },
   {
     group: 'Channels',
     rows: [
       { label: 'Website chat', values: all },
-      { label: 'Telegram', values: all, note: '*' },
-      { label: 'Discord', values: all, note: '*' },
-      { label: 'WhatsApp', values: paid },
-      { label: 'Facebook Messenger', values: paid },
-      { label: 'Instagram', values: paid },
-      { label: 'Email', values: paid },
+      { label: 'Telegram', values: all },
+      { label: 'Discord', values: all },
+      { label: 'WhatsApp', values: all },
+      { label: 'Facebook Messenger', values: all },
+      { label: 'Instagram', values: all },
+      { label: 'Email', values: all },
     ],
   },
   {
     group: 'Integrations',
     rows: [
-      { label: 'Shopify', values: paid },
-      { label: 'WooCommerce', values: paid },
-      { label: 'HubSpot', values: proOnly },
-      { label: 'Zendesk', values: proOnly },
-      { label: 'Slack', values: proOnly },
-      { label: 'Microsoft Teams', values: proOnly },
+      { label: 'Shopify', values: all },
+      { label: 'WooCommerce', values: all },
+      { label: 'WordPress', values: all },
+      { label: 'HubSpot', values: proUp },
+      { label: 'Zendesk', values: proUp },
+      { label: 'Slack', values: proUp },
+      { label: 'Microsoft Teams', values: proUp },
     ],
   },
   {
     group: 'Developer',
     rows: [
-      row('REST API', false, 'Limited', 'Full'),
-      { label: 'Webhooks', values: proOnly },
-      { label: 'Custom API integrations', values: proOnly },
+      row('REST API', 'Limited', 'Full', 'Full'),
+      { label: 'Webhooks', values: proUp },
     ],
   },
   {
-    group: 'Analytics & branding',
-    rows: [
-      { label: 'Basic analytics', values: all },
-      { label: 'Advanced analytics', values: proOnly },
-      { label: 'Remove Truplexy branding', values: paid },
-    ],
+    group: 'Analytics',
+    rows: [{ label: 'Conversation analytics', values: all }],
   },
   {
     group: 'Token add-ons',
     rows: [
-      row('Extra tokens', 'Not available', '$8 / 1M', '$6 / 1M'),
-      row('Maximum add-on', false, '+5M / month', '+30M / month'),
+      row('Extra tokens', '$8 / 1M', '$6 / 1M', 'Custom'),
+      row('Maximum add-on', '+5M / month', '+30M / month', 'Unlimited tokens'),
     ],
   },
   {
     group: 'Support',
-    rows: [row('Support', 'Community', 'Email', 'Priority')],
+    rows: [row('Support', 'Email', 'Priority', 'Dedicated')],
   },
 ];

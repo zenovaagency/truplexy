@@ -42,7 +42,11 @@ const label = 'sticky left-0 z-[1] bg-surface text-left';
                 {plan.featured && <span class="chip bg-accent-soft !px-2 !py-0.5 text-[0.66rem] font-semibold text-accent max-sm:hidden">Popular</span>}
               </span>
               <span class="mt-1 block text-[0.85rem] text-ink-faint">
-                <span class="font-semibold text-ink tabular-nums">${plan.price.monthly}</span> / month
+                {plan.price ? (
+                  <><span class="font-semibold text-ink tabular-nums">${plan.price.monthly}</span> / month</>
+                ) : (
+                  <span class="font-semibold text-ink">Custom</span>
+                )}
               </span>
               <Button href={plan.cta.href} variant={plan.featured ? 'primary' : 'ghost'} size="sm" arrow={false} class="mt-3 w-full">
                 {plan.cta.label}
@@ -92,9 +96,11 @@ const label = 'sticky left-0 z-[1] bg-surface text-left';
     </table>
   </div>
 
-  <ul class="mt-6 space-y-1 text-[0.85rem] text-ink-faint">
-    {Object.entries(FOOTNOTES).map(([mark, text]) => (
-      <li><span aria-hidden="true">{mark}</span> {text}</li>
-    ))}
-  </ul>
+  {Object.keys(FOOTNOTES).length > 0 && (
+    <ul class="mt-6 space-y-1 text-[0.85rem] text-ink-faint">
+      {Object.entries(FOOTNOTES).map(([mark, text]) => (
+        <li><span aria-hidden="true">{mark}</span> {text}</li>
+      ))}
+    </ul>
+  )}
 </div>

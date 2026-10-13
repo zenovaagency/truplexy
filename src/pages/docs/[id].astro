@@ -174,7 +174,7 @@ const next = guide.next.slice(0, 3);
             <li>Under <strong>Integrations → Your channels</strong>, add a <strong>Custom</strong> channel and issue its chat key, so its tickets show where they came from.</li>
             <li>Choose a contact type for the people on your platform, such as <code>app</code> for your own user IDs, and send it with <code>PUT /customer</code>. Add any other contacts you know, like an email address, so the same person is matched across channels.</li>
             <li>Keep one Truplexy conversation per thread on your platform, and store that mapping in your database.</li>
-            <li>Set up the <a href="/docs/webhooks">webhook</a> and deliver your team’s replies from <code>message.created</code> back on your platform. Custom API integrations are on <strong>{availability('Custom API integrations').text}</strong>.</li>
+            <li>Set up the <a href="/docs/webhooks">webhook</a> and deliver your team’s replies from <code>message.created</code> back on your platform. Webhooks are on <strong>{availability('Webhooks').text}</strong>.</li>
           </ol>
           {customHooks.length > 0 && <CodeTabs group="receiver" remember="lang" label="Your server language" tabs={customHooks} />}
           <p>Add <code>TRUPLEXY_WEBHOOK_SECRET</code> (the webhook’s signing secret, <code>whsec_…</code>) to your environment for the receiver.</p>
