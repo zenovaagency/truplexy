@@ -5,20 +5,20 @@ import Footer from '../components/chrome/Footer.astro';
 import FinalCta from '../components/home/FinalCta.astro';
 import PlanCards from '../components/pricing/PlanCards.astro';
 import CompareTable from '../components/pricing/CompareTable.astro';
-import { COMPARISON, PLANS } from '../data/pricing';
+import { COMPARISON, PRICED } from '../data/pricing';
 import { SITE } from '../data/site';
 import { LEGAL } from '../data/legal';
 
 // The add-on prices come straight from the table, so the two can't drift.
 const addOns = COMPARISON.find((s) => s.group === 'Token add-ons')!.rows;
 const [extra, max] = addOns;
-const offered = PLANS.filter((p) => typeof max.values[p.id] === 'string');
+const offered = PRICED.filter((p) => typeof max.values[p.id] === 'string');
 ---
 
 <Base
   title="Pricing — Truplexy"
   breadcrumbs={[{ name: 'Pricing', path: '/pricing' }]}
-  description="Truplexy plans: Free, Starter at $29 a month and Pro at $79 a month. Compare AI tokens, conversations, channels, integrations and support across every plan."
+  description="Truplexy plans: Starter at $29 a month and Pro at $79 a month, each with a 7-day free trial, and Enterprise priced to your volume. Compare channels, integrations and support."
 >
   <Nav />
   <main id="main" class="relative overflow-x-clip">
@@ -31,8 +31,7 @@ const offered = PLANS.filter((p) => typeof max.values[p.id] === 'string');
             Simple plans for every conversation.
           </h1>
           <p class="lede mx-auto mt-6 max-w-[600px] text-pretty">
-            Start free on one channel. Upgrade for more AI tokens, more channels and the integrations your team
-            already uses.
+            Try Starter or Pro free for 7 days. Upgrade for the integrations your team already uses, or talk to us about Enterprise.
           </p>
         </div>
 
@@ -61,7 +60,7 @@ const offered = PLANS.filter((p) => typeof max.values[p.id] === 'string');
           <div>
             <h2 class="text-xl font-bold tracking-tight">Need more AI tokens?</h2>
             <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-muted">
-              Paid plans can add tokens each month without moving up a plan. Add-ons aren’t available on Free.
+              Starter and Pro can add tokens each month without moving up a plan. Enterprise allowances are set with you.
             </p>
           </div>
           <ul class="grid gap-3 sm:grid-cols-2">
