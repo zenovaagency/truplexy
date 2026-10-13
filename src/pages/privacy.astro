@@ -118,7 +118,7 @@ const processors: [name: string, role: string, data: string][] = [
     <li><strong>Who processes it.</strong> The model providers behind OpenRouter act as our sub-processors. Which model is used depends on the business’s settings, so the provider can differ. Each provider’s own terms govern how long it keeps requests.</li>
     <li><strong>Embeddings.</strong> Knowledge-base text is turned into numeric vectors for search using Cloudflare Workers AI, and stored in Cloudflare.</li>
     <li><strong>Automated replies.</strong> Replies are produced automatically and can be wrong. A business can set when a person takes over, and its team can read and correct any conversation. We do not make legal or similarly significant decisions about people using these replies.</li>
-    <li><strong>Training.</strong> [PLACEHOLDER: confirm before launch whether {LEGAL.entity} or its model providers train models on customer content. Draft: “We do not use your content to train AI models, and we only use model providers whose terms do not allow training on API data.”]</li>
+    <li><strong>Training.</strong> {LEGAL.entity} does not train or fine-tune AI models on your content or your customers’ conversations. Model providers are independent companies: how they handle requests sent to them, including whether they keep them or use them for training, is set by their own terms and policies, which we cannot change. If this matters for your business, tell us before you connect sensitive data and keep it out of your knowledge base and conversations.</li>
   </ul>
 
   <h2 id="sharing">Who we share it with</h2>

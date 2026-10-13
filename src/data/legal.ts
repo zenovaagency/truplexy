@@ -20,11 +20,11 @@ export const LEGAL = {
   /** Law that governs the Terms, and where disputes are heard. */
   law: 'Bangladesh',
   courts: 'Gazipur, Bangladesh',
-  // PLACEHOLDER — real inbox. Falls back to the general contact address.
+  /** Both use the site's contact inbox (`SITE.email`). */
   privacyEmail: SITE.email,
   supportEmail: SITE.email,
-  // PLACEHOLDER — minimum age to use the service.
-  minimumAge: '[PLACEHOLDER: minimum age, for example 18]',
+  /** Truplexy is for businesses, so account holders must be adults. */
+  minimumAge: '18',
   /** Shown as "Last updated". Bump it whenever a policy changes. */
   updated: '13 October 2026',
   /** Refund window for the first payment on a paid plan, in days. */
