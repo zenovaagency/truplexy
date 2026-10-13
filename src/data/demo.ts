@@ -4,7 +4,7 @@ import { isLive, type ChannelId } from './channels';
  * Every sample conversation on the page, from one fictional cast, so the
  * stories link up across sections: Sarah's address change in the hero is her
  * row in the inbox, Daniel's billing issue in the day-cycle is the handoff
- * example, and Nabila's jacket is her inbox thread.
+ * example, and Emma's jacket is her inbox thread.
  *
  * All people, orders and businesses here are fictional. Mock UIs that render
  * this data label it as sample data.
@@ -29,7 +29,7 @@ export interface Msg {
  * Hero — one order, two channels, twenty minutes apart.
  * ------------------------------------------------------------------ */
 export const HERO = {
-  customer: 'Sarah Ahmed',
+  customer: 'Sarah Miller',
   first: {
     channel: 'web' as const,
     label: 'Website chat',
@@ -45,15 +45,15 @@ export const HERO = {
     channel: 'telegram' as const,
     label: 'Telegram',
     messages: [
-      { from: 'customer', channel: 'telegram', time: '1:23 PM', text: "I'm back. The new address is Gulshan 2." },
-      { from: 'ai', channel: 'telegram', time: '1:23 PM', text: "Got it — we're continuing with the same order. I've updated the delivery address for #4821 to Gulshan 2." },
+      { from: 'customer', channel: 'telegram', time: '1:23 PM', text: "I'm back. The new address is 14 Elm Street." },
+      { from: 'ai', channel: 'telegram', time: '1:23 PM', text: "Got it — we're continuing with the same order. I've updated the delivery address for #4821 to 14 Elm Street." },
     ] satisfies Msg[],
   },
   memory: ['Order #4821', 'Address change', 'Not dispatched'],
 };
 
 /* ------------------------------------------------------------------ *
- * Journey — Website → Discord → Telegram → a person. Nabila's inbox thread.
+ * Journey — Website → Discord → Telegram → a person. Emma's inbox thread.
  * ------------------------------------------------------------------ */
 export interface JourneyStep {
   time: string;
@@ -74,7 +74,7 @@ export const JOURNEY: JourneyStep[] = [
       { from: 'ai', channel: 'web', text: 'We do — the Atlas Jacket comes in Black, sizes S to XL. Want me to help you pick a size?' },
     ],
     learns: [
-      { key: 'Customer', value: 'Nabila Islam' },
+      { key: 'Customer', value: 'Emma Rossi' },
       { key: 'Product', value: 'Atlas Jacket · Black' },
     ],
   },
@@ -111,7 +111,7 @@ export const JOURNEY: JourneyStep[] = [
     messages: [
       { from: 'customer', channel: 'telegram', text: 'Could the sleeves be shortened a little?' },
       { from: 'ai', channel: 'telegram', text: "That's one for our tailoring team. I've passed them everything we've discussed, so you won't need to repeat it." },
-      { from: 'agent', channel: 'telegram', author: 'Maya · Tailoring', text: 'Hi Nabila! Atlas Jacket in Black, size Medium — got it. How much shorter would you like the sleeves?' },
+      { from: 'agent', channel: 'telegram', author: 'Maya · Tailoring', text: 'Hi Emma! Atlas Jacket in Black, size Medium — got it. How much shorter would you like the sleeves?' },
     ],
     learns: [
       { key: 'Handoff', value: 'Maya · Tailoring, full thread attached' },
@@ -155,7 +155,7 @@ export const DAY: DayMoment[] = [
     team: 'online',
     state: 'resolved',
     channel: 'instagram',
-    customer: 'Rumana Akter',
+    customer: 'Chloe Dubois',
     title: 'A routine question, answered at once',
     outcome: 'Resolved by Truplexy. Nobody on the team had to stop what they were doing.',
     messages: [
@@ -211,12 +211,12 @@ export const DAY: DayMoment[] = [
     team: 'offline',
     state: 'queued',
     channel: 'whatsapp',
-    customer: 'Imran Kabir',
+    customer: 'Lucas Martin',
     title: 'Team offline, customer still answered',
     outcome: 'Answered straight away. The bulk quote waits for the team, with a summary.',
     messages: [
-      { from: 'customer', channel: 'whatsapp', time: '7:45 PM', text: 'Do you deliver to Chattogram? And is there a discount on 20 jackets?' },
-      { from: 'ai', channel: 'whatsapp', time: '7:45 PM', text: 'Yes — Chattogram takes 2–3 days. Bulk pricing is our team’s call, so I’ve passed it on for 9 AM.' },
+      { from: 'customer', channel: 'whatsapp', time: '7:45 PM', text: 'Do you deliver to Chicago? And is there a discount on 20 jackets?' },
+      { from: 'ai', channel: 'whatsapp', time: '7:45 PM', text: 'Yes — Chicago takes 2–3 days. Bulk pricing is our team’s call, so I’ve passed it on for 9 AM.' },
     ],
     note: 'Waiting for the team at 9 AM · summary attached',
   },
@@ -290,10 +290,10 @@ export const STORE_CHAT: StoreChat = {
       next: ['newAddress'],
     },
     newAddress: {
-      ask: 'House 12, Road 5, Dhanmondi.',
-      replies: [{ from: 'ai', text: 'Done. #5107 will go to House 12, Road 5, Dhanmondi, and it’s still on track for Thursday.' }],
+      ask: '27 Oak Avenue, Apt 4B.',
+      replies: [{ from: 'ai', text: 'Done. #5107 will go to 27 Oak Avenue, Apt 4B, and it’s still on track for Thursday.' }],
       learns: [
-        { key: 'Address', value: 'Updated · Dhanmondi' },
+        { key: 'Address', value: 'Updated · Oak Avenue' },
         { key: 'Order', value: '#5107 · address changed before dispatch' },
       ],
       next: ['updates'],
@@ -335,7 +335,7 @@ export const STORE_CHAT: StoreChat = {
     },
     returns: {
       ask: 'What’s your return policy?',
-      replies: [{ from: 'ai', text: 'You have 30 days from delivery to return anything unworn with the tags on. Returns are free within Dhaka.' }],
+      replies: [{ from: 'ai', text: 'You have 30 days from delivery to return anything unworn with the tags on. Returns are free anywhere in the US.' }],
       learns: [{ key: 'Intent', value: 'Return an item' }],
       next: ['startReturn'],
     },
@@ -366,10 +366,10 @@ export const STORE_CHAT: StoreChat = {
       ask: 'Can I talk to a person?',
       replies: [
         { from: 'ai', text: 'Of course. I’m bringing in someone from our team now. They’ll see this whole conversation, so you won’t need to repeat anything.' },
-        { from: 'event', text: 'Arif · Support joined · full thread attached' },
-        { from: 'agent', author: 'Arif · Support', text: 'Hi, I’m Arif. I’ve read through everything so far — how can I help?' },
+        { from: 'event', text: 'Alex · Support joined · full thread attached' },
+        { from: 'agent', author: 'Alex · Support', text: 'Hi, I’m Alex. I’ve read through everything so far — how can I help?' },
       ],
-      learns: [{ key: 'Handoff', value: 'Arif · Support' }],
+      learns: [{ key: 'Handoff', value: 'Alex · Support' }],
       next: [],
       handoff: true,
     },
@@ -458,8 +458,8 @@ export interface InboxThread {
 export const INBOX: InboxThread[] = [
   {
     id: 'sarah',
-    name: 'Sarah Ahmed',
-    email: 'sarah.ahmed@example.com',
+    name: 'Sarah Miller',
+    email: 'sarah.miller@example.com',
     subject: 'Change delivery address for #4821',
     ticketStatus: 'closed',
     priority: 'normal',
@@ -476,10 +476,10 @@ export const INBOX: InboxThread[] = [
     topic: 'Order change',
     status: 'ai',
     updated: '2m',
-    preview: "Updated the delivery address for #4821 to Gulshan 2.",
+    preview: "Updated the delivery address for #4821 to 14 Elm Street.",
     customer: [
       { label: 'Order', value: '#4821 · not dispatched' },
-      { label: 'Location', value: 'Dhaka' },
+      { label: 'Location', value: 'New York' },
       { label: 'Linked channels', value: 'Website, Telegram' },
     ],
     previous: [
@@ -532,9 +532,9 @@ export const INBOX: InboxThread[] = [
     ],
   },
   {
-    id: 'nabila',
-    name: 'Nabila Islam',
-    email: 'nabila.islam@example.com',
+    id: 'emma',
+    name: 'Emma Rossi',
+    email: 'emma.rossi@example.com',
     subject: 'Shorten the sleeves on the Atlas Jacket',
     ticketStatus: 'open',
     priority: 'normal',
@@ -614,9 +614,9 @@ export const INBOX: InboxThread[] = [
     ].map((m) => ({ ...m, day: 'Today' })) as Msg[],
   },
   {
-    id: 'rafi',
-    name: 'Rafi Hasan',
-    email: 'rafi.hasan@example.com',
+    id: 'ryan',
+    name: 'Ryan Cooper',
+    email: 'ryan.cooper@example.com',
     subject: 'Move renewal date to the 15th',
     ticketStatus: 'closed',
     priority: 'low',

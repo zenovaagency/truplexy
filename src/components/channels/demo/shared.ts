@@ -9,7 +9,7 @@ export function times(count: number, start = 10 * 60 + 42): string[] {
   });
 }
 
-/** "Imran Kabir" → "IK". */
+/** "Lucas Martin" → "IK". */
 export const initials = (name: string) =>
   name
     .split(/\s+/)
