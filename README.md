@@ -72,7 +72,7 @@ Search for `PLACEHOLDER`:
 - `src/data/site.ts` — contact email, sign-up URL and demo-booking URL (currently
   `mailto:` links). The domain (`url`) set there feeds `astro.config.mjs` (`site`), canonical URLs,
   `robots.txt` and the sitemap.
-- `src/data/legal.ts` — the registered legal name and number, postal address, governing law,
-  minimum age and privacy contact behind `/terms`, `/privacy` and `/refunds`. The pages print
-  these as written, so an unfilled one is visible. Also settle the AI-training statement in
-  `src/pages/privacy.astro` (search "PLACEHOLDER"), and have a lawyer review all three pages.
+- `src/data/legal.ts` — the operator, address, governing law and minimum age behind `/terms`,
+  `/privacy` and `/refunds`. Have a lawyer review all three pages. Zenova Agency is unregistered
+  for now: once it is, update `entity` and `address` there and re-check the name on the Paddle
+  account. The contact email comes from `SITE.email` (see above).

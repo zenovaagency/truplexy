@@ -35,7 +35,7 @@ const toc = [
 >
   <h2 id="agreement">Agreement</h2>
   <p>
-    These terms are a contract between {LEGAL.entityFull} (“{LEGAL.entity}”, “we”, “us”), which operates Truplexy, and the
+    These terms are a contract between <a href={LEGAL.entityUrl}>{LEGAL.entity}</a> (“we”, “us”), which operates Truplexy, and the
     business or person who creates an account (“you”). By creating an account, or by using Truplexy at {SITE.url} or {' '}{SITE.dashboardUrl}, you accept them. If you accept on behalf of a company, you confirm you can bind it.
   </p>
   <p>
@@ -197,8 +197,8 @@ const toc = [
 
   <h2 id="law">Governing law</h2>
   <p>
-    These terms are governed by the laws of {LEGAL.jurisdiction}, without regard to conflict-of-law rules. Courts there
-    have exclusive jurisdiction, except that either of us may seek urgent relief to protect intellectual property or
+    These terms are governed by the laws of {LEGAL.law}, without regard to conflict-of-law rules. The courts of
+    {LEGAL.courts} have exclusive jurisdiction, except that either of us may seek urgent relief to protect intellectual property or
     confidential information in any competent court. Please contact us first at <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a>; most issues are settled without a dispute.
   </p>
 
@@ -213,7 +213,8 @@ const toc = [
 
   <h2 id="contact">Contact</h2>
   <p>
-    {LEGAL.entityFull}<br />
+    {LEGAL.entity}<br />
+    <a href={LEGAL.entityUrl}>{LEGAL.entityHost}</a><br />
     {LEGAL.address}<br />
     <a href={`mailto:${LEGAL.supportEmail}`}>{LEGAL.supportEmail}</a>
   </p>
