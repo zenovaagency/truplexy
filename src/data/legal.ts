@@ -5,18 +5,21 @@ import { SITE } from './site';
  * PLACEHOLDER is a stand-in until the real value is confirmed — search the
  * repo for "PLACEHOLDER" before launch. The pages render these values as
  * written, so an unfilled one is visible on the page, not hidden.
+ *
+ * Zenova Agency is not a registered company yet. When it is, put the
+ * registered name and number in `entity`, the registered office in `address`,
+ * bump `updated`, and re-check the name on the Paddle account.
  */
 export const LEGAL = {
   /** The business that operates Truplexy and contracts with customers. */
   entity: 'Zenova Agency',
-  // PLACEHOLDER — registered legal name if it differs from the trading name
-  // (for example "Zenova Agency Ltd"), and the registration number.
-  entityFull: 'Zenova Agency [PLACEHOLDER: registered legal name and number]',
-  // PLACEHOLDER — registered postal address.
-  address: '[PLACEHOLDER: registered postal address]',
-  // PLACEHOLDER — country or state whose law governs the Terms and whose
-  // courts hear disputes, for example "England and Wales".
-  jurisdiction: '[PLACEHOLDER: governing law and courts]',
+  entityUrl: 'https://zenova.agency',
+  entityHost: 'zenova.agency',
+  /** City and country only: there is no registered office yet. */
+  address: 'Gazipur, Bangladesh',
+  /** Law that governs the Terms, and where disputes are heard. */
+  law: 'Bangladesh',
+  courts: 'Gazipur, Bangladesh',
   // PLACEHOLDER — real inbox. Falls back to the general contact address.
   privacyEmail: SITE.email,
   supportEmail: SITE.email,

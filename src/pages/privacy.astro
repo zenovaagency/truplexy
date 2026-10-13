@@ -44,7 +44,7 @@ const processors: [name: string, role: string, data: string][] = [
 >
   <h2 id="roles">Who we are</h2>
   <p>
-    Truplexy is operated by {LEGAL.entityFull}, {LEGAL.address} (“{LEGAL.entity}”, “we”, “us”). This notice covers this
+    Truplexy is operated by <a href={LEGAL.entityUrl}>{LEGAL.entity}</a>, based in {LEGAL.address} (“we”, “us”). This notice covers this
     website ({SITE.url}), the dashboard ({SITE.dashboardUrl}), the API and the chat widget. Our role depends on whose data it is:
   </p>
   <ul>
@@ -213,7 +213,8 @@ const processors: [name: string, role: string, data: string][] = [
 
   <h2 id="contact">Contact</h2>
   <p>
-    {LEGAL.entityFull}<br />
+    {LEGAL.entity}<br />
+    <a href={LEGAL.entityUrl}>{LEGAL.entityHost}</a><br />
     {LEGAL.address}<br />
     <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>
   </p>
