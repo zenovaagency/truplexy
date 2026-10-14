@@ -1,0 +1,1339 @@
+[
+  {
+    "scene": 1,
+    "show": 0.58,
+    "hide": 2.38,
+    "words": [
+      {
+        "text": "Your",
+        "start": 0.7,
+        "end": 0.82
+      },
+      {
+        "text": "customers",
+        "start": 0.92,
+        "end": 1.38
+      },
+      {
+        "text": "have",
+        "start": 1.42,
+        "end": 1.56
+      },
+      {
+        "text": "questions.",
+        "start": 1.6,
+        "end": 2.14
+      }
+    ]
+  },
+  {
+    "scene": 1,
+    "show": 2.4,
+    "hide": 4.12,
+    "words": [
+      {
+        "text": "Anytime.",
+        "start": 2.52,
+        "end": 3.1
+      },
+      {
+        "text": "Everywhere.",
+        "start": 3.4,
+        "end": 3.86
+      }
+    ]
+  },
+  {
+    "scene": 1,
+    "show": 4.14,
+    "hide": 5.1,
+    "words": [
+      {
+        "text": "On",
+        "start": 4.26,
+        "end": 4.36
+      },
+      {
+        "text": "your",
+        "start": 4.4,
+        "end": 4.5
+      },
+      {
+        "text": "website,",
+        "start": 4.519,
+        "end": 5.06
+      }
+    ]
+  },
+  {
+    "scene": 1,
+    "show": 5.12,
+    "hide": 7.08,
+    "words": [
+      {
+        "text": "on",
+        "start": 5.24,
+        "end": 5.34
+      },
+      {
+        "text": "WhatsApp,",
+        "start": 5.38,
+        "end": 5.9
+      },
+      {
+        "text": "on",
+        "start": 6.02,
+        "end": 6.1
+      },
+      {
+        "text": "Instagram…",
+        "start": 6.16,
+        "end": 6.76
+      }
+    ]
+  },
+  {
+    "scene": 1,
+    "show": 7.1,
+    "hide": 9.18,
+    "words": [
+      {
+        "text": "But",
+        "start": 7.22,
+        "end": 7.34
+      },
+      {
+        "text": "keeping",
+        "start": 7.38,
+        "end": 7.6
+      },
+      {
+        "text": "up",
+        "start": 7.66,
+        "end": 7.74
+      },
+      {
+        "text": "with",
+        "start": 7.76,
+        "end": 7.96
+      },
+      {
+        "text": "every",
+        "start": 8.06,
+        "end": 8.3
+      },
+      {
+        "text": "conversation,",
+        "start": 8.4,
+        "end": 9.14
+      }
+    ]
+  },
+  {
+    "scene": 1,
+    "show": 9.2,
+    "hide": 10.5,
+    "words": [
+      {
+        "text": "on",
+        "start": 9.32,
+        "end": 9.44
+      },
+      {
+        "text": "every",
+        "start": 9.7,
+        "end": 9.96
+      },
+      {
+        "text": "channel,",
+        "start": 10.08,
+        "end": 10.4
+      }
+    ]
+  },
+  {
+    "scene": 1,
+    "show": 10.52,
+    "hide": 11.61,
+    "words": [
+      {
+        "text": "isn't",
+        "start": 10.64,
+        "end": 10.86
+      },
+      {
+        "text": "easy.",
+        "start": 10.92,
+        "end": 11.26
+      }
+    ]
+  },
+  {
+    "scene": 2,
+    "show": 11.64,
+    "hide": 15.73,
+    "words": [
+      {
+        "text": "Too",
+        "start": 11.76,
+        "end": 11.92
+      },
+      {
+        "text": "often,",
+        "start": 12.06,
+        "end": 12.4
+      },
+      {
+        "text": "every",
+        "start": 12.64,
+        "end": 12.86
+      },
+      {
+        "text": "channel",
+        "start": 12.96,
+        "end": 13.24
+      },
+      {
+        "text": "becomes",
+        "start": 13.26,
+        "end": 13.56
+      },
+      {
+        "text": "another",
+        "start": 13.58,
+        "end": 13.92
+      },
+      {
+        "text": "disconnected",
+        "start": 13.94,
+        "end": 14.52
+      },
+      {
+        "text": "conversation.",
+        "start": 14.6,
+        "end": 15.38
+      }
+    ]
+  },
+  {
+    "scene": 2,
+    "show": 15.78,
+    "hide": 17.94,
+    "words": [
+      {
+        "text": "Same",
+        "start": 15.9,
+        "end": 16.08
+      },
+      {
+        "text": "customer,",
+        "start": 16.12,
+        "end": 16.62
+      },
+      {
+        "text": "new",
+        "start": 16.92,
+        "end": 17.08
+      },
+      {
+        "text": "inbox…",
+        "start": 17.12,
+        "end": 17.62
+      }
+    ]
+  },
+  {
+    "scene": 2,
+    "show": 17.96,
+    "hide": 19.499,
+    "words": [
+      {
+        "text": "and",
+        "start": 18.08,
+        "end": 18.16
+      },
+      {
+        "text": "they're",
+        "start": 18.18,
+        "end": 18.3
+      },
+      {
+        "text": "left",
+        "start": 18.34,
+        "end": 18.52
+      },
+      {
+        "text": "repeating",
+        "start": 18.56,
+        "end": 18.96
+      },
+      {
+        "text": "themselves,",
+        "start": 18.98,
+        "end": 19.48
+      }
+    ]
+  },
+  {
+    "scene": 2,
+    "show": 19.519,
+    "hide": 20.93,
+    "words": [
+      {
+        "text": "again",
+        "start": 19.639,
+        "end": 20.06
+      },
+      {
+        "text": "and",
+        "start": 20.08,
+        "end": 20.2
+      },
+      {
+        "text": "again.",
+        "start": 20.26,
+        "end": 20.58
+      }
+    ]
+  },
+  {
+    "scene": 3,
+    "show": 21.247,
+    "hide": 23.037,
+    "words": [
+      {
+        "text": "Meet",
+        "start": 21.367,
+        "end": 21.627
+      },
+      {
+        "text": "Truplexy!",
+        "start": 21.827,
+        "end": 22.687
+      }
+    ]
+  },
+  {
+    "scene": 3,
+    "show": 23.147,
+    "hide": 25.187,
+    "words": [
+      {
+        "text": "One",
+        "start": 23.267,
+        "end": 23.467
+      },
+      {
+        "text": "intelligent",
+        "start": 23.527,
+        "end": 24.047
+      },
+      {
+        "text": "conversation",
+        "start": 24.127,
+        "end": 24.707
+      },
+      {
+        "text": "layer —",
+        "start": 24.767,
+        "end": 25.007
+      }
+    ]
+  },
+  {
+    "scene": 3,
+    "show": 25.207,
+    "hide": 26.467,
+    "words": [
+      {
+        "text": "connecting",
+        "start": 25.327,
+        "end": 25.707
+      },
+      {
+        "text": "your",
+        "start": 25.727,
+        "end": 25.827
+      },
+      {
+        "text": "customers,",
+        "start": 25.867,
+        "end": 26.447
+      }
+    ]
+  },
+  {
+    "scene": 3,
+    "show": 26.487,
+    "hide": 28.147,
+    "words": [
+      {
+        "text": "your",
+        "start": 26.607,
+        "end": 26.767
+      },
+      {
+        "text": "AI,",
+        "start": 26.847,
+        "end": 27.187
+      },
+      {
+        "text": "and",
+        "start": 27.327,
+        "end": 27.507
+      },
+      {
+        "text": "your",
+        "start": 27.547,
+        "end": 27.667
+      },
+      {
+        "text": "team,",
+        "start": 27.707,
+        "end": 27.947
+      }
+    ]
+  },
+  {
+    "scene": 3,
+    "show": 28.167,
+    "hide": 30.217,
+    "words": [
+      {
+        "text": "on",
+        "start": 28.287,
+        "end": 28.447
+      },
+      {
+        "text": "every",
+        "start": 28.527,
+        "end": 28.687
+      },
+      {
+        "text": "channel",
+        "start": 28.807,
+        "end": 29.047
+      },
+      {
+        "text": "you",
+        "start": 29.087,
+        "end": 29.147
+      },
+      {
+        "text": "already",
+        "start": 29.206,
+        "end": 29.447
+      },
+      {
+        "text": "use.",
+        "start": 29.587,
+        "end": 29.867
+      }
+    ]
+  },
+  {
+    "scene": 4,
+    "show": 30.287,
+    "hide": 32.707,
+    "words": [
+      {
+        "text": "From",
+        "start": 30.407,
+        "end": 30.547
+      },
+      {
+        "text": "your",
+        "start": 30.587,
+        "end": 30.667
+      },
+      {
+        "text": "website",
+        "start": 30.747,
+        "end": 31.267
+      },
+      {
+        "text": "to",
+        "start": 31.267,
+        "end": 31.387
+      },
+      {
+        "text": "your",
+        "start": 31.427,
+        "end": 31.527
+      },
+      {
+        "text": "messaging",
+        "start": 31.567,
+        "end": 31.927
+      },
+      {
+        "text": "channels,",
+        "start": 32.007,
+        "end": 32.447
+      }
+    ]
+  },
+  {
+    "scene": 4,
+    "show": 32.727,
+    "hide": 35.397,
+    "words": [
+      {
+        "text": "Truplexy",
+        "start": 32.847,
+        "end": 33.407
+      },
+      {
+        "text": "keeps",
+        "start": 33.567,
+        "end": 33.787
+      },
+      {
+        "text": "the",
+        "start": 33.827,
+        "end": 33.907
+      },
+      {
+        "text": "conversation",
+        "start": 33.947,
+        "end": 34.507
+      },
+      {
+        "text": "connected.",
+        "start": 34.567,
+        "end": 35.047
+      }
+    ]
+  },
+  {
+    "scene": 4,
+    "show": 35.427,
+    "hide": 37.307,
+    "words": [
+      {
+        "text": "Ask",
+        "start": 35.547,
+        "end": 35.707
+      },
+      {
+        "text": "on",
+        "start": 35.747,
+        "end": 35.847
+      },
+      {
+        "text": "your",
+        "start": 35.867,
+        "end": 35.967
+      },
+      {
+        "text": "website",
+        "start": 36.007,
+        "end": 36.367
+      },
+      {
+        "text": "on",
+        "start": 36.407,
+        "end": 36.547
+      },
+      {
+        "text": "Tuesday,",
+        "start": 36.587,
+        "end": 37.047
+      }
+    ]
+  },
+  {
+    "scene": 4,
+    "show": 37.327,
+    "hide": 39.267,
+    "words": [
+      {
+        "text": "pick",
+        "start": 37.447,
+        "end": 37.547
+      },
+      {
+        "text": "it",
+        "start": 37.587,
+        "end": 37.627
+      },
+      {
+        "text": "up",
+        "start": 37.687,
+        "end": 37.767
+      },
+      {
+        "text": "on",
+        "start": 37.807,
+        "end": 37.907
+      },
+      {
+        "text": "Telegram",
+        "start": 37.967,
+        "end": 38.367
+      },
+      {
+        "text": "on",
+        "start": 38.407,
+        "end": 38.507
+      },
+      {
+        "text": "Wednesday,",
+        "start": 38.547,
+        "end": 39.027
+      }
+    ]
+  },
+  {
+    "scene": 4,
+    "show": 39.287,
+    "hide": 41.267,
+    "words": [
+      {
+        "text": "and",
+        "start": 39.407,
+        "end": 39.527
+      },
+      {
+        "text": "nobody",
+        "start": 39.627,
+        "end": 40.047
+      },
+      {
+        "text": "has",
+        "start": 40.087,
+        "end": 40.287
+      },
+      {
+        "text": "to",
+        "start": 40.327,
+        "end": 40.387
+      },
+      {
+        "text": "start",
+        "start": 40.467,
+        "end": 40.647
+      },
+      {
+        "text": "over.",
+        "start": 40.727,
+        "end": 40.947
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 41.287,
+    "hide": 43.687,
+    "words": [
+      {
+        "text": "From",
+        "start": 41.407,
+        "end": 41.527
+      },
+      {
+        "text": "product",
+        "start": 41.607,
+        "end": 41.987
+      },
+      {
+        "text": "questions",
+        "start": 42.067,
+        "end": 42.547
+      },
+      {
+        "text": "to",
+        "start": 42.587,
+        "end": 42.707
+      },
+      {
+        "text": "order",
+        "start": 42.747,
+        "end": 42.947
+      },
+      {
+        "text": "updates,",
+        "start": 43.007,
+        "end": 43.407
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 43.707,
+    "hide": 45.527,
+    "words": [
+      {
+        "text": "Truplexy",
+        "start": 43.827,
+        "end": 44.427
+      },
+      {
+        "text": "delivers",
+        "start": 44.487,
+        "end": 44.887
+      },
+      {
+        "text": "helpful,",
+        "start": 44.967,
+        "end": 45.367
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 45.547,
+    "hide": 47.897,
+    "words": [
+      {
+        "text": "human-like",
+        "start": 45.667,
+        "end": 46.127
+      },
+      {
+        "text": "responses",
+        "start": 46.167,
+        "end": 46.747
+      },
+      {
+        "text": "right",
+        "start": 47.027,
+        "end": 47.207
+      },
+      {
+        "text": "away.",
+        "start": 47.267,
+        "end": 47.547
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 48.067,
+    "hide": 49.607,
+    "words": [
+      {
+        "text": "Is",
+        "start": 48.187,
+        "end": 48.267
+      },
+      {
+        "text": "this",
+        "start": 48.307,
+        "end": 48.467
+      },
+      {
+        "text": "jacket",
+        "start": 48.507,
+        "end": 48.767
+      },
+      {
+        "text": "in",
+        "start": 48.807,
+        "end": 48.887
+      },
+      {
+        "text": "black?",
+        "start": 48.927,
+        "end": 49.287
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 49.627,
+    "hide": 50.797,
+    "words": [
+      {
+        "text": "Where's",
+        "start": 49.747,
+        "end": 49.927
+      },
+      {
+        "text": "my",
+        "start": 49.967,
+        "end": 50.087
+      },
+      {
+        "text": "order?",
+        "start": 50.147,
+        "end": 50.447
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 50.867,
+    "hide": 51.687,
+    "words": [
+      {
+        "text": "Answered.",
+        "start": 50.987,
+        "end": 51.387
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 51.707,
+    "hide": 53.767,
+    "words": [
+      {
+        "text": "And",
+        "start": 51.827,
+        "end": 51.927
+      },
+      {
+        "text": "when",
+        "start": 51.967,
+        "end": 52.087
+      },
+      {
+        "text": "your",
+        "start": 52.147,
+        "end": 52.287
+      },
+      {
+        "text": "team",
+        "start": 52.327,
+        "end": 52.487
+      },
+      {
+        "text": "logs",
+        "start": 52.567,
+        "end": 52.827
+      },
+      {
+        "text": "off",
+        "start": 52.887,
+        "end": 53.007
+      },
+      {
+        "text": "for",
+        "start": 53.027,
+        "end": 53.107
+      },
+      {
+        "text": "the",
+        "start": 53.147,
+        "end": 53.187
+      },
+      {
+        "text": "night,",
+        "start": 53.247,
+        "end": 53.487
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 53.787,
+    "hide": 55.387,
+    "words": [
+      {
+        "text": "Truplexy",
+        "start": 53.907,
+        "end": 54.507
+      },
+      {
+        "text": "keeps",
+        "start": 54.667,
+        "end": 54.947
+      },
+      {
+        "text": "going,",
+        "start": 54.967,
+        "end": 55.287
+      }
+    ]
+  },
+  {
+    "scene": 5,
+    "show": 55.407,
+    "hide": 57.996,
+    "words": [
+      {
+        "text": "so",
+        "start": 55.527,
+        "end": 55.627
+      },
+      {
+        "text": "customers",
+        "start": 55.667,
+        "end": 56.067
+      },
+      {
+        "text": "get",
+        "start": 56.107,
+        "end": 56.207
+      },
+      {
+        "text": "answers",
+        "start": 56.247,
+        "end": 56.607
+      },
+      {
+        "text": "24/7.",
+        "start": 56.667,
+        "end": 57.646
+      }
+    ]
+  },
+  {
+    "scene": 6,
+    "show": 58.267,
+    "hide": 60.167,
+    "words": [
+      {
+        "text": "With",
+        "start": 58.387,
+        "end": 58.487
+      },
+      {
+        "text": "your",
+        "start": 58.527,
+        "end": 58.607
+      },
+      {
+        "text": "business",
+        "start": 58.687,
+        "end": 58.987
+      },
+      {
+        "text": "knowledge",
+        "start": 59.047,
+        "end": 59.347
+      },
+      {
+        "text": "behind",
+        "start": 59.427,
+        "end": 59.747
+      },
+      {
+        "text": "it,",
+        "start": 59.787,
+        "end": 59.927
+      }
+    ]
+  },
+  {
+    "scene": 6,
+    "show": 60.187,
+    "hide": 62.347,
+    "words": [
+      {
+        "text": "Truplexy",
+        "start": 60.307,
+        "end": 60.807
+      },
+      {
+        "text": "gives",
+        "start": 60.887,
+        "end": 61.047
+      },
+      {
+        "text": "customers",
+        "start": 61.087,
+        "end": 61.467
+      },
+      {
+        "text": "relevant",
+        "start": 61.627,
+        "end": 61.987
+      },
+      {
+        "text": "answers",
+        "start": 62.067,
+        "end": 62.447
+      }
+    ]
+  },
+  {
+    "scene": 6,
+    "show": 62.367,
+    "hide": 64.907,
+    "words": [
+      {
+        "text": "that",
+        "start": 62.487,
+        "end": 62.567
+      },
+      {
+        "text": "reflect",
+        "start": 62.607,
+        "end": 62.947
+      },
+      {
+        "text": "how",
+        "start": 62.987,
+        "end": 63.107
+      },
+      {
+        "text": "your",
+        "start": 63.127,
+        "end": 63.247
+      },
+      {
+        "text": "business",
+        "start": 63.287,
+        "end": 63.667
+      },
+      {
+        "text": "actually",
+        "start": 63.767,
+        "end": 64.167
+      },
+      {
+        "text": "works.",
+        "start": 64.207,
+        "end": 64.587
+      }
+    ]
+  },
+  {
+    "scene": 6,
+    "show": 64.927,
+    "hide": 66.847,
+    "words": [
+      {
+        "text": "Your",
+        "start": 65.047,
+        "end": 65.167
+      },
+      {
+        "text": "policies,",
+        "start": 65.207,
+        "end": 65.827
+      },
+      {
+        "text": "your",
+        "start": 65.967,
+        "end": 66.047
+      },
+      {
+        "text": "products,",
+        "start": 66.147,
+        "end": 66.627
+      }
+    ]
+  },
+  {
+    "scene": 6,
+    "show": 66.867,
+    "hide": 69.517,
+    "words": [
+      {
+        "text": "your",
+        "start": 66.987,
+        "end": 67.107
+      },
+      {
+        "text": "FAQs,",
+        "start": 67.247,
+        "end": 67.947
+      },
+      {
+        "text": "with",
+        "start": 67.987,
+        "end": 68.087
+      },
+      {
+        "text": "the",
+        "start": 68.127,
+        "end": 68.227
+      },
+      {
+        "text": "source",
+        "start": 68.307,
+        "end": 68.587
+      },
+      {
+        "text": "right",
+        "start": 68.727,
+        "end": 68.907
+      },
+      {
+        "text": "there.",
+        "start": 68.947,
+        "end": 69.167
+      }
+    ]
+  },
+  {
+    "scene": 7,
+    "show": 69.553,
+    "hide": 71.313,
+    "words": [
+      {
+        "text": "And",
+        "start": 69.673,
+        "end": 69.773
+      },
+      {
+        "text": "when",
+        "start": 69.813,
+        "end": 69.893
+      },
+      {
+        "text": "a",
+        "start": 69.953,
+        "end": 70.013
+      },
+      {
+        "text": "human",
+        "start": 70.073,
+        "end": 70.313
+      },
+      {
+        "text": "touch",
+        "start": 70.413,
+        "end": 70.633
+      },
+      {
+        "text": "matters,",
+        "start": 70.773,
+        "end": 71.213
+      }
+    ]
+  },
+  {
+    "scene": 7,
+    "show": 71.333,
+    "hide": 73.133,
+    "words": [
+      {
+        "text": "Truplexy",
+        "start": 71.453,
+        "end": 72.033
+      },
+      {
+        "text": "brings",
+        "start": 72.133,
+        "end": 72.333
+      },
+      {
+        "text": "your",
+        "start": 72.373,
+        "end": 72.473
+      },
+      {
+        "text": "team",
+        "start": 72.533,
+        "end": 72.713
+      },
+      {
+        "text": "in,",
+        "start": 72.793,
+        "end": 72.933
+      }
+    ]
+  },
+  {
+    "scene": 7,
+    "show": 73.153,
+    "hide": 76.303,
+    "words": [
+      {
+        "text": "with",
+        "start": 73.273,
+        "end": 73.353
+      },
+      {
+        "text": "the",
+        "start": 73.393,
+        "end": 73.473
+      },
+      {
+        "text": "conversation",
+        "start": 73.533,
+        "end": 74.373
+      },
+      {
+        "text": "and",
+        "start": 74.413,
+        "end": 74.513
+      },
+      {
+        "text": "context",
+        "start": 74.633,
+        "end": 75.213
+      },
+      {
+        "text": "already",
+        "start": 75.353,
+        "end": 75.693
+      },
+      {
+        "text": "there.",
+        "start": 75.733,
+        "end": 75.953
+      }
+    ]
+  },
+  {
+    "scene": 7,
+    "show": 76.393,
+    "hide": 77.512,
+    "words": [
+      {
+        "text": "No",
+        "start": 76.513,
+        "end": 76.653
+      },
+      {
+        "text": "repeating.",
+        "start": 76.693,
+        "end": 77.193
+      }
+    ]
+  },
+  {
+    "scene": 7,
+    "show": 77.532,
+    "hide": 78.793,
+    "words": [
+      {
+        "text": "No",
+        "start": 77.652,
+        "end": 77.793
+      },
+      {
+        "text": "starting",
+        "start": 77.933,
+        "end": 78.213
+      },
+      {
+        "text": "over.",
+        "start": 78.293,
+        "end": 78.553
+      }
+    ]
+  },
+  {
+    "scene": 7,
+    "show": 78.813,
+    "hide": 80.343,
+    "words": [
+      {
+        "text": "Just",
+        "start": 78.933,
+        "end": 79.193
+      },
+      {
+        "text": "real",
+        "start": 79.373,
+        "end": 79.593
+      },
+      {
+        "text": "help.",
+        "start": 79.713,
+        "end": 79.993
+      }
+    ]
+  },
+  {
+    "scene": 8,
+    "show": 80.52,
+    "hide": 81.9,
+    "words": [
+      {
+        "text": "One",
+        "start": 80.64,
+        "end": 80.78
+      },
+      {
+        "text": "conversation.",
+        "start": 80.88,
+        "end": 81.56
+      }
+    ]
+  },
+  {
+    "scene": 8,
+    "show": 81.92,
+    "hide": 82.82,
+    "words": [
+      {
+        "text": "Everywhere.",
+        "start": 82.04,
+        "end": 82.48
+      }
+    ]
+  },
+  {
+    "scene": 8,
+    "show": 82.84,
+    "hide": 83.89,
+    "words": [
+      {
+        "text": "Truplexy.",
+        "start": 82.96,
+        "end": 83.54
+      }
+    ]
+  },
+  {
+    "scene": 8,
+    "show": 83.96,
+    "hide": 86.02,
+    "words": [
+      {
+        "text": "Customer",
+        "start": 84.08,
+        "end": 84.44
+      },
+      {
+        "text": "support",
+        "start": 84.52,
+        "end": 84.86
+      },
+      {
+        "text": "that",
+        "start": 84.88,
+        "end": 85
+      },
+      {
+        "text": "feels",
+        "start": 85.04,
+        "end": 85.26
+      },
+      {
+        "text": "connected.",
+        "start": 85.28,
+        "end": 85.76
+      }
+    ]
+  },
+  {
+    "scene": 8,
+    "show": 86.04,
+    "hide": 87.63,
+    "words": [
+      {
+        "text": "Start",
+        "start": 86.16,
+        "end": 86.34
+      },
+      {
+        "text": "your",
+        "start": 86.38,
+        "end": 86.44
+      },
+      {
+        "text": "free",
+        "start": 86.5,
+        "end": 86.64
+      },
+      {
+        "text": "trial",
+        "start": 86.68,
+        "end": 86.94
+      },
+      {
+        "text": "today!",
+        "start": 86.98,
+        "end": 87.28
+      }
+    ]
+  }
+]

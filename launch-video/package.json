@@ -1,0 +1,27 @@
+{
+  "name": "truplexy-launch-video",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Truplexy launch film, built with Remotion.",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "still": "remotion still",
+    "render": "remotion render TruplexyLaunch renders/truplexy-launch-final.mp4",
+    "render:clean": "remotion render TruplexyLaunchClean renders/truplexy-launch-clean.mp4",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.535",
+    "@remotion/fonts": "4.0.535",
+    "@remotion/media": "4.0.535",
+    "lucide-react": "^1.49.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remotion": "4.0.535"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "typescript": "^5.9.3"
+  }
+}
