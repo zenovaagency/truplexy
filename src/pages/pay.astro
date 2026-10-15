@@ -4,11 +4,16 @@ import Button from '../components/ui/Button.astro';
 import { SITE } from '../data/site';
 
 /**
- * Paddle's default payment link. Paddle sends customers here with
- * `?_ptxn=txn_…`, and the API's transactions point at it. Paddle.js opens the
- * checkout for that transaction by itself once it is initialized. Paddle also
- * requires the page to load Paddle.js and to sit on an approved domain
- * (Paddle > Checkout > Checkout settings and Website approval).
+ * Paddle's default payment link, shown as an inline checkout. Paddle sends
+ * customers here with `?_ptxn=txn_…`, and the API's transactions point at it.
+ * Paddle.js sees `_ptxn` on its own and opens that transaction in the frame
+ * below (`#checkout-frame`), using the inline settings passed to `Initialize`.
+ * Paddle also requires the page to load Paddle.js and to sit on an approved
+ * domain (Paddle > Checkout > Checkout settings and Website approval).
+ *
+ * Inline checkout only renders the frame (email, country, payment details).
+ * The page has to show what is being bought and the totals, so the summary
+ * beside the frame is filled from Paddle.js's checkout events.
  *
  * The dashboard sends customers here to pay (it cannot open checkouts itself:
  * it is a sign-in-only app on a domain Paddle has not approved). When they
@@ -27,17 +32,53 @@ const successUrl = `${billingUrl}?paid=1`;
 <Base title="Checkout — Truplexy" noindex>
   <main id="main" class="relative overflow-hidden">
     <div class="aurora" aria-hidden="true"></div>
-    <section
-      class="container-t relative flex min-h-[100dvh] flex-col items-center justify-center py-20 text-center"
-    >
-      <p class="eyebrow">Secure checkout</p>
-      <h1 id="pay-title" class="display mt-5 max-w-[18ch] text-balance text-[clamp(2rem,1.5rem+2.4vw,3.25rem)]">
-        Opening your checkout…
-      </h1>
-      <p id="pay-note" class="lede mt-5 max-w-[480px] text-pretty" aria-live="polite">
-        Payments are handled by Paddle, our merchant of record. If nothing opens, allow scripts from paddle.com and reload.
-      </p>
-      <div class="mt-9">
+    <section class="container-t pay relative py-16 md:py-24">
+      <header class="pay-head">
+        <p class="eyebrow">Secure checkout</p>
+        <h1 id="pay-title" class="display mt-4 text-balance text-[clamp(1.75rem,1.3rem+2vw,2.75rem)]">
+          Opening your checkout…
+        </h1>
+        <p id="pay-note" class="lede mt-4 max-w-[520px] text-pretty" aria-live="polite">
+          Payments are handled by Paddle, our merchant of record. If nothing opens, allow scripts from paddle.com and reload.
+        </p>
+      </header>
+
+      <div class="pay-grid mt-10">
+        <aside class="pay-summary" aria-labelledby="pay-summary-title" hidden>
+          <h2 id="pay-summary-title" class="pay-summary-title">Order summary</h2>
+          <ul id="pay-items" class="pay-items"></ul>
+          <p id="pay-trial" class="pay-trial" hidden></p>
+          <dl class="pay-totals">
+            <div class="pay-row" id="pay-row-discount" hidden>
+              <dt>Discount</dt>
+              <dd id="pay-discount"></dd>
+            </div>
+            <div class="pay-row">
+              <dt>Subtotal</dt>
+              <dd id="pay-subtotal"></dd>
+            </div>
+            <div class="pay-row">
+              <dt>Tax</dt>
+              <dd id="pay-tax"></dd>
+            </div>
+            <div class="pay-row pay-row-total">
+              <dt>Total due today</dt>
+              <dd id="pay-total"></dd>
+            </div>
+          </dl>
+          <p id="pay-recurring" class="pay-recurring" hidden></p>
+          <p class="pay-fine">
+            Tax is calculated from your country. See our <a href="/refunds">refund policy</a>.
+          </p>
+        </aside>
+
+        <div class="pay-frame-wrap">
+          <!-- Paddle.js mounts the checkout frame into this element. -->
+          <div id="checkout-frame" class="checkout-container"></div>
+        </div>
+      </div>
+
+      <div class="mt-10">
         <Button href={billingUrl} variant="ghost" arrow={false}>Back to billing</Button>
       </div>
     </section>
@@ -48,10 +89,15 @@ const successUrl = `${billingUrl}?paid=1`;
     (function () {
       var title = document.getElementById('pay-title');
       var note = document.getElementById('pay-note');
+      var summary = document.querySelector('.pay-summary');
+      var grid = document.querySelector('.pay-grid');
+
       function fail(heading, text) {
         title.textContent = heading;
         note.textContent = text;
+        grid.hidden = true;
       }
+
       var txn = new URLSearchParams(location.search).get('_ptxn');
       if (!txn) {
         fail('No checkout to open', 'Start from the billing page in your dashboard, and choose a plan.');
@@ -65,23 +111,267 @@ const successUrl = `${billingUrl}?paid=1`;
         fail('Checkout could not load', 'Paddle’s script was blocked. Allow scripts from paddle.com and reload this page.');
         return;
       }
+
+      var currency = 'USD';
+      function money(n) {
+        try {
+          return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency }).format(Number(n) || 0);
+        } catch (e) {
+          return (Number(n) || 0).toFixed(2) + ' ' + currency;
+        }
+      }
+      function setText(id, text) {
+        document.getElementById(id).textContent = text;
+      }
+      function unit(interval, count) {
+        return count === 1 ? interval : interval + 's';
+      }
+      function cycle(c) {
+        if (!c) return '';
+        return c.frequency === 1 ? 'every ' + c.interval : 'every ' + c.frequency + ' ' + unit(c.interval, c.frequency);
+      }
+
+      // Fills the summary beside the frame. Paddle sends fresh totals on load and whenever the
+      // customer's country or postal code changes the tax.
+      function render(data) {
+        if (!data) return;
+        currency = data.currency_code || currency;
+        var items = data.items || [];
+        var list = document.getElementById('pay-items');
+        list.textContent = '';
+        var trial = null;
+        var recurring = false;
+        items.forEach(function (it) {
+          var li = document.createElement('li');
+          li.className = 'pay-item';
+          var name = document.createElement('span');
+          name.className = 'pay-item-name';
+          var product = it.product && it.product.name ? it.product.name : '';
+          name.textContent = product || it.price_name || 'Truplexy';
+          var detail = document.createElement('span');
+          detail.className = 'pay-item-detail';
+          var bits = [];
+          if (it.price_name && it.price_name !== product) bits.push(it.price_name);
+          if (it.quantity > 1) bits.push('× ' + it.quantity);
+          if (it.billing_cycle) {
+            recurring = true;
+            bits.push('billed ' + cycle(it.billing_cycle));
+          }
+          detail.textContent = bits.join(' · ');
+          var amount = document.createElement('span');
+          amount.className = 'pay-item-amount';
+          amount.textContent = money(it.totals ? it.totals.subtotal : 0);
+          var left = document.createElement('span');
+          left.className = 'pay-item-text';
+          left.appendChild(name);
+          if (bits.length) left.appendChild(detail);
+          li.appendChild(left);
+          li.appendChild(amount);
+          list.appendChild(li);
+          if (it.trial_period && !trial) trial = it.trial_period;
+        });
+
+        var totals = data.totals || {};
+        var discount = Number(totals.discount) || 0;
+        document.getElementById('pay-row-discount').hidden = discount <= 0;
+        if (discount > 0) setText('pay-discount', '−' + money(discount));
+        setText('pay-subtotal', money(totals.subtotal));
+        setText('pay-tax', money(totals.tax));
+        setText('pay-total', money(totals.total));
+
+        var trialEl = document.getElementById('pay-trial');
+        var recurringEl = document.getElementById('pay-recurring');
+        if (trial) {
+          trialEl.hidden = false;
+          trialEl.textContent =
+            'Your ' + trial.frequency + '-' + trial.interval + ' free trial starts now. You won’t be charged until it ends, and you can cancel before then.';
+        } else {
+          trialEl.hidden = true;
+        }
+        var rt = data.recurring_totals;
+        if (recurring && rt && items[0] && items[0].billing_cycle) {
+          recurringEl.hidden = false;
+          recurringEl.textContent = 'Then ' + money(rt.total) + ' ' + cycle(items[0].billing_cycle) + ', including tax. Cancel any time.';
+        } else {
+          recurringEl.hidden = true;
+        }
+        summary.hidden = false;
+      }
+
       if (environment === 'sandbox') window.Paddle.Environment.set('sandbox');
       window.Paddle.Initialize({
         token: token,
-        // Paddle sends the customer back to the billing page when they finish.
-        checkout: { settings: { successUrl: successUrl } },
+        checkout: {
+          settings: {
+            // Paddle.js opens the `_ptxn` transaction itself, with these settings.
+            displayMode: 'inline',
+            variant: 'one-page',
+            theme: 'light',
+            frameTarget: 'checkout-frame',
+            frameInitialHeight: 520,
+            frameStyle: 'width: 100%; min-width: 312px; background-color: transparent; border: none;',
+            // Paddle sends the customer back to the billing page when they finish.
+            successUrl: successUrl,
+          },
+        },
         eventCallback: function (e) {
-          if (e.name === 'checkout.completed') {
+          if (!e || !e.name) return;
+          if (e.name === 'checkout.loaded') {
+            title.textContent = 'Complete your purchase';
+            note.textContent = 'Enter your details below. Payments are handled by Paddle, our merchant of record.';
+            render(e.data);
+          } else if (e.name === 'checkout.items.updated' || e.name === 'checkout.customer.updated' || e.name === 'checkout.discount.applied' || e.name === 'checkout.discount.removed') {
+            render(e.data);
+          } else if (e.name === 'checkout.completed') {
             title.textContent = 'Thank you';
             note.textContent = 'Your payment went through. Taking you back to billing…';
             // Paddle redirects by itself; this only covers a redirect that doesn't happen.
             setTimeout(function () { location.assign(successUrl); }, 4000);
-          } else if (e.name === 'checkout.closed') {
-            title.textContent = 'Checkout closed';
-            note.textContent = 'You can reopen it from the billing page in your dashboard.';
+          } else if (e.name === 'checkout.error' || e.name === 'checkout.failed') {
+            title.textContent = 'Checkout ran into a problem';
+            note.textContent = 'Nothing was charged. Reload to try again, or start again from the billing page.';
           }
         },
       });
     })();
   </script>
+
+  <style>
+    .pay-head {
+      max-width: 640px;
+    }
+    .pay-grid {
+      display: grid;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (min-width: 900px) {
+      .pay-grid {
+        grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+        gap: 40px;
+      }
+      .pay-summary {
+        position: sticky;
+        top: 96px;
+      }
+    }
+    .pay-grid[hidden],
+    .pay-summary[hidden] {
+      display: none;
+    }
+    /* Keep the layout stable while the summary waits for its first totals. */
+    .pay-frame-wrap {
+      grid-column: 1 / -1;
+    }
+    @media (min-width: 900px) {
+      .pay-frame-wrap {
+        grid-column: 2;
+        grid-row: 1;
+      }
+    }
+    .pay-frame-wrap,
+    .pay-summary {
+      background: var(--color-surface);
+      border: 1px solid var(--color-line);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 1px 2px rgb(14 18 34 / 0.04), 0 24px 48px -28px rgb(35 56 230 / 0.28);
+    }
+    .pay-frame-wrap {
+      padding: clamp(12px, 2.5vw, 24px);
+      min-height: 200px;
+    }
+    .checkout-container {
+      width: 100%;
+    }
+    .pay-summary {
+      padding: 24px;
+      text-align: left;
+      color: var(--color-ink);
+    }
+    .pay-summary-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-ink-faint);
+    }
+    .pay-items {
+      list-style: none;
+      margin: 16px 0 0;
+      padding: 0 0 16px;
+      border-bottom: 1px solid var(--color-line);
+      display: grid;
+      gap: 14px;
+    }
+    .pay-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .pay-item-text {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .pay-item-name {
+      font-weight: 600;
+    }
+    .pay-item-detail {
+      font-size: 0.875rem;
+      color: var(--color-ink-muted);
+    }
+    .pay-item-amount {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .pay-trial {
+      margin: 16px 0 0;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--color-accent-soft);
+      color: var(--color-accent);
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+    .pay-totals {
+      margin: 16px 0 0;
+      display: grid;
+      gap: 10px;
+    }
+    .pay-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      color: var(--color-ink-muted);
+    }
+    .pay-row[hidden] {
+      display: none;
+    }
+    .pay-row dd {
+      margin: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .pay-row-total {
+      padding-top: 12px;
+      border-top: 1px solid var(--color-line);
+      font-weight: 700;
+      font-size: 1.0625rem;
+      color: var(--color-ink);
+    }
+    .pay-recurring {
+      margin: 12px 0 0;
+      font-size: 0.875rem;
+      color: var(--color-ink-muted);
+    }
+    .pay-fine {
+      margin: 16px 0 0;
+      font-size: 0.8125rem;
+      color: var(--color-ink-faint);
+    }
+    .pay-fine a {
+      color: var(--color-accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+  </style>
 </Base>
