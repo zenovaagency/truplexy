@@ -1017,6 +1017,7 @@ function workspaceOut(c: Ctx) {
   const type = BUSINESS_TYPES.find((t) => t.id === c.tenant.business_type)!;
   return {
     name: ws.name,
+    modelSelection: c.db.modelSelection ?? 'business',
     bot: publicBot(ws.bot),
     revision: ws.revision,
     updated_at: ws.updated_at,
@@ -1036,10 +1037,11 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   str(bot.name, 'bot.name', 1, 80);
   if (bot.temperature !== undefined && (bot.temperature < 0 || bot.temperature > 2)) throw invalid('temperature must be 0–2.');
   if (bot.topK !== undefined && (bot.topK < 1 || bot.topK > 20)) throw invalid('topK must be 1–20.');
+  const platformPicks = c.db.modelSelection === 'platform';
   const model = bot.model ? c.db.models.find((m) => m.id === bot.model) : c.db.models.find((m) => m.is_default);
-  if (bot.model && (!model || (model.status !== 'active' && bot.model !== ws.bot.model))) throw err(400, 'MODEL_NOT_ALLOWED', `${bot.model} isn't offered.`);
+  if (!platformPicks && bot.model && (!model || (model.status !== 'active' && bot.model !== ws.bot.model))) throw err(400, 'MODEL_NOT_ALLOWED', `${bot.model} isn't offered.`);
   if (bot.maxTokens !== undefined && (bot.maxTokens < 1 || bot.maxTokens > 32768)) throw invalid('maxTokens must be 1–32768.');
-  if (bot.toolsEnabled && model && !model.supports_tools) throw err(400, 'MODEL_NOT_ALLOWED', `${model.label} can't call tools. Turn tools off or pick another model.`);
+  if (!platformPicks && bot.toolsEnabled && model && !model.supports_tools) throw err(400, 'MODEL_NOT_ALLOWED', `${model.label} can't call tools. Turn tools off or pick another model.`);
   if ((bot.tools ?? []).length > 20) throw invalid('At most 20 tools.');
   if (bot.webSearch !== undefined) {
     const w = bot.webSearch;
@@ -1060,6 +1062,14 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   // Prompt fields in the request are ignored: the bot keeps its business type's prompt.
   const { promptTemplateId, promptVariables, prompt } = ws.bot;
   const next: MockBotConfig = { ...publicBot(bot), promptTemplateId, promptVariables, prompt };
+  if (platformPicks) {
+    // The server drops what the platform decides instead of rejecting it; `model` stays as saved.
+    next.model = ws.bot.model;
+    if (next.routing) {
+      const { maxRequestCostUsd, maxAttempts } = next.routing;
+      next.routing = { ...(maxRequestCostUsd !== undefined && { maxRequestCostUsd }), ...(maxAttempts !== undefined && { maxAttempts }) };
+    }
+  }
   const changed = JSON.stringify(next) !== JSON.stringify(ws.bot);
   ws.name = name;
   ws.bot = next;
@@ -1073,8 +1083,10 @@ route('PUT', '/workspace', 'bot.write', (c) => {
 
 route('GET', '/models', 'bot.read', (c) => {
   const current = workspaceOf(c).bot.model;
+  const selection = c.db.modelSelection ?? 'business';
   return {
-    models: c.db.models
+    selection,
+    models: selection === 'platform' ? [] : c.db.models
       .filter((m) => m.status === 'active' || m.id === current)
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((m) => ({

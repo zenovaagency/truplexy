@@ -36,22 +36,23 @@ interface Row {
 
 /** Model usage for this bot: every listed model, with what it costs. */
 export default function UsageTab() {
-  const { ws } = useBotDraft();
+  const { ws, modelSelection } = useBotDraft();
+  const business = modelSelection === 'business';
   const [days, setDays] = useStoredState<Days>('truplexy.llm.days', '30');
   const [metric, setMetric] = useState<Metric>('estimated_cost');
   const range = useMemo(() => dayRange(Number(days)), [days]);
   const usage = useUsageSummary(range);
-  const models = useModels();
+  const models = useModels(business);
   const u = usage.data;
 
-  const savedModel = ws.bot.model || models.data?.find((m) => m.is_default)?.id;
+  const savedModel = business ? ws.bot.model || models.data?.find((m) => m.is_default)?.id : undefined;
 
   const { rows, otherRequests } = useMemo(() => {
-    if (!u || !models.data) return { rows: [] as Row[], otherRequests: 0 };
+    if (!u || (business && !models.data)) return { rows: [] as Row[], otherRequests: 0 };
     const used = new Map(u.by_model.map((m) => [m.model, m]));
     const reported = u.by_model.reduce((s, m) => s + m.requests, 0);
     const other = Math.max(0, u.requests - reported);
-    const out: Row[] = models.data.map((m) => {
+    const out: Row[] = (models.data ?? []).map((m) => {
       const x = used.get(m.id);
       used.delete(m.id);
       return {
@@ -74,7 +75,7 @@ export default function UsageTab() {
     }
     out.sort((a, b) => (b.requests ?? -1) - (a.requests ?? -1));
     return { rows: out, otherRequests: other };
-  }, [u, models.data, savedModel]);
+  }, [u, models.data, savedModel, business]);
 
   const columns: Column<Row>[] = [
     {
@@ -85,7 +86,7 @@ export default function UsageTab() {
           <span className="flex flex-wrap items-center gap-1.5 font-semibold text-ink">
             {r.label}
             {r.current && <Badge tone="accent">In use</Badge>}
-            {!r.listed && <Badge tone="outline">Removed</Badge>}
+            {business && !r.listed && <Badge tone="outline">Removed</Badge>}
             {r.listed && !r.offered && <Badge tone="warn">No longer offered</Badge>}
           </span>
           <span className="truncate font-mono text-[0.68rem] text-ink-faint">{r.id}</span>
@@ -112,19 +113,24 @@ export default function UsageTab() {
     { key: 'tokens', header: 'Tokens', align: 'right', hideBelowLg: true, cell: (r) => <Num v={r.tokens} f={formatCompact} /> },
     { key: 'cost', header: 'Cost', align: 'right', cell: (r) => <Num v={r.cost} f={formatCurrency} /> },
     { key: 'latency', header: 'Avg latency', align: 'right', hideBelowLg: true, cell: (r) => <Num v={r.latency} f={formatMs} /> },
-    {
-      key: 'price',
-      header: 'Price in / out',
-      align: 'right',
-      cell: (r) =>
-        r.price ? (
-          <span className="whitespace-nowrap text-xs tabular-nums text-ink-muted">
-            {formatPerM(r.price.in)} / {formatPerM(r.price.out)}
-          </span>
-        ) : (
-          <span className="text-xs text-ink-faint">—</span>
-        ),
-    },
+    // Prices come from the catalog a business chooses from; under platform selection there isn't one.
+    ...(business
+      ? [
+          {
+            key: 'price',
+            header: 'Price in / out',
+            align: 'right' as const,
+            cell: (r: Row) =>
+              r.price ? (
+                <span className="whitespace-nowrap text-xs tabular-nums text-ink-muted">
+                  {formatPerM(r.price.in)} / {formatPerM(r.price.out)}
+                </span>
+              ) : (
+                <span className="text-xs text-ink-faint">—</span>
+              ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -217,12 +223,16 @@ export default function UsageTab() {
             )}
           </Card>
 
-          <Card title="By model" description="Every model offered to your business, with what it was used for in this period and its price per million tokens." flush>
-            {!u || models.isPending ? (
+          <Card
+            title="By model"
+            description={business ? 'Every model offered to your business, with what it was used for in this period and its price per million tokens.' : 'The models that answered in this period. Truplexy picks one for each question.'}
+            flush
+          >
+            {!u || (business && models.isPending) ? (
               <div className="p-5">
                 <SkeletonRows rows={4} />
               </div>
-            ) : models.isError ? (
+            ) : business && models.isError ? (
               <ErrorState compact error={models.error} onRetry={() => models.refetch()} />
             ) : (
               <DataTable columns={columns} rows={rows} getKey={(r) => r.id} />

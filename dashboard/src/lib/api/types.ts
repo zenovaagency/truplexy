@@ -309,6 +309,23 @@ export interface BotConfig {
   tools?: string[];
   /** Search the web when the knowledge base has no confident answer, or always (v2). Needs ragEnabled. */
   webSearch?: WebSearchConfig;
+  /** Model routing (v3). Under `modelSelection: "platform"` the server drops everything but the two limits. */
+  routing?: BotRouting;
+}
+
+export type ModelSelection = 'platform' | 'business';
+
+/** Not edited in this dashboard; typed so a saved bot is sent back as loaded. */
+export interface BotRouting {
+  mode?: string;
+  classifier?: unknown;
+  fixedModel?: string;
+  modelPools?: unknown;
+  allowedTiers?: ModelTier[];
+  providerAllowlist?: string[];
+  /** Limits that can only tighten, so they apply under both settings. */
+  maxRequestCostUsd?: number;
+  maxAttempts?: number;
 }
 
 export type WebSearchMode = 'fallback' | 'always';
@@ -337,6 +354,8 @@ export interface WorkspaceVersion {
 
 export interface Workspace {
   name: string;
+  /** Who picks the model. A missing value means `business`, so an older backend keeps working. */
+  modelSelection?: ModelSelection;
   bot: BotConfig;
   revision: number;
   updated_at?: string;

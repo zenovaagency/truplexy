@@ -29,11 +29,12 @@ function tempLabel(t: number) {
 }
 
 export default function ModelTab() {
-  const { draft, setDraft, patchBot, canWrite } = useBotDraft();
+  const { draft, setDraft, patchBot, canWrite, modelSelection } = useBotDraft();
   const { can } = useScopeCtx();
-  const models = useModels();
+  const business = modelSelection === 'business';
+  const models = useModels(business);
   const range = useMemo(() => dayRange(30), []);
-  const usage = useUsageSummary(range, { enabled: can('usage.read') });
+  const usage = useUsageSummary(range, { enabled: business && can('usage.read') });
   const b = draft.bot;
 
   const defaultModel = models.data?.find((m) => m.is_default);
@@ -74,9 +75,11 @@ export default function ModelTab() {
             <Cpu className="size-4 text-accent" /> Model
           </span>
         }
-        description="The models Truplexy offers. Larger models write better replies but cost more per reply."
+        description={business ? 'The models Truplexy offers. Larger models write better replies but cost more per reply.' : undefined}
       >
-        {models.isPending ? (
+        {!business ? (
+          <p className="text-[0.875rem] leading-relaxed text-ink-muted">Replies are routed to the best model for each question. There is nothing to choose here.</p>
+        ) : models.isPending ? (
           <SkeletonRows rows={3} />
         ) : models.isError ? (
           <ErrorState compact error={models.error} onRetry={() => models.refetch()} />
@@ -165,7 +168,7 @@ export default function ModelTab() {
                 className="w-full accent-[var(--color-btn)]"
               />
             </Field>
-            <Field label="Maximum reply length" hint={`In tokens, about ¾ of a word each. This model allows up to ${maxOut.toLocaleString()}.`}>
+            <Field label="Maximum reply length" hint={`In tokens, about ¾ of a word each.${business ? ` This model allows up to ${maxOut.toLocaleString()}.` : ''}`}>
               <Input
                 type="number"
                 min={1}

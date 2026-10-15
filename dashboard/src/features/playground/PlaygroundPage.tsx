@@ -28,13 +28,14 @@ const hostOf = (url: string) => {
 const SUGGESTIONS = ['Where is my order?', 'Can I return something I opened?', 'Do you ship internationally?', 'I want to speak to a person'];
 
 export default function PlaygroundPage() {
-  const { draft, dirty } = useBotDraft();
+  const { draft, dirty, modelSelection } = useBotDraft();
   const { scope, href, bot } = useScopeCtx();
   const qc = useQueryClient();
   const current = useCurrentPlayground();
   const fresh = useNewPlayground();
   const run = useRunPlayground();
-  const models = useModels();
+  const business = modelSelection === 'business';
+  const models = useModels(business);
   const confirm = useConfirm();
   const [text, setText] = useState('');
   const [pending, setPending] = useState<string | null>(null);
@@ -56,7 +57,8 @@ export default function PlaygroundPage() {
   const input = (extra: Partial<PlaygroundRunInput>): PlaygroundRunInput => ({
     max_output_tokens: b.maxTokens ?? 800,
     assistant_name: b.name,
-    model: b.model || undefined,
+    // Under platform selection the playground follows the catalog default, not the draft's model.
+    model: business ? b.model || undefined : undefined,
     temperature: b.temperature,
     rag_enabled: b.ragEnabled ?? true,
     rag_top_k: b.topK,
@@ -116,7 +118,7 @@ export default function PlaygroundPage() {
       onConfirm: () => fresh.mutateAsync().then(() => (setError(null), setLastDebug(null))),
     });
 
-  const modelLabel = models.data?.find((m) => m.id === b.model)?.label ?? models.data?.find((m) => m.is_default)?.label ?? 'Default model';
+  const modelLabel = !business ? 'Best model per question' : models.data?.find((m) => m.id === b.model)?.label ?? models.data?.find((m) => m.is_default)?.label ?? 'Default model';
 
   return (
     <Page>

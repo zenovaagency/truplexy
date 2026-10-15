@@ -8,10 +8,11 @@ import { useBotDraft } from '@/features/llm/draft';
 
 /** Which tools this bot may call. Part of the bot's draft, saved with the save bar. */
 export function BotToolsCard() {
-  const { draft, patchBot, canWrite } = useBotDraft();
+  const { draft, patchBot, canWrite, modelSelection } = useBotDraft();
   const { bot, href } = useScopeCtx();
   const tools = useTools();
-  const models = useModels();
+  // Under platform selection the model isn't the business's to pick, so tools are never blocked on it.
+  const models = useModels(modelSelection === 'business');
   const b = draft.bot;
   const model = models.data?.find((m) => m.id === b.model) ?? (b.model ? undefined : models.data?.find((m) => m.is_default));
   const modelSupportsTools = model?.supports_tools ?? true;
