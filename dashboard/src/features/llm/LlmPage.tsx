@@ -8,7 +8,7 @@ import { useBotDraft } from './draft';
 /** The bot's identity, model and model usage. Tools and the playground have their own pages. */
 export default function LlmPage() {
   const { href, can, bot } = useScopeCtx();
-  const { ws, setDraft, canWrite } = useBotDraft();
+  const { ws, setDraft, canWrite, modelSelection } = useBotDraft();
   const confirm = useConfirm();
 
   const restore = (botCfg: typeof ws.bot, label: string) =>
@@ -42,7 +42,7 @@ export default function LlmPage() {
                       <span className="grid flex-1">
                         <span>{formatDateTime(v.savedAt)}</span>
                         <span className="truncate text-[0.7rem] font-normal text-ink-faint">
-                          {v.bot.model?.split('/').pop() || 'Default model'} · temp {v.bot.temperature ?? '—'}
+                          {modelSelection === 'platform' ? 'Best model per question' : v.bot.model?.split('/').pop() || 'Default model'} · temp {v.bot.temperature ?? '—'}
                         </span>
                       </span>
                       {i === 0 && <Badge tone="accent">Latest</Badge>}

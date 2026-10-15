@@ -1104,6 +1104,7 @@ Hand over when: {{escalation_policy}}
     replies,
     webhooks,
     models,
+    modelSelection: 'platform',
     templates,
     playground: {},
     ...deletionHistory(dana!, owen!, ops!),

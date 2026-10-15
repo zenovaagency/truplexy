@@ -11,6 +11,7 @@ import type {
   KnowledgeDocument,
   LedgerEntry,
   Limits,
+  ModelSelection,
   PlanId,
   PlatformChannelType,
   PlatformModel,
@@ -153,6 +154,8 @@ export interface MockDb {
   replies: Record<string, TicketReply[]>;
   webhooks: Record<string, Webhook & { secret: string }>;
   models: MockModel[];
+  /** Who picks the model. Missing means `business`, as for an older backend. */
+  modelSelection?: ModelSelection;
   templates: Omit<PlatformTemplate, 'bots'>[];
   playground: Record<string, PlaygroundConversation>;
   deletionRequests: DeletionRequest[];
