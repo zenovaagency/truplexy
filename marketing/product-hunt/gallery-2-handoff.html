@@ -1,0 +1,141 @@
+<!doctype html>
+<!--
+  Product Hunt gallery image 2 (1270×760): answers from your knowledge, with
+  the source attached, and a handoff to your team with the thread intact.
+  Copy and sample lines follow the launch film's Scenes 06 and 07. The store
+  and people are fictional. Render with `node marketing/product-hunt/render.mjs`.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Truplexy · Product Hunt · Handoff</title>
+    <link rel="stylesheet" href="shared.css" />
+    <style>
+      .widget { position: absolute; left: 72px; top: 50%; transform: translateY(-50%); width: 470px; display: flex; flex-direction: column; }
+
+      .head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+      .head .logo { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 800; letter-spacing: -0.02em; }
+      .head .name { font-size: 15.5px; font-weight: 700; }
+      .head .online { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 12.5px; color: var(--live); font-weight: 600; }
+      .head .online::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgb(34 197 94 / 0.18); }
+      .head .clock { margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--ink-faint); text-align: right; line-height: 1.4; }
+
+      .thread { display: flex; flex-direction: column; gap: 10px; padding: 18px 18px 16px; background: #fbfbfe; }
+      .msg { max-width: 82%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.45; }
+      .msg.customer { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 6px; }
+      .ai-row, .agent-row { display: flex; align-items: flex-end; gap: 8px; }
+      .ai-row .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #fff; border: 1px solid var(--line); flex: none; }
+      .ai-row .av img { width: 16px; height: auto; display: block; }
+      .msg.ai { background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 6px; box-shadow: 0 2px 8px rgb(14 18 34 / 0.04); }
+      .msg.agent { background: var(--human-soft); border-bottom-left-radius: 6px; }
+      .msg .author { display: block; font-size: 11.5px; font-weight: 700; color: var(--human); margin-bottom: 2px; }
+      .source { display: inline-flex; align-items: center; gap: 6px; margin: -2px 0 0 36px; height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); align-self: flex-start; }
+      .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--human); background: #fff; border: 1px solid #f3d9b5; }
+      .agent-row .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #0b6e86; color: #fff; font-size: 11px; font-weight: 700; flex: none; }
+
+      .composer { display: flex; align-items: center; gap: 10px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
+      .composer span { flex: 1; height: 40px; display: flex; align-items: center; padding: 0 14px; border-radius: 12px; background: var(--surface-2); font-size: 13.5px; color: var(--ink-faint); }
+      .composer i { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); }
+
+      .packet { position: absolute; left: 452px; top: 470px; width: 262px; padding: 16px 16px 14px; border-radius: 18px; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
+      .packet .top { display: flex; align-items: center; justify-content: space-between; }
+      .packet .title { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+      .packet dl { margin-top: 12px; display: grid; grid-template-columns: 70px 1fr; row-gap: 8px; font-size: 12.5px; }
+      .packet dt { color: var(--ink-faint); }
+      .packet dd { font-weight: 600; }
+      .packet .assignee { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; }
+      .packet .assignee .avatar { width: 28px; height: 28px; font-size: 11px; }
+
+      .copy { position: absolute; left: 770px; top: 64px; bottom: 56px; width: 450px; display: flex; flex-direction: column; align-items: flex-start; }
+      .copy .eyebrow { margin-top: 104px; }
+      .copy .headline { margin-top: 20px; font-size: 52px; }
+      /* Shorter run-in than the other images, so the strands stay clear of the handoff card. */
+      .copy .one-thread { left: -14%; width: 114%; }
+      .copy .lede { margin-top: 52px; font-size: 19px; }
+      .copy .url { margin-top: auto; }
+      .sample-tag { position: absolute; left: 76px; bottom: 34px; }
+    </style>
+  </head>
+  <body>
+    <main class="widget window">
+      <div class="head">
+        <span class="logo">L&amp;L</span>
+        <div>
+          <div class="name">Loom &amp; Lane</div>
+          <div class="online">Truplexy is online</div>
+        </div>
+        <div class="clock">9:41 PM<br />Team offline</div>
+      </div>
+
+      <div class="thread">
+        <p class="msg customer">What’s your return policy?</p>
+        <div class="ai-row">
+          <span class="av"><img src="../../src/assets/brand/mark.png" alt="" /></span>
+          <p class="msg ai">You have 30 days from delivery to return anything unworn with the tags on. Returns are free anywhere in the US.</p>
+        </div>
+        <span class="source">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+          Source · Returns and refunds
+        </span>
+        <p class="msg customer">I need help with a special refund request.</p>
+        <div class="ai-row">
+          <span class="av"><img src="../../src/assets/brand/mark.png" alt="" /></span>
+          <p class="msg ai">Let me connect you with our support team.</p>
+        </div>
+        <span class="event">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-3a9 9 0 0 1 18 0v3"/><path d="M21 15a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2zM3 15a2 2 0 0 0 2 2h1v-6H5a2 2 0 0 0-2 2z"/></svg>
+          Priya · Billing joined · full thread attached
+        </span>
+        <div class="agent-row">
+          <span class="av">PN</span>
+          <p class="msg agent"><span class="author">Priya · Billing</span>Hi! I’ve reviewed your request. Let me help.</p>
+        </div>
+      </div>
+
+      <div class="composer">
+        <span>Write a message…</span>
+        <i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></i>
+      </div>
+    </main>
+    <span class="sample sample-tag">Sample store · sample data</span>
+
+    <aside class="packet">
+      <div class="top"><span class="title">Handoff</span><span class="badge human">Handed off</span></div>
+      <dl>
+        <dt>History</dt><dd>Website · 4 messages</dd>
+        <dt>Intent</dt><dd>Refund request</dd>
+        <dt>Next step</dt><dd>Review the order</dd>
+      </dl>
+      <div class="assignee"><span class="avatar" style="background:#0b6e86">PN</span>Priya Nair · Billing</div>
+    </aside>
+
+    <section class="copy">
+      <img class="wordmark" src="../../src/assets/brand/wordmark-dark.png" alt="Truplexy" />
+      <p class="eyebrow">Answers + human handoff</p>
+      <h1 class="headline">
+        No repeating.<br />No starting over.<br />
+        <span class="one">
+          <span class="one-text">Just real help.</span>
+          <svg class="one-thread" viewBox="0 0 640 60" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="m" gradientUnits="userSpaceOnUse" x1="270" y1="0" x2="632" y2="0"><stop offset="0" stop-color="#1f7bff" /><stop offset="0.45" stop-color="#2338e6" /><stop offset="1" stop-color="#6a2bff" /></linearGradient>
+              <linearGradient id="f" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="170" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0" /><stop offset="1" stop-color="#fff" /></linearGradient>
+              <mask id="k" maskUnits="userSpaceOnUse" x="0" y="-10" width="640" height="80"><rect x="0" y="-10" width="640" height="80" fill="url(#f)" /></mask>
+            </defs>
+            <g mask="url(#k)">
+              <path class="strand" d="M0 4 C 120 4, 170 30, 272 30" stroke="#45d4ff" />
+              <path class="strand" d="M0 17 C 120 17, 170 30, 272 30" stroke="#1f7bff" />
+              <path class="strand" d="M0 30 C 120 30, 170 30, 272 30" stroke="#2338e6" />
+              <path class="strand" d="M0 43 C 120 43, 170 30, 272 30" stroke="#6a2bff" />
+              <path class="strand" d="M0 56 C 120 56, 170 30, 272 30" stroke="#d9b8ff" />
+            </g>
+            <path class="merged" d="M270 30 C 380 30, 440 38, 530 33 S 610 26, 632 28" stroke="url(#m)" />
+          </svg>
+          <span class="one-node"></span>
+        </span>
+      </h1>
+      <p class="lede">Answers from your own knowledge, with the source right there, 24/7. When a human touch matters, your team steps in with the conversation and context already there.</p>
+      <p class="url">truplexy.com</p>
+    </section>
+  </body>
+</html>
