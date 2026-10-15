@@ -1,8 +1,8 @@
 import { SCENES, wordAt } from '../timeline';
 import { NOTES, BUT } from '../scenes/Scene01';
-import { JOIN } from '../scenes/Scene02';
+import { APPS, JOIN, MISSED } from '../scenes/Scene02';
 import { LAND } from '../scenes/Scene03';
-import { MEM_A, MEM_B } from '../scenes/Scene04';
+import { HANDLED, SELECT, TICKETS, WAITING } from '../scenes/Scene04';
 import { JACKET_Q, ORDER_Q, ANSWERED, NIGHT, LATE_Q } from '../scenes/Scene05';
 import { SOURCE } from '../scenes/Scene06';
 import { CARRY, HANDOFF, AGENT_REPLY } from '../scenes/Scene07';
@@ -31,31 +31,22 @@ export const CUES: Cue[] = [
   ...NOTES.filter((n) => n.at < BUT).map((n, i) => ({ sfx: 'notify' as const, frame: at(0, n.at), vol: Math.min(1, 0.7 + i * 0.05) })),
   ...NOTES.filter((n) => n.at >= BUT).filter((_, i) => i % 2 === 0).map((n) => ({ sfx: 'notify' as const, frame: at(0, n.at), vol: 0.45 })),
 
-  // 02 · two inboxes that don't talk to each other.
-  { sfx: 'send', frame: at(1, 20), vol: 0.9 },
-  { sfx: 'receive', frame: at(1, 40), vol: 0.8 },
-  { sfx: 'disconnect', frame: W(1, 'disconnected'), vol: 0.9 },
-  { sfx: 'send', frame: W(1, 'another') + 22, vol: 0.8 },
-  { sfx: 'receive', frame: W(1, 'customer'), vol: 0.7 },
-  { sfx: 'disconnect', frame: W(1, 'new'), vol: 0.8 },
-  { sfx: 'send', frame: W(1, 'repeating'), vol: 0.8 },
+  // 02 · three separate apps pinging, one message missed, then they fold away.
+  ...APPS.map((a) => ({ sfx: 'notify' as const, frame: at(1, a.enter), vol: 0.75 })),
+  ...APPS.map((a) => ({ sfx: 'notify' as const, frame: at(1, a.focus), vol: 0.5 })),
+  { sfx: 'disconnect', frame: at(1, MISSED), vol: 0.9 },
   { sfx: 'whoosh', frame: at(1, JOIN), vol: 1 },
 
-  // 03 · the reveal, then a soft pop as each part of the hub connects.
+  // 03 · the reveal, then a soft pop as the AI assistant and the team connect.
   { sfx: 'reveal', frame: at(2, LAND - 2), vol: 1 },
-  { sfx: 'receive', frame: W(2, 'customers'), vol: 0.6 },
-  { sfx: 'receive', frame: W(2, 'ai'), vol: 0.6 },
+  { sfx: 'receive', frame: W(2, 'assistant'), vol: 0.6 },
   { sfx: 'receive', frame: W(2, 'team'), vol: 0.6 },
 
-  // 04 · website → shared context → Telegram, then "context carried over".
-  { sfx: 'receive', frame: at(3, 24), vol: 0.6 },
-  { sfx: 'send', frame: W(3, 'ask'), vol: 0.9 },
-  { sfx: 'receive', frame: W(3, 'tuesday'), vol: 0.8 },
-  { sfx: 'whoosh', frame: at(3, MEM_A), vol: 0.5 },
-  { sfx: 'send', frame: W(3, 'telegram'), vol: 0.9 },
-  { sfx: 'whoosh', frame: at(3, MEM_B), vol: 0.5 },
-  { sfx: 'receive', frame: W(3, 'nobody'), vol: 0.8 },
-  { sfx: 'success', frame: W(3, 'start'), vol: 0.9 },
+  // 04 · each conversation lands in the inbox; resolved, selected, waiting.
+  ...TICKETS.map((t) => ({ sfx: 'receive' as const, frame: at(3, t.at), vol: 0.55 })),
+  { sfx: 'success', frame: at(3, HANDLED), vol: 0.8 },
+  { sfx: 'send', frame: at(3, SELECT), vol: 0.6 },
+  { sfx: 'handoff', frame: at(3, WAITING), vol: 0.6 },
 
   // 05 · the store chat, and the clock running past closing time.
   { sfx: 'receive', frame: at(4, 26), vol: 0.6 },
@@ -80,7 +71,7 @@ export const CUES: Cue[] = [
   { sfx: 'receive', frame: at(6, AGENT_REPLY), vol: 0.8 },
 
   // 08 · the recap collapses into the logo; the sonic signature lands with it.
-  { sfx: 'whoosh', frame: at(7, wordAt(7, 'everywhere') + 12), vol: 0.8 },
+  { sfx: 'whoosh', frame: at(7, wordAt(7, 'platform') + 12), vol: 0.8 },
   { sfx: 'sonic-logo', frame: at(7, LOGO - 4), vol: 1 },
 ];
 

@@ -22,7 +22,7 @@ export interface Phrase {
 }
 
 /** Words that get a little extra weight when spoken. */
-const EMPHASIS = new Set(['truplexy', 'everywhere', 'anytime', 'connected', 'human-like', '24/7', 'knowledge', 'source', 'help', 'free', 'trial']);
+const EMPHASIS = new Set(['truplexy', 'everywhere', 'anytime', 'inbox', 'platform', 'human-like', '24/7', 'knowledge', 'source', 'help', 'free', 'trial']);
 
 const MAX_WORDS = 7;
 /** Good places to break a long phrase: just before one of these. */

@@ -1,19 +1,20 @@
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
-import { Headset, Sparkles, Users } from 'lucide-react';
+import { Sparkles, Users } from 'lucide-react';
 import { Backdrop, SceneShell } from '../components/Stage';
 import { Headline } from '../components/Headline';
 import { Mark, MARK_RATIO } from '../components/Brand';
 import { ChannelGlyph, type Channel } from '../components/ChannelGlyph';
 import { C, FONT, GRADIENT_BRAND, SHADOW } from '../theme';
 import { EXPO, SMOOTH, mix, prog } from '../animations/motion';
-import { f, SCENES, wordAt } from '../timeline';
+import { f, SCENES, sayFrames, wordAt } from '../timeline';
 
 /**
  * 03 · Meet Truplexy.
  * The scattered conversations converge on the centre line, which resolves
  * into the real mark just before "Meet Truplexy". The mark then becomes the
- * hub linking customers, AI and team (each on its spoken word), and the live
- * channels line up under the tagline on "every channel you already use".
+ * hub: the AI assistant on one side, your team on the other (each on its
+ * spoken word), and the live channels line up below on "every channel you
+ * already use".
  */
 const S = SCENES[2];
 export const SCENE03_LENGTH = f(S.end - S.start);
@@ -136,12 +137,12 @@ const Ring = ({ at }: { at: number }) => {
 /**
  * The mark lands once and stays put: a single continuous move with no
  * cross-fades or image swaps, so it reads as one confident gesture. It only
- * eases down in scale when it becomes the hub for the three nodes.
+ * eases down in scale when it becomes the hub for the two nodes.
  */
 const Reveal = () => {
   const frame = useCurrentFrame();
   const land = prog(frame, LAND, 40, EXPO);
-  const toHub = prog(frame, W('one') + 8, 36, SMOOTH);
+  const toHub = prog(frame, W('an') - 4, 36, SMOOTH);
   const scale = mix(0.82, 1, land) * mix(1, 0.72, toHub);
   return (
     <>
@@ -170,9 +171,8 @@ const Reveal = () => {
 const HUB_CLEAR = 160;
 
 const NODES = [
-  { label: 'Customers', Icon: Users, x: 470, y: CY, at: W('customers') },
-  { label: 'AI', Icon: Sparkles, x: CX, y: 140, at: W('ai') },
-  { label: 'Team', Icon: Headset, x: 1450, y: CY, at: W('team') },
+  { label: 'AI assistant', Icon: Sparkles, x: 450, y: CY, at: W('assistant') },
+  { label: 'Your team', Icon: Users, x: 1470, y: CY, at: W('team') },
 ];
 
 /** The live channels (src/data/channels.ts), on "every channel you already use". */
@@ -278,10 +278,13 @@ export const Scene03 = () => (
     <Hub />
     <Reveal />
     <AbsoluteFill style={{ alignItems: 'center', paddingTop: 640 }}>
-      <Headline variant="chars" text="Meet Truplexy." at={W('meet')} out={W('one') - 10} size={100} align="center" accent={['TRUPLEXY']} />
+      <Headline variant="chars" text="Meet Truplexy." sync={sayFrames(2, 'Meet')} out={W('an') - 10} size={100} align="center" accent={['TRUPLEXY']} />
+    </AbsoluteFill>
+    <AbsoluteFill style={{ alignItems: 'center', paddingTop: 650 }}>
+      <Headline text="An AI Assistant On Every Channel." sync={sayFrames(2, 'An AI Assistant On Every Channel.')} out={W('one') - 12} size={72} align="center" accent={['CHANNEL']} />
     </AbsoluteFill>
     <AbsoluteFill style={{ alignItems: 'center', paddingTop: 640 }}>
-      <Headline variant="chars" text="One Conversation. Everywhere." at={W('one')} size={88} align="center" accent={['EVERYWHERE']} stagger={4} />
+      <Headline text="One Platform." sync={sayFrames(2, 'One Platform.')} size={96} align="center" accent={['PLATFORM']} />
     </AbsoluteFill>
     <ChannelRow />
   </SceneShell>

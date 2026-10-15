@@ -5,8 +5,8 @@ import { NARRATION } from './captions/narration.ts';
  * and (later) music cue reads its timing from here, so retiming a scene moves
  * everything that depends on it.
  *
- * Narration is the v2 script, take 4 of each scene; lengths measured with
- * `npx remotion ffprobe`, word timings in captions/narration.ts. Each scene
+ * Narration is take 4 of each scene (v3 script for 02, 03, 04 and 08); lengths
+ * measured with `npx remotion ffprobe`, word timings in captions/narration.ts. Each scene
  * is sized tightly to its narration (a ~0.15 s lead-in and ~0.2 s tail), so
  * the next line starts about half a second after the last one ends; the
  * final end card holds for 2.6 s.
@@ -29,17 +29,17 @@ export interface SceneTiming {
 }
 
 export const SCENES: SceneTiming[] = [
-  { id: 'S01', title: 'Customers never stop asking', start: 0, end: 11.467, vo: { file: 'audio/narration/scene-01.mp3', length: 10.919, at: 0.5 } },
-  { id: 'S02', title: 'Disconnected conversations', start: 11.467, end: 20.767, vo: { file: 'audio/narration/scene-02.mp3', length: 9.169, at: 11.6 } },
-  { id: 'S03', title: 'Meet Truplexy', start: 20.767, end: 30.133, vo: { file: 'audio/narration/scene-03.mp3', length: 8.908, at: 21.167 } },
-  { id: 'S04', title: 'One conversation, across channels', start: 30.133, end: 41.133, vo: { file: 'audio/narration/scene-04.mp3', length: 10.841, at: 30.267 } },
-  { id: 'S05', title: 'Human-like support, 24/7', start: 41.133, end: 58.1, vo: { file: 'audio/narration/scene-05.mp3', length: 16.509, at: 41.267 } },
-  { id: 'S06', title: 'Your business knowledge', start: 58.1, end: 69.367, vo: { file: 'audio/narration/scene-06.mp3', length: 11.076, at: 58.267 } },
-  { id: 'S07', title: 'AI efficiency, human connection', start: 69.367, end: 80.2, vo: { file: 'audio/narration/scene-07.mp3', length: 10.606, at: 69.533 } },
-  { id: 'S08', title: 'Final brand moment', start: 80.2, end: 89.867, vo: { file: 'audio/narration/scene-08.mp3', length: 7.079, at: 80.4 } },
+  { id: 'S01', title: 'Customers never stop asking', start: 0, end: 11.467, vo: { file: 'audio/narration/scene-01.mp3', length: 10.92, at: 0.5 } },
+  { id: 'S02', title: 'Juggling apps', start: 11.467, end: 21.233, vo: { file: 'audio/narration/scene-02.mp3', length: 9.48, at: 11.6 } },
+  { id: 'S03', title: 'Meet Truplexy', start: 21.233, end: 29.367, vo: { file: 'audio/narration/scene-03.mp3', length: 7.56, at: 21.633 } },
+  { id: 'S04', title: 'One inbox', start: 29.367, end: 41.467, vo: { file: 'audio/narration/scene-04.mp3', length: 11.784, at: 29.5 } },
+  { id: 'S05', title: 'Human-like support, 24/7', start: 41.467, end: 58.433, vo: { file: 'audio/narration/scene-05.mp3', length: 16.512, at: 41.6 } },
+  { id: 'S06', title: 'Your business knowledge', start: 58.433, end: 69.7, vo: { file: 'audio/narration/scene-06.mp3', length: 11.064, at: 58.6 } },
+  { id: 'S07', title: 'AI efficiency, human connection', start: 69.7, end: 80.533, vo: { file: 'audio/narration/scene-07.mp3', length: 10.584, at: 69.867 } },
+  { id: 'S08', title: 'Final brand moment', start: 80.533, end: 90.867, vo: { file: 'audio/narration/scene-08.mp3', length: 7.56, at: 80.733 } },
 ];
 
-export const TOTAL_SECONDS = 89.867;
+export const TOTAL_SECONDS = 90.867;
 export const TOTAL_FRAMES = Math.round(TOTAL_SECONDS * FPS);
 
 export const f = (seconds: number) => Math.round(seconds * FPS);
@@ -70,4 +70,31 @@ export const wordAtNth = (scene: number, text: string, nth: number) => {
   let seen = -1;
   const i = NARRATION[scene].findIndex(([t]) => norm(t) === norm(text) && ++seen === nth);
   return wordAt(scene, i);
+};
+
+/**
+ * Scene-local frame for each word of a headline, taken from the narration so
+ * every word appears as it is spoken. The headline's words are matched, in
+ * order, to the scene's narration from `fromWord` on (punctuation and case
+ * ignored). A word that is not spoken follows the previous one by `gap`
+ * frames.
+ */
+export const sayFrames = (scene: number, text: string, fromWord = 0, gap = 4) => {
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9/'-]/g, '');
+  const words = NARRATION[scene];
+  let cursor = fromWord;
+  let last = -Infinity;
+  return text.split(/\s+/).filter(Boolean).map((w, i) => {
+    const j = words.findIndex(([t], k) => k >= cursor && norm(t) === norm(w));
+    let fr: number;
+    if (j >= 0) {
+      fr = wordAt(scene, j);
+      cursor = j + 1;
+    } else {
+      if (i === 0) throw new Error(`Headline "${text}" must start on a spoken word (scene ${scene + 1})`);
+      fr = last + gap;
+    }
+    last = Math.max(fr, last);
+    return last;
+  });
 };

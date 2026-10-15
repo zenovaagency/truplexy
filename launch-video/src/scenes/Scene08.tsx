@@ -1,18 +1,18 @@
 import type { ReactNode } from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
-import { ArrowRight, FileText, Headset, Inbox, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, FileText, Headset, Inbox, Sparkles } from 'lucide-react';
 import { Backdrop, SceneShell } from '../components/Stage';
 import { Headline } from '../components/Headline';
 import { Wordmark } from '../components/Brand';
 import { ChannelGlyph } from '../components/ChannelGlyph';
 import { C, FONT, SHADOW } from '../theme';
 import { EXPO, SMOOTH, mix, prog } from '../animations/motion';
-import { f, SCENES, wordAt } from '../timeline';
+import { f, SCENES, sayFrames, wordAt } from '../timeline';
 
 /**
  * 08 · Final brand moment.
- * Quick callbacks to every scene orbit the tagline, then collapse into the
- * full Truplexy lock-up on white. The end card holds, white, to the last frame.
+ * Quick callbacks to every scene orbit "Every channel. One platform.", then
+ * collapse into the full Truplexy lock-up on white. The end card holds, white, to the last frame.
  */
 const S = SCENES[7];
 export const SCENE08_LENGTH = f(S.end - S.start);
@@ -51,11 +51,11 @@ const CALLBACKS: ReactNode[] = [
   <Chip key="n">
     <ChannelGlyph id="whatsapp" size={24} /> Can I talk to someone?
   </Chip>,
-  <Chip key="h">
-    <ChannelGlyph id="web" size={22} /> <ArrowRight size={18} color={C.inkFaint} /> <ChannelGlyph id="telegram" size={22} /> Same conversation
+  <Chip key="r">
+    <CheckCircle2 size={20} color={C.live} /> Resolved by AI
   </Chip>,
   <Chip key="c">
-    <Sparkles size={20} color={C.accent} /> Remembers: Starter plan
+    <Sparkles size={20} color={C.accent} /> AI summary · intent
   </Chip>,
   <div key="j" style={{ padding: '12px 18px', borderRadius: 18, borderBottomLeftRadius: 6, background: C.surface2, border: `1px solid ${C.line}`, fontFamily: FONT.sans, fontSize: 20, color: C.ink, boxShadow: SHADOW.md, whiteSpace: 'nowrap' }}>
     Yes! It&apos;s available in black.
@@ -73,7 +73,7 @@ const CALLBACKS: ReactNode[] = [
 
 const Orbit = () => {
   const frame = useCurrentFrame();
-  const collapse = prog(frame, W('everywhere') + 12, 24, SMOOTH);
+  const collapse = prog(frame, W('platform') + 12, 24, SMOOTH);
   const spin = mix(0, 0.5, prog(frame, 0, 100, SMOOTH));
   return (
     <>
@@ -157,7 +157,7 @@ const EndCard = () => {
           transform: `translateY(${mix(16, 0, tag)}px)`,
         }}
       >
-        One conversation. <span style={{ backgroundImage: 'linear-gradient(95deg, #1F7BFF 0%, #2338E6 45%, #6A2BFF 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Everywhere.</span>
+        Every channel. <span style={{ backgroundImage: 'linear-gradient(95deg, #1F7BFF 0%, #2338E6 45%, #6A2BFF 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>One platform.</span>
       </div>
       <div
         style={{
@@ -202,10 +202,10 @@ export const Scene08 = () => (
     <Backdrop />
     <Orbit />
     <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingBottom: 140 }}>
-      <Headline variant="track" text="One Conversation." at={W('one')} out={LOGO - 10} size={104} align="center" />
+      <Headline text="Every Channel." sync={sayFrames(7, 'Every Channel.')} out={LOGO - 10} size={104} align="center" />
     </AbsoluteFill>
     <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', paddingTop: 120 }}>
-      <Headline variant="track" text="Everywhere." at={W('everywhere')} out={LOGO - 8} size={104} align="center" accent={['EVERYWHERE']} />
+      <Headline text="One Platform." sync={sayFrames(7, 'One Platform.')} out={LOGO - 8} size={104} align="center" accent={['PLATFORM']} />
     </AbsoluteFill>
     <Lockup />
     <EndCard />

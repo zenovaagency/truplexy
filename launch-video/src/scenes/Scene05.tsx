@@ -6,7 +6,7 @@ import { Headline } from '../components/Headline';
 import { Bubble, ChatWidget, LiveDot, Mono, Typing } from '../components/Chat';
 import { C, FONT, SHADOW } from '../theme';
 import { EXPO, SMOOTH, mix, prog } from '../animations/motion';
-import { f, SCENES, wordAt, wordAtNth } from '../timeline';
+import { f, SCENES, sayFrames, wordAt, wordAtNth } from '../timeline';
 
 /**
  * 05 · Human-like support, 24/7.
@@ -244,16 +244,16 @@ export const Scene05 = () => {
     <SceneShell length={SCENE05_LENGTH}>
       <Backdrop />
       <AbsoluteFill style={{ padding: '300px 0 0 110px' }}>
-        <Headline variant="pop" text={'Natural\nConversations.'} at={20} out={200} size={62} accent={['CONVERSATIONS']} />
+        <Headline text={'Product Questions.\nOrder Updates.'} sync={sayFrames(4, 'Product Questions. Order Updates.')} out={W('helpful') - 14} size={62} accent={['UPDATES']} />
       </AbsoluteFill>
       <AbsoluteFill style={{ padding: '300px 0 0 110px' }}>
-        <Headline variant="pop" text={'Helpful\nAnswers.'} at={210} out={NIGHT - 14} size={62} accent={['ANSWERS']} />
+        <Headline text={'Helpful,\nHuman-Like\nResponses.'} sync={sayFrames(4, 'Helpful, Human-Like Responses.')} out={NIGHT - 14} size={62} accent={['HUMAN-LIKE']} />
       </AbsoluteFill>
       <AbsoluteFill style={{ padding: '250px 0 0 110px' }}>
-        <Headline variant="pop" text="24/7." at={W('24/7')} size={200} accent={['24/7']} />
+        <Headline text="24/7." sync={sayFrames(4, '24/7.')} size={200} accent={['24/7']} />
       </AbsoluteFill>
       <AbsoluteFill style={{ padding: '540px 0 0 116px' }}>
-        <Headline variant="pop" text={'Even when your\nteam is offline.'} at={W('night')} size={44} color={C.inkMuted} stagger={2} style={{ fontWeight: 700, letterSpacing: '-0.02em' }} />
+        <Headline text={'When your team\nlogs off…'} sync={sayFrames(4, 'When your team logs off…')} size={44} color={C.inkMuted} style={{ fontWeight: 700, letterSpacing: '-0.02em' }} />
       </AbsoluteFill>
 
       <Scaled s={1.2} style={{ left: 700, top: 230, opacity: widgetIn, translate: `0 ${mix(30, 0, widgetIn)}px` }}>

@@ -15,13 +15,13 @@ const FPS = 30;
 // Scene starts in seconds; keep in step with src/timeline.ts.
 const SCENES = [
   [0, 'Scene 01 · Customers never stop asking'],
-  [11.467, 'Scene 02 · Disconnected conversations'],
-  [20.767, 'Scene 03 · Meet Truplexy'],
-  [30.133, 'Scene 04 · One conversation, across channels'],
-  [41.133, 'Scene 05 · Human-like support, 24/7'],
-  [58.1, 'Scene 06 · Your business knowledge'],
-  [69.367, 'Scene 07 · AI efficiency, human connection'],
-  [80.2, 'Scene 08 · Final brand moment'],
+  [11.467, 'Scene 02 · Juggling apps'],
+  [21.233, 'Scene 03 · Meet Truplexy'],
+  [29.367, 'Scene 04 · One inbox'],
+  [41.467, 'Scene 05 · Human-like support, 24/7'],
+  [58.433, 'Scene 06 · Your business knowledge'],
+  [69.7, 'Scene 07 · AI efficiency, human connection'],
+  [80.533, 'Scene 08 · Final brand moment'],
 ];
 
 const files = readdirSync(dir).filter((f) => /^frame-\d+\.png$/.test(f)).sort();

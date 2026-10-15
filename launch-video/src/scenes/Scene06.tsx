@@ -6,7 +6,7 @@ import { AppShell, Badge } from '../components/Dashboard';
 import { Bubble, Mono, Typing } from '../components/Chat';
 import { C, FONT, SHADOW } from '../theme';
 import { EXPO, SMOOTH, mix, msgIn, prog } from '../animations/motion';
-import { f, SCENES, wordAt } from '../timeline';
+import { f, SCENES, sayFrames, wordAt } from '../timeline';
 
 /**
  * 06 · Your business knowledge, working for you.
@@ -204,10 +204,10 @@ export const Scene06 = () => {
     <SceneShell length={SCENE06_LENGTH}>
       <Backdrop />
       <AbsoluteFill style={{ padding: '78px 0 0 100px' }}>
-        <Headline variant="wipe" text="Your Business Knowledge." at={12} out={W('relevant') - 16} size={76} accent={['KNOWLEDGE']} />
+        <Headline text="Your Business Knowledge." sync={sayFrames(5, 'Your Business Knowledge.')} out={W('relevant') - 14} size={76} accent={['KNOWLEDGE']} />
       </AbsoluteFill>
       <AbsoluteFill style={{ padding: '78px 0 0 100px' }}>
-        <Headline variant="wipe" text="Powering Better Answers." at={W('relevant') - 4} size={76} accent={['ANSWERS']} />
+        <Headline text="Relevant Answers." sync={sayFrames(5, 'Relevant Answers.')} size={76} accent={['ANSWERS']} />
       </AbsoluteFill>
 
       <div

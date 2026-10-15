@@ -5,7 +5,7 @@ import { Headline } from '../components/Headline';
 import { ChannelGlyph, CHANNEL_NAME, type Channel } from '../components/ChannelGlyph';
 import { C, FONT, SHADOW } from '../theme';
 import { EXPO, SMOOTH, mix, prog, tween } from '../animations/motion';
-import { f, SCENES, wordAt } from '../timeline';
+import { f, SCENES, sayFrames, wordAt } from '../timeline';
 
 /**
  * 01 · Your customers never stop asking.
@@ -158,10 +158,10 @@ export const Scene01 = () => {
         ))}
       </AbsoluteFill>
       <AbsoluteFill style={{ padding: '200px 0 0 120px' }}>
-        <Headline variant="rise" text={"Your Customers\nDon't Stop\nAsking."} at={W('your')} out={BUT - 14} size={92} accent={['ASKING']} />
+        <Headline text={'Your Customers\nHave Questions.\nAnytime. Everywhere.'} sync={sayFrames(0, 'Your Customers Have Questions. Anytime. Everywhere.')} out={BUT - 14} size={92} accent={['ANYTIME', 'EVERYWHERE']} />
       </AbsoluteFill>
       <AbsoluteFill style={{ padding: '200px 0 0 120px' }}>
-        <Headline variant="rise" text={"But Your Team\nCan't Be\nEverywhere."} at={BUT} size={92} accent={['EVERYWHERE']} />
+        <Headline text={"Keeping Up\nIsn't Easy."} sync={sayFrames(0, "Keeping Up Isn't Easy.")} size={92} />
       </AbsoluteFill>
       <Unread />
     </SceneShell>
