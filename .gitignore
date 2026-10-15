@@ -17,3 +17,6 @@ npm-debug.log*
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+
+# launch film (Remotion project): kept locally, not in the repo
+launch-video/

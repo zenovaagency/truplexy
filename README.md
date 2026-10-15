@@ -2,7 +2,7 @@
 
 **Every channel. One platform.** The homepage positions Truplexy as an AI assistant on every
 channel a business uses, plus one platform where the team manages every conversation, as in the
-launch film (`launch-video/`).
+launch film.
 
 Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mirrors `zenova-v2`.
 
