@@ -124,7 +124,8 @@ export default defineConfig({
   integrations: [
     react(),
     sitemap({
-      filter: (page) => !/\/404\/?$/.test(new URL(page).pathname),
+      // The 404 page and the checkout page are not for search.
+      filter: (page) => !/\/(404|pay)\/?$/.test(new URL(page).pathname),
       serialize(item) {
         const route = new URL(item.url).pathname.replace(/\/$/, '') || '/';
         // Google ignores changefreq and priority; lastmod is the signal it uses.
