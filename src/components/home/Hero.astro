@@ -10,6 +10,15 @@ import { SITE } from '../../data/site';
 // Both read the registry.
 const heroLive = channelsIn('messaging').filter((c) => c.status === 'live');
 const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).filter((c) => c.status === 'soon');
+
+// The strands of the heading's thread, top to bottom, in the brand ramp.
+const STRANDS = [
+  { y: 4, color: '#45d4ff' },
+  { y: 17, color: '#1f7bff' },
+  { y: 30, color: '#2338e6' },
+  { y: 43, color: '#6a2bff' },
+  { y: 56, color: '#d9b8ff' },
+];
 ---
 
 <!-- Fills the first screen (capped on tall monitors): the copy centres in the
@@ -36,10 +45,44 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
         class="display mt-6 text-[clamp(2.9rem,1.2rem+5.4vw,5.75rem)] !font-extrabold !leading-[0.98] !tracking-[-0.045em]"
       >
         Every channel.
-        <span class="gradient-text block">One platform.</span>
+        <span class="block">
+          <span class="one">
+            <span class="one-text">One platform.</span>
+            <!-- The tagline, drawn: one strand per channel runs in from the left
+                 and they braid into a single brand thread under "platform". -->
+            <svg class="one-thread" viewBox="0 0 640 60" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="one-merged" gradientUnits="userSpaceOnUse" x1="270" y1="0" x2="632" y2="0">
+                  <stop offset="0" stop-color="#1f7bff" />
+                  <stop offset="0.45" stop-color="#2338e6" />
+                  <stop offset="1" stop-color="#6a2bff" />
+                </linearGradient>
+                <linearGradient id="one-fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="170" y2="0">
+                  <stop offset="0" stop-color="#fff" stop-opacity="0" />
+                  <stop offset="1" stop-color="#fff" />
+                </linearGradient>
+                <mask id="one-mask" maskUnits="userSpaceOnUse" x="0" y="-10" width="640" height="80">
+                  <rect x="0" y="-10" width="640" height="80" fill="url(#one-fade)" />
+                </mask>
+              </defs>
+              <g mask="url(#one-mask)">
+                {STRANDS.map((s) => (
+                  <path
+                    class="strand"
+                    d={`M0 ${s.y} C 120 ${s.y}, 170 30, 272 30`}
+                    stroke={s.color}
+                   
+                  />
+                ))}
+              </g>
+              <path class="merged" d="M270 30 C 380 30, 440 38, 530 33 S 610 26, 632 28" stroke="url(#one-merged)" />
+            </svg>
+            <span class="one-node" aria-hidden="true"></span>
+          </span>
+        </span>
       </h1>
 
-      <p class="lede mt-5 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] sm:mt-6">
+      <p class="lede mt-11 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] sm:mt-14">
         Truplexy puts a human-like AI assistant on every channel you already use, and gives your team
         one platform to manage every conversation.
       </p>
@@ -83,3 +126,83 @@ const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).
     </div>
   </div>
 </section>
+
+<style>
+  /* "One platform.": brand gradient, with a glint of light that sweeps
+     across once the strands below have braided into one thread. */
+  .one {
+    position: relative;
+    display: inline-block;
+  }
+
+  .one-text {
+    background:
+      linear-gradient(100deg, transparent 42%, rgb(255 255 255 / 0.75) 50%, transparent 58%) no-repeat,
+      var(--gradient-text);
+    background-size: 250% 100%, 100% 100%;
+    background-position: 0% 0, 0 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    padding-bottom: 0.08em;
+    animation: one-glint 1.2s var(--ease-out-expo) 1.55s both;
+  }
+
+  /* Sits under the descenders; reaches left past the text so the strands
+     arrive from outside the word. */
+  .one-thread {
+    position: absolute;
+    left: -30%;
+    width: 130%;
+    max-width: none; /* preflight caps svg at 100% */
+    top: calc(100% - 0.03em);
+    height: 0.46em;
+    overflow: visible;
+    fill: none;
+    stroke-linecap: round;
+    pointer-events: none;
+    /* Drawn in left to right: strands first, then the merged thread. A clip,
+       not a dash offset, because Chrome mis-measures dashes on
+       non-scaling strokes. */
+    clip-path: inset(-50% 100% -50% 0);
+    animation: one-reveal 1.5s var(--ease-out-expo) 0.3s forwards;
+  }
+
+  .one-thread path { vector-effect: non-scaling-stroke; }
+  .strand { stroke-width: 1.75; }
+  .merged { stroke-width: 4; }
+
+  /* Where the strands end up: a small glowing node, the one platform. Sits
+     at the thread's end (x 632 of 640, y 28 of 60 in the SVG). */
+  .one-node {
+    position: absolute;
+    right: 0;
+    top: calc(100% - 0.03em + 0.46em * 28 / 60);
+    width: 0.13em;
+    height: 0.13em;
+    border-radius: 50%;
+    background: #6a2bff;
+    box-shadow: 0 0 0 0.05em rgb(106 43 255 / 0.18), 0 0 0.28em rgb(106 43 255 / 0.55);
+    transform: translate(10%, -50%) scale(0);
+    animation: one-node 0.6s var(--ease-spring) 1.6s forwards;
+  }
+
+  @keyframes one-node {
+    to { transform: translate(10%, -50%) scale(1); }
+  }
+
+  @keyframes one-reveal {
+    to { clip-path: inset(-50% -2% -50% 0); }
+  }
+
+  @keyframes one-glint {
+    from { background-position: 100% 0, 0 0; }
+    to { background-position: 0% 0, 0 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .one-text { animation: none; }
+    .one-thread { animation: none; clip-path: none; }
+    .one-node { animation: none; transform: translate(10%, -50%); }
+  }
+</style>
