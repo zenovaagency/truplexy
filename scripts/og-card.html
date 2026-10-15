@@ -2,6 +2,8 @@
 <!--
   Source of public/og-card.png (1200×630). Render it with `npm run og`.
   Copy follows the launch film: the end line "Every channel. One platform."
+  The thread under "One platform." is the hero's (src/components/home/Hero.astro):
+  one strand per channel braids into a single brand thread ending in a node.
   Colours and type are the site's tokens (src/styles/tokens.css).
 -->
 <html lang="en">
@@ -41,21 +43,26 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
-        padding-top: 54px;
+        padding-top: 58px;
       }
 
-      .wordmark { height: 58px; width: auto; display: block; }
+      .wordmark { height: 52px; width: auto; display: block; }
 
       h1 {
-        margin-top: 46px;
-        font-size: 100px;
-        line-height: 1.04;
+        margin-top: 34px;
+        font-size: 96px;
+        line-height: 0.98;
         font-weight: 800;
         letter-spacing: -0.045em;
       }
 
-      h1 span {
-        display: block;
+      .one {
+        position: relative;
+        display: inline-block;
+      }
+
+      .one-text {
+        display: inline-block;
         padding-bottom: 0.08em;
         background: linear-gradient(95deg, #1f7bff 0%, #2338e6 45%, #6a2bff 100%);
         -webkit-background-clip: text;
@@ -63,9 +70,38 @@
         color: transparent;
       }
 
+      /* Same geometry as the hero: reaches left past the word so the strands
+         arrive from outside it, and sits under the descenders. */
+      .one-thread {
+        position: absolute;
+        left: -40%;
+        width: 140%;
+        top: calc(100% - 0.03em);
+        height: 0.46em;
+        overflow: visible;
+        fill: none;
+        stroke-linecap: round;
+      }
+
+      .one-thread path { vector-effect: non-scaling-stroke; }
+      .strand { stroke-width: 2.25; }
+      .merged { stroke-width: 5; }
+
+      .one-node {
+        position: absolute;
+        right: 0;
+        top: calc(100% - 0.03em + 0.46em * 28 / 60);
+        width: 0.14em;
+        height: 0.14em;
+        border-radius: 50%;
+        background: #6a2bff;
+        box-shadow: 0 0 0 0.055em rgb(106 43 255 / 0.18), 0 0 0.3em rgb(106 43 255 / 0.55);
+        transform: translate(10%, -50%);
+      }
+
       .sub {
-        margin-top: 22px;
-        font-size: 29px;
+        margin-top: 64px;
+        font-size: 27px;
         line-height: 1.35;
         font-weight: 500;
         letter-spacing: -0.01em;
@@ -73,7 +109,7 @@
       }
 
       .channels {
-        margin-top: 38px;
+        margin-top: 30px;
         display: flex;
         gap: 14px;
         align-items: center;
@@ -83,15 +119,15 @@
         list-style: none;
         display: grid;
         place-items: center;
-        width: 62px;
-        height: 62px;
-        border-radius: 18px;
+        width: 58px;
+        height: 58px;
+        border-radius: 17px;
         background: #fff;
         border: 1px solid #e3e6f0;
         box-shadow: 0 14px 30px rgb(35 56 230 / 0.1);
       }
 
-      .channels img { width: 32px; height: 32px; display: block; }
+      .channels img { width: 30px; height: 30px; display: block; }
 
       .channels .more {
         width: auto;
@@ -103,13 +139,11 @@
         color: #61688a;
       }
 
-      .wave { position: absolute; left: 0; bottom: 0; width: 1200px; height: 70px; }
-
       .url {
         position: absolute;
         left: 0;
         right: 0;
-        bottom: 26px;
+        bottom: 24px;
         font-family: 'Geist Mono', monospace;
         font-size: 17px;
         font-weight: 500;
@@ -120,20 +154,39 @@
     </style>
   </head>
   <body>
-    <svg class="wave" viewBox="0 0 1200 70" aria-hidden="true">
-      <defs>
-        <linearGradient id="t" x1="0" x2="1">
-          <stop offset="0" stop-color="#45d4ff" />
-          <stop offset="0.45" stop-color="#1f7bff" />
-          <stop offset="1" stop-color="#6a2bff" />
-        </linearGradient>
-      </defs>
-      <path d="M-20 22 C 260 -8, 420 52, 640 24 S 1020 -6, 1220 16" fill="none" stroke="url(#t)" stroke-width="3" stroke-linecap="round" opacity="0.9" />
-    </svg>
-
     <main class="card">
       <img class="wordmark" src="../src/assets/brand/wordmark-dark.png" alt="Truplexy" />
-      <h1>Every channel.<span>One platform.</span></h1>
+      <h1>
+        Every channel.<br />
+        <span class="one">
+          <span class="one-text">One platform.</span>
+          <svg class="one-thread" viewBox="0 0 640 60" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="merged" gradientUnits="userSpaceOnUse" x1="270" y1="0" x2="632" y2="0">
+                <stop offset="0" stop-color="#1f7bff" />
+                <stop offset="0.45" stop-color="#2338e6" />
+                <stop offset="1" stop-color="#6a2bff" />
+              </linearGradient>
+              <linearGradient id="fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="170" y2="0">
+                <stop offset="0" stop-color="#fff" stop-opacity="0" />
+                <stop offset="1" stop-color="#fff" />
+              </linearGradient>
+              <mask id="mask" maskUnits="userSpaceOnUse" x="0" y="-10" width="640" height="80">
+                <rect x="0" y="-10" width="640" height="80" fill="url(#fade)" />
+              </mask>
+            </defs>
+            <g mask="url(#mask)">
+              <path class="strand" d="M0 4 C 120 4, 170 30, 272 30" stroke="#45d4ff" />
+              <path class="strand" d="M0 17 C 120 17, 170 30, 272 30" stroke="#1f7bff" />
+              <path class="strand" d="M0 30 C 120 30, 170 30, 272 30" stroke="#2338e6" />
+              <path class="strand" d="M0 43 C 120 43, 170 30, 272 30" stroke="#6a2bff" />
+              <path class="strand" d="M0 56 C 120 56, 170 30, 272 30" stroke="#d9b8ff" />
+            </g>
+            <path class="merged" d="M270 30 C 380 30, 440 38, 530 33 S 610 26, 632 28" stroke="url(#merged)" />
+          </svg>
+          <span class="one-node"></span>
+        </span>
+      </h1>
       <p class="sub">A human-like AI assistant on every channel, and one platform for your team.</p>
       <ul class="channels" aria-hidden="true">
         <li><img src="../public/brands/whatsapp.svg" alt="" /></li>
