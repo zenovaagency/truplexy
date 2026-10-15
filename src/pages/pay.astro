@@ -7,7 +7,8 @@ import { SITE } from '../data/site';
  * Paddle's default payment link, shown as an inline checkout. Paddle sends
  * customers here with `?_ptxn=txn_…`, and the API's transactions point at it.
  * Paddle.js sees `_ptxn` on its own and opens that transaction in the frame
- * below (`#checkout-frame`), using the inline settings passed to `Initialize`.
+ * below (the element with class `checkout-container`), using the inline settings
+ * passed to `Initialize`.
  * Paddle also requires the page to load Paddle.js and to sit on an approved
  * domain (Paddle > Checkout > Checkout settings and Website approval).
  *
@@ -207,7 +208,9 @@ const successUrl = `${billingUrl}?paid=1`;
             displayMode: 'inline',
             variant: 'one-page',
             theme: 'light',
-            frameTarget: 'checkout-frame',
+            // A CLASS name, without a dot: Paddle.js runs getElementsByClassName() on it. An id
+            // matches nothing and the frame crashes with "reading 'appendChild' of undefined".
+            frameTarget: 'checkout-container',
             frameInitialHeight: 520,
             frameStyle: 'width: 100%; min-width: 312px; background-color: transparent; border: none;',
             // Paddle sends the customer back to the billing page when they finish.
