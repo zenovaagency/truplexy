@@ -36,7 +36,7 @@ type Route = (body: unknown, init: RequestInit) => [number, unknown];
 function fakeApi(routes: Record<string, Route>) {
   const calls: { path: string; method: string; body: unknown; auth: string | null }[] = [];
   const fetch = vi.fn(async (url: string | URL | Request, init: RequestInit = {}) => {
-    const path = String(url).replace('https://api.test/v2', '');
+    const path = String(url).replace('https://api.test/v3', '');
     const method = init.method ?? 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ path, method, body, auth: new Headers(init.headers).get('Authorization') });
@@ -54,7 +54,7 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
 const reply = (status: string, text: string | null) => (): [number, unknown] => [200, { message: { id: 'msg_1', role: 'user' }, reply: text, status, sources: [] }];
 
 describe('createHandler', () => {
-  const base = { chatKey: KEY, apiBase: 'https://api.test/v2', onError: () => {} };
+  const base = { chatKey: KEY, apiBase: 'https://api.test/v3', onError: () => {} };
 
   it('starts a conversation on the first message and signs a session', async () => {
     const api = fakeApi({
@@ -317,7 +317,7 @@ describe('createHandler', () => {
   });
 
   it('needs a chat key', async () => {
-    const handler = createHandler({ apiBase: 'https://api.test/v2', onError: () => {} });
+    const handler = createHandler({ apiBase: 'https://api.test/v3', onError: () => {} });
     const res = await handler(post({ action: 'message', text: 'hi' }));
     expect(res.status).toBe(500);
     expect((await res.json()).error.code).toBe('NOT_CONFIGURED');
@@ -337,6 +337,6 @@ describe('toNodeHandler', () => {
   });
 
   function base() {
-    return { chatKey: KEY, apiBase: 'https://api.test/v2', onError: () => {} };
+    return { chatKey: KEY, apiBase: 'https://api.test/v3', onError: () => {} };
   }
 });

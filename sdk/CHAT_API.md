@@ -1,6 +1,6 @@
 # Customer chat API
 
-The contract is [API_REFERENCE.md](../API_REFERENCE.md#chat-api-for-integrations). Call `https://api.truplexy.com/v2` from your server with a chat key. Do not send staff scope headers. Customer administration (`/customers`), billing, knowledge, and platform APIs are outside this SDK.
+The contract is [API_REFERENCE.md](../API_REFERENCE.md#chat-api-for-integrations). Call `https://api.truplexy.com/v3` from your server with a chat key. Do not send staff scope headers. Customer administration (`/customers`), billing, knowledge, and platform APIs are outside this SDK.
 
 ## Server client
 
@@ -22,7 +22,7 @@ if (result.reply !== null) deliverToCustomer(result.reply);
 // Implement deliverToCustomer for your platform. Inspect result.status as below.
 ```
 
-Options: `chatKey`, `apiBase` (default production `/v2`), and `fetch`. Environment defaults are read for each call. The client returns API objects using their original snake_case fields. It exports `ChatClient`, `ChatClientOptions`, `CustomerInput`, `ContactInput`, `Contact`, `Customer`, `Profile`, `ConversationInput`, `Conversation`, `Message`, `MessageResult`, `ReplyStatus`, `Source`, `TicketInput`, `Ticket`, `ReplyInput`, `ReplyResult`, and `RealtimeToken`.
+Options: `chatKey`, `apiBase` (default production `/v3`), and `fetch`. Environment defaults are read for each call. The client returns API objects using their original snake_case fields. It exports `ChatClient`, `ChatClientOptions`, `CustomerInput`, `ContactInput`, `Contact`, `Customer`, `Profile`, `ConversationInput`, `Conversation`, `Message`, `MessageResult`, `ReplyStatus`, `Source`, `TicketInput`, `Ticket`, `ReplyInput`, `ReplyResult`, and `RealtimeToken`.
 
 | Client method | API request | Result / behavior |
 | --- | --- | --- |

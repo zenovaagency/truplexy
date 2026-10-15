@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const root = new URL('../../dashboard/src/features/integrations/snippets/', import.meta.url);
-export function loadSnippets(language, api = 'https://api.truplexy.com/v2') {
+export function loadSnippets(language, api = 'https://api.truplexy.com/v3') {
   function load(name) {
     const source = readFileSync(new URL(`${name}.ts`, root), 'utf8');
     const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;

@@ -1,9 +1,9 @@
 // Read straight from the build environment (same default as lib/env) so this file has no
 // app imports: the marketing site's channel docs import these packs too.
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/v2').replace(/\/+$/, '');
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/v3').replace(/\/+$/, '');
 
 /** The API base integrators call: the real URL, even in demo mode. */
-export const PUBLIC_API = /^https?:\/\//.test(apiBaseUrl) ? apiBaseUrl : 'https://api.truplexy.com/v2';
+export const PUBLIC_API = /^https?:\/\//.test(apiBaseUrl) ? apiBaseUrl : 'https://api.truplexy.com/v3';
 
 /** The website SDK guide on the marketing site: every widget option, framework and the server protocol. */
 export const WEB_SDK_DOCS = 'https://truplexy.com/docs/web-sdk';

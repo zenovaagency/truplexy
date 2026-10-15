@@ -4,7 +4,7 @@ import { createChatClient, TruplexyApiError } from '../src';
 const identity = { contacts: [{ type: 'email', value: 'Ada@example.com', primary: true }, { type: 'app', value: '42', label: 'account' }], metadata: { plan: 'pro' } };
 const make = (status = 200, data: unknown = { id: 'result' }) => {
   const fetch = vi.fn(async () => new Response(JSON.stringify(data), { status, headers: { 'X-Request-ID': 'req_header', 'Retry-After': '5' } }));
-  return { fetch, client: createChatClient({ chatKey: 'secret', apiBase: 'https://test/v2/', fetch }) };
+  return { fetch, client: createChatClient({ chatKey: 'secret', apiBase: 'https://test/v3/', fetch }) };
 };
 
 describe('chat API client', () => {
@@ -20,11 +20,11 @@ describe('chat API client', () => {
       expect(fetch).not.toHaveBeenCalled();
       process.env.TRUPLEXY_CHAT_KEY = 'first';
       await client.getProfile();
-      expect(fetch).toHaveBeenLastCalledWith('https://api.truplexy.com/v2/profile', expect.objectContaining({ headers: { Authorization: 'Bearer first' } }));
+      expect(fetch).toHaveBeenLastCalledWith('https://api.truplexy.com/v3/profile', expect.objectContaining({ headers: { Authorization: 'Bearer first' } }));
       process.env.TRUPLEXY_CHAT_KEY = 'second';
-      process.env.TRUPLEXY_API_BASE = 'https://custom.test/v2/';
+      process.env.TRUPLEXY_API_BASE = 'https://custom.test/v3/';
       await client.getConversation('conv/unsafe');
-      expect(fetch).toHaveBeenLastCalledWith('https://custom.test/v2/conversations/conv%2Funsafe', expect.objectContaining({ headers: { Authorization: 'Bearer second' } }));
+      expect(fetch).toHaveBeenLastCalledWith('https://custom.test/v3/conversations/conv%2Funsafe', expect.objectContaining({ headers: { Authorization: 'Bearer second' } }));
     } finally {
       if (previousKey === undefined) delete process.env.TRUPLEXY_CHAT_KEY; else process.env.TRUPLEXY_CHAT_KEY = previousKey;
       if (previousBase === undefined) delete process.env.TRUPLEXY_API_BASE; else process.env.TRUPLEXY_API_BASE = previousBase;
@@ -52,7 +52,7 @@ describe('chat API client', () => {
     ];
     for (const [call, method, path, body] of calls) {
       expect(await call()).toEqual({ id: 'result' });
-      expect(fetch).toHaveBeenLastCalledWith('https://test/v2' + path, {
+      expect(fetch).toHaveBeenLastCalledWith('https://test/v3' + path, {
         method, headers: { Authorization: 'Bearer secret', ...(body !== undefined && { 'Content-Type': 'application/json' }) },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
