@@ -18,7 +18,7 @@ export function useSubscription(enabled = true) {
 }
 
 /** Re-reads everything a plan change touches. */
-function useRefreshPlan() {
+export function useRefreshPlan() {
   const scope = useScope();
   const qc = useQueryClient();
   return () => {
@@ -29,9 +29,10 @@ function useRefreshPlan() {
 }
 
 /**
- * Asks the API for a Paddle transaction, then opens the checkout overlay. The
- * API sets the plan from Paddle's webhook, so after the overlay reports success
- * the data is re-read a few times until it arrives.
+ * Asks the API for a Paddle transaction, then sends the customer to the
+ * checkout page for it (see lib/paddle.ts). The API sets the plan from Paddle's
+ * webhook; when the customer returns to /settings/plan?paid=1 the data is
+ * re-read a few times until it arrives (see SubscriptionCard).
  */
 export function useStartCheckout() {
   const scope = useScope();
@@ -39,14 +40,13 @@ export function useStartCheckout() {
   return useMutation({
     mutationFn: async (v: { plan: CheckoutPlan; interval: BillingInterval }) => {
       const { transaction_id } = await api<{ transaction_id: string }>('/billing/checkout', { method: 'POST', body: v, scope });
-      const opened = await openCheckout(transaction_id, {
+      openCheckout(transaction_id, {
+        // Only the mock API gets here without leaving the page.
         onCompleted: () => {
           refresh();
-          // The webhook usually lands within seconds.
           for (const ms of [2_000, 5_000, 12_000]) setTimeout(refresh, ms);
         },
       });
-      if (!opened) throw new Error('The payment window could not load. Turn off any ad blocker for this site and try again.');
     },
   });
 }

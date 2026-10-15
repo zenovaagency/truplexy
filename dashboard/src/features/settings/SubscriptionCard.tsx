@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { AlertTriangle, CreditCard } from 'lucide-react';
-import { useBillingPortal, useChangePlan, useStartCheckout, useSubscription } from '@/lib/api/endpoints/billing';
+import { useBillingPortal, useChangePlan, useRefreshPlan, useStartCheckout, useSubscription } from '@/lib/api/endpoints/billing';
 import type { BillingInterval, CheckoutPlan, PlanId, Subscription } from '@/lib/api/types';
 import { CHECKOUT_PLANS, TRIAL_DAYS } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { describeError } from '@/lib/errors';
 import { formatDate } from '@/lib/format';
-import { paddleConfigured } from '@/lib/paddle';
+import { notifySuccess } from '@/lib/notify';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Callout, Card, SkeletonRows, useConfirm } from '@/components/ui';
 
@@ -36,7 +36,7 @@ function summary(s: Subscription) {
 /**
  * Starting and managing the paid plan. Enterprise and hand-set plans have no
  * subscription: they show a short note instead. Everything that moves money
- * happens in Paddle's overlay and portal.
+ * happens in Paddle's checkout (the site's /pay page) and portal.
  */
 export function SubscriptionCard({ plan }: { plan: PlanId }) {
   const { can } = useScopeCtx();
@@ -50,14 +50,29 @@ export function SubscriptionCard({ plan }: { plan: PlanId }) {
   const [interval, setInterval] = useState<BillingInterval>(() => (isInterval(params.get('billing')) ? (params.get('billing') as BillingInterval) : 'monthly'));
   const [picked, setPicked] = useState<CheckoutPlan | null>(() => (isPlan(params.get('checkout')) ? (params.get('checkout') as CheckoutPlan) : null));
   const auto = useRef(false);
+  const returned = useRef(false);
+  const refresh = useRefreshPlan();
 
   const subscription = sub.data;
   const live = subscription && subscription.status !== 'canceled';
 
+  // Back from the checkout page (/pay sends customers to ?paid=1 when they finish): the plan
+  // changes when Paddle's webhook reaches the API, usually within seconds, so re-read a few times.
+  useEffect(() => {
+    if (returned.current || params.get('paid') !== '1') return;
+    returned.current = true;
+    const next = new URLSearchParams(params);
+    next.delete('paid');
+    setParams(next, { replace: true });
+    notifySuccess('Thanks, your payment details are saved', 'Your plan updates in a moment.');
+    refresh();
+    for (const ms of [2_000, 5_000, 12_000]) setTimeout(refresh, ms);
+  }, [params, setParams, refresh]);
+
   // Arriving from sign-up with a plan chosen on the pricing page: open its checkout once.
   useEffect(() => {
     const want = params.get('checkout');
-    if (auto.current || !isPlan(want) || !allowed || !sub.isSuccess || !paddleConfigured) return;
+    if (auto.current || !isPlan(want) || !allowed || !sub.isSuccess) return;
     auto.current = true;
     const next = new URLSearchParams(params);
     next.delete('checkout');
@@ -207,17 +222,12 @@ export function SubscriptionCard({ plan }: { plan: PlanId }) {
           ))}
         </div>
         {error && <p className="rounded-[10px] bg-danger-soft px-3 py-2 text-[0.8125rem] font-medium text-danger">{describeError(error).detail}</p>}
-        {!paddleConfigured && (
-          <Callout tone="warn" title="Payments aren't configured">
-            Set <code className="font-mono text-xs">VITE_PADDLE_CLIENT_TOKEN</code> to enable checkout.
-          </Callout>
-        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-ink-faint">Payments are handled by Paddle, our merchant of record. Taxes are added at checkout.</p>
           {allowed ? (
             <Button
               variant="accent"
-              disabled={!picked || !paddleConfigured}
+              disabled={!picked}
               loading={checkout.isPending}
               onClick={() => picked && checkout.mutate({ plan: picked, interval })}
             >
