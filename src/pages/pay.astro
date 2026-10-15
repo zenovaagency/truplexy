@@ -48,7 +48,12 @@ const successUrl = `${billingUrl}?paid=1`;
         <aside class="pay-summary" aria-labelledby="pay-summary-title" hidden>
           <h2 id="pay-summary-title" class="pay-summary-title">Order summary</h2>
           <ul id="pay-items" class="pay-items"></ul>
-          <p id="pay-trial" class="pay-trial" hidden></p>
+          <div id="pay-trial" class="pay-trial" hidden>
+            <p id="pay-trial-title" class="pay-trial-title"></p>
+            <p id="pay-trial-text" class="pay-trial-text"></p>
+          </div>
+
+          <h3 class="pay-section">Due today</h3>
           <dl class="pay-totals">
             <div class="pay-row" id="pay-row-discount" hidden>
               <dt>Discount</dt>
@@ -67,9 +72,27 @@ const successUrl = `${billingUrl}?paid=1`;
               <dd id="pay-total"></dd>
             </div>
           </dl>
-          <p id="pay-recurring" class="pay-recurring" hidden></p>
+
+          <div id="pay-then" class="pay-then" hidden>
+            <h3 id="pay-then-title" class="pay-section"></h3>
+            <dl class="pay-totals">
+              <div class="pay-row">
+                <dt>Subtotal</dt>
+                <dd id="pay-then-subtotal"></dd>
+              </div>
+              <div class="pay-row">
+                <dt>Tax</dt>
+                <dd id="pay-then-tax"></dd>
+              </div>
+              <div class="pay-row pay-row-total">
+                <dt id="pay-then-label">Total</dt>
+                <dd id="pay-then-total"></dd>
+              </div>
+            </dl>
+          </div>
+
           <p class="pay-fine">
-            Tax is calculated from your country. See our <a href="/refunds">refund policy</a>.
+            Tax is calculated from your country. Cancel any time from your billing page. See our <a href="/refunds">refund policy</a>.
           </p>
         </aside>
 
@@ -127,9 +150,34 @@ const successUrl = `${billingUrl}?paid=1`;
       function unit(interval, count) {
         return count === 1 ? interval : interval + 's';
       }
-      function cycle(c) {
+      // "month" or "3 months", for "every …".
+      function every(c) {
         if (!c) return '';
-        return c.frequency === 1 ? 'every ' + c.interval : 'every ' + c.frequency + ' ' + unit(c.interval, c.frequency);
+        return c.frequency === 1 ? c.interval : c.frequency + ' ' + unit(c.interval, c.frequency);
+      }
+      // "/ month" or "/ 3 months", for after a price.
+      function per(c) {
+        return c ? '/ ' + every(c) : '';
+      }
+      // The date a trial that starts today ends, which is when the first payment is taken.
+      function trialEnd(t) {
+        var d = new Date();
+        var n = Number(t.frequency) || 0;
+        if (t.interval === 'week') d.setDate(d.getDate() + 7 * n);
+        else if (t.interval === 'month') d.setMonth(d.getMonth() + n);
+        else if (t.interval === 'year') d.setFullYear(d.getFullYear() + n);
+        else d.setDate(d.getDate() + n);
+        try {
+          return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(d);
+        } catch (e) {
+          return d.toDateString();
+        }
+      }
+      function span(className, text) {
+        var s = document.createElement('span');
+        s.className = className;
+        s.textContent = text;
+        return s;
       }
 
       // Fills the summary beside the frame. Paddle sends fresh totals on load and whenever the
@@ -141,35 +189,30 @@ const successUrl = `${billingUrl}?paid=1`;
         var list = document.getElementById('pay-items');
         list.textContent = '';
         var trial = null;
-        var recurring = false;
+        var billing = null;
         items.forEach(function (it) {
+          // What the customer pays each period, tax included. During a trial the item's totals
+          // are all zero and the real price is in recurring_totals.
+          var each = it.recurring_totals || it.totals || {};
+          var product = it.product && it.product.name ? it.product.name : '';
           var li = document.createElement('li');
           li.className = 'pay-item';
-          var name = document.createElement('span');
-          name.className = 'pay-item-name';
-          var product = it.product && it.product.name ? it.product.name : '';
-          name.textContent = product || it.price_name || 'Truplexy';
-          var detail = document.createElement('span');
-          detail.className = 'pay-item-detail';
-          var bits = [];
-          if (it.price_name && it.price_name !== product) bits.push(it.price_name);
-          if (it.quantity > 1) bits.push('× ' + it.quantity);
-          if (it.billing_cycle) {
-            recurring = true;
-            bits.push('billed ' + cycle(it.billing_cycle));
-          }
-          detail.textContent = bits.join(' · ');
-          var amount = document.createElement('span');
-          amount.className = 'pay-item-amount';
-          amount.textContent = money(it.totals ? it.totals.subtotal : 0);
           var left = document.createElement('span');
           left.className = 'pay-item-text';
-          left.appendChild(name);
-          if (bits.length) left.appendChild(detail);
+          left.appendChild(span('pay-item-name', product || it.price_name || 'Truplexy'));
+          var bits = [];
+          if (it.price_name && it.price_name !== product) bits.push(it.price_name + ' plan');
+          if (it.quantity > 1) bits.push('× ' + it.quantity);
+          if (bits.length) left.appendChild(span('pay-item-detail', bits.join(' · ')));
+          var right = document.createElement('span');
+          right.className = 'pay-item-price';
+          right.appendChild(span('pay-item-amount', money(each.total)));
+          if (it.billing_cycle) right.appendChild(span('pay-item-per', per(it.billing_cycle)));
           li.appendChild(left);
-          li.appendChild(amount);
+          li.appendChild(right);
           list.appendChild(li);
           if (it.trial_period && !trial) trial = it.trial_period;
+          if (it.billing_cycle && !billing) billing = it.billing_cycle;
         });
 
         var totals = data.totals || {};
@@ -180,21 +223,29 @@ const successUrl = `${billingUrl}?paid=1`;
         setText('pay-tax', money(totals.tax));
         setText('pay-total', money(totals.total));
 
+        var firstPayment = trial ? trialEnd(trial) : '';
         var trialEl = document.getElementById('pay-trial');
-        var recurringEl = document.getElementById('pay-recurring');
         if (trial) {
           trialEl.hidden = false;
-          trialEl.textContent =
-            'Your ' + trial.frequency + '-' + trial.interval + ' free trial starts now. You won’t be charged until it ends, and you can cancel before then.';
+          // "7-day", not "7-days": a compound adjective stays singular.
+          setText('pay-trial-title', trial.frequency + '-' + trial.interval + ' free trial');
+          setText('pay-trial-text', 'Nothing is charged today. Your first payment is on ' + firstPayment + '. Cancel before then and you pay nothing.');
         } else {
           trialEl.hidden = true;
         }
+
+        // What the plan costs once it is running: after the trial, or on each renewal.
+        var thenEl = document.getElementById('pay-then');
         var rt = data.recurring_totals;
-        if (recurring && rt && items[0] && items[0].billing_cycle) {
-          recurringEl.hidden = false;
-          recurringEl.textContent = 'Then ' + money(rt.total) + ' ' + cycle(items[0].billing_cycle) + ', including tax. Cancel any time.';
+        if (rt && billing) {
+          thenEl.hidden = false;
+          setText('pay-then-title', trial ? 'After your trial · from ' + firstPayment : 'Then, every ' + every(billing));
+          setText('pay-then-subtotal', money(rt.subtotal));
+          setText('pay-then-tax', money(rt.tax));
+          setText('pay-then-label', 'Total every ' + every(billing));
+          setText('pay-then-total', money(rt.total));
         } else {
-          recurringEl.hidden = true;
+          thenEl.hidden = true;
         }
         summary.hidden = false;
       }
@@ -239,7 +290,9 @@ const successUrl = `${billingUrl}?paid=1`;
     })();
   </script>
 
-  <style>
+  <!-- Global on purpose: the summary rows are built by the script above, and Astro's scoped
+       styles only match elements it rendered itself, so scoped rules never reached them. -->
+  <style is:global>
     .pay-head {
       max-width: 640px;
     }
@@ -308,6 +361,7 @@ const successUrl = `${billingUrl}?paid=1`;
     }
     .pay-item {
       display: flex;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
     }
@@ -318,13 +372,28 @@ const successUrl = `${billingUrl}?paid=1`;
     }
     .pay-item-name {
       font-weight: 600;
+      color: var(--color-ink);
     }
     .pay-item-detail {
       font-size: 0.875rem;
       color: var(--color-ink-muted);
     }
+    .pay-item-price {
+      display: grid;
+      justify-items: end;
+      gap: 2px;
+      flex-shrink: 0;
+      text-align: right;
+    }
     .pay-item-amount {
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: var(--color-ink);
+    }
+    .pay-item-per {
+      font-size: 0.8125rem;
+      color: var(--color-ink-muted);
       white-space: nowrap;
     }
     .pay-trial {
@@ -333,11 +402,36 @@ const successUrl = `${billingUrl}?paid=1`;
       border-radius: var(--radius-sm);
       background: var(--color-accent-soft);
       color: var(--color-accent);
-      font-size: 0.875rem;
       line-height: 1.5;
     }
+    .pay-trial[hidden] {
+      display: none;
+    }
+    .pay-trial-title {
+      margin: 0;
+      font-weight: 700;
+      font-size: 0.9375rem;
+    }
+    .pay-trial-text {
+      margin: 2px 0 0;
+      font-size: 0.875rem;
+    }
+    .pay-section {
+      margin: 20px 0 0;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-ink-faint);
+    }
+    .pay-then {
+      margin-top: 4px;
+    }
+    .pay-then[hidden] {
+      display: none;
+    }
     .pay-totals {
-      margin: 16px 0 0;
+      margin: 12px 0 0;
       display: grid;
       gap: 10px;
     }
@@ -360,11 +454,6 @@ const successUrl = `${billingUrl}?paid=1`;
       font-weight: 700;
       font-size: 1.0625rem;
       color: var(--color-ink);
-    }
-    .pay-recurring {
-      margin: 12px 0 0;
-      font-size: 0.875rem;
-      color: var(--color-ink-muted);
     }
     .pay-fine {
       margin: 16px 0 0;
