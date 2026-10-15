@@ -12,9 +12,17 @@
  * 3. Every built page is either in the sitemap or deliberately `noindex`
  *    (so a new public page can't be forgotten), and every internal link
  *    resolves to a built page or file.
- * 4. robots.txt references /sitemap.xml and lets Googlebot, Bingbot and
- *    OAI-SearchBot fetch every sitemap URL.
+ * 4. robots.txt references /sitemap.xml and lets every search and answer
+ *    crawler (SEARCH_CRAWLERS in src/data/crawlers.ts: Googlebot, Bingbot,
+ *    OAI-SearchBot, ChatGPT-User, PerplexityBot …) fetch every sitemap URL,
+ *    while model-training crawlers (TRAINING_CRAWLERS) stay blocked.
  * 5. No sitemap URL is a private, API, webhook or dashboard route.
+ * 6. Every page has exactly one <h1>, a title and a description, and valid
+ *    JSON-LD: Organization, WebSite and SoftwareApplication with resolvable
+ *    @id links, a WebPage that matches the canonical URL, breadcrumbs that
+ *    point at built pages, and no ratings, reviews, offers or awards.
+ * 7. The home page answers "What is Truplexy?" in its HTML and states that
+ *    Truplexy is independent of Perplexity.
  *
  * Exits non-zero on any problem. Live HTTP status, redirect and header checks
  * need a deployment; run them against production after each release.
@@ -23,13 +31,13 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SITE } from '../src/data/site.ts';
+import { SEARCH_CRAWLERS, TRAINING_CRAWLERS } from '../src/data/crawlers.ts';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const errors = [];
 const fail = (msg) => errors.push(msg);
 
 const read = (name) => readFileSync(join(dist, name), 'utf8');
-const BOTS = ['Googlebot', 'Bingbot', 'OAI-SearchBot'];
 const PRIVATE = /^\/(api|app|admin|dashboard|webhooks?|sign-?in|sign-?up|login|register|account|settings|search|_astro|_image)(\/|$)/i;
 
 // ── 1. sitemap.xml ──────────────────────────────────────────────────────────
@@ -177,7 +185,7 @@ for (const block of robots.split(/\n\s*\n/)) {
 const toRegExp = (p) => new RegExp('^' + p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'));
 function allowed(bot, path) {
   const token = bot.toLowerCase();
-  const specific = groups.filter((g) => g.agents.some((a) => a !== '*' && token.includes(a)));
+  const specific = groups.filter((g) => g.agents.includes(token));
   const applicable = specific.length ? specific : groups.filter((g) => g.agents.includes('*'));
   let best = { allow: true, length: -1 };
   for (const { rules } of applicable) {
@@ -189,20 +197,71 @@ function allowed(bot, path) {
   }
   return best.allow;
 }
-for (const bot of BOTS) {
+for (const bot of SEARCH_CRAWLERS) {
   for (const route of routes) {
-    if (!allowed(bot, route)) fail(`robots.txt blocks ${bot} from ${route}`);
+    if (!allowed(bot, route)) fail(`robots.txt blocks search crawler ${bot} from ${route}`);
   }
+}
+for (const bot of TRAINING_CRAWLERS) {
+  if (allowed(bot, '/')) fail(`robots.txt lets training crawler ${bot} in (move it back out of SEARCH_CRAWLERS or confirm the policy change)`);
 }
 for (const path of ['/_astro/', '/favicon.ico', '/og-card.png']) {
   if (!allowed('Googlebot', path)) fail(`robots.txt blocks rendering resource ${path}`);
 }
 
+// ── 6. headings, metadata and structured data ──────────────────────────────
+const FORBIDDEN_TYPES = new Set(['Review', 'AggregateRating', 'Rating', 'Offer', 'AggregateOffer', 'Product', 'Award']);
+for (const { route, file } of built) {
+  const html = read(file);
+  const h1s = (html.match(/<h1[\s>]/g) ?? []).length;
+  if (h1s !== 1) fail(`${route}: ${h1s} <h1> elements (expected 1)`);
+  if (!/<title>[^<]{10,}<\/title>/.test(html)) fail(`${route}: missing or tiny <title>`);
+  if (!/<meta name="description" content="[^"]{50,}"/.test(html)) fail(`${route}: missing or short meta description`);
+
+  const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
+  if (blocks.length !== 1) {
+    fail(`${route}: ${blocks.length} JSON-LD blocks (expected 1)`);
+    continue;
+  }
+  let graph;
+  try {
+    graph = JSON.parse(blocks[0][1])['@graph'];
+  } catch (e) {
+    fail(`${route}: JSON-LD does not parse (${e.message})`);
+    continue;
+  }
+  const ids = new Set(graph.map((n) => n['@id']).filter(Boolean));
+  const types = graph.map((n) => n['@type']);
+  for (const t of ['Organization', 'WebSite', 'SoftwareApplication', 'WebPage']) {
+    if (!types.includes(t)) fail(`${route}: JSON-LD has no ${t}`);
+  }
+  for (const t of types) if (FORBIDDEN_TYPES.has(t)) fail(`${route}: JSON-LD contains ${t}, which the site has no real data for`);
+  if (JSON.stringify(graph).match(/"(aggregateRating|review|offers|award|sameAs)"/)) fail(`${route}: JSON-LD carries ratings, reviews, offers, awards or sameAs without verified data`);
+  // Every {"@id": …}-only reference must point at a node in the graph.
+  JSON.stringify(graph, (_key, v) => {
+    if (v && typeof v === 'object' && Object.keys(v).length === 1 && v['@id'] && !ids.has(v['@id'])) fail(`${route}: JSON-LD references missing ${v['@id']}`);
+    return v;
+  });
+  const page = graph.find((n) => n['@type'] === 'WebPage');
+  if (page && page.url !== canonicalOf(html)) fail(`${route}: WebPage url ${page.url} != canonical ${canonicalOf(html)}`);
+  for (const crumb of graph.find((n) => n['@type'] === 'BreadcrumbList')?.itemListElement ?? []) {
+    const path = new URL(crumb.item).pathname.replace(/\/$/, '') || '/';
+    if (!byRoute.has(path)) fail(`${route}: breadcrumb "${crumb.name}" points at ${crumb.item}, which is not built`);
+  }
+}
+
+// ── 7. identity on the home page ────────────────────────────────────────────
+const home = read('index.html').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
+const homeText = home.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+if (!/<h2[^>]*>\s*What is Truplexy\?\s*<\/h2>/.test(home)) fail('home: no visible "What is Truplexy?" heading');
+if (!/independent AI customer support platform/i.test(homeText)) fail('home: does not describe Truplexy as an independent AI customer support platform');
+if (!/not Perplexity AI or affiliated with Perplexity/i.test(homeText)) fail('home: does not state that Truplexy is not Perplexity / not affiliated with it');
+
 // ── report ──────────────────────────────────────────────────────────────────
 const dated = urls.filter((u) => u.lastmod).length;
 console.log(`sitemap.xml: ${urls.length} URLs (${dated} with lastmod), ${isIndex ? `index of ${files.length} files` : 'single urlset'}, ${sitemapSize} bytes`);
 console.log(`built pages: ${built.length} (${built.length - routes.length} kept out of the sitemap as noindex)`);
-console.log(`robots.txt: ${BOTS.join(', ')} may fetch all ${routes.length} sitemap URLs`);
+console.log(`robots.txt: ${SEARCH_CRAWLERS.length} search/answer crawlers may fetch all ${routes.length} sitemap URLs; ${TRAINING_CRAWLERS.length} training crawlers blocked`);
 if (errors.length) {
   console.error(`\n✗ ${errors.length} problem${errors.length === 1 ? '' : 's'}:`);
   for (const e of errors) console.error('  - ' + e);
