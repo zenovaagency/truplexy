@@ -1,7 +1,8 @@
 /**
  * Renders the Product Hunt gallery images from the HTML files beside this
  * script, with headless Chrome or Edge, at 2× Product Hunt's recommended
- * 1270×760 (so 2540×1520) so they stay sharp when enlarged.
+ * 1270×760 (so 2540×1520) so they stay sharp when enlarged. The PNGs go to
+ * /public, so the site serves them (e.g. truplexy.com/gallery-1-inbox.png).
  *
  *   node marketing/product-hunt/render.mjs            # every gallery-*.html
  *   node marketing/product-hunt/render.mjs gallery-1-inbox.html
@@ -15,6 +16,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
+const pub = path.resolve(dir, '..', '..', 'public');
 const W = 1270;
 const H = 760;
 const SCALE = 2;
@@ -37,7 +39,7 @@ const files = process.argv.slice(2).length
 
 for (const file of files) {
   const html = path.join(dir, file);
-  const out = path.join(dir, file.replace(/\.html$/, '.png'));
+  const out = path.join(pub, path.basename(file).replace(/\.html$/, '.png'));
   const raw = `${out}.raw.png`;
   // Headless windows can come out a few pixels short, so shoot taller and crop.
   execFileSync(browser, [
