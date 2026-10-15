@@ -12,7 +12,7 @@ const messaging = listNames(channelsIn('messaging').filter((c) => c.status === '
 const answers = [
   {
     q: 'What does Truplexy do?',
-    a: 'It answers customers for you, in your team’s tone, and keeps one continuous conversation going even when a customer moves from one channel to another. When a person adds value, your team takes over with the full conversation and context attached.',
+    a: 'It answers customers for you on every channel you use, in your team’s tone, day and night, and brings every conversation into one inbox for your team. When a person adds value, your team takes over with the conversation and context already there.',
   },
   {
     q: 'Who is it for?',
@@ -20,7 +20,7 @@ const answers = [
   },
   {
     q: 'What problems does it solve?',
-    a: 'Customers having to repeat themselves when they switch channels, questions that arrive outside business hours, and chatbots that leave people stuck with no way to reach a person.',
+    a: 'Teams jumping between separate apps for each channel, messages that get missed, questions that arrive outside business hours, and chatbots that leave people stuck with no way to reach a person.',
   },
   {
     q: 'Which channels does it support?',
@@ -29,7 +29,7 @@ const answers = [
   },
   {
     q: 'How is it different from a traditional chatbot?',
-    a: 'A typical chatbot lives on one channel and starts from scratch each time. Truplexy shares one customer identity and history across channels, avoids canned loops, and hands over to a person instead of dead-ending.',
+    a: 'A typical chatbot lives on one channel and loops through canned answers. Truplexy runs on every channel, answers from your own knowledge with the source attached, puts every conversation in one inbox, and hands over to a person instead of dead-ending.',
     link: { href: '/docs', label: 'Read the documentation' },
   },
 ];
@@ -41,8 +41,8 @@ const answers = [
       <p class="eyebrow">About</p>
       <h2 id="what-is-title" class="h2 mt-5">What is Truplexy?</h2>
       <p class="lede mx-auto mt-5 max-w-[680px] text-[1.0625rem]">
-        {SITE.name} is an independent AI customer support platform. It gives a business one AI support team across
-        every channel its customers use, with a smooth handoff to its own people.
+        {SITE.name} is an independent AI customer support platform. It puts an AI assistant on every channel a
+        business’s customers use, and gives its team one platform to manage every conversation.
       </p>
     </div>
 

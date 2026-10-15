@@ -26,6 +26,13 @@ const CHANNEL_ROW: { id: ChannelId; edge: boolean }[][] = [
   [{ id: 'discord', edge: false }, { id: 'instagram', edge: true }],
 ];
 
+// One inbox: a few conversations, each on its own channel, with where it stands.
+const INBOX_ROWS: { channel: ChannelId; subject: string; status: string; tone: string }[] = [
+  { channel: 'whatsapp', subject: 'Where’s my order?', status: 'Resolved by AI', tone: 'bg-live-soft text-live' },
+  { channel: 'instagram', subject: 'Is this jacket in black?', status: 'Resolved by AI', tone: 'bg-live-soft text-live' },
+  { channel: 'telegram', subject: 'Special refund request', status: 'Waiting for team', tone: 'bg-human-soft text-human' },
+];
+
 const check = 'grid h-4 w-4 flex-none place-items-center rounded-full bg-btn text-white';
 const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
 ---
@@ -35,10 +42,10 @@ const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
     <div class="mx-auto max-w-[800px] text-center">
       <p class="eyebrow">Features</p>
       <h2 id="pillars-title" class="h2 mt-5">
-        The intelligent conversation layer between your business and its customers.
+        An AI assistant on every channel, and one platform for your team.
       </h2>
       <p class="lede mx-auto mt-5 max-w-[560px] text-[1.0625rem]">
-        Human-like AI on every channel, one continuous memory — and your team, the moment a person is needed.
+        Human-like answers around the clock, every conversation in one inbox — and your team, the moment a person is needed.
       </p>
     </div>
 
@@ -109,7 +116,7 @@ const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
       <FeatureCard
         class="sm:col-span-2 lg:col-span-2"
         title="Smart human handoff"
-        body="Escalates when a person adds value, and hands over the whole conversation when it does."
+        body="Brings your team in when a person adds value, with the conversation and context already there."
       >
         <div class="relative h-[190px] w-[290px]">
           <span class="absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-line"></span>
@@ -140,48 +147,28 @@ const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
         </div>
       </FeatureCard>
 
-      <!-- 4. Persistent context -->
+      <!-- 4. One inbox -->
       <FeatureCard
         class="sm:col-span-2 lg:col-span-3"
-        title="Persistent context"
-        body="What a customer told you on your website is still remembered on Telegram — nobody has to repeat themselves."
+        title="One inbox for your team"
+        body="Every conversation lands in one place: what the AI already handled, what each customer needs, and what’s waiting for your team."
       >
-        <div class="relative h-[124px] w-[404px] max-sm:scale-[0.85]">
-          <span class:list={['chip absolute left-0 top-0 h-8 text-[0.75rem] text-ink', float, '!shadow-[var(--shadow-sm)]']}>
-            <ChannelIcon id={HERO.first.channel} size={15} /> {HERO.first.label}
-          </span>
-          <!-- L-shaped connector: down from the first channel, across into the remembered context. -->
-          <span class="absolute left-[24px] top-[32px] h-[42px] w-[116px] rounded-bl-xl border-b border-l border-accent/50"></span>
-          <span class="absolute left-[21.5px] top-[30px] h-[5px] w-[5px] rounded-full bg-accent"></span>
-
-          <ul class="absolute left-[140px] top-[24px] flex w-[136px] flex-col gap-2">
-            {HERO.memory.map((m, i) => (
-              <li
-                class:list={[
-                  'flex h-7 items-center gap-1.5 rounded-full border bg-surface px-2.5 text-[0.72rem] font-medium',
-                  i === 1 ? 'border-accent text-ink ring-2 ring-accent/15' : 'border-line text-ink-muted shadow-[var(--shadow-sm)]',
-                ]}
-              >
-                <span class={check}><Check size={10} strokeWidth={3.5} aria-hidden="true" /></span>
-                {m}
-              </li>
-            ))}
-          </ul>
-
-          <!-- From the highlighted context to the next channel. -->
-          <span class="absolute left-[276px] top-[74px] h-px w-[26px] bg-accent/50"></span>
-          <span class="absolute left-[299.5px] top-[71.5px] h-[5px] w-[5px] rounded-full bg-accent"></span>
-          <span class:list={['chip absolute left-[302px] top-[58px] h-8 text-[0.75rem] text-ink', float, '!shadow-[var(--shadow-sm)]']}>
-            <ChannelIcon id={HERO.second.channel} size={15} /> {HERO.second.label}
-          </span>
-        </div>
+        <ul class:list={['flex w-[330px] flex-col gap-2 max-sm:scale-[0.9]']}>
+          {INBOX_ROWS.map((r) => (
+            <li class:list={['flex h-11 items-center gap-2.5 rounded-xl px-3', float]}>
+              <ChannelIcon id={r.channel} size={16} />
+              <span class="min-w-0 flex-1 truncate text-[0.78rem] font-medium text-ink">{r.subject}</span>
+              <span class:list={['chip flex-none text-[0.66rem]', r.tone]}>{r.status}</span>
+            </li>
+          ))}
+        </ul>
       </FeatureCard>
 
       <!-- 5. Every channel -->
       <FeatureCard
         class="sm:col-span-2 lg:col-span-3"
         title="Every channel"
-        body="Website, WhatsApp, Messenger, Instagram, Telegram, Discord and your own apps — one support experience."
+        body="Website, WhatsApp, Messenger, Instagram, Telegram, Discord and your own apps — an AI assistant on every one."
       >
         <div class="relative flex items-center gap-4 sm:gap-5">
           <span class="thread-h absolute inset-x-4 top-1/2 -translate-y-1/2 opacity-35"></span>

@@ -3,7 +3,6 @@ import { getImage } from 'astro:assets';
 import { CircleCheck, Headset, UserRound } from 'lucide-react';
 import mark from '../../assets/brand/mark.png';
 import { INBOX } from '../../data/demo';
-import { channel } from '../../data/channels';
 
 const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
 
@@ -27,8 +26,6 @@ const NODE = {
   human: { label: 'Human specialist', icon: Headset, tone: 'bg-human-soft text-human' },
   resolution: { label: 'Resolution', icon: CircleCheck, tone: 'bg-live-soft text-live' },
 } as const;
-
-const telegram = channel('telegram').name;
 ---
 
 <section id="handoff" class="section scroll-mt-[calc(var(--section-y)*-1)] border-y border-line bg-surface" aria-labelledby="handoff-title">
@@ -39,9 +36,8 @@ const telegram = channel('telegram').name;
         <h2 id="handoff-title" class="h2 mt-5">Always AI-assisted. Never AI-trapped.</h2>
       </div>
       <p class="lede lg:pb-2">
-        Truplexy isn’t about replacing your support team. It’s the first layer of continuous support —
-        and it brings people into the conversation when their involvement adds value. The context follows
-        automatically.
+        Truplexy isn’t about replacing your support team. It answers first, and when a human touch
+        matters it brings your team in, with the conversation and context already there.
       </p>
     </div>
 
@@ -121,8 +117,8 @@ const telegram = channel('telegram').name;
     </div>
 
     <p class="mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.6rem,1.1rem+2vw,2.6rem)] font-bold tracking-tight">
-      Start on web. Continue on {telegram}.
-      <span class="gradient-text block">Finish with your team.</span>
+      No repeating. No starting over.
+      <span class="gradient-text block">Just real help.</span>
     </p>
   </div>
 </section>
