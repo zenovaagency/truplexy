@@ -80,9 +80,11 @@ Published npm versions cannot be overwritten. For a new release:
 
 1. Run `npm run version:sdk`. It checks all four packages on npm and chooses the next patch version above the highest published stable version. An already prepared local version is kept if it is newer, so rerunning after cancelled publishing or failed authentication does not keep incrementing. All four package versions, their internal dependencies, and the lockfile are updated together. For a specific minor or major release, use `npm run version:sdk -- <new-version>` instead.
 2. Run `npm install`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run size`.
-3. Run `npm run publish:check` to confirm that none of those versions already exists on npm. Sign in with `npm login` if needed.
-4. Run `npm run release`. It repeats the registry check before publishing `server`, `web`, `react`, and `vue`, in that order.
+3. Run `npm run publish:check` to verify npm authentication and confirm that none of those versions already exists on npm. Sign in with `npm login` if needed, using an account with write access to all four `@truplexy` packages.
+4. Run `npm run release`. It repeats the authentication and registry checks before publishing `server`, `web`, `react`, and `vue`, in that order. npm may still prompt for two-factor authentication during publishing.
 
 On Windows, `update-sdk.bat` selects the version automatically, runs the checks, then asks before publishing. There is no version prompt. For example, once `0.4.0` is published, the next run prepares `0.4.1`. If only some packages published successfully, the next run also picks a patch above that partially published version for all four packages.
+
+If publishing returns `E404` even though `npm view @truplexy/server version` succeeds, check `npm whoami`. Public package metadata can be read without a valid login. If `npm whoami` returns `E401` or `ENEEDAUTH`, run `npm login` from this directory, then retry `npm run publish:check` and `npm run release`. A failed authentication attempt does not require another version bump. If authentication succeeds but publishing is denied, check the account's package permissions and any token's scope and write permissions.
 
 The CDN URL in the docs (`cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js`) and the WordPress plugin follow the latest `0.x` widget release.

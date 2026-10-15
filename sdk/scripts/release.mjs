@@ -59,6 +59,18 @@ export function checkVersions(manifests, lookup) {
   if (published.length) throw new Error(`Already published: ${published.join(', ')}. Run npm run version:sdk to choose the next version. No publishing was attempted.`);
 }
 
+export function checkAuthentication(runNpm = npm) {
+  const result = runNpm(['whoami']);
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const detail = `${result.stderr || ''}\n${result.stdout || ''}`;
+    if (/\b(E401|ENEEDAUTH)\b/.test(detail)) {
+      throw new Error('npm authentication is missing or invalid. Run npm login in the sdk directory with an account that can publish @truplexy packages, then retry npm run publish:check and npm run release. No publishing was attempted.');
+    }
+    throw new Error(`Could not verify npm authentication. No publishing was attempted.\n${detail.trim()}`);
+  }
+}
+
 function registryVersions(name) {
   const result = npm(['view', name, 'versions', '--json']);
   if (result.error) throw result.error;
@@ -85,6 +97,7 @@ function run(command, version) {
     return;
   }
   if (command !== 'check' && command !== 'publish') throw new Error('Expected version [auto|x.y.z], check, or publish.');
+  checkAuthentication();
   checkVersions(packages.map(p => p.manifest), registryVersions);
   console.log('Unpublished versions verified: ' + packages.map(p => `${p.manifest.name}@${p.manifest.version}`).join(', '));
   if (command === 'publish') {

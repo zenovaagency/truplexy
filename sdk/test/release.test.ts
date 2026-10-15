@@ -1,8 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { checkVersions, nextReleaseVersion, versionManifest } from '../scripts/release.mjs';
+import { checkAuthentication, checkVersions, nextReleaseVersion, versionManifest } from '../scripts/release.mjs';
 
 describe('SDK releases', () => {
   const packages = [{ name: 'server', version: '0.4.0' }, { name: 'web', version: '0.4.0' }];
+
+  it('accepts valid npm authentication', () => {
+    expect(() => checkAuthentication(() => ({ status: 0, stdout: 'publisher\n', stderr: '' }))).not.toThrow();
+  });
+
+  it.each(['E401', 'ENEEDAUTH'])('explains how to recover from %s before publishing', code => {
+    expect(() => checkAuthentication(() => ({ status: 1, stdout: '', stderr: `npm error code ${code}` }))).toThrow('Run npm login');
+    expect(() => checkAuthentication(() => ({ status: 1, stdout: '', stderr: `npm error code ${code}` }))).toThrow('No publishing was attempted');
+  });
+
+  it('reports connectivity and process failures without misdiagnosing authentication', () => {
+    expect(() => checkAuthentication(() => ({ status: 1, stdout: '', stderr: 'npm error code ENOTFOUND' }))).toThrow('Could not verify npm authentication');
+    expect(() => checkAuthentication(() => ({ status: null, error: new Error('spawn failed') }))).toThrow('spawn failed');
+  });
 
   it('automatically increments the published patch and compares versions numerically', () => {
     expect(nextReleaseVersion(packages, () => ['0.3.0', '0.4.0'])).toBe('0.4.1');

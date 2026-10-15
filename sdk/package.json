@@ -28,5 +28,8 @@
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@truplexy/server": "^0.4.5"
   }
 }
