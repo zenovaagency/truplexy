@@ -7,6 +7,7 @@ import { defineConfig } from 'astro/config';
 
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
+import vercel from '@astrojs/vercel';
 import tailwindcss from '@tailwindcss/vite';
 
 import { SITE } from './src/data/site.ts';
@@ -115,6 +116,10 @@ export default defineConfig({
   // this form; vercel.json redirects the slash variant.
   trailingSlash: 'never',
   build: { format: 'directory' },
+
+  adapter: vercel({
+    webAnalytics: { enabled: true },
+  }),
 
   integrations: [
     react(),
