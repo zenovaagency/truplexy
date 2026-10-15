@@ -16,7 +16,8 @@
     "og": "node scripts/og-card.mjs",
     "brand:icons": "node scripts/vendor-brand-icons.mjs",
     "astro": "astro",
-    "verify": "node scripts/verify-claims.mjs"
+    "verify": "node scripts/verify-claims.mjs",
+    "verify:seo": "node scripts/verify-seo.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^7.0.0",

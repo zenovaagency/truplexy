@@ -9,9 +9,9 @@ const email = 'hello@truplexy.com'; // PLACEHOLDER — real inbox
 export const SITE = {
   name: 'Truplexy',
   url: 'https://truplexy.com',
-  title: 'Truplexy — Every channel. One platform.',
+  title: 'Truplexy — AI Customer Support. Every Channel, One Platform.',
   description:
-    'Truplexy puts a human-like AI assistant on every channel you already use, and gives your team one platform to manage every conversation — answers 24/7, with your team stepping in when it matters.',
+    'Truplexy is an independent AI customer support platform. It puts a human-like AI assistant on every channel you already use — website, WhatsApp, Instagram, Telegram, Discord, email and your own apps — and gives your team one platform to manage every conversation.',
   tagline: 'Every channel. One platform.',
   email,
   // The dashboard, served by the `dashboard` service in vercel.json.

@@ -1,5 +1,8 @@
 // @ts-check
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { rename, rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 
 import react from '@astrojs/react';
@@ -21,6 +24,9 @@ const PAGE_SOURCES = {
   '/docs': ['src/pages/docs/index.astro', 'src/data/setup-guides.ts'],
   '/channels': ['src/pages/channels/index.astro', 'src/data/channel-pages.ts', 'src/data/channels.ts'],
   '/changelog': ['src/pages/changelog.astro', 'src/data/changelog.ts'],
+  '/privacy': ['src/pages/privacy.astro', 'src/data/legal.ts', 'src/data/site.ts'],
+  '/terms': ['src/pages/terms.astro', 'src/data/legal.ts', 'src/data/site.ts'],
+  '/refunds': ['src/pages/refunds.astro', 'src/data/legal.ts'],
 };
 
 /**
@@ -75,6 +81,31 @@ function lastModified(route) {
   return git('log', '-1', '--format=%cI', '--', ...sources) || undefined;
 }
 
+/**
+ * @astrojs/sitemap writes `sitemap-index.xml` plus `sitemap-N.xml` chunks
+ * (split at 45,000 URLs, under the protocol's 50,000 limit). Crawlers look
+ * for `/sitemap.xml` first, so this publishes the result there: the lone
+ * chunk while the site fits in one file (no extra fetch), the index once it
+ * doesn't. Runs after the sitemap integration, whose files it moves.
+ * @type {import('astro').AstroIntegration}
+ */
+const sitemapAtRoot = {
+  name: 'sitemap-at-root',
+  hooks: {
+    'astro:build:done': async ({ dir }) => {
+      /** @param {string} name */
+      const out = (name) => fileURLToPath(new URL(name, dir));
+      if (!existsSync(out('sitemap-index.xml'))) return;
+      if (existsSync(out('sitemap-1.xml'))) {
+        await rename(out('sitemap-index.xml'), out('sitemap.xml'));
+      } else {
+        await rename(out('sitemap-0.xml'), out('sitemap.xml'));
+        await rm(out('sitemap-index.xml'));
+      }
+    },
+  },
+};
+
 // `site` feeds canonical URLs, OG URLs, robots.txt and the sitemap. It comes
 // from SITE.url in src/data/site.ts — the one place the domain is set.
 export default defineConfig({
@@ -95,6 +126,7 @@ export default defineConfig({
         return { url: item.url, lastmod: lastModified(route) };
       },
     }),
+    sitemapAtRoot,
   ],
 
   devToolbar: { enabled: false },

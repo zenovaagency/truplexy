@@ -3,6 +3,7 @@ import '@fontsource-variable/plus-jakarta-sans/wght.css';
 import '@fontsource-variable/geist-mono/wght.css';
 import '../styles/global.css';
 import { SITE } from '../data/site';
+import { LEGAL } from '../data/legal';
 import { LIVE_CHANNELS } from '../data/channels';
 
 interface Props {
@@ -28,52 +29,51 @@ const robots = noindex
   ? 'noindex, follow'
   : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
-// Organization, WebSite and SoftwareApplication, plus breadcrumbs on inner
-// pages. No offers, ratings or reviews: schema must describe what is visibly
-// true on the page, and none of those exist yet.
+// Organization, WebSite and SoftwareApplication, tied together by @id, plus a
+// WebPage for this URL and breadcrumbs on inner pages. All of it restates what
+// is visibly true on the page. No offers, ratings, reviews or `sameAs`: none
+// exist yet, and nothing here is invented. When an official profile (LinkedIn,
+// X, GitHub …) is published, add its URL to `sameAs` on the Organization.
+const ORG_ID = `${SITE.url}/#org`;
+const WEBSITE_ID = `${SITE.url}/#website`;
+const APP_ID = `${SITE.url}/#software`;
+const identity = `${SITE.name} is an independent AI customer support platform from ${LEGAL.entity}. It is not Perplexity AI and is not affiliated with Perplexity.`;
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
     {
       '@type': 'Organization',
-      '@id': `${SITE.url}/#org`,
+      '@id': ORG_ID,
       name: SITE.name,
       url: SITE.url,
       logo: `${SITE.url}/icon-512.png`,
       slogan: SITE.tagline,
       email: SITE.email,
+      description: SITE.description,
+      disambiguatingDescription: identity,
+      parentOrganization: { '@type': 'Organization', name: LEGAL.entity, url: LEGAL.entityUrl },
     },
     {
       '@type': 'WebSite',
-      '@id': `${SITE.url}/#website`,
+      '@id': WEBSITE_ID,
       name: SITE.name,
       url: SITE.url,
       description: SITE.description,
       inLanguage: 'en',
-      publisher: { '@id': `${SITE.url}/#org` },
+      publisher: { '@id': ORG_ID },
     },
-    ...(breadcrumbs?.length
-      ? [
-          {
-            '@type': 'BreadcrumbList',
-            itemListElement: [{ name: 'Home', path: '/' }, ...breadcrumbs].map((crumb, i) => ({
-              '@type': 'ListItem',
-              position: i + 1,
-              name: crumb.name,
-              item: new URL(crumb.path, site).href,
-            })),
-          },
-        ]
-      : []),
     {
       '@type': 'SoftwareApplication',
+      '@id': APP_ID,
       name: SITE.name,
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'AI customer support',
       operatingSystem: 'Web',
       description: SITE.description,
+      disambiguatingDescription: identity,
       url: SITE.url,
-      publisher: { '@id': `${SITE.url}/#org` },
+      publisher: { '@id': ORG_ID },
       featureList: [
         'Human-like AI customer conversations',
         `AI assistant on every live channel: ${LIVE_CHANNELS.map((c) => c.name).join(', ')}`,
@@ -84,6 +84,35 @@ const jsonLd = {
         'Human handoff with the conversation and context already there',
       ],
     },
+    ...(noindex
+      ? []
+      : [
+          {
+            '@type': 'WebPage',
+            '@id': `${canonical}#webpage`,
+            url: canonical,
+            name: title,
+            description,
+            inLanguage: 'en',
+            isPartOf: { '@id': WEBSITE_ID },
+            about: { '@id': APP_ID },
+            ...(breadcrumbs?.length ? { breadcrumb: { '@id': `${canonical}#breadcrumb` } } : {}),
+          },
+        ]),
+    ...(breadcrumbs?.length
+      ? [
+          {
+            '@type': 'BreadcrumbList',
+            '@id': `${canonical}#breadcrumb`,
+            itemListElement: [{ name: 'Home', path: '/' }, ...breadcrumbs].map((crumb, i) => ({
+              '@type': 'ListItem',
+              position: i + 1,
+              name: crumb.name,
+              item: new URL(crumb.path, site).href,
+            })),
+          },
+        ]
+      : []),
   ],
 };
 ---
