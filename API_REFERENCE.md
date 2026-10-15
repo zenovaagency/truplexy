@@ -1423,7 +1423,7 @@ Starter and Pro are sold as Paddle subscriptions. [Paddle](https://www.paddle.co
 | `PADDLE_WEBHOOK_SECRET` | The notification destination's endpoint secret (`pdl_ntfset_…`). Empty turns the webhook off. |
 | `PADDLE_PRICE_STARTER_MONTHLY`, `PADDLE_PRICE_STARTER_YEARLY`, `PADDLE_PRICE_PRO_MONTHLY`, `PADDLE_PRICE_PRO_YEARLY` | The four `pri_…` IDs. All four are required when the API key or the secret is set. |
 
-Startup fails if a key doesn't match `PADDLE_ENV` or a price is missing. The Paddle sandbox prices are `pri_01m4vmb2hfbhstnq7kkakx1t74` (Starter monthly), `pri_01m4vmb2v11m6hnsnnksqfvr53` (Starter yearly), `pri_01m4vmb3s4sqycmzzwqcvk8d57` (Pro monthly) and `pri_01m4vmb42a0x2qadtp6956d45v` (Pro yearly). The dashboard needs only `VITE_PADDLE_CLIENT_TOKEN` and `VITE_PADDLE_ENV`.
+Startup fails if a key doesn't match `PADDLE_ENV` or a price is missing. The Paddle sandbox prices are `pri_01m4vmb2hfbhstnq7kkakx1t74` (Starter monthly), `pri_01m4vmb2v11m6hnsnnksqfvr53` (Starter yearly), `pri_01m4vmb3s4sqycmzzwqcvk8d57` (Pro monthly) and `pri_01m4vmb42a0x2qadtp6956d45v` (Pro yearly). The dashboard needs no Paddle variables: it sends the customer to the site's `/pay` page (`https://truplexy.com/pay?_ptxn=txn_…`, set with `VITE_PAY_PAGE_URL`), which loads Paddle.js and returns them to `/settings/plan?paid=1`. That page reads `VITE_PADDLE_CLIENT_TOKEN` and `VITE_PADDLE_ENV` when the site is built, and its domain must be approved in Paddle.
 
 **Storage** (`migrations/0026_paddle_subscriptions.sql`, applied by hand):
 

@@ -10,11 +10,18 @@ import { SITE } from '../data/site';
  * requires the page to load Paddle.js and to sit on an approved domain
  * (Paddle > Checkout > Checkout settings and Website approval).
  *
- * The client-side token is public by design and is the one the dashboard uses.
- * It is read at build time, so changing it takes a new deploy.
+ * The dashboard sends customers here to pay (it cannot open checkouts itself:
+ * it is a sign-in-only app on a domain Paddle has not approved). When they
+ * finish, Paddle returns them to the billing page. That address is fixed here,
+ * never taken from the URL, so this page cannot be used as an open redirect.
+ *
+ * The client-side token is public by design. It is read at build time, so
+ * changing it takes a new deploy.
  */
 const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN ?? process.env.VITE_PADDLE_CLIENT_TOKEN ?? '';
 const environment = (import.meta.env.VITE_PADDLE_ENV ?? process.env.VITE_PADDLE_ENV) === 'production' ? 'production' : 'sandbox';
+const billingUrl = new URL('/settings/plan', SITE.dashboardUrl).href;
+const successUrl = `${billingUrl}?paid=1`;
 ---
 
 <Base title="Checkout — Truplexy" noindex>
@@ -31,13 +38,13 @@ const environment = (import.meta.env.VITE_PADDLE_ENV ?? process.env.VITE_PADDLE_
         Payments are handled by Paddle, our merchant of record. If nothing opens, allow scripts from paddle.com and reload.
       </p>
       <div class="mt-9">
-        <Button href={SITE.dashboardUrl} variant="ghost" arrow={false}>Back to the dashboard</Button>
+        <Button href={billingUrl} variant="ghost" arrow={false}>Back to billing</Button>
       </div>
     </section>
   </main>
 
   <script is:inline src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
-  <script is:inline define:vars={{ token, environment }}>
+  <script is:inline define:vars={{ token, environment, successUrl }}>
     (function () {
       var title = document.getElementById('pay-title');
       var note = document.getElementById('pay-note');
@@ -61,10 +68,14 @@ const environment = (import.meta.env.VITE_PADDLE_ENV ?? process.env.VITE_PADDLE_
       if (environment === 'sandbox') window.Paddle.Environment.set('sandbox');
       window.Paddle.Initialize({
         token: token,
+        // Paddle sends the customer back to the billing page when they finish.
+        checkout: { settings: { successUrl: successUrl } },
         eventCallback: function (e) {
           if (e.name === 'checkout.completed') {
             title.textContent = 'Thank you';
-            note.textContent = 'Your payment went through. Your plan updates in a moment.';
+            note.textContent = 'Your payment went through. Taking you back to billing…';
+            // Paddle redirects by itself; this only covers a redirect that doesn't happen.
+            setTimeout(function () { location.assign(successUrl); }, 4000);
           } else if (e.name === 'checkout.closed') {
             title.textContent = 'Checkout closed';
             note.textContent = 'You can reopen it from the billing page in your dashboard.';

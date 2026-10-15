@@ -6,8 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly VITE_DASHBOARD_URL?: string;
   readonly VITE_USE_MOCKS?: string;
-  readonly VITE_PADDLE_CLIENT_TOKEN?: string;
-  readonly VITE_PADDLE_ENV?: string;
+  readonly VITE_PAY_PAGE_URL?: string;
 }
 
 interface ImportMeta {
