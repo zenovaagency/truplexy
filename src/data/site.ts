@@ -9,10 +9,10 @@ const email = 'hello@truplexy.com'; // PLACEHOLDER — real inbox
 export const SITE = {
   name: 'Truplexy',
   url: 'https://truplexy.com',
-  title: 'Truplexy — One conversation. Everywhere.',
+  title: 'Truplexy — Every channel. One platform.',
   description:
-    'Truplexy is the AI customer-support layer that keeps one continuous, human-like conversation going across your website, Telegram, Discord and your own apps — with smart handoff to your team when it matters.',
-  tagline: 'One conversation. Everywhere.',
+    'Truplexy puts a human-like AI assistant on every channel you already use, and gives your team one platform to manage every conversation — answers 24/7, with your team stepping in when it matters.',
+  tagline: 'Every channel. One platform.',
   email,
   // The dashboard, served by the `dashboard` service in vercel.json.
   dashboardUrl: 'https://app.truplexy.com',
@@ -32,7 +32,7 @@ export interface NavLink {
 export const PRODUCT_LINKS: NavLink[] = [
   { label: 'Human-like AI', href: '#features', blurb: 'Replies with the right tone, and no canned loops' },
   { label: 'Live demo', href: '#try', blurb: 'Be the customer and try it yourself' },
-  { label: 'Smart handoff', href: '#handoff', blurb: 'Your team steps in when a person adds value' },
+  { label: 'Smart handoff', href: '#handoff', blurb: 'Your team steps in with the conversation and context' },
   { label: 'Unified inbox', href: '#inbox', blurb: 'Every conversation and ticket in one place' },
   { label: 'Always on', href: '#continuous', blurb: 'Support that doesn’t clock out' },
 ];

@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "Truplexy — one conversation, everywhere. Continuous AI customer support across every channel.",
+  "description": "Truplexy — every channel, one platform. A human-like AI assistant on every channel, and one platform where your team manages every conversation.",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -13,6 +13,7 @@
     "preview": "astro preview",
     "check": "astro check",
     "brand": "node scripts/brand-assets.mjs",
+    "og": "node scripts/og-card.mjs",
     "brand:icons": "node scripts/vendor-brand-icons.mjs",
     "astro": "astro",
     "verify": "node scripts/verify-claims.mjs"

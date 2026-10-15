@@ -56,7 +56,7 @@ export const PLANS: Plan[] = [
     features: [
       'Website chat, WhatsApp, Messenger, Instagram, Telegram, Discord & Email',
       'Shopify, WooCommerce & WordPress',
-      'Cross-channel customer identity & shared history',
+      'Unified inbox for your whole team',
       'Knowledge base & custom tools',
       'Human handoff with full context',
       'REST API (limited)',
@@ -129,10 +129,9 @@ export const COMPARISON: { group: string; rows: CompareRow[] }[] = [
     ],
   },
   {
-    group: 'Customer memory',
+    group: 'Inbox & handoff',
     rows: [
-      { label: 'Cross-channel customer identity', values: all },
-      { label: 'Shared conversation history', values: all },
+      { label: 'Unified inbox', values: all },
       { label: 'Human handoff', values: all },
     ],
   },

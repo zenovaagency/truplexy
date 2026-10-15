@@ -1,6 +1,6 @@
 ---
 import { Image } from 'astro:assets';
-import { BookOpen, Headset, UserRound, Workflow } from 'lucide-react';
+import { BookOpen, Headset, Inbox, Workflow } from 'lucide-react';
 import ChannelIcon from '../ui/ChannelIcon';
 import mark from '../../assets/brand/mark.png';
 import { GROUP_LABEL, channelsIn, LIVE_CHANNELS, SOON_CHANNELS, type ChannelGroup } from '../../data/channels';
@@ -13,9 +13,9 @@ const right: ChannelGroup[] = ['business', 'internal'];
 
 const core = [
   { icon: BookOpen, name: 'Knowledge', note: 'Your docs, policies and product info' },
-  { icon: UserRound, name: 'Customer context', note: 'One identity and history across channels' },
+  { icon: Inbox, name: 'Unified inbox', note: 'Every conversation, managed in one place' },
   { icon: Workflow, name: 'Automations', note: 'Repeatable actions and workflows' },
-  { icon: Headset, name: 'Human team', note: 'Handoff with the full conversation' },
+  { icon: Headset, name: 'Human team', note: 'Steps in with the conversation and context' },
 ];
 ---
 
@@ -30,7 +30,7 @@ const core = [
       </div>
       <div class="lg:pb-2">
         <p class="lede">
-          Don’t force customers into a new support experience. Bring Truplexy into the platforms they already use.
+          Don’t force customers into a new support experience. Put an AI assistant on every platform they already use, and manage it all from one place.
         </p>
         <p class="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.85rem] text-ink-muted" aria-label="Legend">
           <span class="inline-flex items-center gap-2"><span class="live-dot" aria-hidden="true"></span>Live now ({LIVE_CHANNELS.length})</span>
@@ -81,9 +81,9 @@ const core = [
             <div class="card relative !rounded-[30px] px-6 py-7 text-center !shadow-[var(--shadow-lg)]">
               <Image src={mark} alt="" width={72} height={76} densities={[1, 2]} class="mx-auto h-[76px] w-auto" />
               <p class="mt-4 text-xl font-bold tracking-tight">Truplexy</p>
-              <p class="mt-1 text-[0.85rem] text-ink-muted">One conversation layer</p>
+              <p class="mt-1 text-[0.85rem] text-ink-muted">One platform</p>
               <ul class="mt-5 flex flex-col gap-1.5 text-left text-[0.8rem]">
-                {['One customer identity', 'One shared history', 'One context, every channel'].map((t) => (
+                {['An AI assistant on every channel', 'One inbox for every conversation', 'Your team in control'].map((t) => (
                   <li class="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-1.5 text-ink-muted">
                     <span class="h-1.5 w-1.5 rounded-full" style="background: var(--gradient-brand)" aria-hidden="true"></span>{t}
                   </li>
@@ -135,8 +135,8 @@ const core = [
     </div>
 
     <p class="display mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.9rem,1.2rem+2.6vw,3.3rem)]">
-      Many channels.
-      <span class="gradient-text block">One intelligence layer.</span>
+      Every channel.
+      <span class="gradient-text block">One platform.</span>
     </p>
   </div>
 </section>

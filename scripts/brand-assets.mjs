@@ -5,7 +5,7 @@
  * padding, which makes them sit low and small in the nav. This trims them,
  * writes the trimmed masters into src/assets/brand (astro:assets resizes and
  * re-encodes them per use), and renders the fixed-size files that must live
- * in /public: favicons, the touch icon, the manifest icons and the OG card.
+ * in /public: favicons, the touch icon and the manifest icons.
  *
  * Re-run it whenever a file in /logo changes. The outputs are committed, so
  * the build itself never depends on this script.
@@ -94,41 +94,7 @@ await (await icon(180, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'app
 await (await icon(192, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'icon-192.png'));
 await (await icon(512, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'icon-512.png'));
 
-// OG card -----------------------------------------------------------------
-// The wordmark is composited as a bitmap; only the tagline is SVG text, set
-// in a system sans so it renders without shipping a font into sharp.
-const W = 1200;
-const H = 630;
-const bgSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
-  <defs>
-    <radialGradient id="a" cx="12%" cy="8%" r="70%">
-      <stop offset="0" stop-color="#cfefff"/>
-      <stop offset="1" stop-color="#cfefff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="b" cx="92%" cy="96%" r="70%">
-      <stop offset="0" stop-color="#ead9ff"/>
-      <stop offset="1" stop-color="#ead9ff" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="t" x1="0" x2="1">
-      <stop offset="0" stop-color="#45D4FF"/>
-      <stop offset="0.45" stop-color="#1F7BFF"/>
-      <stop offset="1" stop-color="#6A2BFF"/>
-    </linearGradient>
-  </defs>
-  <rect width="100%" height="100%" fill="#F7F8FC"/>
-  <rect width="100%" height="100%" fill="url(#a)"/>
-  <rect width="100%" height="100%" fill="url(#b)"/>
-  <path d="M-20 572 C 260 520, 420 616, 640 566 S 1020 512, 1220 548" fill="none" stroke="url(#t)" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
-  <text x="600" y="400" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="46" font-weight="600" fill="#0E1222" letter-spacing="-1">One conversation. Everywhere.</text>
-  <text x="600" y="452" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24" fill="#4A5068">Continuous AI customer support across every channel</text>
-</svg>`;
-
-const word = await trimmed('truplexy-dark.png').resize({ width: 520 }).toBuffer();
-await sharp(Buffer.from(bgSvg))
-  .composite([{ input: word, top: 150, left: Math.round((W - 520) / 2) }])
-  .png()
-  .toFile(path.join(pub, 'og-card.png'));
+// The OG card (public/og-card.png) is rendered from scripts/og-card.html: `npm run og`.
 
 // Manifest + robots -------------------------------------------------------
 await writeFile(

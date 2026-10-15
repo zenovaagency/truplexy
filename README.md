@@ -1,7 +1,8 @@
 # Truplexy — marketing site
 
-**One conversation. Everywhere.** The homepage positions Truplexy as a continuous AI
-customer-support layer across channels, not a single website chatbot.
+**Every channel. One platform.** The homepage positions Truplexy as an AI assistant on every
+channel a business uses, plus one platform where the team manages every conversation, as in the
+launch film (`launch-video/`).
 
 Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mirrors `zenova-v2`.
 
@@ -13,7 +14,8 @@ Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mir
 | `npm run build` | Static build to `dist/` |
 | `npm run check` | Type-check (`astro check`) |
 | `npm run verify` | Honesty audit of the built home, `/channels/*` and `/docs/*` pages (run after build) |
-| `npm run brand` | Regenerate trimmed logos, favicons and the OG card from `/logo` |
+| `npm run brand` | Regenerate trimmed logos and favicons from `/logo` |
+| `npm run og` | Render `public/og-card.png` from `scripts/og-card.html` |
 
 ## Deploying
 
