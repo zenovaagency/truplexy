@@ -1,5 +1,7 @@
 # Truplexy launch film: scene design (Step 2, for review)
 
+> **v3 story (2026-10-14), supersedes scenes 02, 03, 04 and 08 below.** Truplexy is an AI assistant on every channel plus one platform where the team manages everything; it does not link one customer across channels, so the website-to-Telegram memory story was removed. 02 is now "Juggling apps" (three separate inboxes, a missed message, a customer waiting); 03 connects the mark to "AI assistant" and "Your team"; 04 is the dashboard's unified Tickets inbox (one row per channel, resolved / AI summary / waiting for the team); 08 ends on "Every channel. One platform." Headlines use one voice-synced style throughout. See `docs/production-report.md` for the delivered version.
+
 92.0 s · 1920×1080 · 30 fps (2,760 frames) · white theme in every scene, with no dark frames and no fades to black.
 
 ## 1. Brand system (extracted from the repo)

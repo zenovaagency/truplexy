@@ -7,7 +7,7 @@ import { AppShell, Avatar, Badge } from '../components/Dashboard';
 import { Bubble, ChatWidget, EventPill, Mono, Typing } from '../components/Chat';
 import { C, FONT } from '../theme';
 import { SMOOTH, mix, msgIn, prog } from '../animations/motion';
-import { f, SCENES, wordAt, wordAtNth } from '../timeline';
+import { f, SCENES, sayFrames, wordAt, wordAtNth } from '../timeline';
 
 /**
  * 07 · AI efficiency, human connection.
@@ -161,10 +161,13 @@ export const Scene07 = () => {
     <SceneShell length={SCENE07_LENGTH}>
       <Backdrop />
       <AbsoluteFill style={{ padding: '78px 0 0 96px' }}>
-        <Headline variant="type" text="AI When It Can." at={8} out={W('truplexy') - 12} size={76} />
+        <Headline text="When A Human Touch Matters." sync={sayFrames(6, 'When A Human Touch Matters.')} out={W('no') - 14} size={76} accent={['HUMAN']} />
       </AbsoluteFill>
       <AbsoluteFill style={{ padding: '78px 0 0 96px' }}>
-        <Headline variant="type" text="Humans When They Matter." at={W('truplexy')} size={76} accent={['MATTER']} />
+        <Headline text="No Repeating. No Starting Over." sync={sayFrames(6, 'No Repeating. No Starting Over.')} out={W('just') - 14} size={76} />
+      </AbsoluteFill>
+      <AbsoluteFill style={{ padding: '78px 0 0 96px' }}>
+        <Headline text="Just Real Help." sync={sayFrames(6, 'Just Real Help.')} size={76} accent={['HELP']} />
       </AbsoluteFill>
 
       <Scaled s={1.15} style={{ left: 96, top: 236, opacity: widgetIn, translate: `0 ${mix(30, 0, widgetIn)}px` }}>

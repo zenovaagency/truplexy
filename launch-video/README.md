@@ -1,6 +1,6 @@
 # Truplexy launch film
 
-The official ~90-second Truplexy launch film, built in Remotion from the site's own brand tokens, logo and product UI. It is white-themed in every scene and narrated by ElevenLabs "Brittney – Social Media Voice", with word-synced subtitles, original music and sound design.
+The official ~91-second Truplexy launch film, built in Remotion from the site's own brand tokens, logo and product UI. It is white-themed in every scene and narrated by ElevenLabs "Brittney – Social Media Voice", with word-synced subtitles, original music and sound design.
 
 This folder is self-contained. Nothing in the site (`../src`) or the dashboard (`../dashboard`) is modified; the film recreates their UI as motion components.
 
@@ -55,12 +55,12 @@ Review helpers: `node scripts/stills.mjs <outDir> [frames…]` renders PNG frame
 src/
   Root.tsx              compositions
   Film.tsx              the full film: scenes + subtitles + soundtrack
-  timeline.ts           THE timeline: scene starts/ends, narration placement, wordAt()
+  timeline.ts           THE timeline: scene starts/ends, narration placement, wordAt(), sayFrames()
   theme.ts              brand tokens (from ../src/styles/tokens.css)
   fonts.ts              Plus Jakarta Sans + Geist Mono, loaded locally
   animations/motion.ts  easing and frame helpers
   components/           Stage, Brand (logo), Chat (widget, bubbles), Phone (Telegram),
-                        Dashboard (app shell, badges), Headline (8 kinetic styles), ChannelGlyph
+                        Dashboard (app shell, badges), Headline (voice-synced), ChannelGlyph
   scenes/Scene01–08.tsx one file per scene
   captions/
     narration.ts        word timings of the approved narration (ElevenLabs Scribe)
@@ -71,7 +71,7 @@ src/
     Soundtrack.tsx      narration, ducked music, effects
 public/                 assets the film plays: logo, brand glyphs, fonts, levelled audio
 audio-source/           untouched ElevenLabs downloads (narration, music, sfx)
-audio-archive/          superseded takes (v1 narration, music take B)
+audio-archive/          superseded takes (v1 and v2 narration, music take B)
 scripts/                stills, contact sheet, SRT export, audio prep, mastering
 ```
 
@@ -89,14 +89,15 @@ scripts/                stills, contact sheet, SRT export, audio prep, mastering
 - Voice: ElevenLabs **Brittney – Social Media Voice – Fun, Youthful & Informative** (`kPzsL2i3teMYv0FxEYQ6`), model `eleven_v4`.
 - Style (the user's template, generation `MFuB6DtFIeBlK37OrlEe`): each line opens `[energetic]` and lands its payoff `[confident]`.
 - "Truplexy" is pronounced TROO-plex-ee, sent as IPA `/ˈtruːplɛksi/`.
-- Approved: v2 (extended) script, take 4 of each scene. ElevenLabs flow `HAnATQKeyBXvt62zp4Hz` holds every take.
+- Approved: take 4 of each scene; scenes 02, 03, 04 and 08 re-voiced for the v3 story ("every channel, one platform"). ElevenLabs flow `HAnATQKeyBXvt62zp4Hz` holds every take.
 
 ## Subtitles
 
 - Timings are measured, not estimated: each approved clip was transcribed with ElevenLabs Scribe (`eleven_scribe_v1`) for per-word start/end times, stored in `src/captions/narration.ts` with the approved script's spelling.
 - `phrases.ts` groups words into phrases of mostly 3–7 words (up to 9 to finish a sentence) at sentence and clause breaks, shows each from 0.12 s before its first word to 0.35 s after its last, and exports the same phrases to SRT.
 - Style: Plus Jakarta Sans 600, 42 px, ink on a soft white pill, lower centre (92 px above the bottom edge). Words still to come are lighter, the spoken word turns indigo on a soft brand pill, and key words (Truplexy, Everywhere, 24/7…) swell slightly.
-- **If narration changes**: re-transcribe the clip, replace its row in `narration.ts`, and update `vo.at`/scene times in `timeline.ts`. Animations, subtitles, ducking and effect cues all follow automatically.
+- **If narration changes**: re-transcribe the clip, replace its row in `narration.ts`, and update `vo.at`/scene times in `timeline.ts`. Animations, headlines, subtitles, ducking and effect cues all follow automatically.
+- **Headlines** are separate from the subtitles: each headline word enters on the frame it is spoken (`sayFrames()` in `timeline.ts`), so headline copy repeats the narration's words.
 
 ## Audio mix
 

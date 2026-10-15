@@ -1,9 +1,11 @@
 /**
- * Word-level timing for the approved narration (v2 script, take 4 of each
- * scene). Start and end are seconds from the start of that scene's clip,
+ * Word-level timing for the approved narration (take 4 of each scene; scenes
+ * 01, 05, 06 and 07 from the v2 script, 02, 03, 04 and 08 from the v3
+ * script). Start and end are seconds from the start of that scene's clip,
  * measured with ElevenLabs Scribe (eleven_scribe_v1) on the exact files in
- * public/audio/narration/. The text is the approved script, not the
- * transcript, so "Truplexy" and punctuation are always spelled correctly.
+ * public/audio/narration/, and cross-checked against the clips' pauses. The
+ * text is the approved script, not the transcript, so "Truplexy" and
+ * punctuation are always spelled correctly.
  * Scribe heard "24/7" as three words ("twenty four seven"); it is shown as one.
  *
  * These timings drive the subtitles and every word-synced animation beat.
@@ -20,29 +22,27 @@ export const NARRATION: Word[][] = [
     ['But', 6.72, 6.84], ['keeping', 6.88, 7.1], ['up', 7.16, 7.24], ['with', 7.26, 7.46], ['every', 7.56, 7.8], ['conversation,', 7.9, 8.64],
     ['on', 8.82, 8.94], ['every', 9.2, 9.46], ['channel,', 9.58, 9.9], ["isn't", 10.14, 10.36], ['easy.', 10.42, 10.76],
   ],
-  // 02 · Disconnected conversations
+  // 02 · Juggling apps
   [
-    ['Too', 0.16, 0.32], ['often,', 0.46, 0.8], ['every', 1.04, 1.26], ['channel', 1.36, 1.64], ['becomes', 1.66, 1.96], ['another', 1.98, 2.32],
-    ['disconnected', 2.34, 2.92], ['conversation.', 3.0, 3.78],
-    ['Same', 4.3, 4.48], ['customer,', 4.52, 5.02], ['new', 5.32, 5.48], ['inbox…', 5.52, 6.02],
-    ['and', 6.48, 6.56], ["they're", 6.58, 6.7], ['left', 6.74, 6.92], ['repeating', 6.96, 7.36], ['themselves,', 7.38, 7.88],
-    ['again', 8.039, 8.46], ['and', 8.48, 8.6], ['again.', 8.66, 8.98],
+    ['Too', 0.08, 0.32], ['often,', 0.4, 0.8], ['your', 0.88, 0.96], ['team', 1.04, 1.12], ['is', 1.2, 1.28], ['jumping', 1.36, 1.68], ['between', 1.88, 2.08], ['apps.', 2.16, 2.64],
+    ['A', 2.8, 2.84], ['website', 2.88, 3.2], ['inbox', 3.4, 3.6], ['here…', 3.68, 4.16], ['WhatsApp', 4.24, 4.72], ['there…', 4.8, 5.32],
+    ['Instagram', 5.36, 5.76], ['somewhere', 5.8, 6.0], ['else.', 6.08, 6.56],
+    ['Messages', 6.88, 7.2], ['get', 7.28, 7.44], ['missed,', 7.56, 7.8], ['and', 7.84, 7.92], ['customers', 8.0, 8.4], ['are', 8.48, 8.56], ['left', 8.64, 8.72], ['waiting.', 8.88, 9.44],
   ],
   // 03 · Meet Truplexy
   [
-    ['Meet', 0.2, 0.46], ['Truplexy!', 0.66, 1.52],
-    ['One', 2.1, 2.3], ['intelligent', 2.36, 2.88], ['conversation', 2.96, 3.54], ['layer —', 3.6, 3.84],
-    ['connecting', 4.16, 4.54], ['your', 4.56, 4.66], ['customers,', 4.7, 5.28], ['your', 5.44, 5.6], ['AI,', 5.68, 6.02],
-    ['and', 6.16, 6.34], ['your', 6.38, 6.5], ['team,', 6.54, 6.78],
-    ['on', 7.12, 7.28], ['every', 7.36, 7.52], ['channel', 7.64, 7.88], ['you', 7.92, 7.98], ['already', 8.039, 8.28], ['use.', 8.42, 8.7],
+    ['Meet', 0.24, 0.48], ['Truplexy!', 0.8, 1.48],
+    ['An', 1.84, 1.92], ['AI', 2.08, 2.32], ['assistant', 2.56, 2.8], ['on', 2.92, 3.04], ['every', 3.12, 3.36], ['channel', 3.52, 3.68], ['you', 3.76, 3.84], ['already', 3.92, 4.24], ['use,', 4.4, 4.84],
+    ['and', 5.04, 5.12], ['one', 5.2, 5.36], ['platform', 5.44, 5.84], ['where', 5.92, 6.0], ['your', 6.08, 6.24], ['team', 6.32, 6.56], ['manages', 6.64, 6.96], ['it', 7.04, 7.12], ['all.', 7.2, 7.52],
   ],
-  // 04 · One conversation, across channels
+  // 04 · One inbox
   [
-    ['From', 0.14, 0.28], ['your', 0.32, 0.4], ['website', 0.48, 1.0], ['to', 1.0, 1.12], ['your', 1.16, 1.26], ['messaging', 1.3, 1.66], ['channels,', 1.74, 2.18],
-    ['Truplexy', 2.58, 3.14], ['keeps', 3.3, 3.52], ['the', 3.56, 3.64], ['conversation', 3.68, 4.24], ['connected.', 4.3, 4.78],
-    ['Ask', 5.28, 5.44], ['on', 5.48, 5.58], ['your', 5.6, 5.7], ['website', 5.74, 6.1], ['on', 6.14, 6.28], ['Tuesday,', 6.32, 6.78],
-    ['pick', 7.18, 7.28], ['it', 7.32, 7.36], ['up', 7.42, 7.5], ['on', 7.54, 7.64], ['Telegram', 7.7, 8.1], ['on', 8.14, 8.24], ['Wednesday,', 8.28, 8.76],
-    ['and', 9.14, 9.26], ['nobody', 9.36, 9.78], ['has', 9.82, 10.02], ['to', 10.06, 10.12], ['start', 10.2, 10.38], ['over.', 10.46, 10.68],
+    ['Website,', 0.08, 0.68], ['WhatsApp,', 0.8, 1.28], ['Instagram,', 1.36, 2.0], ['Telegram.', 2.08, 2.84],
+    ['Every', 3.12, 3.28], ['conversation', 3.36, 4.0], ['lands', 4.12, 4.24], ['in', 4.28, 4.32], ['one', 4.4, 4.48], ['inbox.', 4.56, 5.08],
+    ['See', 5.6, 5.68], ['what', 5.76, 5.84], ['the', 5.88, 5.92], ['AI', 6.08, 6.32], ['already', 6.4, 6.72], ['handled,', 6.8, 7.28],
+    ['what', 7.44, 7.52], ['each', 7.6, 7.76], ['customer', 8.0, 8.24], ['needs,', 8.32, 8.84],
+    ['and', 9.04, 9.12], ["what's", 9.2, 9.4], ['waiting', 9.44, 9.68], ['for', 9.72, 9.76], ['your', 9.84, 10.0], ['team,', 10.08, 10.48],
+    ['all', 10.64, 10.8], ['from', 10.88, 10.96], ['one', 11.04, 11.2], ['place.', 11.4, 11.76],
   ],
   // 05 · Human-like support, 24/7
   [
@@ -73,9 +73,9 @@ export const NARRATION: Word[][] = [
   ],
   // 08 · Final brand moment
   [
-    ['One', 0.24, 0.38], ['conversation.', 0.48, 1.16], ['Everywhere.', 1.64, 2.08],
-    ['Truplexy.', 2.56, 3.14],
-    ['Customer', 3.68, 4.04], ['support', 4.12, 4.46], ['that', 4.48, 4.6], ['feels', 4.64, 4.86], ['connected.', 4.88, 5.36],
-    ['Start', 5.76, 5.94], ['your', 5.98, 6.04], ['free', 6.1, 6.24], ['trial', 6.28, 6.54], ['today!', 6.58, 6.88],
+    ['Every', 0.16, 0.4], ['channel.', 0.48, 0.96], ['One', 1.12, 1.28], ['platform.', 1.36, 1.92],
+    ['Truplexy.', 2.24, 2.96],
+    ['Customer', 3.36, 3.76], ['support,', 3.84, 4.36], ['managed', 4.48, 4.88], ['from', 4.96, 5.12], ['one', 5.2, 5.36], ['place.', 5.56, 5.92],
+    ['Start', 6.08, 6.24], ['your', 6.32, 6.4], ['free', 6.48, 6.64], ['trial', 6.72, 6.96], ['today!', 7.16, 7.52],
   ],
 ];
