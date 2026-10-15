@@ -5,6 +5,7 @@ import '../styles/global.css';
 import { SITE } from '../data/site';
 import { LEGAL } from '../data/legal';
 import { LIVE_CHANNELS } from '../data/channels';
+import Analytics from '@vercel/analytics/astro';
 
 interface Props {
   title?: string;
@@ -158,6 +159,7 @@ const jsonLd = {
     <meta name="twitter:image" content={ogImage} />
 
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <Analytics />
   </head>
 
   <body>
