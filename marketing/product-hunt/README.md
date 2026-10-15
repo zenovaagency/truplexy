@@ -1,6 +1,6 @@
 # Product Hunt gallery
 
-Two gallery images to sit beside the OG card (`public/og-card.png`). Their copy and sample data follow the launch film (`launch-video/`). Every store and person shown is fictional, and both images say so.
+Two gallery images to sit beside the OG card (`public/og-card.png`). Their copy and sample data follow the launch film. Every store and person shown is fictional, and both images say so.
 
 The PNGs are written to `public/`, so the site serves them at `truplexy.com/gallery-1-inbox.png` and `truplexy.com/gallery-2-handoff.png`.
 
