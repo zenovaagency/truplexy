@@ -4,7 +4,7 @@ import { loadSnippets } from '../scripts/snippets.mjs';
 import { mockApi } from '../playground/mock-api.mjs';
 import { createChatClient, createHandler, verifySession } from '../packages/server/src';
 
-const base = 'https://mock.test/v2';
+const base = 'https://mock.test/v3';
 const options = { latency: 0, replyLatency: 0, autoAgent: false };
 const identity = { name: 'Ann', contacts: [{ type: 'app', value: '42' }, { type: 'email', value: 'Ann@example.com' }] };
 

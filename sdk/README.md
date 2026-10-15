@@ -48,7 +48,7 @@ import { TruplexyChat } from "@truplexy/react";
 
 ## Customer chat API
 
-Use [`createChatClient()` and the customer chat guide](CHAT_API.md) for contacts, metadata, channels, ticket controls, agent replies and realtime. All calls use `/v2` with a server-held chat key.
+Use [`createChatClient()` and the customer chat guide](CHAT_API.md) for contacts, metadata, channels, ticket controls, agent replies and realtime. All calls use `/v3` with a server-held chat key.
 
 The website widget asks for name/email by default and links its new conversation and ticket to that customer. For signed-in users, provide `customer(request)` on the server and set `details="off"` on the widget. Identity failures now stop a new identified chat; `CUSTOMER_EXISTS` is retried once. Anonymous chat remains available without identity.
 
@@ -66,9 +66,9 @@ TRUPLEXY_CHAT_KEY=tpx_… npm run playground   # the same, against the real API
 
 **Testing a route in any language.**
 
-1. Run the mock API: `node playground/mock-api.mjs`, which listens on `http://localhost:4301/v2`.
-2. Point the route at the mock API. Extract the dashboard's actual examples with `node scripts/snippets.mjs <output directory> http://localhost:4301/v2`; install the selected language's dependencies and start its route.
-3. Run `node scripts/check-route.mjs <route URL> <session secret> http://localhost:4301/v2`.
+1. Run the mock API: `node playground/mock-api.mjs`, which listens on `http://localhost:4301/v3`.
+2. Point the route at the mock API. Extract the dashboard's actual examples with `node scripts/snippets.mjs <output directory> http://localhost:4301/v3`; install the selected language's dependencies and start its route.
+3. Run `node scripts/check-route.mjs <route URL> <session secret> http://localhost:4301/v3`.
 
 It checks the whole protocol, customer/conversation/ticket linkage, escalation/resume/closure, agent-reply deduplication, the 120-character name boundary, and cross-verifies session tokens with `@truplexy/server`. Omit the final URL to check a route without inspecting or updating its mock API records.
 

@@ -1,5 +1,5 @@
 // A pretend Truplexy chat API, used by the playground and to test server routes
-// written in other languages:  node playground/mock-api.mjs  → http://localhost:4301/v2
+// written in other languages:  node playground/mock-api.mjs  → http://localhost:4301/v3
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
@@ -153,7 +153,7 @@ export function mockApi(base, { latency = 150, replyLatency = 900, autoAgent = t
 // Run directly: serve the mock over HTTP, for routes in Python, PHP, Go…
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 4301);
-  const base = `http://localhost:${port}/v2`;
+  const base = `http://localhost:${port}/v3`;
   const api = mockApi(base);
   createServer(async (req, res) => {
     let body = '';

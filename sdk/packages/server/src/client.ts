@@ -1,5 +1,5 @@
 /** Chat-key API client. Import and call this module on your server only. */
-export const DEFAULT_API_BASE = 'https://api.truplexy.com/v2';
+export const DEFAULT_API_BASE = 'https://api.truplexy.com/v3';
 
 export interface ContactInput { type: string; value: string; label?: string; primary?: boolean }
 export interface Contact extends ContactInput { primary: boolean }

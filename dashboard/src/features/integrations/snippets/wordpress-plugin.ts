@@ -45,7 +45,7 @@ function truplexy_chat_key(): string {
 }
 
 function truplexy_chat_api_base(): string {
-    return rtrim(defined('TRUPLEXY_API_BASE') ? TRUPLEXY_API_BASE : 'https://api.truplexy.com/v2', '/');
+    return rtrim(defined('TRUPLEXY_API_BASE') ? TRUPLEXY_API_BASE : 'https://api.truplexy.com/v3', '/');
 }
 
 /* -------------------------------------------------------------------------

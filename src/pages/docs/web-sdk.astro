@@ -255,7 +255,7 @@ const inline = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
           <p><code>reset()</code> retains customer details. On account changes, dispose of the old client and recreate it with separate storage per identity, or clear its store first. The server must enforce authorization. Identifying a customer does not grant access to earlier conversations, and existing conversations are not relinked.</p>
 
           <h2 id="chat-api">Server chat API</h2>
-          <p>Import <code>createChatClient</code> from <code>@truplexy/server</code> on your server. It reads <code>TRUPLEXY_CHAT_KEY</code> and calls the production <code>/v2</code> API; options are <code>chatKey</code>, <code>apiBase</code>, and <code>fetch</code>. Responses retain the API’s snake_case fields. Staff customer management under <code>/customers</code> is separate.</p>
+          <p>Import <code>createChatClient</code> from <code>@truplexy/server</code> on your server. It reads <code>TRUPLEXY_CHAT_KEY</code> and calls the production <code>/v3</code> API; options are <code>chatKey</code>, <code>apiBase</code>, and <code>fetch</code>. Responses retain the API’s snake_case fields. Staff customer management under <code>/customers</code> is separate.</p>
           <CodeBlock name="chat.ts" code={`import { createChatClient } from "@truplexy/server";
 const chat = createChatClient();
 const customer = await chat.upsertCustomer({ contacts: [{ type: "app", value: "user-42" }] });

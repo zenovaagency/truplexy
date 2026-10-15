@@ -20,7 +20,7 @@ Copy `.env.example` to `.env.local`:
 
 | Variable | Meaning |
 | --- | --- |
-| `VITE_API_BASE_URL` | The API, e.g. `https://api.truplexy.com/v2` |
+| `VITE_API_BASE_URL` | The API, e.g. `https://api.truplexy.com/v3` |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase Auth, for sign-in and live updates |
 | `VITE_DASHBOARD_URL` | This app's public URL, used in invitation links |
 | `VITE_USE_MOCKS` | `true` serves every call from the in-browser mock API |
