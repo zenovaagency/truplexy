@@ -137,6 +137,36 @@ async Task OnEvent(JsonElement evt)
 }`,
 
   integrations: {
+    discord: {
+      file: 'Bot.cs',
+      handler: `// dotnet add package Discord.Net — keeps a gateway connection open.
+using Discord;
+using Discord.WebSocket;
+
+var discord = new DiscordSocketClient(new DiscordSocketConfig
+{
+    GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.DirectMessages | GatewayIntents.MessageContent,
+});
+
+discord.MessageReceived += m =>
+{
+    if (m.Author.IsBot || string.IsNullOrEmpty(m.Content)) return Task.CompletedTask;
+    _ = Task.Run(async () =>   // don't block the gateway
+    {
+        using var typing = m.Channel.EnterTypingState();
+        var a = await Truplexy.Ask($"dc:{m.Channel.Id}:{m.Author.Id}", m.Content, new { contacts = new[] { new { type = "discord", value = m.Author.Id.ToString() } } });
+        if (a.Reply is { } reply) await m.Channel.SendMessageAsync(reply, messageReference: new MessageReference(m.Id));
+    });
+    return Task.CompletedTask;
+};
+
+await discord.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("DISCORD_TOKEN"));
+await discord.StartAsync();`,
+      deliver: `var channelId = ulong.Parse(thread!.Split(':')[1]);
+if (await discord.GetChannelAsync(channelId) is IMessageChannel channel)
+    await channel.SendMessageAsync($"**{agent}:** {text}");`,
+    },
+
     api: {
       handler: `var conv = await Truplexy.CreateConversation(new { contacts = new[] { new { type = "app", value = "user-42" } } });
 var id = conv.GetProperty("id").GetString();

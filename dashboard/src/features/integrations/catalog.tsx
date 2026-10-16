@@ -88,10 +88,16 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'discord',
     name: 'Discord',
     group: 'messaging',
-    blurb: 'Add the Truplexy bot to your community server, for channels and DMs.',
+    blurb: 'A support bot for your community server, in channels or DMs.',
     icon: '/brands/discord.svg',
     color: 'var(--color-ink)',
-    connect: {},
+    match: ['discord'],
+    langs: ['node', 'python', 'go', 'csharp'],
+    steps: [
+      'In the Discord Developer Portal, create an application, add a bot, and turn on the Message Content intent.',
+      'Invite it to your server with the "Send Messages" and "Read Message History" permissions.',
+      'Run the bot below on your server; it keeps a persistent connection to Discord.',
+    ],
   },
   {
     id: 'messenger',

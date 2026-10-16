@@ -124,6 +124,23 @@ const sendTelegram = (chat_id, text) =>
       deliver: `await sendTelegram(thread.split(":")[1], \`\${agent}: \${text}\`);`,
     },
 
+    discord: {
+      file: 'bot.js',
+      handler: `// npm i discord.js — keeps a gateway connection open.
+import { Client, GatewayIntentBits } from "discord.js";
+const discord = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages] });
+
+discord.on("messageCreate", async (m) => {
+  if (m.author.bot || !m.content) return;
+  await m.channel.sendTyping();
+  const { reply } = await ask(\`dc:\${m.channelId}:\${m.author.id}\`, m.content, { contacts: [{ type: "discord", value: m.author.id }] });
+  if (reply) await m.reply(reply);
+});
+discord.login(process.env.DISCORD_TOKEN);`,
+      deliver: `const [, channelId] = thread.split(":");
+await (await discord.channels.fetch(channelId)).send(\`**\${agent}:** \${text}\`);`,
+    },
+
     email: {
       handler: `app.post("/inbound-email", express.json(), async (req, res) => {
   res.sendStatus(200);

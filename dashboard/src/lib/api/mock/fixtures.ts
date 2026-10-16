@@ -609,7 +609,7 @@ function channelTypes(): MockDb['channelTypes'] {
       ['messenger', 'Messenger', 'A Facebook Page inbox, connected with Meta.', 'oauth'],
       ['instagram', 'Instagram', 'An Instagram professional account’s Direct messages, connected with Meta.', 'oauth'],
       ['telegram', 'Telegram', 'A Telegram bot in private chats and groups.', null],
-      ['discord', 'Discord', 'The Truplexy bot in a Discord server, in channels or DMs.', 'oauth'],
+      ['discord', 'Discord', 'A support bot in a Discord server, in channels or DMs.', null],
       ['email', 'Email', 'A support address, through an inbound mail webhook.', null],
       ['shopify', 'Shopify', 'The Truplexy app on a Shopify store.', 'oauth'],
       ['hubspot', 'HubSpot', 'A HubSpot conversations inbox.', 'oauth'],
@@ -652,7 +652,6 @@ function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversatio
   });
   const nwDiscord = ch('northwind', 'discord', 'Northwind community', 30, {
     external_id: '1187340912665214976',
-    connection: { status: 'connected', account_name: 'Northwind Gaming', connected_at: ago(30 * DAY) },
   });
   const bloomSite = ch('bloom-clinic', 'website', 'Clinic website', 25, { disabled_by_platform: true, description: 'Booking page chat.' });
   const channels = [site, telegram, whatsapp, nwDiscord, bloomSite];

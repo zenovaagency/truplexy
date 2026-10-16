@@ -353,6 +353,35 @@ async def send_telegram(chat_id, text: str):
       deliver: `await send_telegram(thread.split(":")[1], f"{agent}: {text}")`,
     },
 
+    discord: {
+      file: 'bot.py',
+      handler: `# pip install discord.py — keeps a gateway connection open.
+import os
+import discord
+from truplexy import ask
+
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
+
+
+@client.event
+async def on_message(m: discord.Message):
+    if m.author.bot or not m.content:
+        return
+    async with m.channel.typing():
+        r = await ask(f"dc:{m.channel.id}:{m.author.id}", m.content, {"contacts": [{"type": "discord", "value": str(m.author.id)}]})
+    if r["reply"]:
+        await m.reply(r["reply"])
+
+
+# Run the webhook receiver in the same process (e.g. client.start() in FastAPI's lifespan).
+client.run(os.environ["DISCORD_TOKEN"])`,
+      deliver: `_, channel_id, _ = thread.split(":")
+channel = client.get_channel(int(channel_id)) or await client.fetch_channel(int(channel_id))
+await channel.send(f"**{agent}:** {text}")`,
+    },
+
     email: {
       handler: `from fastapi import BackgroundTasks, FastAPI, Request, Response
 from truplexy import ask

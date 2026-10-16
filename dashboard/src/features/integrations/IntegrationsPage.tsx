@@ -429,7 +429,10 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
   const [channelId, setChannelId] = useState('');
   useEffect(() => setIssued(false), [i?.id]);
   // Bind new keys to the first working channel of the type.
-  const firstActive = ofType.find((c) => c.active)?.id ?? '';
+  // A ?channel= link from Your channels preselects that channel.
+  const [params] = useSearchParams();
+  const wanted = params.get('channel');
+  const firstActive = (ofType.find((c) => c.id === wanted && c.active) ?? ofType.find((c) => c.active))?.id ?? '';
   useEffect(() => setChannelId(firstActive), [i?.id, firstActive]);
   const picked = ofType.find((c) => c.id === channelId);
   const langs = i?.langs ?? [];
@@ -652,7 +655,7 @@ function WebWidgetCode() {
 
 /** Step 1 of a guide: the channel its key is bound to, added on the spot if there is none. */
 function GuideChannel({ integration: i, channels, value, onChange }: { integration: Integration; channels: Channel[]; value: string; onChange: (id: string) => void }) {
-  const { can } = useScopeCtx();
+  const { can, href } = useScopeCtx();
   const types = useChannelTypes();
   const create = useCreateChannel();
   const [name, setName] = useState('');
@@ -661,24 +664,31 @@ function GuideChannel({ integration: i, channels, value, onChange }: { integrati
 
   if (channels.length > 0) {
     return (
-      <ul className="grid gap-1.5">
-        {channels.map((c) => (
-          <li key={c.id}>
-            <label
-              className={cn(
-                'flex items-center gap-2.5 rounded-[10px] border px-3 py-2 text-[0.8125rem]',
-                value === c.id ? 'border-accent bg-accent-soft/50' : 'border-line',
-                c.active ? 'cursor-pointer' : 'opacity-60',
-              )}
-            >
-              <input type="radio" name="guide-channel" className="accent-[var(--color-accent)]" checked={value === c.id} disabled={!c.active} onChange={() => onChange(c.id)} />
-              <span className="flex-1 truncate font-medium text-ink">{c.name}</span>
-              <span className="text-xs text-ink-faint">{pluralize(c.api_keys, 'key')}</span>
-              <ChannelStatusBadge channel={c} />
-            </label>
-          </li>
-        ))}
-      </ul>
+      <div className="grid gap-2">
+        <ul className="grid gap-1.5">
+          {channels.map((c) => (
+            <li key={c.id}>
+              <label
+                className={cn(
+                  'flex items-center gap-2.5 rounded-[10px] border px-3 py-2 text-[0.8125rem]',
+                  value === c.id ? 'border-accent bg-accent-soft/50' : 'border-line',
+                  c.active ? 'cursor-pointer' : 'opacity-60',
+                )}
+              >
+                <input type="radio" name="guide-channel" className="accent-[var(--color-accent)]" checked={value === c.id} disabled={!c.active} onChange={() => onChange(c.id)} />
+                <span className="flex-1 truncate font-medium text-ink">{c.name}</span>
+                <span className="text-xs text-ink-faint">{pluralize(c.api_keys, 'key')}</span>
+                <ChannelStatusBadge channel={c} />
+              </label>
+            </li>
+          ))}
+        </ul>
+        {can('channels.write') && i.channelType && (
+          <Link to={href(`integrations?add=${i.channelType}`)} className="justify-self-start text-xs font-semibold text-accent hover:underline">
+            Add another {channels[0]!.type_label} channel →
+          </Link>
+        )}
+      </div>
     );
   }
   if (types.isPending) return <Skeleton className="h-9 rounded-[10px]" />;
@@ -719,8 +729,16 @@ export function ChannelsTab() {
   const del = useDeleteChannel();
   const confirm = useConfirm();
   const writable = can('channels.write');
-  const [edit, setEdit] = useState<Channel | 'new' | null>(null);
+  const [edit, setEdit] = useState<Channel | 'new' | { type: string } | null>(null);
   const [failed, clearFailed] = useConnectReturn();
+  // A guide's "Add another" link arrives as ?add=<type>.
+  const [params, setParams] = useSearchParams();
+  const add = params.get('add');
+  useEffect(() => {
+    if (!add || !writable) return;
+    setEdit({ type: add });
+    setParams((p) => (p.delete('add'), p), { replace: true });
+  }, [add, writable, setParams]);
 
   const onDelete = (c: Channel) =>
     confirm(
@@ -809,8 +827,19 @@ export function ChannelsTab() {
       cell: (c) => {
         if (!writable) return null;
         const reconnect = c.connection && c.connection.status !== 'connected' ? INTEGRATIONS.find((i) => i.connect && i.channelType === c.type) : undefined;
+        // Platforms you run yourself keep their steps, so a 2nd or 3rd bot or server can follow them too.
+        const guide = INTEGRATIONS.find((i) => i.channelType === c.type && !i.connect);
         return (
           <span className="flex items-center justify-end gap-1">
+            {guide && (
+              <Tip content={`${guide.name} setup guide`}>
+                <Button asChild size="xs" icon variant="quiet" aria-label={`Setup guide for ${c.name}`}>
+                  <Link to={href(`integrations/guides?guide=${guide.id}&channel=${c.id}`)}>
+                    <BookOpen />
+                  </Link>
+                </Button>
+              </Tip>
+            )}
             {reconnect && (
               <span className="mr-1">
                 <ConnectButton i={reconnect} channelId={c.id} size="xs" variant="soft">
@@ -902,11 +931,12 @@ export function ChannelsTab() {
 
 const EMPTY_CHANNEL: ChannelInput = { type: '', name: '', description: '', external_id: '', enabled: true, auto_close_hours: null };
 
-function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; onClose: () => void }) {
+function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type: string } | null; onClose: () => void }) {
   const types = useChannelTypes(Boolean(channel));
   const create = useCreateChannel();
   const update = useUpdateChannel();
-  const existing = channel && channel !== 'new' ? channel : null;
+  const existing = channel && channel !== 'new' && 'id' in channel ? channel : null;
+  const presetType = channel && channel !== 'new' && !('id' in channel) ? channel.type : '';
   const [c, setC] = useState<ChannelInput>(EMPTY_CHANNEL);
   useEffect(() => {
     if (!channel) return;
@@ -920,7 +950,7 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; o
             enabled: existing.enabled,
             auto_close_hours: existing.auto_close_hours ?? null,
           }
-        : EMPTY_CHANNEL,
+        : { ...EMPTY_CHANNEL, type: presetType },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
@@ -981,7 +1011,7 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | null; o
               `Connected to ${existing?.connection?.account_name}.`
             ) : existing ? undefined : (
               <>
-                WhatsApp, Messenger, Instagram, Discord, Slack, Teams, Shopify, HubSpot and Zendesk are added with Connect under{' '}
+                WhatsApp, Messenger, Instagram, Slack, Teams, Shopify, HubSpot and Zendesk are added with Connect under{' '}
                 <Link to={href('integrations/guides')} onClick={onClose} className="text-accent hover:underline">
                   Add a channel
                 </Link>

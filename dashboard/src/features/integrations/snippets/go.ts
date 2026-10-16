@@ -1,6 +1,6 @@
 import { indent, PUBLIC_API, type LangPack } from './types';
 
-/** Go 1.22+: net/http with method patterns, standard library only. */
+/** Go 1.22+: net/http with method patterns, standard library only (plus discordgo for Discord). */
 
 const pack: LangPack = {
   note: 'Register the http.HandleFunc routes inside main(); the functions sit beside it in package main.',
@@ -562,6 +562,33 @@ func sendTelegram(chatID, text string) error {
 		map[string]string{"chat_id": chatID, "text": text}, nil)
 }`,
       deliver: `sendTelegram(strings.Split(thread, ":")[1], agent+": "+text)`,
+    },
+
+    discord: {
+      handler: `// go get github.com/bwmarrin/discordgo — keeps a gateway connection open.
+var discord *discordgo.Session
+
+func startDiscord() error {
+	dg, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN"))
+	if err != nil {
+		return err
+	}
+	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages | discordgo.IntentMessageContent
+	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+		if m.Author.Bot || m.Content == "" {
+			return
+		}
+		s.ChannelTyping(m.ChannelID)
+		a, err := ask("dc:"+m.ChannelID+":"+m.Author.ID, m.Content, identify("discord", m.Author.ID))
+		if err == nil && a.Reply != "" {
+			s.ChannelMessageSendReply(m.ChannelID, a.Reply, m.Reference())
+		}
+	})
+	discord = dg
+	return dg.Open()
+}`,
+      deliver: `channelID := strings.Split(thread, ":")[1]
+discord.ChannelMessageSend(channelID, "**"+agent+":** "+text)`,
     },
 
     email: {
