@@ -24,6 +24,8 @@ export interface Plan {
   /** Starts with a `TRIAL_DAYS` free trial. */
   trial?: boolean;
   featured?: boolean;
+  /** What a month on the plan covers, as shown on the card. */
+  usage: { replies: string; tokens: string };
   /** Heading above the feature list, e.g. "Everything in Starter, plus". */
   includes: string;
   features: string[];
@@ -51,7 +53,7 @@ export const PLANS: Plan[] = [
     blurb: 'For small teams putting AI support on every channel their customers use.',
     price: { monthly: 29, yearly: 23 },
     trial: true,
-    featured: true,
+    usage: { replies: '10,000', tokens: '10M' },
     includes: 'Includes',
     features: [
       'Website chat, WhatsApp, Messenger, Instagram, Telegram, Discord & Email',
@@ -69,6 +71,8 @@ export const PLANS: Plan[] = [
     blurb: 'For growing teams that want Truplexy to take action and plug into their own systems.',
     price: { monthly: 79, yearly: 63 },
     trial: true,
+    featured: true,
+    usage: { replies: '50,000', tokens: '50M' },
     includes: 'Everything in Starter, plus',
     features: [
       'HubSpot, Zendesk, Slack & Microsoft Teams',
@@ -83,6 +87,7 @@ export const PLANS: Plan[] = [
     name: 'Enterprise',
     blurb: 'For larger teams that need limits, onboarding and support shaped around their volume.',
     price: null,
+    usage: { replies: 'Unlimited', tokens: 'Unlimited' },
     includes: 'Everything in Pro, plus',
     features: [
       'Custom limits for bots, team members and knowledge',
@@ -123,7 +128,10 @@ export const COMPARISON: { group: string; rows: CompareRow[] }[] = [
   {
     group: 'AI & knowledge',
     rows: [
-      row('Knowledge documents per bot', '100', '500', 'Custom'),
+      row('AI replies per month', '10,000', '50,000', 'Unlimited'),
+      row('AI tokens per month', '10M', '50M', 'Unlimited'),
+      row('Bots', '3', '10', '100'),
+      row('Knowledge documents per bot', '300', '1,000', '1,000'),
       { label: 'Custom tools', values: all },
       { label: 'Web search', values: proUp },
     ],
@@ -131,6 +139,7 @@ export const COMPARISON: { group: string; rows: CompareRow[] }[] = [
   {
     group: 'Inbox & handoff',
     rows: [
+      row('Team members', '10', '25', '500'),
       { label: 'Unified inbox', values: all },
       { label: 'Human handoff', values: all },
     ],

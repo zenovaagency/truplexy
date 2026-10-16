@@ -162,7 +162,18 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
           </Button>
         </div>
 
-        <div class="mt-7 border-t border-line pt-6">
+        <dl class="mt-7 grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface-2/60 p-4">
+          <div>
+            <dt class="mono text-[0.62rem] text-ink-faint">Est. AI replies</dt>
+            <dd class="mt-1 text-[1.05rem] font-bold tracking-tight tabular-nums text-ink">{plan.usage.replies}<span class:list={['text-[0.78rem] font-medium text-ink-faint', plan.usage.replies === 'Unlimited' && 'hidden']}> / mo</span></dd>
+          </div>
+          <div>
+            <dt class="mono text-[0.62rem] text-ink-faint">AI tokens</dt>
+            <dd class="mt-1 text-[1.05rem] font-bold tracking-tight tabular-nums text-ink">{plan.usage.tokens}<span class:list={['text-[0.78rem] font-medium text-ink-faint', plan.usage.tokens === 'Unlimited' && 'hidden']}> / mo</span></dd>
+          </div>
+        </dl>
+
+        <div class="mt-6 border-t border-line pt-6">
           <p class="text-[0.85rem] font-semibold text-ink">{plan.includes}</p>
           <ul class="mt-4 space-y-3 text-[0.92rem] text-ink-muted">
             {plan.features.map((f) => (
