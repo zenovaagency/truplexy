@@ -4,7 +4,9 @@ import { Link, Outlet, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
   BookOpen,
+  Check,
   CheckCircle2,
+  Copy,
   CircleDot,
   KeyRound,
   Link2,
@@ -61,6 +63,8 @@ import { ChannelStatusBadge, ChannelTypeIcon } from '@/components/domain/Channel
 import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseField';
 import { IssueKeyForm } from '@/features/api-keys/IssueKey';
 import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type Integration, type IntegrationGroup } from './catalog';
+import { useCopy } from '@/hooks';
+import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
 import { WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
 
@@ -442,6 +446,9 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
   const code = pack.data?.integrations[i?.id ?? ''];
   const hook = code && pack.data && (code.receiver ?? (code.deliver || code.escalation ? pack.data.receiver(code) : null));
   const where = i?.widget ? 'your site' : i?.name;
+  const { copied, copy } = useCopy(2400);
+  // Wait for the code unless it failed to load; a guide without it would mislead the assistant.
+  const llmReady = langs.length === 0 || Boolean(pack.data) || pack.isError;
 
   return (
     <Sheet
@@ -467,6 +474,21 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
                 </>
               )}
             </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <span className="text-[0.8125rem] text-ink-muted">Building this with an AI assistant? Give it the whole guide.</span>
+            <Button
+              size="xs"
+              variant="soft"
+              leading={copied ? <Check className="text-live" /> : <Copy />}
+              disabled={!llmReady}
+              onClick={() => {
+                void copy(buildLlmGuide({ integration: i, botName: bot.name, channels: ofType, lang: langs.length ? lang : undefined, pack: pack.data, code, hook }));
+                notifySuccess('Guide copied', 'Paste it into your AI assistant. It holds no keys or secrets.');
+              }}
+            >
+              {copied ? 'Copied' : 'Copy for LLM'}
+            </Button>
           </div>
           <Callout tone="warn" icon={<ShieldCheck />} title="Keys stay on your server">
             Never put a chat key in a website, mobile app or theme file. Anyone could copy it.
