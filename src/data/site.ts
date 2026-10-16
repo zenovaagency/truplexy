@@ -31,10 +31,9 @@ export interface NavLink {
 /** What Truplexy does, as sections of the home page. */
 export const PRODUCT_LINKS: NavLink[] = [
   { label: 'Human-like AI', href: '#features', blurb: 'Replies with the right tone, and no canned loops' },
-  { label: 'Live demo', href: '#try', blurb: 'Be the customer and try it yourself' },
+  { label: 'Live demo', href: '#demo', blurb: 'Watch a conversation end in a handoff' },
   { label: 'Smart handoff', href: '#handoff', blurb: 'Your team steps in with the conversation and context' },
   { label: 'Unified inbox', href: '#inbox', blurb: 'Every conversation and ticket in one place' },
-  { label: 'Always on', href: '#continuous', blurb: 'Support that doesn’t clock out' },
 ];
 
 export const DOCS_LINKS: NavLink[] = [

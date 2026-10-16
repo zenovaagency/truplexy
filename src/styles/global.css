@@ -222,7 +222,7 @@
    * .app-demo: a static recreation of the dashboard's Tickets page
    * (the Unified inbox demo). The primitives are copied from
    * dashboard/src/styles/app.css and components/ui, scoped here so the
-   * marketing .bubble used by TryChat and DayCycle is left untouched.
+   * marketing .bubble used by LoopDemo is left untouched.
    * ---------------------------------------------------------------- */
   .app-demo {
     --d-warn: #9a4b00;
