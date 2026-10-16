@@ -4,7 +4,6 @@ import {
   BookOpen,
   Braces,
   CalendarDays,
-  Clock,
   Code,
   Headset,
   History,
@@ -39,10 +38,9 @@ const isCurrent = (match: string[]) => match.some((m) => path === m || path.star
 
 const ICON: Record<string, LucideIcon> = {
   '#features': MessagesSquare,
-  '#try': MousePointerClick,
+  '#demo': MousePointerClick,
   '#handoff': Headset,
   '#inbox': Inbox,
-  '#continuous': Clock,
   '/docs': BookOpen,
   '/docs#quickstart': Rocket,
   '/docs/web-sdk': Code,
@@ -50,7 +48,7 @@ const ICON: Record<string, LucideIcon> = {
   '/docs/webhooks': Webhook,
 };
 // The live demo gets the Product panel's side card instead of a row.
-const productRows = PRODUCT_LINKS.filter((l) => l.href !== '#try').map((l) => ({ ...l, Icon: ICON[l.href] }));
+const productRows = PRODUCT_LINKS.filter((l) => l.href !== '#demo').map((l) => ({ ...l, Icon: ICON[l.href] }));
 const docsRows = DOCS_LINKS.map((l) => ({ ...l, Icon: ICON[l.href] }));
 const latest = CHANGELOG[0];
 
@@ -105,10 +103,10 @@ const mobileLink = 'flex items-center gap-3 rounded-lg py-2.5 text-[1.0625rem] f
                       </ul>
                       <div class="flex flex-col rounded-xl bg-surface-2 p-4">
                         <p class="mono text-[0.68rem] text-ink-faint">Live demo</p>
-                        <p class="mt-3 text-[1rem] font-semibold leading-snug tracking-tight text-ink">Be the customer.</p>
-                        <p class="mt-1.5 text-[0.8125rem] leading-snug text-ink-muted">Ask the assistant anything and watch it hand off to a person.</p>
-                        <a href={navHref('#try', onHome)} data-dd-link class:list={[more, 'mt-auto pt-5']}>
-                          Try it now <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
+                        <p class="mt-3 text-[1rem] font-semibold leading-snug tracking-tight text-ink">See it in action.</p>
+                        <p class="mt-1.5 text-[0.8125rem] leading-snug text-ink-muted">Watch a customer’s question answered, then handed to a person.</p>
+                        <a href={navHref('#demo', onHome)} data-dd-link class:list={[more, 'mt-auto pt-5']}>
+                          Watch the demo <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
                         </a>
                       </div>
                     </div>

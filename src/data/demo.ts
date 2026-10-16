@@ -3,7 +3,7 @@ import { isLive, type ChannelId } from './channels';
 /**
  * Every sample conversation on the page, from one fictional cast, so the
  * stories link up across sections: Sarah's address change in the hero is her
- * row in the inbox, Daniel's billing issue in the day-cycle is the handoff
+ * row in the inbox, Daniel's billing issue is the handoff
  * example, and Emma's jacket is her inbox thread.
  *
  * All people, orders and businesses here are fictional. Mock UIs that render

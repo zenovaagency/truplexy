@@ -38,7 +38,7 @@ export function scrollToHash(hash: string): boolean {
   return true;
 }
 
-// Same-page anchor links (#try, #inbox, …) all go through scrollToHash.
+// Same-page anchor links (#demo, #inbox, …) all go through scrollToHash.
 if (typeof document !== 'undefined') {
   document.addEventListener('click', (e) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
