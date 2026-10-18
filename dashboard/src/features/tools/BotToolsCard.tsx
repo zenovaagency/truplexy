@@ -1,6 +1,5 @@
-import { Link } from 'react-router';
 import { Bot } from 'lucide-react';
-import { useModels, useTools } from '@/lib/api/endpoints/bot';
+import { useTools } from '@/lib/api/endpoints/bot';
 import { cn } from '@/lib/cn';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Card, Checkbox, ErrorState, SkeletonRows, Switch } from '@/components/ui';
@@ -8,14 +7,10 @@ import { useBotDraft } from '@/features/llm/draft';
 
 /** Which tools this bot may call. Part of the bot's draft, saved with the save bar. */
 export function BotToolsCard() {
-  const { draft, patchBot, canWrite, modelSelection } = useBotDraft();
-  const { bot, href } = useScopeCtx();
+  const { draft, patchBot, canWrite } = useBotDraft();
+  const { bot } = useScopeCtx();
   const tools = useTools();
-  // Under platform selection the model isn't the business's to pick, so tools are never blocked on it.
-  const models = useModels(modelSelection === 'business');
   const b = draft.bot;
-  const model = models.data?.find((m) => m.id === b.model) ?? (b.model ? undefined : models.data?.find((m) => m.is_default));
-  const modelSupportsTools = model?.supports_tools ?? true;
   const selected = new Set(b.tools ?? []);
   const toggle = (name: string, on: boolean) => {
     const next = new Set(selected);
@@ -36,22 +31,10 @@ export function BotToolsCard() {
       <div className="grid gap-4">
         <Switch
           checked={Boolean(b.toolsEnabled)}
-          disabled={!canWrite || !modelSupportsTools}
+          disabled={!canWrite}
           onCheckedChange={(v) => patchBot({ toolsEnabled: v })}
           label="Allow tool calls"
-          description={
-            modelSupportsTools ? (
-              'Off means the assistant answers without calling any tool.'
-            ) : (
-              <>
-                {model?.label ?? 'The selected model'} can't call tools.{' '}
-                <Link to={href('llm/model')} className="font-semibold text-accent hover:underline">
-                  Pick a model marked Tools
-                </Link>
-                .
-              </>
-            )
-          }
+          description="Off means the assistant answers without calling any tool."
         />
         {b.toolsEnabled &&
           (tools.isPending ? (

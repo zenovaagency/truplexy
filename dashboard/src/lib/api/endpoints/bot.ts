@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type {
   BotConfig,
-  Model,
-  ModelSelection,
   RealtimeInfo,
   Tool,
   ToolInput,
@@ -39,23 +37,6 @@ export function useSaveWorkspace() {
     },
     // The page handles WORKSPACE_CONFLICT itself with a reload dialog.
     meta: { silentCodes: ['WORKSPACE_CONFLICT'], success: 'Configuration saved. Customers get it from the next message.' },
-  });
-}
-
-/** Who picks the model; a backend that doesn't say still lets the business choose. */
-export const modelSelectionOf = (ws: Pick<Workspace, 'modelSelection'> | undefined): ModelSelection => ws?.modelSelection ?? 'business';
-
-/**
- * The catalog a business may choose from. Under `platform` selection it is empty, so pass
- * `enabled: false` there: the query then never runs and `data` stays undefined.
- */
-export function useModels(enabled = true) {
-  const scope = useScope();
-  return useQuery({
-    queryKey: qk.bot(scope, 'models'),
-    queryFn: ({ signal }) => api<{ models: Model[] }>('/models', { scope, signal }).then((r) => r.models),
-    staleTime: 5 * 60_000,
-    enabled,
   });
 }
 

@@ -76,6 +76,7 @@ import type {
   PlatformChannel,
   PlatformChannelType,
   PlatformModel,
+  RoutingTier,
   PlatformTemplate,
   PlatformUser,
   PlatformUserDetail,
@@ -1823,10 +1824,23 @@ const EMPTY_MODEL: ModelInput = {
   max_output_tokens: 8192,
   supports_tools: true,
   supports_prompt_cache: false,
+  routing_tier: null,
   status: 'active',
   is_default: false,
   sort_order: 100,
 };
+
+/** Routing picks a model by tier for each message; the lowest sort order in a tier is tried first. */
+const ROUTING_TIERS: { id: RoutingTier; label: string; handles: string }[] = [
+  { id: 'fast', label: 'Fast', handles: 'small talk, unclear messages and requests for a person' },
+  { id: 'balanced', label: 'Balanced', handles: 'answers from the knowledge base, follow-ups and tool use' },
+  { id: 'advanced', label: 'Advanced', handles: 'multi-part and comparison questions, and rewriting a draft that failed its checks' },
+];
+
+const tierLabel = (t: RoutingTier) => ROUTING_TIERS.find((x) => x.id === t)!.label;
+
+/** Tiers that no active model answers, so their messages fall back to another tier or the default. */
+const emptyTiers = (models: PlatformModel[]) => ROUTING_TIERS.filter((t) => !models.some((m) => m.status === 'active' && m.routing_tier === t.id));
 
 export function PlatformModels() {
   const q = usePlatformModels();
@@ -1845,7 +1859,7 @@ export function PlatformModels() {
       <PageHeader
         eyebrow="Platform"
         title="Models"
-        description="The models businesses can choose from. Businesses pay OpenRouter's price plus each model's fee and commission. Models are never deleted: retire one and its bots move to the default."
+        description="The models Truplexy answers with. Routing gives each message to a model by its tier. Businesses pay OpenRouter's price plus each model's fee and commission. Models are never deleted: retire one and its bots move to the default."
         actions={
           <>
             <Button variant="ghost" leading={<RefreshCw />} loading={refreshAll.isPending} onClick={refresh}>Refresh all prices</Button>
@@ -1853,6 +1867,11 @@ export function PlatformModels() {
           </>
         }
       />
+      {q.data && emptyTiers(q.data).length > 0 && (
+        <Callout tone="warn" title={`No active model for ${emptyTiers(q.data).map((t) => t.label.toLowerCase()).join(' and ')} routing`}>
+          {emptyTiers(q.data).map((t) => `${t.label} handles ${t.handles}`).join('. ')}. Give at least one active model to each tier.
+        </Callout>
+      )}
       <Card flush>
         {q.isPending ? (
           <SkeletonRows rows={5} className="p-4" />
@@ -1877,6 +1896,11 @@ export function PlatformModels() {
                 ),
               },
               { key: 'status', header: 'Status', cell: (m) => <Badge tone={STATUS_TONE[m.status]} dot className="capitalize">{m.status}</Badge> },
+              {
+                key: 'tier',
+                header: 'Routing',
+                cell: (m) => (m.routing_tier ? <Badge tone="accent">{tierLabel(m.routing_tier)}</Badge> : <span className="text-xs text-ink-faint">Not routed</span>),
+              },
               {
                 key: 'price',
                 header: 'OpenRouter in / out per M',
@@ -1947,6 +1971,7 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
   const confirm = useConfirm();
   const or = useOpenRouterModels();
   const defaults = usePlatformMarkup();
+  const allModels = usePlatformModels();
   const existing = model && model !== 'new' ? model : null;
   const [m, setM] = useState<ModelInput>(EMPTY_MODEL);
   // New models can leave pricing to the API, which reads it from OpenRouter.
@@ -1999,6 +2024,13 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
       max_output_tokens: p.maxOutput ?? 0,
       supports_tools: p.tools,
     }));
+  // Tiers this save would leave without an active model (they had one before).
+  const others = (allModels.data ?? []).filter((x) => x.id !== existing?.id);
+  const orphaned = ROUTING_TIERS.filter((t) => {
+    const had = (allModels.data ?? []).some((x) => x.status === 'active' && x.routing_tier === t.id);
+    const keeps = others.some((x) => x.status === 'active' && x.routing_tier === t.id) || (m.status === 'active' && m.routing_tier === t.id);
+    return had && !keeps;
+  });
   const fromServer = !existing && serverPrices;
   // With prices from OpenRouter, the API fills the label too.
   const valid = /^[a-z0-9-]+\/[a-z0-9._:-]+$/i.test(m.id) && (fromServer || m.label.trim().length > 0) && !(m.is_default && m.status !== 'active');
@@ -2056,7 +2088,7 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
         <Field label="Label" optional={fromServer} aside={`${m.label.length}/80`}>
           <Input value={m.label} onChange={(e) => set('label', e.target.value.slice(0, 80))} />
         </Field>
-        <Field label="Description" optional aside={`${m.description.length}/300`} hint="Businesses see this when choosing.">
+        <Field label="Description" optional aside={`${m.description.length}/300`} hint="For platform admins.">
           <Textarea rows={2} value={m.description} onChange={(e) => set('description', e.target.value.slice(0, 300))} />
         </Field>
         {listed && drift && !fromServer && (
@@ -2112,9 +2144,21 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
             <Select value={m.status} onChange={(e) => set('status', e.target.value as CatalogStatus)} options={[{ value: 'active', label: 'Active (offered)' }, { value: 'hidden', label: 'Hidden (kept by bots)' }, { value: 'retired', label: 'Retired' }]} />
           </Field>
         </div>
+        <Field label="Routing tier" hint={m.routing_tier ? `Answers ${ROUTING_TIERS.find((t) => t.id === m.routing_tier)!.handles}.` : 'Routing never picks this model. It can still answer as the default.'}>
+          <Select
+            value={m.routing_tier ?? ''}
+            onChange={(e) => set('routing_tier', (e.target.value || null) as RoutingTier | null)}
+            options={[{ value: '', label: 'Not routed' }, ...ROUTING_TIERS.map((t) => ({ value: t.id, label: t.label }))]}
+          />
+        </Field>
+        {orphaned.length > 0 && (
+          <Callout tone="warn" title={`No active model would be left for ${orphaned.map((t) => t.label.toLowerCase()).join(' and ')} routing`}>
+            {orphaned.map((t) => `${t.label} handles ${t.handles}`).join('. ')}. Give another active model this tier first.
+          </Callout>
+        )}
         <Switch checked={m.supports_tools} onCheckedChange={(v) => set('supports_tools', v)} label="Supports tool calls" />
         <Switch checked={m.supports_prompt_cache} onCheckedChange={(v) => set('supports_prompt_cache', v)} label="Prompt caching" description="Sends the system prompt as a cache breakpoint." />
-        <Switch checked={m.is_default} disabled={m.status !== 'active'} onCheckedChange={(v) => set('is_default', v)} label="Default model" description="Used by bots with no model chosen. Must be active." />
+        <Switch checked={m.is_default} disabled={m.status !== 'active'} onCheckedChange={(v) => set('is_default', v)} label="Default model" description="Answers unless routing picks another model. Must be active." />
       </div>
     </Sheet>
   );

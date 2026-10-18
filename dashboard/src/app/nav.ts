@@ -76,7 +76,7 @@ export const BUSINESS_NAV: NavSection[] = [
   {
     label: 'AI',
     items: [
-      { id: 'llm', label: 'LLM', path: 'llm', icon: Sparkles, permission: 'bot.read', key: 'l', prefetch: pages.llm, keywords: ['model', 'system prompt', 'temperature', 'cost', 'pricing', 'openrouter', 'usage'] },
+      { id: 'llm', label: 'LLM', path: 'llm', icon: Sparkles, permission: 'bot.read', key: 'l', prefetch: pages.llm, keywords: ['model', 'system prompt', 'assistant name', 'web search', 'cost', 'pricing', 'usage'] },
       { id: 'tools', label: 'Tools', path: 'tools', icon: Wrench, permission: 'tools.read', key: 'w', prefetch: pages.tools, keywords: ['functions', 'api', 'actions'] },
       { id: 'playground', label: 'Playground', path: 'playground', icon: FlaskConical, permission: 'playground.run', key: 'p', prefetch: pages.playground, keywords: ['chat', 'test', 'try'] },
     ],
