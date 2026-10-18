@@ -25,6 +25,10 @@ const auth = () => import('@/features/auth/AuthPages');
 const businessRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="overview" replace /> },
   gated('usage.read', [{ path: 'overview', ...lazyRoute(pages.overview, (m) => m.default) }]),
+  gated('usage.read', [{ path: 'usage', ...lazyRoute(pages.usage, (m) => m.default) }]),
+  // The LLM page is gone: its usage moved to Usage, and the rest is no longer configurable.
+  { path: 'llm/usage', element: <Navigate to="../usage" replace /> },
+  { path: 'llm/*', element: <Navigate to="../tools" replace /> },
   gated('tickets.read', [
     { path: 'tickets/handoffs', ...lazyRoute(pages.tickets, (m) => m.HandoffsPage) },
     { path: 'tickets/:ticketId?', ...lazyRoute(pages.tickets, (m) => m.default) },
@@ -44,24 +48,9 @@ const businessRoutes: RouteObject[] = [
   ]),
   gated('bot.read', [
     {
-      // LLM, Tools and Playground share one unsaved draft of the bot's configuration.
+      // Tools and Playground share one unsaved draft of the bot's configuration.
       ...lazyRoute(pages.draft, (m) => m.default),
       children: [
-        {
-          path: 'llm',
-          ...lazyRoute(pages.llm, (m) => m.default),
-          children: [
-            { index: true, element: <Navigate to="model" replace /> },
-            { path: 'model', lazy: async () => ({ Component: (await import('@/features/llm/ModelTab')).default }) },
-            gated('usage.read', [{ path: 'usage', lazy: async () => ({ Component: (await import('@/features/llm/UsageTab')).default }) }]),
-            // Earlier addresses of these pages.
-            { path: 'prompt', element: <Navigate to="../model" replace /> },
-            { path: 'configuration', element: <Navigate to="../model" replace /> },
-            { path: 'tools', element: <Navigate to="../../tools" replace /> },
-            { path: 'playground', element: <Navigate to="../../playground" replace /> },
-            missing,
-          ],
-        },
         gated('tools.read', [{ path: 'tools', ...lazyRoute(pages.tools, (m) => m.default) }]),
         gated('playground.run', [{ path: 'playground', ...lazyRoute(pages.playground, (m) => m.default) }]),
       ],
