@@ -20,7 +20,7 @@ Contents:
 | Production | `https://api.truplexy.com/v3` |
 | Local (`go run ./cmd/server`) | `http://localhost:3000/v3` |
 
-Every path in this document is relative to the base URL, so `GET /me` means `GET https://api.truplexy.com/v3/me`. `/v1` still answers for the endpoints it had before v2 but is deprecated. Its responses carry `Deprecation: true`, a `Link: </v3/…>; rel="successor-version"` header and, once scheduled, a `Sunset` date. Endpoints added in v2 exist only under `/v2` and `/v3`. `/v3` is served by the same handlers as `/v2`, with identical paths, bodies, errors, headers and permissions, so moving a client is a base-URL change. `/v2` keeps working and is not deprecated. Build against `/v3`. (The `v2` tags in this document mark endpoints that `/v1` lacks.)
+Every path in this document is relative to the base URL, so `GET /me` means `GET https://api.truplexy.com/v3/me`. `/v3` is current. `/v2` answers every endpoint identically and stays for clients that haven't moved yet; see [FRONTEND_V2_TO_V3_GUIDE.md](FRONTEND_V2_TO_V3_GUIDE.md). `/v1` still answers for the endpoints it had before v2 but is deprecated. Its responses carry `Deprecation: true`, a `Link: </v3/…>; rel="successor-version"` header and, once scheduled, a `Sunset` date. Endpoints added in v2 exist only under `/v2` and `/v3`. Build against `/v3`.
 
 ### Calling from the browser (CORS)
 
@@ -258,8 +258,6 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/channel-types` | `channels.read` | Channel types the bot may add (v2) |
 | `GET` | `/channels` | `channels.read` | List the bot's channels (v2) |
 | `POST` | `/channels` | `channels.write` | Add a channel (v2) |
-| `POST` | `/channels/connect` | `channels.write` | Connect a platform with its own sign-in (v2) |
-| `GET` | `/oauth/{type}/callback` | none (signed `state`) | Where the platform returns after its sign-in (v2) |
 | `GET` | `/channels/{id}` | `channels.read` | A channel (v2) |
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
@@ -301,6 +299,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `DELETE` | `/webhook` | `integrations.write` | Remove the webhook |
 | `POST` | `/webhook/secret` | `integrations.write` | Replace the signing secret |
 | `POST` | `/webhook/test` | `integrations.write` | Send a test event |
+| `GET` | `/webhook/deliveries` | `integrations.read` | List events whose delivery failed and were queued for retry (v2; needs `WEBHOOK_OUTBOX`). Optional `?status=pending|delivered|dead`. |
+| `POST` | `/webhook/deliveries/{id}/replay` | `integrations.write` | Put a queued event back in line (v2); answers `202` |
 | `GET` | `/usage/summary` | `usage.read` | Model usage, cost and answer quality |
 | `GET` | `/stats/support` | `usage.read` | Tickets, response times and cost per ticket (v2) |
 | `GET` | `/billing` | `usage.read` | Balance, this month's tokens and the extra-token slider (v2) |
@@ -500,7 +500,7 @@ Changing the type changes the defaults for new bots, not saved bots. **200** the
 
 #### `GET /audit`
 
-`audit.read`. **200** `{data: [{id, actor, actor_email, action, target, details, created_at}]}`: the latest 100 events, newest first.
+`audit.read`. **200** `{data: [{id, actor, actor_email, action, target, target_email, details, created_at}]}`: the latest 100 events, newest first. `actor_email` and `target_email` are the emails the people had when the event happened; they don't change if an account is later deleted or its email changes.
 - `actor` is a user ID, or `service` for the admin key.
 - `action` is a string such as `member.role_changed`, `invite.created`, `api_key.created`, `bot.created` or `business.updated`.
 - The log covers members, invitations, roles, bots, API keys, plans and business details, not conversations or documents.
@@ -649,10 +649,6 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 
 Scope headers; these act on the bot. A channel is a place the bot talks to customers, such as a Discord server, a website's chat widget or a WhatsApp number. Platform admins keep the catalog of channel types; a business adds channels of an offered type.
 
-There are two ways to add one:
-- **Connect.** Platforms with an app marketplace (`connect: "oauth"` in `GET /channel-types`: WhatsApp, Messenger, Instagram, Discord, Slack, Microsoft Teams, Shopify, HubSpot and Zendesk) run on Truplexy's own app. `POST /channels/connect` sends the person to the platform's sign-in; Truplexy keeps the platform's tokens, receives its webhooks and sends replies itself. The business writes no code and issues no key.
-- **By hand.** Every other type is added with `POST /channels`, and the business's own server talks to Truplexy with a chat API key bound to it.
-
 Channels tell the team where each ticket came from:
 - **Chat API keys.** A key issued with `channel_id` (`POST /api-keys`) marks every conversation it starts with the channel, and so every ticket opened for those conversations. `POST /conversations` may name another of the bot's channels instead.
 - **Dashboard tickets.** `POST /tickets` and `PATCH /tickets/{id}` set `channel_id` directly.
@@ -667,9 +663,6 @@ Channels tell the team where each ticket came from:
   type, type_label,                        // a type from GET /channel-types, e.g. discord / "Discord"
   name, description,                       // name is unique among the bot's channels
   external_id,                             // the platform's own ID, e.g. a Discord server ID; free text
-  connection,                              // null, or for a connected channel: {status, account_name, connected_at}
-                                           //   status: connected | needs_reauth (the platform revoked or expired access; reconnect) | error
-                                           //   account_name: the Page, number, workspace, store… it's connected to
   enabled,                                 // the business's switch
   disabled_by_platform,                    // a platform admin's switch
   active,                                  // enabled and not disabled_by_platform: its keys work
@@ -683,7 +676,7 @@ Channels tell the team where each ticket came from:
 
 #### `GET /channel-types`
 
-`channels.read`. **200** `{data: [{id, label, description, icon, offered, connect}]}`, in the platform's order: the types the bot may add channels of, plus any hidden type one of its channels still uses (`offered: false`; don't offer it for new channels). `connect` is `"oauth"` for types added with `POST /channels/connect`, else `null`.
+`channels.read`. **200** `{data: [{id, label, description, icon, offered}]}`, in the platform's order: the types the bot may add channels of, plus any hidden type one of its channels still uses (`offered: false`; don't offer it for new channels).
 
 #### `GET /channels`
 
@@ -707,58 +700,7 @@ Channels tell the team where each ticket came from:
 **Errors:**
 - `400 INVALID_REQUEST`
 - `400 CHANNEL_TYPE_NOT_ALLOWED`: the type isn't offered.
-- `400 CHANNEL_TYPE_NEEDS_CONNECT`: channels of the type are added with `POST /channels/connect`.
 - `409 CHANNEL_EXISTS`: the bot has a channel with this name.
-
-#### `POST /channels/connect`
-
-`channels.write`. Starts the platform's own sign-in for a `connect: "oauth"` type.
-
-| Field | Rules |
-| --- | --- |
-| `type` | Required. An offered `id` with `connect: "oauth"`. |
-| `return_to` | Required. A dashboard URL to come back to; other origins are refused. |
-| `account` | Shopify: the store's `myshopify.com` name. Zendesk: the subdomain. Required for those two, ignored otherwise. |
-| `channel_id` | Reconnects this channel (same type) instead of adding one, e.g. when its `connection.status` is `needs_reauth`. |
-
-**200** `{authorize_url}`. Send the browser there. The URL carries a signed, single-use `state` that expires in 15 minutes and names the business, bot, person and `return_to`. The platform's client ID and secret never leave the API. The scopes it asks for:
-
-| Type | Platform sign-in | Scopes |
-| --- | --- | --- |
-| `whatsapp` | Facebook Login for Business, WhatsApp Embedded Signup | `whatsapp_business_management`, `whatsapp_business_messaging` |
-| `messenger` | Facebook Login for Business | `pages_show_list`, `pages_messaging`, `pages_manage_metadata` |
-| `instagram` | Facebook Login for Business | `instagram_basic`, `instagram_manage_messages`, `pages_show_list`, `pages_manage_metadata` |
-| `discord` | OAuth2 bot install | `bot`, `applications.commands`; Send Messages, Read Message History |
-| `slack` | Slack OAuth v2 | `chat:write`, `channels:history`, `users:read`, `incoming-webhook` (picks the support channel) |
-| `teams` | Microsoft identity platform, Teams app install | `TeamsAppInstallation.ReadWriteSelfForTeam`, `ChannelMessage.Send` |
-| `shopify` | Shopify app install | `read_orders`, `read_customers`, `read_returns` |
-| `hubspot` | HubSpot OAuth | `conversations.read`, `conversations.write` |
-| `zendesk` | Zendesk OAuth | `read`, `write` |
-
-**Errors:**
-- `400 INVALID_REQUEST`: a missing `type`, a `return_to` on another origin, or a missing or malformed `account`.
-- `400 CHANNEL_TYPE_NOT_ALLOWED`: the type isn't offered, or isn't added with Connect.
-- `404 CHANNEL_NOT_FOUND`: `channel_id` isn't one of the bot's channels.
-
-#### `GET /oauth/{type}/callback`
-
-Not called by dashboards: the platform redirects here after its sign-in. The API:
-1. Checks `state`.
-2. Exchanges the code for the platform's tokens and stores them encrypted. Long-lived tokens are refreshed by the API.
-3. Subscribes the platform's webhooks to the API's own receiver, so no customer server is involved.
-4. Adds the channel, named after the type (`WhatsApp`, then `WhatsApp 2`…), or updates `channel_id`'s. It sets `connection` and `external_id` (the number, Page, server, workspace, store or account ID).
-5. Writes `channel.created` or `channel.updated` to the audit log.
-6. Redirects to `return_to` with `?connected=<channel id>`.
-
-On failure it redirects to `return_to` with `?connect_error=<code>&type=<type>` instead. The codes:
-- `ACCESS_DENIED`: cancelled, or not every scope approved.
-- `NO_ACCOUNT`: no number, Page, server or channel picked.
-- `ACCOUNT_IN_USE`: that account is connected to another bot.
-- `STATE_EXPIRED`: the sign-in took too long, or `state` was used already.
-- `PLAN_LIMIT_REACHED`: the plan doesn't include the channel.
-- `PROVIDER_ERROR`: the platform failed.
-
-When the platform later revokes access (an app uninstalled, a password changed), the API sets `connection.status` to `needs_reauth` and stops answering there until it is reconnected.
 
 #### `GET /channels/{id}`
 
@@ -772,11 +714,11 @@ When the platform later revokes access (an app uninstalled, a password changed),
 
 #### `DELETE /channels/{id}`
 
-`channels.write`. Deletes the channel. Its conversations and tickets keep their `channel_id` and still show its name and type. For a connected channel this disconnects it: the API revokes its tokens, or uninstalls Truplexy's app where the platform allows it. **204**.
+`channels.write`. Deletes the channel. Its conversations and tickets keep their `channel_id` and still show its name and type. **204**.
 
 **Errors:**
 - `404 CHANNEL_NOT_FOUND`
-- `409 CHANNEL_IN_USE`: active chat API keys are bound to it. Revoke them first. Connected channels take no keys, so they never get this.
+- `409 CHANNEL_IN_USE`: active chat API keys are bound to it. Revoke them first.
 
 ### Bot configuration (workspace)
 
@@ -784,7 +726,8 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 
 #### `GET /workspace`
 
-`bot.read`. **200** `{name, bot, revision, updated_at, history, defaults}`:
+`bot.read`. **200** `{name, bot, revision, updated_at, history, defaults, modelSelection}`:
+- `modelSelection`: `platform` when the platform chooses each reply's model (the default; `MODEL_SELECTION`), `business` when the bot does. With `platform`, hide the model picker: `bot.model` and the model-choosing parts of `bot.routing` (`fixedModel`, `modelPools`, `allowedTiers`, `providerAllowlist`) are ignored, not refused.
 - `bot`: the configuration below.
 - `revision`: 0 until the first save. Send it back when saving.
 - `history`: the 30 latest saved versions, as `{id, savedAt, bot}`, for a "restore version" picker. Restoring only fills the form; saving applies it.
@@ -800,7 +743,7 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | `promptTemplateId` | A template `id` from `GET /prompt-templates`. Choosing one clears `prompt`. |
 | `promptVariables` | `{key: value}` for the template's variables; unknown keys are dropped. Values become one line, capped at the variable's `max_length`. |
 | `prompt` | Read-only. The system prompt of a bot saved before templates, used until it picks a template. Send it back as loaded, or empty. |
-| `model` | A model `id` from `GET /models`, or the bot's current one. Empty uses the platform's default model. |
+| `model` | A model `id` from `GET /models`, or the bot's current one. Empty uses the platform's default model. When `modelSelection` is `platform`, the saved value is kept but ignored: the platform's default model answers unless routing picks another. |
 | `temperature` | 0–2. |
 | `maxTokens` | Output limit, 1–32768. Capped by the model's `max_output_tokens`. |
 | `ragEnabled` | Answer from the knowledge base. |
@@ -808,6 +751,8 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | `toolsEnabled` | Let the model call `tools`. Needs a model with `supports_tools`. |
 | `tools` | Up to 20 unique tool names from `GET /tools`. |
 | `webSearch` | `{enabled, mode, maxResults, depth, topic, timeRange, includeDomains, excludeDomains}`; see [Web search](../README.md#web-search). Needs `ragEnabled`. `mode` is `fallback` (default: only when the knowledge base has no confident answer) or `always`; `maxResults` 1–8 (3); `depth` `basic` or `advanced`; `topic` `general` or `news`; `timeRange` `day`, `week`, `month`, `year` or `""`; the domain lists hold up to 50 hostnames such as `docs.example.com`, without `https://` or a path, and a domain covers its subdomains. Missing fields get their defaults. |
+| `routing` | Optional model routing for the chat API's saved bots (omit to leave it off; the playground ignores it): `{mode, classifier, allowedTiers, providerAllowlist, modelPools, fixedModel, maxRequestCostUsd, maxAttempts}`. `mode` is `disabled` (default), `shadow` (classify and log only; never changes the model) or `enabled`; the server's `ROUTING_MODE` caps it. `classifier` is `rules` or `jev` (needs `JEV_ENABLED`; any failure falls back to rules). `allowedTiers` are `fast`, `balanced`, `advanced`; `providerAllowlist` up to 20 providers such as `anthropic`; `modelPools` maps a tier to up to 10 catalog model IDs, best first; `fixedModel` always answers; `maxRequestCostUsd` 0–100; `maxAttempts` 0–3. A bot's settings can only narrow the platform's, never widen them. Saving a fixed or pooled model the catalog doesn't offer is `400 MODEL_NOT_ALLOWED`. When no allowed model can answer, the chat API returns `503 NO_COMPLIANT_MODEL` instead of using another model. When `modelSelection` is `platform` (the default), this block is ignored: the platform's `ROUTING_MODE` and Jev setting apply to every saved bot, and the platform admin's model catalog decides which models each tier can use. |
+| `knowledge` | Optional source rules for the chat API's saved bots (omit to keep the earlier behavior; the playground ignores it; needs `ragEnabled`): `{policy, ragMode, maxSubqueries}`. `policy` is `strict_kb` (default once `knowledge` is set: answer only from the knowledge base and tools), `kb_plus_general` (also answer plainly general questions from the model's own knowledge, labelled as general) or `kb_general_external` (also use the bot's web search for general or current questions). Questions about the business, or about a customer's own order or account, never leave the knowledge base and tools, whatever the policy. The server's `KNOWLEDGE_POLICY_MAX` caps the policy. `ragMode` is `auto`, `simple`, `standard` (default) or `complex`; a message with two or more independent questions is retrieved question by question so each finds evidence. `maxSubqueries` 0–5 (0 means 3). `verify` is `off` (default), `shadow` or `enforce`: it checks each answered reply for prices, percentages, durations, links, emails or phone numbers that appear in no passage, tool result or customer message, and for actions reported as done that no successful tool call confirms. `shadow` only records; `enforce` regenerates once, replaces what it cannot fix with a no-answer, and says which questions found no evidence. |
 
 **200** the saved workspace (a new `revision`). Every save adds a version when `bot` changed.
 
@@ -821,7 +766,7 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | `400 INVALID_PROMPT_VARIABLES` | A required variable is empty. |
 | `400 PROMPT_NOT_EDITABLE` | `prompt` was changed. |
 | `400 INVALID_REQUEST` | A field breaks the rules above. |
-| `400 WEB_SEARCH_NOT_CONFIGURED` | `webSearch.enabled` was turned on, but the server has no `TAVILY_API_KEY`. |
+| `400 WEB_SEARCH_NOT_CONFIGURED` | `webSearch.enabled` was turned on, but the server has no search provider key (`TAVILY_API_KEY`, or `OPENROUTER_API_KEY` with `WEB_SEARCH_PROVIDER=openrouter`). |
 | `403 PLAN_LIMIT_REACHED` | `webSearch.enabled` was turned on, but the business's plan doesn't include web search (`limit: "web_search"`). |
 
 ### Models and prompt templates
@@ -830,7 +775,7 @@ Platform admins own the catalog; businesses only pick from it.
 
 #### `GET /models`
 
-`bot.read`. **200** `{models: [{id, label, description, tier, input_price_per_mtok, output_price_per_mtok, currency, context_tokens, max_output_tokens, supports_tools, is_default, offered}]}`.
+`bot.read`. **200** `{models: [{id, label, description, tier, input_price_per_mtok, output_price_per_mtok, currency, context_tokens, max_output_tokens, supports_tools, is_default, offered}], selection}`. `selection` is `business`, or `platform` when the platform chooses models: `models` is then empty, since there is nothing to choose.
 - `id` is an OpenRouter model ID, such as `google/gemini-3.1-flash-lite`.
 - `input_price_per_mtok` and `output_price_per_mtok` are what the business pays per million tokens, in `currency` (`USD`): the model's OpenRouter price plus the platform's fee and commission, shown only as the total. For `openai/gpt-4o` at 2.50/10.00 USD with a 5.5% fee and 20% commission, they are `3.1375` and `12.55`.
 - `tier` is `economy`, `standard` or `premium`, by the model's OpenRouter output price.
@@ -1423,7 +1368,7 @@ Starter and Pro are sold as Paddle subscriptions. [Paddle](https://www.paddle.co
 | `PADDLE_WEBHOOK_SECRET` | The notification destination's endpoint secret (`pdl_ntfset_…`). Empty turns the webhook off. |
 | `PADDLE_PRICE_STARTER_MONTHLY`, `PADDLE_PRICE_STARTER_YEARLY`, `PADDLE_PRICE_PRO_MONTHLY`, `PADDLE_PRICE_PRO_YEARLY` | The four `pri_…` IDs. All four are required when the API key or the secret is set. |
 
-Startup fails if a key doesn't match `PADDLE_ENV` or a price is missing. The Paddle sandbox prices are `pri_01m4vmb2hfbhstnq7kkakx1t74` (Starter monthly), `pri_01m4vmb2v11m6hnsnnksqfvr53` (Starter yearly), `pri_01m4vmb3s4sqycmzzwqcvk8d57` (Pro monthly) and `pri_01m4vmb42a0x2qadtp6956d45v` (Pro yearly). The dashboard needs no Paddle variables: it sends the customer to the site's `/pay` page (`https://truplexy.com/pay?_ptxn=txn_…`, set with `VITE_PAY_PAGE_URL`), which loads Paddle.js and returns them to `/settings/plan?paid=1`. That page reads `VITE_PADDLE_CLIENT_TOKEN` and `VITE_PADDLE_ENV` when the site is built, and its domain must be approved in Paddle.
+Startup fails if a key doesn't match `PADDLE_ENV` or a price is missing. The Paddle sandbox prices are `pri_01m4vmb2hfbhstnq7kkakx1t74` (Starter monthly), `pri_01m4vmb2v11m6hnsnnksqfvr53` (Starter yearly), `pri_01m4vmb3s4sqycmzzwqcvk8d57` (Pro monthly) and `pri_01m4vmb42a0x2qadtp6956d45v` (Pro yearly). The dashboard needs only `VITE_PADDLE_CLIENT_TOKEN` and `VITE_PADDLE_ENV`.
 
 **Storage** (`migrations/0026_paddle_subscriptions.sql`, applied by hand):
 
@@ -1480,7 +1425,7 @@ An event is ignored, but still marked handled, when its price isn't one of the f
 
 **Deleting a business** (`DELETE /platform/tenants/{id}` or approving a deletion request) cancels its subscription in Paddle at once, so it is not billed again. The cancellation webhook returns the business to `free`, so a restored business comes back on Free. The subscription row is erased with the rest of the business when it is purged.
 
-**Testing in the sandbox.** Create the notification destination (`https://<api>/v2/webhooks/paddle`, the `subscription.*` events), then use Paddle's simulations (`subscription.created`, `.canceled`, `.past_due`) against it and read the deliveries under Notifications. Pay in the overlay with the test card `4242 4242 4242 4242`.
+**Testing in the sandbox.** Create the notification destination (`https://<api>/v3/webhooks/paddle`, the `subscription.*` events), then use Paddle's simulations (`subscription.created`, `.canceled`, `.past_due`) against it and read the deliveries under Notifications. Pay in the overlay with the test card `4242 4242 4242 4242`.
 
 ### Playground
 
@@ -1851,7 +1796,7 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 
 #### `GET /platform/channel-types` (v2)
 
-**200** `{data: [{id, label, description, icon, status, connect, sort_order, auto_close_hours, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `whatsapp`, `messenger`, `instagram`, `telegram`, `discord`, `email`, `shopify`, `hubspot`, `zendesk`, `slack`, `teams` and `custom`. `connect` is read-only: `"oauth"` for the types the API has an app for (all but `website`, `telegram`, `email` and `custom`), else `null`; types added here are `null`.
+**200** `{data: [{id, label, description, icon, status, sort_order, auto_close_hours, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `discord`, `slack`, `telegram`, `whatsapp`, `email` and `custom`.
 
 #### `POST /platform/channel-types` (v2)
 
@@ -2014,7 +1959,7 @@ For the scheduler only, authenticated like the one above; Vercel runs it daily. 
 
 #### `GET /internal/cron/tickets`
 
-For the scheduler only, authenticated like the ones above; `vercel.json` runs it hourly. It closes open tickets left without activity for their channel's, channel type's or business's `auto_close_hours` (see [Tickets](#tickets)). It works for up to 45 seconds and the next run continues what is left. **200** `{closed, remaining}`.
+For the scheduler only, authenticated like the ones above; a Cloudflare Worker (`workers/ticket-cron`) runs it hourly. It closes open tickets left without activity for their channel's, channel type's or business's `auto_close_hours` (see [Tickets](#tickets)). It works for up to 45 seconds and the next run continues what is left. **200** `{closed, remaining}`.
 
 ## 5. Which endpoints a dashboard needs where
 
@@ -2032,7 +1977,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Bot configuration | `GET`/`PUT /workspace`, `GET /models`, `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
 | Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`) |
-| Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…` and `POST /channels/connect`, and the chat API section as the integrator guide |
+| Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…`, and the chat API section as the integrator guide |
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
 | Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
 | Team | `GET /members`, `PATCH`/`DELETE /members/{user_id}`, `GET`/`POST /invites`, `DELETE /invites/{id}`, `GET /audit` |
@@ -2062,7 +2007,6 @@ Every error has its HTTP status and this body:
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /models` and `GET /prompt-templates`, and fill required variables. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
-| 400 | `CHANNEL_TYPE_NEEDS_CONNECT` | Add the channel with `POST /channels/connect`. |
 | 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. |
 | 400 | `ADDON_NOT_AVAILABLE` | The plan sells no extra tokens (Free), or the business's tokens are unlimited and it needs none. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |
