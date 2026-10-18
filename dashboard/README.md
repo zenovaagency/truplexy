@@ -1,6 +1,6 @@
 # Truplexy dashboard
 
-The browser app for the Truplexy API (`../API_REFERENCE.md`): overview, tickets, knowledge base, the AI pages (LLM, Tools, Playground), integrations, API keys, team, logs, settings, and the platform admin console. It uses the landing page's design tokens and button system, from `../src/styles/tokens.css` and `buttons.css`.
+The browser app for the Truplexy API (`../API_REFERENCE.md`): overview, tickets, knowledge base, usage, the AI pages (Tools, Playground), integrations, API keys, team, logs, settings, and the platform admin console. It uses the landing page's design tokens and button system, from `../src/styles/tokens.css` and `buttons.css`.
 
 ## Run it
 
@@ -74,8 +74,8 @@ src/
     charts/             recharts wrappers (lazy-loaded), bar lists, sparklines
     domain/             status badges, stat cards
   features/             one folder per tab
-    llm/                LLM page (system prompt, model, usage & costs) and draft.tsx,
-                        the unsaved bot configuration shared with tools/ and playground/
+    llm/                draft.tsx, the unsaved bot configuration shared with tools/ and
+                        playground/ (there is no LLM page: the platform sets the model)
     integrations/       channel catalog and setup guides; snippets/<lang>.ts holds the
                         server code per language, each loaded only when picked
   lib/

@@ -13,7 +13,6 @@ import {
   Shapes,
   ScrollText,
   Settings,
-  Sparkles,
   Ticket,
   UserRound,
   Users,
@@ -34,7 +33,7 @@ export const pages = {
   customers: () => import('@/features/customers/CustomersPage'),
   knowledge: () => import('@/features/knowledge/KnowledgePage'),
   draft: () => import('@/features/llm/draft'),
-  llm: () => import('@/features/llm/LlmPage'),
+  usage: () => import('@/features/usage/UsagePage'),
   tools: () => import('@/features/tools/ToolsPage'),
   playground: () => import('@/features/playground/PlaygroundPage'),
   integrations: () => import('@/features/integrations/IntegrationsPage'),
@@ -68,6 +67,7 @@ export const BUSINESS_NAV: NavSection[] = [
     label: 'Workspace',
     items: [
       { id: 'overview', label: 'Overview', path: 'overview', icon: LayoutDashboard, permission: 'usage.read', key: 'o', prefetch: pages.overview, keywords: ['dashboard', 'stats', 'usage', 'metrics'] },
+      { id: 'usage', label: 'Usage', path: 'usage', icon: BarChart3, permission: 'usage.read', key: 'u', prefetch: pages.usage, keywords: ['costs', 'tokens', 'replies', 'spend', 'limits', 'plan', 'model', 'billing'] },
       { id: 'tickets', label: 'Tickets', path: 'tickets', icon: Inbox, permission: 'tickets.read', key: 't', prefetch: pages.tickets, keywords: ['inbox', 'support', 'conversations', 'handoffs'] },
       { id: 'customers', label: 'Customers', path: 'customers', icon: UserRound, permission: 'customers.read', key: 'c', prefetch: pages.customers, keywords: ['people', 'contacts', 'visitors', 'email', 'users'] },
       { id: 'knowledge', label: 'Knowledge base', path: 'knowledge', icon: BookOpen, permission: 'knowledge.read', key: 'k', prefetch: pages.knowledge, keywords: ['documents', 'articles', 'upload', 'rag'] },
@@ -76,7 +76,6 @@ export const BUSINESS_NAV: NavSection[] = [
   {
     label: 'AI',
     items: [
-      { id: 'llm', label: 'LLM', path: 'llm', icon: Sparkles, permission: 'bot.read', key: 'l', prefetch: pages.llm, keywords: ['model', 'system prompt', 'assistant name', 'cost', 'pricing', 'usage'] },
       { id: 'tools', label: 'Tools', path: 'tools', icon: Wrench, permission: 'tools.read', key: 'w', prefetch: pages.tools, keywords: ['functions', 'api', 'actions'] },
       { id: 'playground', label: 'Playground', path: 'playground', icon: FlaskConical, permission: 'playground.run', key: 'p', prefetch: pages.playground, keywords: ['chat', 'test', 'try'] },
     ],

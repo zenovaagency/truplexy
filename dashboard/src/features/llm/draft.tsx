@@ -30,13 +30,14 @@ export function useBotDraft() {
 }
 
 /** The pages that edit the bot's configuration, and so share one unsaved draft. */
-const DRAFT_PAGES = new Set(['llm', 'tools', 'playground']);
+const DRAFT_PAGES = new Set(['tools', 'playground']);
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const toDraft = (ws: Workspace): Draft => ({ name: ws.name, bot: { ...ws.bot } });
+/** The knowledge base is always on: it has no switch, so a bot saved with it off is turned back on. */
+const toDraft = (ws: Workspace): Draft => ({ name: ws.name, bot: { ...ws.bot, ragEnabled: true } });
 
 /**
- * LLM, Tools and Playground share one draft of the bot's configuration,
+ * Tools and Playground share one draft of the bot's configuration,
  * so a change can be tried in the playground before customers get it.
  * Keyed by bot: switching bots starts from that bot's saved settings.
  */
@@ -67,7 +68,7 @@ function DraftScope() {
   const setDraft = useCallback((d: Draft | ((d: Draft) => Draft)) => setDraftState((cur) => (cur ? (typeof d === 'function' ? d(cur) : d) : cur)), []);
   const patchBot = useCallback((p: Partial<BotConfig>) => setDraft((d) => ({ ...d, bot: { ...d.bot, ...p } })), [setDraft]);
 
-  // Moving between this bot's LLM, Tools and Playground keeps the draft; anywhere else asks first.
+  // Moving between this bot's Tools and Playground keeps the draft; anywhere else asks first.
   const blocker = useBlocker(({ nextLocation }) => {
     if (!dirty) return false;
     if (switchesScope(nextLocation.state, scope)) return true;

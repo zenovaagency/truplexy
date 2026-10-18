@@ -707,7 +707,7 @@ export function BotsTab() {
           onSubmit={(e) => {
             e.preventDefault();
             create.mutate({ bot_id: id, name: name.trim() }, { onSuccess: (b) => {
-                const link = scopeLink({ tenant: scope.tenant, bot: b.id }, 'llm/model');
+                const link = scopeLink({ tenant: scope.tenant, bot: b.id }, 'knowledge');
                 nav(link.to, { state: link.state });
               }, });
           }}

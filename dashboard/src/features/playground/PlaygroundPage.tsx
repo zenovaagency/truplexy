@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, CircleStop, ExternalLink, FileText, Globe, MessageSquarePlus, RefreshCw, Send, Sparkles, Wrench } from 'lucide-react';
 import { isApiError } from '@/lib/api/client';
@@ -30,7 +29,7 @@ const SUGGESTIONS = ['Where is my order?', 'Can I return something I opened?', '
 
 export default function PlaygroundPage() {
   const { draft, dirty } = useBotDraft();
-  const { scope, href, bot } = useScopeCtx();
+  const { scope, bot } = useScopeCtx();
   const qc = useQueryClient();
   const current = useCurrentPlayground();
   const fresh = useNewPlayground();
@@ -57,7 +56,7 @@ export default function PlaygroundPage() {
     max_output_tokens: MAX_OUTPUT_TOKENS,
     assistant_name: b.name,
     // The model, temperature and passages per message are the platform's; only its admins could set them.
-    rag_enabled: b.ragEnabled ?? true,
+    rag_enabled: true,
     tools_enabled: b.toolsEnabled || undefined,
     tools: b.toolsEnabled ? (b.tools ?? []) : undefined,
     debug: debug || undefined,
@@ -118,7 +117,7 @@ export default function PlaygroundPage() {
     <Page>
       <PageHeader
         title="Playground"
-        description={`Chat with ${bot.name} as a customer would, using the settings from LLM and Tools, including changes you haven't saved. Real model and tool calls are made.`}
+        description={`Chat with ${bot.name} as a customer would, using the tools you've chosen, including changes you haven't saved. Real model and tool calls are made.`}
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card flush className="flex h-[min(760px,calc(100dvh-220px))] min-h-[520px] flex-col overflow-hidden" bodyClassName="flex min-h-0 flex-col">
@@ -217,12 +216,12 @@ export default function PlaygroundPage() {
         </Card>
 
         <div className="grid content-start gap-5">
-          <Card title="Settings in use" actions={<Link to={href('llm/model')} className="text-[0.8125rem] font-semibold text-accent hover:underline">Edit</Link>}>
+          <Card title="Settings in use">
             <DescList
               items={[
                 { label: 'Assistant', value: b.name },
                 { label: 'Model', value: 'Chosen by Truplexy for each message' },
-                { label: 'Knowledge', value: b.ragEnabled === false ? 'Off' : 'On' },
+                { label: 'Knowledge', value: 'On' },
                 { label: 'Tools', value: b.toolsEnabled ? (b.tools?.length ? b.tools.join(', ') : 'On, none chosen') : 'Off' },
               ]}
             />
