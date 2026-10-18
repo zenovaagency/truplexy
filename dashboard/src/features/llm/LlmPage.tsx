@@ -5,7 +5,7 @@ import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Callout, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Page, PageHeader, SubNav, useConfirm } from '@/components/ui';
 import { useBotDraft } from './draft';
 
-/** The bot's identity, knowledge and web search settings, and model usage. Tools and the playground have their own pages. */
+/** The bot's identity and knowledge settings, and model usage. Tools and the playground have their own pages. */
 export default function LlmPage() {
   const { href, can, bot } = useScopeCtx();
   const { ws, setDraft, canWrite } = useBotDraft();

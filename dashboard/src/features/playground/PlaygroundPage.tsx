@@ -10,7 +10,6 @@ import { describeError } from '@/lib/errors';
 import { formatCurrency, formatMs, formatNumber } from '@/lib/format';
 import { qk } from '@/lib/query-keys';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { playgroundWebSearch } from '@/lib/web-search';
 import { Badge, Button, Card, CodeBlock, DescList, EmptyState, ErrorState, Page, PageHeader, Skeleton, Switch, Tip, useConfirm } from '@/components/ui';
 import { ReplyStatusBadge } from '@/components/domain/badges';
 import { useBotDraft } from '@/features/llm/draft';
@@ -61,7 +60,6 @@ export default function PlaygroundPage() {
     rag_enabled: b.ragEnabled ?? true,
     tools_enabled: b.toolsEnabled || undefined,
     tools: b.toolsEnabled ? (b.tools ?? []) : undefined,
-    web_search: b.webSearch?.enabled && b.ragEnabled !== false ? playgroundWebSearch(b.webSearch) : undefined,
     debug: debug || undefined,
     ...extra,
   });

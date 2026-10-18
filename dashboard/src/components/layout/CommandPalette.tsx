@@ -35,7 +35,7 @@ interface Entry {
 const SUB_PAGES: { label: string; path: string; permission: Permission; keywords?: string[] }[] = [
   { label: 'Handoffs', path: 'tickets/handoffs', permission: 'tickets.read', keywords: ['take over', 'human'] },
   { label: 'Test retrieval', path: 'knowledge/search', permission: 'knowledge.read', keywords: ['search', 'rag'] },
-  { label: 'Assistant & knowledge settings', path: 'llm/model', permission: 'bot.read', keywords: ['assistant name', 'bot name', 'web search', 'knowledge'] },
+  { label: 'Assistant & knowledge settings', path: 'llm/model', permission: 'bot.read', keywords: ['assistant name', 'bot name', 'knowledge'] },
   { label: 'Model usage & costs', path: 'llm/usage', permission: 'usage.read', keywords: ['tokens', 'spend', 'cost'] },
   { label: 'Add a channel', path: 'integrations/guides', permission: 'integrations.read', keywords: ['connect', 'setup', 'guides', 'whatsapp', 'messenger', 'instagram', 'telegram', 'discord', 'slack', 'teams', 'shopify', 'hubspot', 'zendesk', 'wordpress'] },
   { label: 'Webhook', path: 'integrations/webhook', permission: 'integrations.read', keywords: ['events'] },

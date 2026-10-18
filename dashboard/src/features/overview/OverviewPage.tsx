@@ -318,14 +318,6 @@ export default function OverviewPage() {
                 <span>Retrieval, average</span>
                 <span className="tabular-nums text-ink">{formatMs(u.rag.avg_retrieval_ms)}</span>
               </li>
-              {Boolean(u.web_searches?.searches) && (
-                <li className="flex justify-between text-xs text-ink-faint">
-                  <span>Web searches</span>
-                  <span className="tabular-nums text-ink">
-                    {formatNumber(u.web_searches!.searches)} · {formatPercent(u.web_searches!.with_results / u.web_searches!.searches, 0)} found results
-                  </span>
-                </li>
-              )}
             </ul>
           ) : (
             <SkeletonRows rows={4} />

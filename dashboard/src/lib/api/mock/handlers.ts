@@ -1965,20 +1965,6 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
     status = 'no_answer';
     output = `I don't have that in my notes yet, so I don't want to guess. Would you like me to bring in someone from the team?`;
   }
-  // Web search: as a fallback when nothing confident came back, or on every message.
-  const web = b.web_search;
-  if (rag && !thanks && web?.enabled && limitsOf(c.tenant).web_search !== false && (web.mode === 'always' || status === 'no_answer')) {
-    const hosts: string[] = (web.include_domains?.length ? web.include_domains : ['help.example.com', 'en.wikipedia.org', 'support.example.org']).slice(0, Math.min(8, Math.max(1, web.max_results ?? 3)));
-    const query = encodeURIComponent(message.slice(0, 60));
-    sources = [
-      ...(sources ?? []),
-      ...hosts.map((h, i): Source => ({ kind: 'web', title: `${message.slice(0, 50)} · ${h}`, url: `https://${h}/search?q=${query}`, score: +(0.72 - i * 0.07).toFixed(2) })),
-    ];
-    if (status === 'no_answer') {
-      status = 'answered';
-      output = `That isn't in our own notes, but here's what ${hosts[0]} says: it depends on the details of your case, so check the linked page and tell me if you'd like the team to confirm.`;
-    }
-  }
   if (b.max_output_tokens < 40) output = output.split(' ').slice(0, Math.max(3, b.max_output_tokens)).join(' ') + '…';
 
   const usage = { input_tokens: 1400 + Math.floor(r() * 900) + selected.length * 220, output_tokens: Math.ceil(output.length / 4), total_tokens: 0, cost: 0 };
