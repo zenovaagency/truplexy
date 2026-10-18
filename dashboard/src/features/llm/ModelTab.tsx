@@ -2,7 +2,6 @@ import { BookOpen } from 'lucide-react';
 import { Card, Field, Input, Switch } from '@/components/ui';
 import { useBotDraft } from './draft';
 import { ViewOnly } from './LlmPage';
-import { WebSearchCard } from './WebSearchCard';
 
 /** The model and how it answers are the platform's, so this is only what the business decides. */
 export default function ModelTab() {
@@ -40,8 +39,6 @@ export default function ModelTab() {
           description="Off means the assistant answers from its instructions alone."
         />
       </Card>
-
-      <WebSearchCard />
     </div>
   );
 }

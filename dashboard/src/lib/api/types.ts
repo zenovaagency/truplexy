@@ -935,17 +935,6 @@ export interface PlaygroundRunInput {
   rag_enabled?: boolean;
   tools_enabled?: boolean;
   tools?: string[];
-  /** The bot's webSearch settings in snake_case (v2). Needs rag_enabled. */
-  web_search?: {
-    enabled: boolean;
-    mode: WebSearchMode;
-    max_results: number;
-    depth: WebSearchDepth;
-    topic: WebSearchTopic;
-    time_range: WebSearchTimeRange;
-    include_domains: string[];
-    exclude_domains: string[];
-  };
   filters?: SearchFilters;
   debug?: boolean;
 }
