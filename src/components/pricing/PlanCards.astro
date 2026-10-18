@@ -106,7 +106,9 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
       return (
       <li
         class:list={[
-          'card relative flex flex-col p-6 sm:p-8',
+          // On desktop the cards share seven rows, so each section (and the
+          // button) lines up across all three whatever the copy above it.
+          'card relative flex flex-col p-6 sm:p-8 lg:row-span-7 lg:grid lg:grid-rows-subgrid lg:gap-y-0',
           plan.featured ? 'plan-featured' : '!bg-paper transition-colors hover:!border-line-strong',
         ]}
       >
@@ -154,7 +156,10 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
             {variants.map((v) => <span class:list={swap(v.billing)}>{v.note}</span>)}
           </p>
         </div>
-        {plan.trial && <p class="mono mt-4 text-[0.66rem] text-accent">{TRIAL_DAYS}-day free trial</p>}
+        <!-- Kept as a blank row on plans without a trial so the rows stay in step. -->
+        <p class:list={['mono mt-4 text-[0.66rem] text-accent', !plan.trial && 'invisible']} aria-hidden={plan.trial ? undefined : 'true'}>
+          {TRIAL_DAYS}-day free trial
+        </p>
 
         <div class="mt-7">
           <Button href={plan.cta.href} variant={plan.featured ? 'primary' : 'ghost'} arrow={false} class="w-full" {...signupAttrs(plan)}>
@@ -203,7 +208,8 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
 
 <style>
   /* The featured card: a 1.5px brand-gradient border (the gradient is painted
-     under a white padding-box fill), a soft indigo glow and a slight lift. */
+     under a white padding-box fill) and a soft indigo glow. No lift, so its
+     button stays level with the others. */
   .plan-featured {
     border: 1.5px solid transparent !important;
     background:
@@ -213,12 +219,6 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
       0 0 0 6px color-mix(in oklab, var(--color-accent) 6%, transparent),
       0 24px 60px -12px var(--glow-a),
       0 18px 44px -14px color-mix(in oklab, var(--color-violet) 40%, transparent) !important;
-  }
-
-  @media (min-width: 1024px) {
-    .plan-featured {
-      translate: 0 -8px;
-    }
   }
 
   /* "Most popular": a pill sitting on the top border, centred. */
