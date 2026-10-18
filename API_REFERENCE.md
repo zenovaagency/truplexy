@@ -4,12 +4,35 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
+0. [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Changes for dashboards (2026-10-18)
+
+What changed in this release, and what a dashboard should do about it. Nothing was removed from requests or responses: an older dashboard keeps working, it just shows controls that no longer do anything.
+
+**The platform sets how every bot answers.** Businesses no longer configure the model or model settings.
+
+- Remove the model picker and the temperature, max output tokens, passages per message (`topK`), routing, retrieval mode (`knowledge.ragMode`, `maxSubqueries`) and answer verification (`knowledge.verify`) controls from bot configuration. `GET /workspace` reports `modelSelection: "platform"` and `GET /models` returns an empty list.
+- `PUT /workspace` from a business keeps those fields as they were saved and drops what was sent, without an error. Send the bot back as loaded. Only a platform admin or the admin key changes them, and replies use the platform's settings anyway.
+- Keep: assistant name, prompt template and its variables, `ragEnabled`, tools, web search, and `knowledge.policy` (source policy).
+- `POST /playground/run`: `model` is ignored; `max_output_tokens` is still required (send any value from 1 to 32768) but the platform's limit is used; `temperature` and `rag_top_k` are honoured only for platform admins. Hide those playground controls for everyone else.
+
+**New chat clears the playground.** `POST /playground/conversations` now deletes the bot's earlier playground conversations and their messages (except one with a ticket). After calling it, reset the chat view and don't offer a list of old playground chats; `GET /playground/conversations/current` returns the new, empty one.
+
+**Replies are steadier.** No request or response shape changed, but a dashboard may notice:
+
+- Thanks, acknowledgements and emoji ("👍", "okei my bad", "all done") get a short friendly reply with `status: "answered"` and no sources, never the "I couldn't find enough reliable information" no-answer.
+- Replies no longer repeat a sentence, echo the customer's question or contain `<knowledge>`/`<source>` markup. A draft that did is rewritten once, which can make that reply slower and its `usage` cover two model calls.
+- Model outages and empty model responses are retried on another model, so `502 LLM_PROVIDER_ERROR` is rarer. Keep showing it, with a "send again" (`resend`) action.
+- The answering `model` shown on a reply varies by message: routing picks fast, balanced or advanced models from the platform catalog.
+
+**Platform console.** Each model's `routing_tier` (`PATCH /platform/models/{id}`) now decides which messages it answers; see `GET /platform/models`. Show the tier and let platform admins set it, with a warning when a tier has no active model. The admin debug view of a reply (`routing` with `debug`) no longer has `shadow` or classifier cost fields: the classifier is always `rules`.
 
 ## 1. Using the API from a frontend
 
@@ -309,7 +332,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/billing/token-addons` | `billing.write` | Buy extra tokens for the month from the balance (v2) |
 | `POST` | `/playground/run` | `playground.run` | Answer a message with given settings |
 | `GET` | `/playground/conversations/current` | `playground.run` | The latest playground conversation |
-| `POST` | `/playground/conversations` | `playground.run` | Start a playground conversation |
+| `POST` | `/playground/conversations` | `playground.run` | Start a playground conversation, clearing the earlier ones |
 | `GET` | `/platform/overview` | platform | Platform totals and this month's activity (v2) |
 | `GET` | `/platform/tenants` | platform | Every business |
 | `PATCH` | `/platform/tenants/{id}` | platform | Change a business's plan, status or limits |
@@ -727,7 +750,7 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 #### `GET /workspace`
 
 `bot.read`. **200** `{name, bot, revision, updated_at, history, defaults, modelSelection}`:
-- `modelSelection`: `platform` when the platform chooses each reply's model (the default; `MODEL_SELECTION`), `business` when the bot does. With `platform`, hide the model picker: `bot.model` and the model-choosing parts of `bot.routing` (`fixedModel`, `modelPools`, `allowedTiers`, `providerAllowlist`) are ignored, not refused.
+- `modelSelection`: always `platform`: the platform chooses each reply's model and how every bot answers. Hide the model and model-setting controls: `bot.model`, `temperature`, `maxTokens`, `topK`, `routing` and `knowledge.ragMode`, `maxSubqueries` and `verify` are platform-managed (see `PUT /workspace`).
 - `bot`: the configuration below.
 - `revision`: 0 until the first save. Send it back when saving.
 - `history`: the 30 latest saved versions, as `{id, savedAt, bot}`, for a "restore version" picker. Restoring only fills the form; saving applies it.
@@ -735,7 +758,9 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 
 #### `PUT /workspace`
 
-`bot.write`. `{name, bot, revision}`. `name` (1–80 characters) is the bot's display name. Fields of `bot` are camelCase:
+`bot.write`. `{name, bot, revision}`. `name` (1–80 characters) is the bot's display name. Fields of `bot` are camelCase.
+
+**Platform-managed fields.** `model`, `temperature`, `maxTokens`, `topK`, `routing`, and `knowledge.ragMode`, `knowledge.maxSubqueries` and `knowledge.verify` belong to the platform. A save by a business keeps their saved values and drops what it sent, without an error, so older dashboards keep working; only a platform admin or the admin key changes them. Replies don't use them either: every bot answers with the platform's `CHAT_TEMPERATURE`, `CHAT_MAX_TOKENS`, `CHAT_TOP_K`, `KNOWLEDGE_RAG_MODE` and `KNOWLEDGE_VERIFY`, and the model routing picks from the platform catalog.
 
 | Field | Rules |
 | --- | --- |
@@ -743,16 +768,16 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | `promptTemplateId` | A template `id` from `GET /prompt-templates`. Choosing one clears `prompt`. |
 | `promptVariables` | `{key: value}` for the template's variables; unknown keys are dropped. Values become one line, capped at the variable's `max_length`. |
 | `prompt` | Read-only. The system prompt of a bot saved before templates, used until it picks a template. Send it back as loaded, or empty. |
-| `model` | A model `id` from `GET /models`, or the bot's current one. Empty uses the platform's default model. When `modelSelection` is `platform`, the saved value is kept but ignored: the platform's default model answers unless routing picks another. |
-| `temperature` | 0–2. |
-| `maxTokens` | Output limit, 1–32768. Capped by the model's `max_output_tokens`. |
+| `model` | Platform-managed. Kept but ignored: the platform's default model answers unless routing picks another. |
+| `temperature` | Platform-managed; 0–2 when sent. |
+| `maxTokens` | Platform-managed; 1–32768 when sent. |
 | `ragEnabled` | Answer from the knowledge base. |
-| `topK` | The most passages per message, 1–20. |
+| `topK` | Platform-managed; 1–20 when sent. |
 | `toolsEnabled` | Let the model call `tools`. Needs a model with `supports_tools`. |
 | `tools` | Up to 20 unique tool names from `GET /tools`. |
-| `webSearch` | `{enabled, mode, maxResults, depth, topic, timeRange, includeDomains, excludeDomains}`; see [Web search](../README.md#web-search). Needs `ragEnabled`. `mode` is `fallback` (default: only when the knowledge base has no confident answer) or `always`; `maxResults` 1–8 (3); `depth` `basic` or `advanced`; `topic` `general` or `news`; `timeRange` `day`, `week`, `month`, `year` or `""`; the domain lists hold up to 50 hostnames such as `docs.example.com`, without `https://` or a path, and a domain covers its subdomains. Missing fields get their defaults. |
-| `routing` | Optional model routing for the chat API's saved bots (omit to leave it off; the playground ignores it): `{mode, classifier, allowedTiers, providerAllowlist, modelPools, fixedModel, maxRequestCostUsd, maxAttempts}`. `mode` is `disabled` (default), `shadow` (classify and log only; never changes the model) or `enabled`; the server's `ROUTING_MODE` caps it. `classifier` is `rules` or `jev` (needs `JEV_ENABLED`; any failure falls back to rules). `allowedTiers` are `fast`, `balanced`, `advanced`; `providerAllowlist` up to 20 providers such as `anthropic`; `modelPools` maps a tier to up to 10 catalog model IDs, best first; `fixedModel` always answers; `maxRequestCostUsd` 0–100; `maxAttempts` 0–3. A bot's settings can only narrow the platform's, never widen them. Saving a fixed or pooled model the catalog doesn't offer is `400 MODEL_NOT_ALLOWED`. When no allowed model can answer, the chat API returns `503 NO_COMPLIANT_MODEL` instead of using another model. When `modelSelection` is `platform` (the default), this block is ignored: the platform's `ROUTING_MODE` and Jev setting apply to every saved bot, and the platform admin's model catalog decides which models each tier can use. |
-| `knowledge` | Optional source rules for the chat API's saved bots (omit to keep the earlier behavior; the playground ignores it; needs `ragEnabled`): `{policy, ragMode, maxSubqueries}`. `policy` is `strict_kb` (default once `knowledge` is set: answer only from the knowledge base and tools), `kb_plus_general` (also answer plainly general questions from the model's own knowledge, labelled as general) or `kb_general_external` (also use the bot's web search for general or current questions). Questions about the business, or about a customer's own order or account, never leave the knowledge base and tools, whatever the policy. The server's `KNOWLEDGE_POLICY_MAX` caps the policy. `ragMode` is `auto`, `simple`, `standard` (default) or `complex`; a message with two or more independent questions is retrieved question by question so each finds evidence. `maxSubqueries` 0–5 (0 means 3). `verify` is `off` (default), `shadow` or `enforce`: it checks each answered reply for prices, percentages, durations, links, emails or phone numbers that appear in no passage, tool result or customer message, and for actions reported as done that no successful tool call confirms. `shadow` only records; `enforce` regenerates once, replaces what it cannot fix with a no-answer, and says which questions found no evidence. |
+| `webSearch` | `{enabled, mode, maxResults, depth, topic, timeRange, includeDomains, excludeDomains}`; see [Web search](../README.md#web-search). Needs `ragEnabled`. `mode` is `fallback` (default: only when the knowledge base has no confident answer, or when the model finds no answer in passages that matched; the reply is then written again with the web results, and both calls are billed) or `always`; `maxResults` 1–8 (3); `depth` `basic` or `advanced`; `topic` `general` or `news`; `timeRange` `day`, `week`, `month`, `year` or `""`; the domain lists hold up to 50 hostnames such as `docs.example.com`, without `https://` or a path, and a domain covers its subdomains. Missing fields get their defaults. |
+| `routing` | Platform-managed and ignored: the platform's `ROUTING_MODE` routes every bot. Every message is classified by built-in rules (`classifier` `jev` is still accepted from older saves and means rules) and answered from the platform catalog's tiers: `fast` for small talk, unclear messages and requests for a person; `balanced` for answers from the knowledge base, follow-ups and tool use; `advanced` for multi-part or comparison questions. Shape when sent: `{mode, classifier, allowedTiers, providerAllowlist, modelPools, fixedModel, maxRequestCostUsd, maxAttempts}`, validated as before. |
+| `knowledge` | Optional source rules for the chat API's saved bots (omit to keep the earlier behavior; the playground ignores it; needs `ragEnabled`): `{policy, ragMode, maxSubqueries, verify}`; a business sets only `policy`. `policy` is `strict_kb` (default once `knowledge` is set: answer only from the knowledge base and tools), `kb_plus_general` (also answer plainly general questions from the model's own knowledge, labelled as general) or `kb_general_external` (also use the bot's web search for general or current questions). Questions about the business, or about a customer's own order or account, never leave the knowledge base and tools, whatever the policy. The server's `KNOWLEDGE_POLICY_MAX` caps the policy. `ragMode` (platform-managed; `KNOWLEDGE_RAG_MODE`, default `auto`) is `auto`, `simple`, `standard` or `complex`; a message with two or more independent questions is retrieved question by question so each finds evidence. `maxSubqueries` 0–5 (0 means 3). `verify` (platform-managed; `KNOWLEDGE_VERIFY`, default `enforce`) is `off`, `shadow` or `enforce`: it checks each answered reply for prices, percentages, durations, links, emails or phone numbers that appear in no passage, tool result or customer message, and for actions reported as done that no successful tool call confirms. `shadow` only records; `enforce` regenerates once, replaces what it cannot fix with a no-answer, and says which questions found no evidence. |
 
 **200** the saved workspace (a new `revision`). Every save adds a version when `bot` changed.
 
@@ -761,7 +786,7 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | Code | Meaning |
 | --- | --- |
 | `409 WORKSPACE_CONFLICT` | Someone saved since you loaded. Reload, then apply the change again. |
-| `400 MODEL_NOT_ALLOWED` | The model isn't offered, or can't call tools while tools are on. |
+| `400 MODEL_NOT_ALLOWED` | The platform's default model can't call tools while tools are on. |
 | `400 PROMPT_TEMPLATE_NOT_ALLOWED` | The template isn't offered to this business type. |
 | `400 INVALID_PROMPT_VARIABLES` | A required variable is empty. |
 | `400 PROMPT_NOT_EDITABLE` | `prompt` was changed. |
@@ -775,7 +800,7 @@ Platform admins own the catalog; businesses only pick from it.
 
 #### `GET /models`
 
-`bot.read`. **200** `{models: [{id, label, description, tier, input_price_per_mtok, output_price_per_mtok, currency, context_tokens, max_output_tokens, supports_tools, is_default, offered}], selection}`. `selection` is `business`, or `platform` when the platform chooses models: `models` is then empty, since there is nothing to choose.
+`bot.read`. **200** `{models: [...], selection}`. `selection` is always `platform` and `models` is always empty: the platform chooses every reply's model, so a business has nothing to choose. Don't show a model picker; the endpoint stays for older dashboards. (When `models` is filled, each is `{id, label, description, tier, input_price_per_mtok, output_price_per_mtok, currency, context_tokens, max_output_tokens, supports_tools, is_default, offered}`.)
 - `id` is an OpenRouter model ID, such as `google/gemini-3.1-flash-lite`.
 - `input_price_per_mtok` and `output_price_per_mtok` are what the business pays per million tokens, in `currency` (`USD`): the model's OpenRouter price plus the platform's fee and commission, shown only as the total. For `openai/gpt-4o` at 2.50/10.00 USD with a 5.5% fee and 20% commission, they are `3.1375` and `12.55`.
 - `tier` is `economy`, `standard` or `premium`, by the model's OpenRouter output price.
@@ -1436,16 +1461,16 @@ Scope headers, `playground.run`. Runs real model and tool requests for trying se
 | Field | Rules |
 | --- | --- |
 | `message` | 1–4000 characters. May be omitted with `resend`. |
-| `max_output_tokens` | Required. 1–32768. |
+| `max_output_tokens` | Required. 1–32768. Replaced by the platform's `CHAT_MAX_TOKENS`. |
 | `prompt_template_id`, `prompt_variables` | The template to answer with, checked as saving would. Usually the bot's saved or draft values. |
 | `assistant_name` | Fills `{{assistant_name}}`; defaults to the saved bot's. |
 | `system_prompt` | Only the bot's own pre-template prompt, or empty (`400 PROMPT_NOT_EDITABLE`). |
-| `model` | A model from `GET /models`, or the bot's current one; empty uses the default. |
-| `temperature` | 0–2; omit it for the provider's default. |
+| `model` | Ignored: the platform's default model answers unless routing picks another. |
+| `temperature` | 0–2. Only platform admins and the admin key may set it; everyone else gets the platform's `CHAT_TEMPERATURE`. |
 | `conversation_id` | A playground conversation to continue; both messages are stored, and recent messages go along as history. |
 | `resend` | With `conversation_id`: answer the last stored message again, replacing its reply. |
 | `history` | Only without `conversation_id`: up to 40 `{role, content}` turns, and nothing is stored. |
-| `rag_enabled`, `rag_top_k` | Knowledge retrieval, and the most passages (1–20, default 4). |
+| `rag_enabled`, `rag_top_k` | Knowledge retrieval, and the most passages (1–20). Only platform admins and the admin key may set `rag_top_k`; everyone else gets the platform's `CHAT_TOP_K`. |
 | `web_search` | `{enabled, mode, max_results, depth, topic, time_range, include_domains, exclude_domains}`, the bot's `webSearch` settings in snake_case (v2). Needs `rag_enabled`. Searches only when the server has a search provider and the business's plan has room; otherwise the reply is answered without it. |
 | `tools_enabled`, `tools` | Tools to allow; `tools` is required with `tools_enabled` and not allowed without it. |
 | `filters` | Retrieval metadata filters. |
@@ -1480,7 +1505,7 @@ There's no streaming; show a pending state, and allow cancelling with `AbortCont
 
 #### `POST /playground/conversations`
 
-No body. **201** a new empty playground conversation; older ones are kept.
+No body. **201** a new empty playground conversation. The bot's earlier playground conversations and their messages are deleted, except one that has a ticket; usage and cost records are kept.
 
 ### Platform administration
 
@@ -1708,6 +1733,7 @@ Model: {
   max_output_tokens,                             // caps bots' output; 0 = no cap
   supports_tools,
   supports_prompt_cache,                         // send the system prompt as a cache breakpoint
+  routing_tier,                                  // the models routing answers with: "fast" (small talk, unclear messages, requests for a person), "balanced" (answers from the knowledge base, follow-ups, tool use) or "advanced" (multi-part and comparison questions, and rewriting a draft that failed its checks); null = not used by routing. List at least one active model per tier; the lowest sort_order in a tier is tried first
   status,                                        // active (offered) | hidden (kept by bots using it) | retired (bots use the default)
   is_default, sort_order, created_at, updated_at
 }
@@ -1974,7 +2000,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Customers | `GET /customers` (search with `q`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, and `GET /tickets?customer=` for all of their tickets |
 | Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
-| Bot configuration | `GET`/`PUT /workspace`, `GET /models`, `GET /prompt-templates`, `GET /tools` for the tool picker |
+| Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
 | Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`) |
 | Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…`, and the chat API section as the integrator guide |
@@ -2004,7 +2030,7 @@ Every error has its HTTP status and this body:
 | 400 | `INVALID_REQUEST` | Fix the body, path or query; `message` says what. |
 | 400 | `SCOPE_REQUIRED`, `INVALID_SCOPE` | Send both scope headers, with valid IDs. |
 | 400 | `INVALID_TOOL`, `UNKNOWN_TOOL`, `TOOL_UNAVAILABLE` | Fix the tool definition, or the bot's tool selection. |
-| 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /models` and `GET /prompt-templates`, and fill required variables. |
+| 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /prompt-templates` and fill required variables. `MODEL_NOT_ALLOWED` now only means the platform's default model can't call tools while tools are on: ask a platform admin. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
 | 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. |

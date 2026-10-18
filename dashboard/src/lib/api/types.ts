@@ -298,6 +298,11 @@ export type ChannelInput = Pick<Channel, 'type' | 'name' | 'description' | 'exte
 /* Bot configuration                                                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * `model`, `temperature`, `maxTokens`, `topK`, `routing` and the `knowledge` fields other than `policy`
+ * are set by the platform. This dashboard doesn't show them; a save sends them back as loaded and the
+ * API keeps its own values for a business.
+ */
 export interface BotConfig {
   name: string;
   model?: string;
@@ -309,21 +314,28 @@ export interface BotConfig {
   tools?: string[];
   /** Search the web when the knowledge base has no confident answer, or always (v2). Needs ragEnabled. */
   webSearch?: WebSearchConfig;
-  /** Model routing (v3). Under `modelSelection: "platform"` the server drops everything but the two limits. */
   routing?: BotRouting;
+  /** Source rules for the bot's answers. A business sets only `policy`. */
+  knowledge?: BotKnowledge;
 }
 
-export type ModelSelection = 'platform' | 'business';
+export type KnowledgePolicy = 'strict_kb' | 'kb_plus_general' | 'kb_general_external';
 
-/** Not edited in this dashboard; typed so a saved bot is sent back as loaded. */
+export interface BotKnowledge {
+  policy?: KnowledgePolicy;
+  ragMode?: string;
+  maxSubqueries?: number;
+  verify?: string;
+}
+
+/** Platform-managed and not edited here; typed so a saved bot is sent back as loaded. */
 export interface BotRouting {
   mode?: string;
   classifier?: unknown;
   fixedModel?: string;
   modelPools?: unknown;
-  allowedTiers?: ModelTier[];
+  allowedTiers?: RoutingTier[];
   providerAllowlist?: string[];
-  /** Limits that can only tighten, so they apply under both settings. */
   maxRequestCostUsd?: number;
   maxAttempts?: number;
 }
@@ -354,8 +366,8 @@ export interface WorkspaceVersion {
 
 export interface Workspace {
   name: string;
-  /** Who picks the model. A missing value means `business`, so an older backend keeps working. */
-  modelSelection?: ModelSelection;
+  /** The platform chooses every reply's model and how every bot answers. */
+  modelSelection: 'platform';
   bot: BotConfig;
   revision: number;
   updated_at?: string;
@@ -363,23 +375,8 @@ export interface Workspace {
   defaults: { name: string; bot: BotConfig };
 }
 
-export type ModelTier = 'economy' | 'standard' | 'premium';
-
-export interface Model {
-  id: string;
-  label: string;
-  description: string;
-  tier: ModelTier;
-  /** What the business pays per million tokens, fee and commission included. */
-  input_price_per_mtok: number;
-  output_price_per_mtok: number;
-  currency: string;
-  context_tokens: number;
-  max_output_tokens: number;
-  supports_tools: boolean;
-  is_default: boolean;
-  offered: boolean;
-}
+/** The models the platform's routing answers with. */
+export type RoutingTier = 'fast' | 'balanced' | 'advanced';
 
 export interface TemplateVariable {
   key: string;
@@ -929,15 +926,13 @@ export interface Source {
 
 export interface PlaygroundRunInput {
   message?: string;
+  /** Required, 1–32768, but the platform's limit is used. */
   max_output_tokens: number;
   assistant_name?: string;
-  model?: string;
-  temperature?: number;
   conversation_id?: string;
   resend?: boolean;
   history?: { role: 'user' | 'assistant'; content: string }[];
   rag_enabled?: boolean;
-  rag_top_k?: number;
   tools_enabled?: boolean;
   tools?: string[];
   /** The bot's webSearch settings in snake_case (v2). Needs rag_enabled. */
@@ -1185,6 +1180,8 @@ export interface PlatformModel {
   max_output_tokens: number;
   supports_tools: boolean;
   supports_prompt_cache: boolean;
+  /** Which messages routing gives this model: null = not used by routing. The lowest sort_order in a tier is tried first. */
+  routing_tier: RoutingTier | null;
   status: CatalogStatus;
   is_default: boolean;
   sort_order: number;

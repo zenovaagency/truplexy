@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Outlet, useBlocker } from 'react-router';
 import { Loader2, Save, Undo2 } from 'lucide-react';
 import { hasCode } from '@/lib/api/client';
-import { modelSelectionOf, useSaveWorkspace, useWorkspace } from '@/lib/api/endpoints/bot';
-import type { BotConfig, ModelSelection, Workspace } from '@/lib/api/types';
+import { useSaveWorkspace, useWorkspace } from '@/lib/api/endpoints/bot';
+import type { BotConfig, Workspace } from '@/lib/api/types';
 import { switchesScope, useScopeCtx } from '@/lib/session/scope-context';
 import { Button, Card, ErrorState, Page, Skeleton, SkeletonRows, useConfirm } from '@/components/ui';
 
@@ -14,8 +14,6 @@ export interface Draft {
 
 export interface BotDraftCtx {
   ws: Workspace;
-  /** `platform`: replies are routed to a model per question and the business doesn't pick one. */
-  modelSelection: ModelSelection;
   draft: Draft;
   setDraft: (d: Draft | ((d: Draft) => Draft)) => void;
   patchBot: (p: Partial<BotConfig>) => void;
@@ -122,7 +120,7 @@ function DraftScope() {
   };
 
   const ctx = useMemo<BotDraftCtx | null>(
-    () => (ws.data && draft ? { ws: ws.data, modelSelection: modelSelectionOf(ws.data), draft, setDraft, patchBot, dirty, canWrite: can('bot.write') } : null),
+    () => (ws.data && draft ? { ws: ws.data, draft, setDraft, patchBot, dirty, canWrite: can('bot.write') } : null),
     [ws.data, draft, setDraft, patchBot, dirty, can],
   );
 

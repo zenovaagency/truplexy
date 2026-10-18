@@ -5,10 +5,10 @@ import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Callout, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Page, PageHeader, SubNav, useConfirm } from '@/components/ui';
 import { useBotDraft } from './draft';
 
-/** The bot's identity, model and model usage. Tools and the playground have their own pages. */
+/** The bot's identity, knowledge and web search settings, and model usage. Tools and the playground have their own pages. */
 export default function LlmPage() {
   const { href, can, bot } = useScopeCtx();
-  const { ws, setDraft, canWrite, modelSelection } = useBotDraft();
+  const { ws, setDraft, canWrite } = useBotDraft();
   const confirm = useConfirm();
 
   const restore = (botCfg: typeof ws.bot, label: string) =>
@@ -24,7 +24,7 @@ export default function LlmPage() {
       <PageHeader
         eyebrow={ws.revision ? `Revision ${ws.revision} · saved ${formatDateTime(ws.updated_at)}` : 'Starting configuration'}
         title="LLM"
-        description={`${bot.name}'s name, model and reply settings, and what the model costs.`}
+        description={`${bot.name}'s name and knowledge settings, and what its replies cost.`}
         actions={
           canWrite && (
             <>
@@ -41,9 +41,7 @@ export default function LlmPage() {
                       <History />
                       <span className="grid flex-1">
                         <span>{formatDateTime(v.savedAt)}</span>
-                        <span className="truncate text-[0.7rem] font-normal text-ink-faint">
-                          {modelSelection === 'platform' ? 'Best model per question' : v.bot.model?.split('/').pop() || 'Default model'} · temp {v.bot.temperature ?? '—'}
-                        </span>
+                        <span className="truncate text-[0.7rem] font-normal text-ink-faint">{v.bot.name}</span>
                       </span>
                       {i === 0 && <Badge tone="accent">Latest</Badge>}
                     </MenuItem>
@@ -59,7 +57,7 @@ export default function LlmPage() {
       />
       <SubNav
         items={[
-          { to: href('llm/model'), label: 'Model', icon: <Cpu /> },
+          { to: href('llm/model'), label: 'Settings', icon: <Cpu /> },
           { to: href('llm/usage'), label: 'Usage & costs', icon: <BarChart3 />, hidden: !can('usage.read') },
         ]}
       />

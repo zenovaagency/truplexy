@@ -3,7 +3,6 @@ import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, CircleStop, ExternalLink, FileText, Globe, MessageSquarePlus, RefreshCw, Send, Sparkles, Wrench } from 'lucide-react';
 import { isApiError } from '@/lib/api/client';
-import { useModels } from '@/lib/api/endpoints/bot';
 import { useCurrentPlayground, useNewPlayground, useRunPlayground } from '@/lib/api/endpoints/playground';
 import type { PlaygroundConversation, PlaygroundMessage, PlaygroundRunInput, PlaygroundRunResult } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -25,17 +24,18 @@ const hostOf = (url: string) => {
   }
 };
 
+/** The API requires a value from 1 to 32768 but uses the platform's own limit. */
+const MAX_OUTPUT_TOKENS = 32768;
+
 const SUGGESTIONS = ['Where is my order?', 'Can I return something I opened?', 'Do you ship internationally?', 'I want to speak to a person'];
 
 export default function PlaygroundPage() {
-  const { draft, dirty, modelSelection } = useBotDraft();
+  const { draft, dirty } = useBotDraft();
   const { scope, href, bot } = useScopeCtx();
   const qc = useQueryClient();
   const current = useCurrentPlayground();
   const fresh = useNewPlayground();
   const run = useRunPlayground();
-  const business = modelSelection === 'business';
-  const models = useModels(business);
   const confirm = useConfirm();
   const [text, setText] = useState('');
   const [pending, setPending] = useState<string | null>(null);
@@ -55,13 +55,10 @@ export default function PlaygroundPage() {
   useEffect(() => () => abort.current?.abort(), []);
 
   const input = (extra: Partial<PlaygroundRunInput>): PlaygroundRunInput => ({
-    max_output_tokens: b.maxTokens ?? 800,
+    max_output_tokens: MAX_OUTPUT_TOKENS,
     assistant_name: b.name,
-    // Under platform selection the playground follows the catalog default, not the draft's model.
-    model: business ? b.model || undefined : undefined,
-    temperature: b.temperature,
+    // The model, temperature and passages per message are the platform's; only its admins could set them.
     rag_enabled: b.ragEnabled ?? true,
-    rag_top_k: b.topK,
     tools_enabled: b.toolsEnabled || undefined,
     tools: b.toolsEnabled ? (b.tools ?? []) : undefined,
     web_search: b.webSearch?.enabled && b.ragEnabled !== false ? playgroundWebSearch(b.webSearch) : undefined,
@@ -113,12 +110,11 @@ export default function PlaygroundPage() {
   const reset = () =>
     confirm({
       title: 'Start a new conversation?',
-      description: 'The current one is kept, but the playground starts fresh.',
+      description: 'This clears the current conversation and its messages. Earlier playground chats are not kept.',
       confirmLabel: 'New conversation',
+      tone: 'danger',
       onConfirm: () => fresh.mutateAsync().then(() => (setError(null), setLastDebug(null))),
     });
-
-  const modelLabel = !business ? 'Best model per question' : models.data?.find((m) => m.id === b.model)?.label ?? models.data?.find((m) => m.is_default)?.label ?? 'Default model';
 
   return (
     <Page>
@@ -135,7 +131,7 @@ export default function PlaygroundPage() {
             <div className="grid min-w-0 flex-1">
               <span className="truncate text-[0.875rem] font-bold text-ink">{b.name}</span>
               <span className="truncate text-xs text-ink-faint">
-                {modelLabel} · {dirty ? <span className="text-warn">testing unsaved changes</span> : 'saved settings'}
+                Best model per message · {dirty ? <span className="text-warn">testing unsaved changes</span> : 'saved settings'}
               </span>
             </div>
             <Tip content="New conversation">
@@ -227,10 +223,8 @@ export default function PlaygroundPage() {
             <DescList
               items={[
                 { label: 'Assistant', value: b.name },
-                { label: 'Model', value: modelLabel },
-                { label: 'Temperature', value: b.temperature ?? '—' },
-                { label: 'Max reply', value: `${formatNumber(b.maxTokens ?? 800)} tokens` },
-                { label: 'Knowledge', value: b.ragEnabled === false ? 'Off' : `On · ${b.topK ?? 4} passages` },
+                { label: 'Model', value: 'Chosen by Truplexy for each message' },
+                { label: 'Knowledge', value: b.ragEnabled === false ? 'Off' : 'On' },
                 { label: 'Tools', value: b.toolsEnabled ? (b.tools?.length ? b.tools.join(', ') : 'On, none chosen') : 'Off' },
               ]}
             />

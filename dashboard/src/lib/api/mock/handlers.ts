@@ -1017,7 +1017,7 @@ function workspaceOut(c: Ctx) {
   const type = BUSINESS_TYPES.find((t) => t.id === c.tenant.business_type)!;
   return {
     name: ws.name,
-    modelSelection: c.db.modelSelection ?? 'business',
+    modelSelection: 'platform' as const,
     bot: publicBot(ws.bot),
     revision: ws.revision,
     updated_at: ws.updated_at,
@@ -1037,11 +1037,7 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   str(bot.name, 'bot.name', 1, 80);
   if (bot.temperature !== undefined && (bot.temperature < 0 || bot.temperature > 2)) throw invalid('temperature must be 0–2.');
   if (bot.topK !== undefined && (bot.topK < 1 || bot.topK > 20)) throw invalid('topK must be 1–20.');
-  const platformPicks = c.db.modelSelection === 'platform';
-  const model = bot.model ? c.db.models.find((m) => m.id === bot.model) : c.db.models.find((m) => m.is_default);
-  if (!platformPicks && bot.model && (!model || (model.status !== 'active' && bot.model !== ws.bot.model))) throw err(400, 'MODEL_NOT_ALLOWED', `${bot.model} isn't offered.`);
   if (bot.maxTokens !== undefined && (bot.maxTokens < 1 || bot.maxTokens > 32768)) throw invalid('maxTokens must be 1–32768.');
-  if (!platformPicks && bot.toolsEnabled && model && !model.supports_tools) throw err(400, 'MODEL_NOT_ALLOWED', `${model.label} can't call tools. Turn tools off or pick another model.`);
   if ((bot.tools ?? []).length > 20) throw invalid('At most 20 tools.');
   if (bot.webSearch !== undefined) {
     const w = bot.webSearch;
@@ -1062,12 +1058,17 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   // Prompt fields in the request are ignored: the bot keeps its business type's prompt.
   const { promptTemplateId, promptVariables, prompt } = ws.bot;
   const next: MockBotConfig = { ...publicBot(bot), promptTemplateId, promptVariables, prompt };
-  if (platformPicks) {
-    // The server drops what the platform decides instead of rejecting it; `model` stays as saved.
-    next.model = ws.bot.model;
-    if (next.routing) {
-      const { maxRequestCostUsd, maxAttempts } = next.routing;
-      next.routing = { ...(maxRequestCostUsd !== undefined && { maxRequestCostUsd }), ...(maxAttempts !== undefined && { maxAttempts }) };
+  if (!c.user.platform_admin) {
+    // The platform decides these: a business's save keeps what was saved and drops what it sent, without an error.
+    const kept = ws.bot;
+    next.model = kept.model;
+    next.temperature = kept.temperature;
+    next.maxTokens = kept.maxTokens;
+    next.topK = kept.topK;
+    next.routing = kept.routing;
+    if (next.knowledge || kept.knowledge) {
+      const { policy } = next.knowledge ?? {};
+      next.knowledge = { ...kept.knowledge, ...(policy !== undefined && { policy }) };
     }
   }
   const changed = JSON.stringify(next) !== JSON.stringify(ws.bot);
@@ -1081,31 +1082,8 @@ route('PUT', '/workspace', 'bot.write', (c) => {
   return workspaceOut(c);
 });
 
-route('GET', '/models', 'bot.read', (c) => {
-  const current = workspaceOf(c).bot.model;
-  const selection = c.db.modelSelection ?? 'business';
-  return {
-    selection,
-    models: selection === 'platform' ? [] : c.db.models
-      .filter((m) => m.status === 'active' || m.id === current)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((m) => ({
-        id: m.id,
-        label: m.label,
-        description: m.description,
-        // By OpenRouter's output price.
-        tier: m.output_price_per_mtok >= 10 ? 'premium' : m.output_price_per_mtok >= 1 ? 'standard' : 'economy',
-        input_price_per_mtok: pricing(m).billed_input_price_per_mtok,
-        output_price_per_mtok: pricing(m).billed_output_price_per_mtok,
-        currency: 'USD',
-        context_tokens: m.context_tokens,
-        max_output_tokens: m.max_output_tokens,
-        supports_tools: m.supports_tools,
-        is_default: m.is_default,
-        offered: m.status === 'active',
-      })),
-  };
-});
+// The platform chooses every reply's model, so a business has no catalog to pick from.
+route('GET', '/models', 'bot.read', () => ({ selection: 'platform' as const, models: [] }));
 
 /* Knowledge ---------------------------------------------------------- */
 
@@ -1922,10 +1900,9 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   if (!b.max_output_tokens || b.max_output_tokens < 1 || b.max_output_tokens > 32768) throw invalid('max_output_tokens is required (1–32768).');
   const ws = workspaceOf(c);
   if (b.tools_enabled && !(b.tools ?? []).length) throw invalid('tools is required with tools_enabled.');
-  const modelId = b.model || c.db.models.find((m) => m.is_default)!.id;
-  const model = c.db.models.find((m) => m.id === modelId);
-  if (!model) throw err(400, 'MODEL_NOT_ALLOWED', `${modelId} isn't offered.`);
-  if (b.tools_enabled && !model.supports_tools) throw err(400, 'MODEL_NOT_ALLOWED', `${model.label} can't call tools.`);
+  // `model` is ignored; `temperature` and `rag_top_k` are honoured only for platform admins.
+  const temperature: number | undefined = c.user.platform_admin ? b.temperature : undefined;
+  const topK: number = c.user.platform_admin && b.rag_top_k ? b.rag_top_k : 4;
 
   let conv = b.conversation_id ? c.db.playground[pgKey(c)] : undefined;
   if (b.conversation_id && conv?.id !== b.conversation_id) throw notFound('CONVERSATION_NOT_FOUND', 'Conversation');
@@ -1941,8 +1918,13 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
     str(message, 'message', 1, 4000);
   }
 
-  const r = rng(hashString(message + modelId + (b.temperature ?? '')));
   const lower = message.toLowerCase();
+  // Routing: fast for small talk and requests for a person, advanced for multi-part questions, balanced otherwise.
+  const thanks = /^\s*(thanks?|thank you|thx|ty|ok(ay|ei)?|cool|great|perfect|got it|all done|no worries|my bad|okei my bad)[\s\S]{0,30}$|^[\s\p{Extended_Pictographic}]+$/iu.test(message);
+  const tier = thanks || /(human|person|agent|someone real|manager)/.test(lower) || message.trim().split(/\s+/).length < 3 ? 'fast' : (message.match(/\?/g) ?? []).length > 1 || /(compare|versus|vs\.?|difference between)/.test(lower) ? 'advanced' : 'balanced';
+  const model =
+    c.db.models.filter((m) => m.status === 'active' && m.routing_tier === tier).sort((a, b) => a.sort_order - b.sort_order)[0] ?? c.db.models.find((m) => m.is_default)!;
+  const r = rng(hashString(message + model.id + (temperature ?? '')));
   const tool_calls: ToolRun[] = [];
   const allowed = b.tools_enabled ? (b.tools as string[]) : [];
   const orderMatch = message.match(/\b[A-Z]-\d{4,6}\b/i);
@@ -1956,8 +1938,8 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   }
 
   const rag = b.rag_enabled !== false;
-  const { selected } = rag ? retrieve(c.db, c.tenant.id, c.botId, message, b.rag_top_k ?? 4) : { selected: [] };
-  let sources: Source[] | null = rag ? selected.map((x) => ({ document_id: x.s.doc.id, title: x.s.doc.title, section: x.s.heading, url: x.s.doc.source_url, score: +(0.5 + x.score / 2).toFixed(2) })) : null;
+  const { selected } = rag && !thanks ? retrieve(c.db, c.tenant.id, c.botId, message, topK) : { selected: [] };
+  let sources: Source[] | null = rag && !thanks ? selected.map((x) => ({ document_id: x.s.doc.id, title: x.s.doc.title, section: x.s.heading, url: x.s.doc.source_url, score: +(0.5 + x.score / 2).toFixed(2) })) : null;
   const tone = String(ws.bot.promptVariables?.tone ?? '');
   const warm = /warm|friendly/i.test(tone);
 
@@ -1985,7 +1967,7 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   }
   // Web search: as a fallback when nothing confident came back, or on every message.
   const web = b.web_search;
-  if (rag && web?.enabled && limitsOf(c.tenant).web_search !== false && (web.mode === 'always' || status === 'no_answer')) {
+  if (rag && !thanks && web?.enabled && limitsOf(c.tenant).web_search !== false && (web.mode === 'always' || status === 'no_answer')) {
     const hosts: string[] = (web.include_domains?.length ? web.include_domains : ['help.example.com', 'en.wikipedia.org', 'support.example.org']).slice(0, Math.min(8, Math.max(1, web.max_results ?? 3)));
     const query = encodeURIComponent(message.slice(0, 60));
     sources = [
@@ -2019,7 +2001,7 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   if (b.debug) {
     result.debug = {
       retrieval: { query: message, rewrite: tokens(message).join(' '), selected: selected.map((x) => ({ title: x.s.doc.title, section: x.s.heading, score: +x.score.toFixed(2) })) },
-      temperature: b.temperature ?? null,
+      temperature: temperature ?? null,
     };
   }
 
