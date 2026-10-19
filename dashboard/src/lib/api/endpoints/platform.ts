@@ -9,6 +9,7 @@ import type {
   PlatformBusiness,
   PlatformChannel,
   PlatformChannelType,
+  PerformanceStats,
   PlatformCustomer,
   PlatformBusinessDetail,
   PlatformModel,
@@ -27,6 +28,7 @@ import type {
   TicketStatus,
 } from '@/lib/api/types';
 import type { Range } from './stats';
+import { trackAvailability } from '@/lib/performance';
 import { qk } from '@/lib/query-keys';
 
 /* Platform administration: a platform admin's token, no scope headers. */
@@ -405,5 +407,15 @@ export function useTogglePlatformChannel() {
       qc.invalidateQueries({ queryKey: qk.platform('channels') });
       qc.invalidateQueries({ queryKey: ['bot', c.tenant_id, c.bot_id, 'channels'] });
     },
+  });
+}
+
+/** The same body as the business page with scope "platform", plus the busiest businesses. Takes no scope. */
+export function usePlatformPerformance(range: Range) {
+  return useQuery({
+    queryKey: qk.platform('performance', range),
+    queryFn: ({ signal }) => trackAvailability('platform', () => api<PerformanceStats>('/platform/performance', { signal, query: { ...range } })),
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
   });
 }

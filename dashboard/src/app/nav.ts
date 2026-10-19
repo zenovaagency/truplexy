@@ -20,6 +20,7 @@ import {
   Trash2,
   Wrench,
   BarChart3,
+  Gauge,
 } from 'lucide-react';
 import type { Permission } from '@/lib/api/types';
 
@@ -34,6 +35,7 @@ export const pages = {
   knowledge: () => import('@/features/knowledge/KnowledgePage'),
   draft: () => import('@/features/llm/draft'),
   usage: () => import('@/features/usage/UsagePage'),
+  performance: () => import('@/features/performance/PerformancePage'),
   tools: () => import('@/features/tools/ToolsPage'),
   playground: () => import('@/features/playground/PlaygroundPage'),
   integrations: () => import('@/features/integrations/IntegrationsPage'),
@@ -55,6 +57,8 @@ export interface NavItem {
   key?: string;
   prefetch?: () => Promise<unknown>;
   keywords?: string[];
+  /** The Performance page: hidden once this server has answered 404 for its endpoint (business or platform). */
+  needs?: 'business' | 'platform';
 }
 
 export interface NavSection {
@@ -68,6 +72,7 @@ export const BUSINESS_NAV: NavSection[] = [
     items: [
       { id: 'overview', label: 'Overview', path: 'overview', icon: LayoutDashboard, permission: 'usage.read', key: 'o', prefetch: pages.overview, keywords: ['dashboard', 'stats', 'usage', 'metrics'] },
       { id: 'usage', label: 'Usage', path: 'usage', icon: BarChart3, permission: 'usage.read', key: 'u', prefetch: pages.usage, keywords: ['costs', 'tokens', 'replies', 'spend', 'limits', 'plan', 'model', 'billing'] },
+      { id: 'performance', label: 'Performance', path: 'performance', icon: Gauge, permission: 'usage.read', key: 'f', prefetch: pages.performance, needs: 'business', keywords: ['latency', 'speed', 'errors', 'requests', 'slow', 'retrieval', 'p95', 'stats'] },
       { id: 'tickets', label: 'Tickets', path: 'tickets', icon: Inbox, permission: 'tickets.read', key: 't', prefetch: pages.tickets, keywords: ['inbox', 'support', 'conversations', 'handoffs'] },
       { id: 'customers', label: 'Customers', path: 'customers', icon: UserRound, permission: 'customers.read', key: 'c', prefetch: pages.customers, keywords: ['people', 'contacts', 'visitors', 'email', 'users'] },
       { id: 'knowledge', label: 'Knowledge base', path: 'knowledge', icon: BookOpen, permission: 'knowledge.read', key: 'k', prefetch: pages.knowledge, keywords: ['documents', 'articles', 'upload', 'rag'] },
@@ -118,6 +123,7 @@ export const PLATFORM_NAV: NavSection[] = [
       { id: 'p-channel-types', label: 'Channel types', path: '/platform/channel-types', icon: Shapes, prefetch: pages.platform },
       { id: 'p-tools', label: 'Tools', path: '/platform/tools', icon: Wrench, prefetch: pages.platform },
       { id: 'p-usage', label: 'Usage', path: '/platform/usage', icon: BarChart3, prefetch: pages.platform },
+      { id: 'p-performance', label: 'Performance', path: '/platform/performance', icon: Gauge, prefetch: pages.performance, needs: 'platform', keywords: ['latency', 'errors', 'requests', 'load', 'slow', '5xx'] },
     ],
   },
 ];

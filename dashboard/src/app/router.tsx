@@ -26,6 +26,7 @@ const businessRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="overview" replace /> },
   gated('usage.read', [{ path: 'overview', ...lazyRoute(pages.overview, (m) => m.default) }]),
   gated('usage.read', [{ path: 'usage', ...lazyRoute(pages.usage, (m) => m.default) }]),
+  gated('usage.read', [{ path: 'performance', ...lazyRoute(pages.performance, (m) => m.default) }]),
   // The LLM page is gone: its usage moved to Usage, and the rest is no longer configurable.
   { path: 'llm/usage', element: <Navigate to="../usage" replace /> },
   { path: 'llm/*', element: <Navigate to="../tools" replace /> },
@@ -109,6 +110,7 @@ const platformRoutes: RouteObject[] = [
   { path: 'channels', ...lazyRoute(pages.platform, (m) => m.PlatformChannels) },
   { path: 'tools', ...lazyRoute(pages.platform, (m) => m.PlatformTools) },
   { path: 'usage', ...lazyRoute(pages.platform, (m) => m.PlatformUsage) },
+  { path: 'performance', ...lazyRoute(pages.performance, (m) => m.PlatformPerformance) },
   { path: 'models', ...lazyRoute(pages.platform, (m) => m.PlatformModels) },
   { path: 'templates', ...lazyRoute(pages.platform, (m) => m.PlatformTemplates) },
   { path: 'channel-types', ...lazyRoute(pages.platform, (m) => m.PlatformChannelTypes) },

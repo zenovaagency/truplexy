@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -299,7 +299,9 @@ export function PlatformBusinesses() {
   const q = usePlatformTenants();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | 'active' | 'suspended' | 'deleted'>('all');
-  const [open, setOpen] = useState<string | null>(null);
+  // /platform/businesses?open=<id> opens that business, as the Performance page's busiest-businesses table does.
+  const [params, setParams] = useSearchParams();
+  const [open, setOpen] = useState<string | null>(() => params.get('open'));
   const rows = useMemo(
     () =>
       (q.data ?? []).filter(
@@ -378,7 +380,13 @@ export function PlatformBusinesses() {
           <DataTable columns={columns} rows={rows} getKey={(b) => b.id} onRowClick={(b) => setOpen(b.id)} selectedKey={open ?? undefined} empty={<EmptyState compact icon={<Search />} title="No businesses match" />} />
         )}
       </Card>
-      <BusinessSheet business={q.data?.find((b) => b.id === open)} onClose={() => setOpen(null)} />
+      <BusinessSheet
+        business={q.data?.find((b) => b.id === open)}
+        onClose={() => {
+          setOpen(null);
+          if (params.has('open')) setParams({}, { replace: true });
+        }}
+      />
     </Page>
   );
 }

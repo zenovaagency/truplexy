@@ -7,6 +7,7 @@ import { useTenant } from '@/lib/api/endpoints/business';
 import { useTicketCounts } from '@/lib/api/endpoints/tickets';
 import { cn } from '@/lib/cn';
 import { formatCompact } from '@/lib/format';
+import { usePerformanceNav } from '@/lib/performance';
 import { useLiveUpdates, type LiveStatus } from '@/lib/realtime';
 import { ScopeContext, useScopeCtx } from '@/lib/session/scope-context';
 import { useHotkeys, useIsDesktop, useIsTablet, useStoredState } from '@/hooks';
@@ -141,7 +142,8 @@ export function AppShell({ variant }: { variant: 'business' | 'platform' }) {
 function BusinessSidebar({ collapsed, onNavigate, onToggleCollapsed }: { collapsed: boolean; onNavigate?: () => void; onToggleCollapsed?: () => void }) {
   const { can, href, isPlatformAdmin, membership } = useScopeCtx();
   const counts = useTicketCounts(can('tickets.read'));
-  const sections = BUSINESS_NAV.map((s) => ({ ...s, items: s.items.filter((i) => !i.permission || can(i.permission)) }));
+  const served = usePerformanceNav();
+  const sections = BUSINESS_NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.permission || can(i.permission)) && served(i)) }));
   const plan = membership?.plan;
   return (
     <Sidebar
@@ -199,9 +201,10 @@ function PlanUsage() {
 }
 
 function PlatformSidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const served = usePerformanceNav();
   return (
     <Sidebar
-      sections={PLATFORM_NAV}
+      sections={PLATFORM_NAV.map((s) => ({ ...s, items: s.items.filter(served) }))}
       hrefFor={(i) => i.path}
       collapsed={collapsed}
       onNavigate={onNavigate}
@@ -282,9 +285,10 @@ function SuspendedBanner() {
 function GoShortcuts() {
   const { can, href } = useScopeCtx();
   const nav = useNavigate();
+  const served = usePerformanceNav();
   const bindings: Record<string, () => void> = {};
   for (const item of BUSINESS_NAV.flatMap((s) => s.items)) {
-    if (item.key && (!item.permission || can(item.permission))) bindings[`g ${item.key}`] = () => nav(href(item.path));
+    if (item.key && (!item.permission || can(item.permission)) && served(item)) bindings[`g ${item.key}`] = () => nav(href(item.path));
   }
   useHotkeys(bindings);
   return null;

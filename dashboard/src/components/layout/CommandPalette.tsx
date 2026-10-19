@@ -20,6 +20,7 @@ import type { Permission } from '@/lib/api/types';
 import { ScopeContext, scopeLink } from '@/lib/session/scope-context';
 import { useTheme } from '@/lib/theme';
 import { BUSINESS_NAV, PLATFORM_NAV } from '@/app/nav';
+import { usePerformanceNav } from '@/lib/performance';
 import { Kbd } from '@/components/ui';
 
 interface Entry {
@@ -59,10 +60,11 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     else nav(to.to, { state: to.state });
   };
   const allowed = (p?: Permission) => !p || (ctx?.can(p) ?? false);
+  const served = usePerformanceNav();
 
   const pages: Entry[] = ctx
     ? [
-        ...BUSINESS_NAV.flatMap((s) => s.items).map((i) => ({
+        ...BUSINESS_NAV.flatMap((s) => s.items).filter(served).map((i) => ({
           id: i.id,
           label: i.label,
           icon: <i.icon />,
@@ -107,7 +109,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   );
 
   const platform: Entry[] = me.data?.platform_admin
-    ? PLATFORM_NAV.flatMap((s) => s.items).map((i) => ({ id: i.id, label: `Platform · ${i.label}`, icon: <i.icon />, run: go(i.path) }))
+    ? PLATFORM_NAV.flatMap((s) => s.items).filter(served).map((i) => ({ id: i.id, label: `Platform · ${i.label}`, icon: <i.icon />, run: go(i.path) }))
     : [];
 
   const group = (heading: string, list: Entry[]) =>

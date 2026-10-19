@@ -834,6 +834,91 @@ export interface SupportStats {
   by_day: { date: string; conversations: number; tickets_created: number; tickets_closed: number; ticket_cost: number }[];
 }
 
+/** Durations in whole milliseconds (avg_ms has one decimal) with nearest-rank percentiles; `count` is how many durations it covers. */
+export interface LatencyStats {
+  count: number;
+  avg_ms: number;
+  p50_ms: number;
+  p95_ms: number;
+  p99_ms: number;
+  max_ms: number;
+}
+
+export interface RoutePerformance extends LatencyStats {
+  method: string;
+  /** The router's pattern without the API version, e.g. "/conversations/{id}/messages". */
+  route: string;
+  requests: number;
+  errors: number;
+  server_errors: number;
+  error_rate: number;
+}
+
+export interface StagePerformance extends LatencyStats {
+  stage: string;
+  /** Replies the stage took at least 1 ms for; the other fields are over those replies only. */
+  ran: number;
+  /** The stage's part of all reply time, 0–1. */
+  share: number;
+}
+
+export interface PerformanceDay {
+  date: string;
+  requests: number;
+  errors: number;
+  server_errors: number;
+  p50_ms: number;
+  p95_ms: number;
+}
+
+export interface PerformanceStats {
+  from: string;
+  to: string;
+  scope: 'bot' | 'business' | 'platform';
+  /** Which records the server keeps, so zero can be told from "not recorded". */
+  recording: { http: boolean; sample_rate: number; model_attempts: boolean };
+  requests: {
+    total: number;
+    errors: number;
+    server_errors: number;
+    error_rate: number;
+    server_error_rate: number;
+    by_status: Partial<Record<'2xx' | '3xx' | '4xx' | '5xx', number>>;
+    by_route: RoutePerformance[];
+    by_day: PerformanceDay[];
+  };
+  latency: LatencyStats;
+  pipeline: {
+    replies: number;
+    total: LatencyStats;
+    stages: StagePerformance[];
+    retrieval_stages: StagePerformance[];
+  };
+  rag: {
+    replies: number;
+    answered_rate: number;
+    no_answer_rate: number;
+    clarification_rate: number;
+    handoff_rate: number;
+    empty_retrieval_rate: number;
+    cache_hit_rate: number;
+    cache_hits: Record<string, number>;
+    rewrite_rate: number;
+    degraded_rate: number;
+    degraded: Record<string, number>;
+    confidence: Partial<Record<'high' | 'low' | 'none' | 'unknown', number>>;
+    web_search_rate: number;
+    split_rate: number;
+    avg_candidates: number;
+    avg_passages: number;
+    avg_top_score: number;
+    retrieval: LatencyStats;
+  };
+  models: (LatencyStats & { model: string; attempts: number; failures: number; failure_rate: number })[];
+  /** Platform scope only: the 20 businesses with the most requests. */
+  tenants?: { tenant_id: string; name: string; requests: number; server_errors: number; server_error_rate: number }[];
+}
+
 /* ------------------------------------------------------------------ */
 /* Billing                                                             */
 /* ------------------------------------------------------------------ */

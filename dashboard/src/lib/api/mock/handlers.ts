@@ -14,6 +14,7 @@ import type {
   LedgerEntry,
   Limits,
   Permission,
+  PerformanceStats,
   PlatformChannelType,
   PlaygroundMessage,
   PlaygroundRunResult,
@@ -34,6 +35,7 @@ import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
 import { emit, topicFor } from './bus';
 import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
+import { buildPerformance, performanceMode } from './performance';
 
 /* ------------------------------------------------------------------ */
 /* Plumbing                                                            */
@@ -2652,6 +2654,41 @@ route('PATCH', '/platform/tools/:id', 'platform', (c) => {
   t.disabled = Boolean(c.body.disabled);
   audit({ ...c, tenant: c.db.tenants.find((x) => x.id === t.tenant_id)! }, t.disabled ? 'tool.disabled' : 'tool.enabled', t.name);
   return { id: t.id, disabled: t.disabled };
+});
+
+/* Performance -------------------------------------------------------- */
+
+/** Replies per day: the bot's model requests, which is what a reply costs. */
+const replyDays = (days: string[], bots: { tenant: string; bot: string }[]) =>
+  days.map((date) => ({ date, replies: bots.reduce((n, b) => n + usageDay(b.tenant, b.bot, date).requests, 0) }));
+
+route('GET', '/stats/performance', 'usage.read', (c): PerformanceStats => {
+  const mode = performanceMode();
+  if (mode === 'off') throw err(404, 'NOT_FOUND', 'Route not found.');
+  const { from, to, days } = rangeOf(c.query);
+  const scope = c.query.get('scope') ?? 'bot';
+  if (scope !== 'bot' && scope !== 'business') throw invalid('scope must be bot or business.');
+  const bots = scope === 'business' ? c.db.bots.filter((b) => b.tenant_id === c.tenant.id).map((b) => b.id) : [c.botId];
+  return buildPerformance({ from, to, scope, mode, days: replyDays(days, bots.map((bot) => ({ tenant: c.tenant.id, bot }))) });
+});
+
+route('GET', '/platform/performance', 'platform', ({ db, query }): PerformanceStats => {
+  const mode = performanceMode();
+  if (mode === 'off') throw err(404, 'NOT_FOUND', 'Route not found.');
+  if (query.has('scope')) throw invalid('This endpoint takes no scope.');
+  const { from, to, days } = rangeOf(query);
+  const perTenant = db.tenants
+    .filter((t) => !t.deleted_at)
+    .map((t) => ({ tenant_id: t.id, name: t.name, bots: db.bots.filter((b) => b.tenant_id === t.id).map((b) => ({ tenant: t.id, bot: b.id })) }));
+  const all = perTenant.flatMap((t) => t.bots);
+  return buildPerformance({
+    from,
+    to,
+    scope: 'platform',
+    mode,
+    days: replyDays(days, all),
+    tenants: perTenant.map((t) => ({ tenant_id: t.tenant_id, name: t.name, replies: replyDays(days, t.bots).reduce((n, d) => n + d.replies, 0) })),
+  });
 });
 
 route('GET', '/platform/usage', 'platform', ({ db, query }) => {

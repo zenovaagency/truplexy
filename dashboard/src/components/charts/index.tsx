@@ -1,9 +1,10 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { Skeleton } from '@/components/ui';
+import type { RequestsChartDay } from './RequestsChart';
 import type { Series, TrendChartProps } from './TrendChart';
 
-export type { Series };
+export type { RequestsChartDay, Series };
 
 // recharts is the heaviest dependency: it loads with the first chart, not the app.
 const LazyTrend = lazy(() => import('./TrendChart'));
@@ -12,6 +13,17 @@ export function TrendChart(props: TrendChartProps) {
   return (
     <Suspense fallback={<Skeleton style={{ height: props.height ?? 240 }} />}>
       <LazyTrend {...props} />
+    </Suspense>
+  );
+}
+
+const LazyRequests = lazy(() => import('./RequestsChart'));
+
+/** Requests and errors per day as bars, p95 latency as a line on a second axis. */
+export function RequestsChart(props: { data: RequestsChartDay[]; height?: number }) {
+  return (
+    <Suspense fallback={<Skeleton style={{ height: props.height ?? 260 }} />}>
+      <LazyRequests {...props} />
     </Suspense>
   );
 }
