@@ -1993,6 +1993,31 @@ No body. Reads the model's prices from OpenRouter again and stores them with `pr
 
 No body. Refreshes every model that isn't retired. **200** `{models: [the refreshed models], failed: [{id, error}]}`: a model OpenRouter doesn't have, or couldn't return, keeps its prices and is listed in `failed`.
 
+#### `GET /platform/settings` (v2)
+
+Platform-wide settings a platform admin changes from the console. **200**:
+
+```text
+{
+  vision_model: {
+    value,        // what a platform admin set; "" when nothing is set
+    default,      // the server's LLM_VISION_MODEL; "" when unset
+    effective,    // the model in use; "" when there is none
+    source        // "console" (value), "env" (default) or "none"
+  }
+}
+```
+
+`vision_model` is the model that answers a message with pictures ([image input](#image-input-2026-10-19)) when the bot's own model can't read them. A bot whose model reads pictures (`supports_vision`) always uses its own. With no model in use (`source: "none"`), such bots answer `FEATURE_UNAVAILABLE` and `GET /playground/attachments/config` says `no_vision_model`.
+
+#### `PATCH /platform/settings` (v2)
+
+`{vision_model}`: an OpenRouter model ID such as `google/gemini-3.1-flash-lite`, or `null` to remove the setting so the server's `LLM_VISION_MODEL` applies again. A model in the catalog must have `supports_vision` and not be retired; one the catalog doesn't list is checked against OpenRouter's input modalities. It takes effect within a minute on every server instance. **200** the settings as in `GET /platform/settings`. The change is recorded in the activity log under `_platform` as `settings.update`.
+
+**Errors:**
+- `400 INVALID_REQUEST`: not a model ID, retired, unable to read pictures, or unknown to OpenRouter.
+- `502 PRICING_UNAVAILABLE`: OpenRouter couldn't be reached to check the model.
+
 #### `GET /platform/prompt-templates`
 
 **200** `{templates: [Template + {bots}], own_prompt_bots}`. `own_prompt_bots` counts the bots that still use a pre-template prompt.

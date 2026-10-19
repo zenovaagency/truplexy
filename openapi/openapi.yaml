@@ -2716,6 +2716,52 @@ paths:
                           type: string
         default:
           $ref: '#/components/responses/Error'
+  /platform/settings:
+    get:
+      operationId: getPlatformSettings
+      summary: Platform-wide settings, such as the vision model (v2)
+      description: For platform admins. vision_model is the model that answers a message with pictures (image input) when the bot's own model can't read them.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformSettings'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updatePlatformSettings
+      summary: Change the vision model (v2)
+      description: For platform admins. A model in the catalog must have supports_vision and not be retired; one the catalog doesn't list is checked against OpenRouter's input modalities (400 INVALID_REQUEST when it can't read pictures, 502 PRICING_UNAVAILABLE when OpenRouter can't be reached). null removes the setting, so the server's LLM_VISION_MODEL applies again. Takes effect within a minute. Recorded in the activity log as settings.update.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [vision_model]
+              properties:
+                vision_model:
+                  type: string
+                  nullable: true
+                  description: An OpenRouter model ID, or null to use the server's LLM_VISION_MODEL again.
+      responses:
+        '200':
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformSettings'
+        default:
+          $ref: '#/components/responses/Error'
   /platform/prompt-templates:
     get:
       operationId: listCatalogTemplates
@@ -5051,6 +5097,26 @@ components:
         image_input:
           type: boolean
           description: Turns image input on or off whatever the plan says.
+    PlatformSettings:
+      type: object
+      required: [vision_model]
+      properties:
+        vision_model:
+          type: object
+          required: [value, default, effective, source]
+          properties:
+            value:
+              type: string
+              description: What a platform admin set; empty when nothing is set.
+            default:
+              type: string
+              description: The server's LLM_VISION_MODEL; empty when unset.
+            effective:
+              type: string
+              description: The model in use; empty when there is none.
+            source:
+              type: string
+              enum: [console, env, none]
     TokenAddon:
       type: object
       nullable: true
