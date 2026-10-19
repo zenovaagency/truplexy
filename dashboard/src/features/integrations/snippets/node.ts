@@ -43,10 +43,16 @@ export async function createConversation(customer, channelId) {
 const threads = new Map();
 export const threadFor = (conversationId) => [...threads].find(([, c]) => c === conversationId)?.[0];
 
-export async function ask(thread, text, customer, channelId) {
+export async function conversationFor(thread, customer, channelId) {
   let id = threads.get(thread);
   if (!id) threads.set(thread, (id = (await createConversation(customer, channelId)).id));
-  const r = await call(\`/conversations/\${id}/messages\`, { message: text.slice(0, 4000) });
+  return id;
+}
+
+// attachments: IDs of pictures you registered and uploaded (optional).
+export async function ask(thread, text, customer, channelId, attachments = []) {
+  const id = await conversationFor(thread, customer, channelId);
+  const r = await call(\`/conversations/\${id}/messages\`, { message: text.slice(0, 4000), ...(attachments.length && { attachments }) });
   // "escalated" (a person has it) and "context" have no reply: send nothing.
   return { reply: r.reply, status: r.status, conversationId: id };
 }
@@ -127,13 +133,43 @@ const sendTelegram = (chat_id, text) =>
     discord: {
       file: 'bot.js',
       handler: `// npm i discord.js — keeps a gateway connection open.
+import { createHash } from "node:crypto";
 import { Client, GatewayIntentBits } from "discord.js";
+import { ask, call, conversationFor } from "./truplexy.js";
 const discord = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages] });
 
+const TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+// Pictures in a Discord message → Truplexy attachment IDs. Empty when pictures are off for this business.
+async function uploadPictures(m, conversationId) {
+  const pictures = [...m.attachments.values()].filter((a) => TYPES.includes(a.contentType) && a.size <= 20 * 1024 * 1024).slice(0, 3);
+  if (!pictures.length) return [];
+  // Absent or enabled: false means the API or the plan can't read pictures: send the text only.
+  if ((await call("/profile", undefined, "GET")).attachments?.enabled !== true) return [];
+  return Promise.all(pictures.map(async (a) => {
+    const bytes = Buffer.from(await (await fetch(a.url)).arrayBuffer());
+    // 1. Register it. The server reads the real bytes later; this is what you declare.
+    const reg = await call(\`/conversations/\${conversationId}/attachments\`, {
+      filename: a.name, content_type: a.contentType, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+    // 2. PUT it to storage with exactly the headers returned. Not to Truplexy: no chat key here.
+    const put = await fetch(reg.url, { method: reg.method, headers: reg.headers, body: bytes });
+    if (!put.ok) throw new Error(\`Picture upload failed (\${put.status})\`);
+    return reg.attachment.id;
+  }));
+}
+
 discord.on("messageCreate", async (m) => {
-  if (m.author.bot || !m.content) return;
+  if (m.author.bot || (!m.content && !m.attachments.size)) return;
   await m.channel.sendTyping();
-  const { reply } = await ask(\`dc:\${m.channelId}:\${m.author.id}\`, m.content, { contacts: [{ type: "discord", value: m.author.id }] });
+  const thread = \`dc:\${m.channelId}:\${m.author.id}\`;
+  const customer = { contacts: [{ type: "discord", value: m.author.id }] };
+  let attachments = [];
+  try { attachments = await uploadPictures(m, await conversationFor(thread, customer)); }
+  catch (e) { console.warn("pictures skipped:", e.code ?? e.message); } // answer the text instead
+  if (!m.content && !attachments.length) return;
+  // 3. Send the message, naming the pictures. Text may be empty, but it gives better answers.
+  const { reply } = await ask(thread, m.content, customer, undefined, attachments);
   if (reply) await m.reply(reply);
 });
 discord.login(process.env.DISCORD_TOKEN);`,

@@ -194,11 +194,31 @@ describe('the public docs cover pictures over plain HTTP', () => {
     expect(tabs).toContain('IMAGE_CURL');
   });
 
-  it('the shared language packs and endpoint table are as they were', () => {
-    const dir = join(process.cwd(), 'src/features/integrations/snippets');
-    for (const f of ['node', 'python', 'php', 'go', 'java', 'csharp', 'ruby', 'chat-api', 'types', 'web-sdk', 'wordpress-plugin']) {
-      const text = readFileSync(join(dir, `${f}.ts`), 'utf8');
-      expect(text, f).not.toMatch(/\/attachments|attachments:|image input|registerImage|uploadImage/i);
+  const snippets = join(process.cwd(), 'src/features/integrations/snippets');
+
+  it('only the packs with a Discord bot, and only that bot, upload pictures; the others are as they were', () => {
+    for (const f of ['php', 'java', 'ruby', 'chat-api', 'types', 'web-sdk', 'wordpress-plugin']) {
+      expect(readFileSync(join(snippets, `${f}.ts`), 'utf8'), f).not.toMatch(/\/attachments|attachments:|image input|registerImage|uploadImage/i);
+    }
+    for (const f of ['node', 'python', 'go', 'csharp']) {
+      const text = readFileSync(join(snippets, `${f}.ts`), 'utf8');
+      expect(text, f).not.toMatch(/registerImage|uploadImage/);
+      // Only the Discord handler registers pictures: every other channel handler is text only.
+      expect(text.split(/\/attachments/).length - 1, f).toBe(1);
+    }
+  });
+
+  it('the Discord bot checks GET /profile, keeps the chat key off storage and falls back to the text', async () => {
+    for (const lang of ['node', 'python', 'go', 'csharp'] as const) {
+      const pack = (await import(`./snippets/${lang}.ts`)).default;
+      const bot: string = pack.integrations.discord.handler;
+      expect(bot, lang).toContain('/profile');
+      expect(bot, lang).toMatch(/enabled/i);
+      expect(bot, lang).toContain('/attachments');
+      expect(bot, lang).toMatch(/Not to Truplexy|plain client|storage/);
+      expect(bot, lang).toMatch(/send the text only|answer the text instead|If the pictures fail/);
+      // The picture upload never adds an Authorization header of its own.
+      expect(bot, lang).not.toMatch(/Authorization|TRUPLEXY_CHAT_KEY/);
     }
   });
 });
