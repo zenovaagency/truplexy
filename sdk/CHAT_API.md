@@ -30,7 +30,7 @@ Options: `chatKey`, `apiBase` (default production `/v3`), and `fetch`. Environme
 | `upsertCustomer(input)` | `PUT /customer` | Customer; 201 new or 200 existing |
 | `createConversation({customer_id?, channel_id?}?)` | `POST /conversations` | Empty conversation; 201 |
 | `getConversation(id)` | `GET /conversations/{id}` | Latest 200 messages, oldest first |
-| `sendMessage(id, text)` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters. Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
+| `sendMessage(id, text \| {text?, images?, attachments?, idempotencyKey?, signal?})` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters (may be empty with pictures: [coming soon](#sending-pictures-coming-soon)). Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
 | `handoff(id)` | `POST /conversations/{id}/handoff` | Flags the conversation and adds confirmation; AI keeps replying |
 | `escalate(id)` | `POST /conversations/{id}/escalate` | Opens/escalates a ticket; AI stops replying; safe to repeat |
 | `resume(id)` | `POST /conversations/{id}/resume` | Ends escalation; ticket stays open; safe to repeat |
@@ -38,8 +38,54 @@ Options: `chatKey`, `apiBase` (default production `/v3`), and `fetch`. Environme
 | `closeTicket(id)` | `POST /conversations/{id}/ticket/close` | Closes the open ticket, ends escalation, clears handoff; returns the latest ticket if already closed |
 | `sendReply(id, input)` | `POST /conversations/{id}/replies` | `{message, ticket_id, escalated}`; opens a ticket if necessary |
 | `getRealtimeToken(conversationId?)` | `POST /realtime/token` | Server topics, URL, publishable key, events |
+| `getAttachmentConfig()` | `GET /profile` | *Coming soon.* `profile.attachments`, or `{enabled: false}` while the API doesn't serve pictures |
+| `uploadImage(id, image, options?)` | `POST /conversations/{id}/attachments`, then `PUT` to storage | *Coming soon.* Hashes, registers and uploads one picture; resolves to the attachment ID |
+| `registerImage(id, image \| details, options?)` | `POST /conversations/{id}/attachments` | *Coming soon.* `{attachmentId, url, headers, …}` for a browser to `PUT`; uploads nothing |
+| `createAttachment(id, {filename, content_type, size, sha256})` | `POST /conversations/{id}/attachments` | *Coming soon.* The raw registration: `{attachment, url, method, headers, expires_at}` |
 
 `sendReply` takes `content` (1–8000 characters), optional `author` (up to 64), `external_id` (up to 128), and `escalate` (default false). Reusing a platform message ID as `external_id` makes retries safe: a new reply returns 201, a repeated one 200. Ticket priorities are `low`, `normal`, `high`, `urgent`; statuses are `open` or `closed`.
+
+## Sending pictures (coming soon)
+
+> **Not live yet.** The API doesn't serve image input: `attachments` is refused with `400 INVALID_REQUEST` and the new route answers `404 NOT_FOUND`. These methods are ready for the day it does. Until then `getAttachmentConfig()` resolves to `{ enabled: false }`, and nothing else in the client changes. The contract is in [API_REFERENCE.md](../API_REFERENCE.md#image-input-planned-2026-10-19).
+
+A customer can attach 1–3 pictures to a message and the assistant reads them. A picture takes three steps: register it, `PUT` the file to the presigned storage URL with exactly the returned headers, then send the message with the attachment ID. The client does all three:
+
+```ts
+const chat = createChatClient();
+if ((await chat.getAttachmentConfig()).enabled) {
+  const result = await chat.sendMessage(conversation.id, {
+    text: 'This error appears when I log in',
+    images: [screenshotBytes],            // a File, Blob, ArrayBuffer or Uint8Array; use { data, filename } to name bytes
+    idempotencyKey: 'order-42-message-1', // optional: a retry of this message is safe
+    signal,                               // optional AbortSignal
+  });
+}
+```
+
+- **What it does.** For each image: SHA-256, then `POST …/attachments` with `{filename, content_type, size, sha256}`, then `PUT` to the returned `url` with exactly the returned `headers` (never the chat key; that request goes to storage), then one `POST …/messages` with `attachments: [ids]`. Images upload in parallel, and nothing is sent if one fails. The type is the file's own, else the first bytes'; the API reads the real bytes and has the last word.
+- **Retries.** A failed `PUT` (a network error or a 5xx) is retried twice, after 500 ms and then 1500 ms (`backoffMs`). Any other answer, like `403` for an expired signature, is final and raises `UPLOAD_FAILED`. The message itself is never replayed automatically; send it again with the same `idempotencyKey`. An attachment is single-use, so a retry that has to start over uploads the picture again.
+- **Progress and cancelling.** `signal` cancels at any point, including while waiting to retry, and rejects with `AbortError`. `onProgress` reports `hashing`, `registering`, `uploading` and `done` with byte counts; `fetch` can't report bytes in flight, so `uploading` is reported at its start and end. Use `putImage` from `@truplexy/web` in a browser for byte-level progress.
+- **Pictures already uploaded.** `uploadImage(id, image)` resolves to the ID; pass it as `attachments: [id]` within an hour, once.
+- **A browser widget** never holds the chat key. Your server calls `registerImage(id, details)` with the `{filename, content_type, size, sha256}` the browser computed (`describeImage` in `@truplexy/web`), and returns `{attachmentId, url, headers}`. The browser `PUT`s the file straight to storage (`putImage`), and your server sends the message with `attachments: [attachmentId]`. The website's origin needs the storage bucket's CORS rule to allow `PUT` with `Content-Type`. [Example](examples/widget-pictures).
+- **Messages carry pictures.** A customer message may have `attachments: [{id, content_type, width, height, size, url, url_expires_at}]`. The values describe the stored copy: shrunk to at most 1280 px, a JPEG of at most 1 MiB, metadata removed. `url` is signed for one hour and works in an `<img>`; fetch the conversation again for a fresh one, and never store or log it.
+- **Limits** come from `getAttachmentConfig()` (`max_bytes`, `max_per_message`, `content_types`); don't copy them. Today: 20 MB per upload, JPEG, PNG and WebP only.
+- **Errors** are `TruplexyApiError`s; match on `code`. `error.limit` is `image_input` when the plan has no picture input.
+
+| `code` | HTTP | Meaning |
+| --- | --- | --- |
+| `UNSUPPORTED_IMAGE_TYPE` | 400 | Not a JPEG, PNG or WebP picture. Ask for another file. |
+| `INVALID_IMAGE` | 400 | Unreadable, under 8 px or over 16,384 px on a side, or too big to open safely. `message` says why. |
+| `IMAGE_TOO_LARGE` | 413 | Over 20 MB, or can't be shrunk under 1 MiB without ruining it. |
+| `ATTACHMENT_NOT_UPLOADED` | 409 | The message named a picture whose `PUT` hadn't finished. Wait, then send again. |
+| `ATTACHMENT_NOT_FOUND` | 404 | Expired (an hour), already sent, or from another conversation. Register and upload it again. |
+| `PLAN_LIMIT_REACHED` | 403 | With `limit: "image_input"`: the plan has no picture input. |
+| `FEATURE_UNAVAILABLE` | 400 | No assistant model can read pictures right now. |
+| `UPLOAD_FAILED` | storage's | The `PUT` failed after its retries. Not an API answer. |
+
+A picture error happens before anything is stored or paid for, so there is nothing to clean up. Don't retry `INVALID_IMAGE`, `UNSUPPORTED_IMAGE_TYPE` or `IMAGE_TOO_LARGE`. The assistant sees a picture only in the reply to the message that carried it. A message that only says `[sent an attachment in Discord]`, with no `attachments`, still gets a request to describe it; sending the real picture replaces that.
+
+`ATTACHMENT_ERROR_CODES` lists the five picture codes. Try it with no key against the mock: `IMAGES=1 node playground/mock-api.mjs`, then `node examples/send-picture.mjs examples/sample.png "Is this OK?"`.
 
 ## Customer identity
 

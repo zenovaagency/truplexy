@@ -98,6 +98,21 @@ For trusted identities, configure the server's `customer(request)` resolver and 
 
 `reset()` retains customer details. On account changes, destroy the old client and use separate storage per user or clear the store and recreate it; the server must still enforce authorization. See [customer identity, errors and migration](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md).
 
+## Pictures from a browser (coming soon)
+
+The API doesn't serve image input yet. When it does, a browser never holds the chat key, so your server registers each picture (`chat.registerImage()` in `@truplexy/server`) and the browser puts the file straight into storage:
+
+```ts
+import { uploadImage } from "@truplexy/web";
+
+const id = await uploadImage(file, (details) =>
+  fetch("/api/pictures", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(details) }).then((r) => r.json()),
+);
+// then your server sends the message with attachments: [id]
+```
+
+`describeImage(file)` hashes a picture and returns `{filename, content_type, size, sha256}`; `putImage(file, { url, headers }, { signal, onProgress })` does the `PUT` with exactly those headers, no cookies and no `Authorization` header, retrying a network error or 5xx twice (`onProgress` is byte-level). Failures are `TruplexyUploadError`s with `code: "UPLOAD_FAILED"`. The storage bucket's CORS rule must allow `PUT` and `Content-Type` from your site's origin. The `<truplexy-chat>` widget itself has no attach button yet. See the [guide](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md#sending-pictures-coming-soon) and [example](https://github.com/zenovaagency/truplexy/tree/main/sdk/examples/widget-pictures).
+
 ## Types for JSX frameworks
 
 `TruplexyChatAttributes` describes the attributes. In Solid, for example:

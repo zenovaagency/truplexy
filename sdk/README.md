@@ -52,6 +52,8 @@ Use [`createChatClient()` and the customer chat guide](CHAT_API.md) for contacts
 
 The website widget asks for name/email by default and links its new conversation and ticket to that customer. For signed-in users, provide `customer(request)` on the server and set `details="off"` on the widget. Identity failures now stop a new identified chat; `CUSTOMER_EXISTS` is retried once. Anonymous chat remains available without identity.
 
+Pictures in messages (image input) are planned and not served yet: see [Sending pictures (coming soon)](CHAT_API.md#sending-pictures-coming-soon). The [examples](examples) run against the mock API.
+
 ## Development
 
 ```bash
@@ -63,6 +65,8 @@ npm run size         # fails if the CDN widget passes 21 KB gzipped
 npm run playground   # http://localhost:4300: the CDN widget + the real route against a mock API
 TRUPLEXY_CHAT_KEY=tpx_… npm run playground   # the same, against the real API
 ```
+
+**Picture examples (image input, planned).** `IMAGES=1 node playground/mock-api.mjs` serves the mock with image input on (`IMAGES=plan` or `IMAGES=no_vision` for the two ways it can be off; without it the mock behaves like today's API). `npm run build && npm run check:examples` runs `examples/send-picture.mjs` and the browser-widget example against it. The integration guide's "Sending pictures" scripts for Node, Python, PHP, Go, Java, C# and Ruby are extracted next to each language's helper by the command below, and run the same way (Node, Python, Go and Java were run against the mock; `test/images.test.ts` runs the Node one).
 
 **Testing a route in any language.**
 
