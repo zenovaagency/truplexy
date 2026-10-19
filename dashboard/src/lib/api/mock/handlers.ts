@@ -1517,7 +1517,13 @@ route('POST', '/tickets', 'tickets.write', (c) => {
 route('GET', '/tickets/:id', 'tickets.read', (c) => {
   const t = findTicket(c);
   const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
-  const messages = (conv?.messages ?? []).slice(-200);
+  const mode = imageMode();
+  const firstCustomer = (conv?.messages ?? []).find((m) => m.author === 'customer');
+  const messages = (conv?.messages ?? []).slice(-200).map((m) => {
+    const withPicture = (mode === 'on' || mode === 'on-expired') && m === firstCustomer && !(m as any).attachments?.length;
+    const picture = [{ id: `att_${t.id.replace(/\W/g, '').padEnd(32, '0').slice(0, 32)}`, content_type: 'image/jpeg', width: 640, height: 480, size: 48_000, thumb: SAMPLE_PICTURE }];
+    return withSignedPictures(withPicture ? ({ ...m, attachments: picture } as any) : m);
+  });
   const usage = messages.reduce(
     (u, m) => (m.usage ? { input_tokens: u.input_tokens + m.usage.input_tokens, output_tokens: u.output_tokens + m.usage.output_tokens, total_tokens: u.total_tokens + m.usage.total_tokens, cost: u.cost + m.usage.cost, replies: u.replies + 1 } : u),
     { input_tokens: 0, output_tokens: 0, total_tokens: 0, cost: 0, replies: 0 },
@@ -1887,7 +1893,209 @@ route('POST', '/billing/subscription/change', 'billing.write', (c) => {
 
 route('POST', '/billing/portal', 'billing.write', () => ({ url: 'https://sandbox-customer-portal.paddle.com/' }));
 
-route('GET', '/playground/conversations/current', 'playground.run', (c) => ({ conversation: c.db.playground[pgKey(c)] ?? null }));
+/* Image input (planned) --------------------------------------------- */
+
+/**
+ * The mock serves image input only when asked to, so by default it behaves like
+ * the API today: the config route and the registration route are 404 and
+ * `attachments` is an unknown field. Pick a mode in the console with
+ * `localStorage.setItem('truplexy.mock.imageInput', 'on')`, or build with
+ * VITE_MOCK_IMAGE_INPUT:
+ *
+ * - `off`        the API predates the feature (default)
+ * - `on`         enabled, with the contract's limits
+ * - `plan`       enabled: false, reason "plan"
+ * - `no_vision`  enabled: false, reason "no_vision_model"
+ * - `on-expired` like `on`, but the first link handed out for each picture is already dead
+ *
+ * One-shot failures, to see each error: `localStorage.setItem('truplexy.mock.imageFail', code)` with
+ * not_found, not_uploaded, invalid, too_large or unsupported; the next send that carries pictures
+ * fails that way. `localStorage.setItem('truplexy.mock.imageFlaky', '1')` drops the first PUT of each file.
+ */
+export type MockImageMode = 'off' | 'on' | 'plan' | 'no_vision' | 'on-expired';
+const IMAGE_MODES: readonly string[] = ['off', 'on', 'plan', 'no_vision', 'on-expired'];
+
+export function imageMode(): MockImageMode {
+  try {
+    const v = localStorage.getItem('truplexy.mock.imageInput');
+    if (v && IMAGE_MODES.includes(v)) return v as MockImageMode;
+  } catch {
+    /* no storage */
+  }
+  const v = String(import.meta.env.VITE_MOCK_IMAGE_INPUT ?? '');
+  return IMAGE_MODES.includes(v) ? (v as MockImageMode) : 'off';
+}
+
+const IMAGE_MAX_BYTES = 20 * 1024 * 1024;
+const IMAGE_MAX_PER_MESSAGE = 3;
+const PICTURE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const HOUR = 3_600_000;
+
+export interface MockRegisteredImage {
+  tenant: string;
+  bot: string;
+  content_type: string;
+  at: number;
+  /** Set once the PUT lands: what the server would have read from the file. */
+  uploaded?: { thumb: string; width: number; height: number; size: number };
+}
+
+/** Pictures registered and not yet sent. In memory only: a reload forgets them, like a registration that expired. */
+export const pendingImages = new Map<string, MockRegisteredImage>();
+
+function imageConfig(m: MockImageMode) {
+  return {
+    enabled: m === 'on' || m === 'on-expired',
+    ...(m === 'plan' && { reason: 'plan' }),
+    ...(m === 'no_vision' && { reason: 'no_vision_model' }),
+    max_bytes: IMAGE_MAX_BYTES,
+    max_per_message: IMAGE_MAX_PER_MESSAGE,
+    content_types: PICTURE_TYPES,
+  };
+}
+
+/** What a plan without pictures, or a server without a vision model, answers on every picture call. */
+function requireImageInput(m: MockImageMode) {
+  if (m === 'off') throw err(404, 'NOT_FOUND', 'No such route.');
+  if (m === 'plan') throw err(403, 'PLAN_LIMIT_REACHED', "This business's plan doesn't include picture input.", { limit: 'image_input' });
+  if (m === 'no_vision') throw err(400, 'FEATURE_UNAVAILABLE', 'No active model can read pictures.');
+}
+
+route('GET', '/playground/attachments/config', 'playground.run', () => {
+  const m = imageMode();
+  if (m === 'off') throw err(404, 'NOT_FOUND', 'No such route.');
+  return imageConfig(m);
+});
+
+route('POST', '/playground/attachments', 'playground.run', (c) => {
+  const m = imageMode();
+  requireImageInput(m);
+  const b = c.body ?? {};
+  const allowed = ['filename', 'content_type', 'size', 'sha256'];
+  const extra = Object.keys(b).find((k) => !allowed.includes(k));
+  if (extra) throw invalid(`Unknown field: ${extra}.`);
+  const filename = str(b.filename, 'filename', 1, 260)!;
+  if (filename.includes('/') || filename.includes('\\')) throw invalid('filename must not contain slashes.');
+  if (!/\.(jpe?g|png|webp)$/i.test(filename)) throw invalid('filename must end in .jpg, .jpeg, .png or .webp.');
+  if (!PICTURE_TYPES.includes(b.content_type)) throw err(400, 'UNSUPPORTED_IMAGE_TYPE', 'Use a JPEG, PNG or WebP picture.');
+  if (!Number.isInteger(b.size) || b.size < 1) throw invalid('size must be a whole number of bytes, at least 1.');
+  if (b.size > IMAGE_MAX_BYTES) throw err(413, 'IMAGE_TOO_LARGE', 'Pictures can be at most 20 MB.');
+  if (!/^[0-9a-f]{64}$/.test(b.sha256 ?? '')) throw invalid('sha256 must be 64 lowercase hex characters.');
+  const id = newId('att');
+  pendingImages.set(id, { tenant: c.tenant.id, bot: c.botId, content_type: b.content_type, at: Date.now() });
+  return created({
+    attachment: { id, status: 'pending', filename, content_type: b.content_type, size: b.size },
+    url: `mock://r2/${id}`,
+    method: 'PUT',
+    headers: { 'Content-Type': b.content_type },
+    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+  });
+});
+
+interface MockStoredPicture {
+  id: string;
+  content_type: 'image/jpeg';
+  width: number;
+  height: number;
+  size: number;
+  /** The mock's stand-in for the stored file; turned into a signed `url` when read. */
+  thumb: string;
+}
+
+/** The one-shot failure asked for in the console, if any. */
+function takeImageFailure(): string | null {
+  try {
+    const v = localStorage.getItem('truplexy.mock.imageFail');
+    if (v) localStorage.removeItem('truplexy.mock.imageFail');
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/** Validates the pictures of a message the way the server does when it arrives, then uses them up. */
+function takePictures(c: Ctx, ids: unknown): MockStoredPicture[] {
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > IMAGE_MAX_PER_MESSAGE || new Set(ids).size !== ids.length) {
+    throw invalid(`attachments must be 1–${IMAGE_MAX_PER_MESSAGE} distinct attachment IDs.`);
+  }
+  if (ids.some((id) => typeof id !== 'string' || !/^att_[0-9a-f]{32}$/.test(id))) throw invalid('attachments must be attachment IDs (att_…).');
+  const rows = (ids as string[]).map((id) => ({ id, reg: pendingImages.get(id) }));
+  const fail = takeImageFailure();
+  if (fail === 'not_found') {
+    for (const row of rows) {
+      pendingImages.delete(row.id);
+      row.reg = undefined;
+    }
+  }
+  for (const { id, reg } of rows) {
+    if (!reg || reg.tenant !== c.tenant.id || reg.bot !== c.botId || Date.now() - reg.at > HOUR) {
+      pendingImages.delete(id);
+      throw err(404, 'ATTACHMENT_NOT_FOUND', 'That attachment does not exist, was already sent, or expired. Register it again.');
+    }
+  }
+  if (fail === 'not_uploaded' || rows.some(({ reg }) => !reg!.uploaded)) throw err(409, 'ATTACHMENT_NOT_UPLOADED', 'A picture has not finished uploading. Finish the upload, then send again.');
+  // The picture itself is read here, so a bad file fails now, before anything is stored. The failed attachment can't be reused.
+  const burn = () => pendingImages.delete(rows[0]!.id);
+  if (fail === 'unsupported') {
+    burn();
+    throw err(400, 'UNSUPPORTED_IMAGE_TYPE', 'The file is not a JPEG, PNG or WebP picture.');
+  }
+  if (fail === 'too_large') {
+    burn();
+    throw err(413, 'IMAGE_TOO_LARGE', 'The picture can not be shrunk under 1 MiB without ruining it.');
+  }
+  if (fail === 'invalid') {
+    burn();
+    throw err(400, 'INVALID_IMAGE', 'The file can not be read as a picture.');
+  }
+  for (const { id, reg } of rows) {
+    const u = reg!.uploaded!;
+    if (!u.width || !u.height) {
+      pendingImages.delete(id);
+      throw err(400, 'INVALID_IMAGE', 'The file can not be read as a picture.');
+    }
+    if (Math.min(u.width, u.height) < 8 || Math.max(u.width, u.height) > 16_384) {
+      pendingImages.delete(id);
+      throw err(400, 'INVALID_IMAGE', 'The picture must be 8–16,384 pixels on each side.');
+    }
+  }
+  return rows.map(({ id, reg }) => {
+    pendingImages.delete(id);
+    const u = reg!.uploaded!;
+    const k = Math.min(1, 1280 / Math.max(u.width, u.height));
+    return { id, content_type: 'image/jpeg', width: Math.round(u.width * k), height: Math.round(u.height * k), size: Math.min(u.size, 1024 * 1024), thumb: u.thumb };
+  });
+}
+
+/** Links already handed out once, for `on-expired`. */
+const linked = new Set<string>();
+
+/** Turns a stored message into what the API returns: pictures with a signed link, or none at all while the feature is off. */
+function withSignedPictures<T extends { attachments?: any[] }>(m: T): T {
+  const mode = imageMode();
+  const { attachments, ...rest } = m as any;
+  if (!attachments?.length || mode === 'off') return rest;
+  return {
+    ...rest,
+    attachments: attachments.map(({ thumb, ...a }: MockStoredPicture) => {
+      const dead = mode === 'on-expired' && !linked.has(a.id);
+      linked.add(a.id);
+      return { ...a, url: dead ? 'data:image/webp;base64,' : thumb, url_expires_at: new Date(Date.now() + (dead ? -60_000 : HOUR)).toISOString() };
+    }),
+  };
+}
+
+/** A stand-in picture for ticket conversations, so the ticket view has something to show while image input is on. */
+const SAMPLE_PICTURE =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d5dfc"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><rect width="640" height="480" fill="url(#g)"/><text x="320" y="250" font-family="sans-serif" font-size="34" fill="#fff" text-anchor="middle">Sample picture</text></svg>',
+  );
+
+route('GET', '/playground/conversations/current', 'playground.run', (c) => {
+  const conv = c.db.playground[pgKey(c)];
+  return { conversation: conv ? { ...conv, messages: conv.messages.map(withSignedPictures) } : null };
+});
 
 route('POST', '/playground/conversations', 'playground.run', (c) => {
   const conv = { id: newId('conv'), created_at: nowIso(), messages: [] as PlaygroundMessage[] };
@@ -1904,6 +2112,12 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   const temperature: number | undefined = c.user.platform_admin ? b.temperature : undefined;
   const topK: number = c.user.platform_admin && b.rag_top_k ? b.rag_top_k : 4;
 
+  if (b.attachments !== undefined) {
+    const m = imageMode();
+    if (m === 'off') throw invalid('Unknown field: attachments.');
+    requireImageInput(m);
+    if (b.resend) throw invalid('attachments is not allowed with resend.');
+  }
   let conv = b.conversation_id ? c.db.playground[pgKey(c)] : undefined;
   if (b.conversation_id && conv?.id !== b.conversation_id) throw notFound('CONVERSATION_NOT_FOUND', 'Conversation');
   let message: string = b.message ?? '';
@@ -1915,8 +2129,10 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
     const idx = conv.messages.indexOf(lastUser);
     conv.messages = conv.messages.slice(0, idx + 1);
   } else {
-    str(message, 'message', 1, 4000);
+    str(message, 'message', b.attachments === undefined ? 1 : 0, 4000);
   }
+  // A picture error happens before anything is stored or any tokens are spent.
+  const pictures = b.attachments === undefined ? [] : takePictures(c, b.attachments);
 
   const lower = message.toLowerCase();
   // Routing: fast for small talk and requests for a person, advanced for multi-part questions, balanced otherwise.
@@ -1965,9 +2181,16 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
     status = 'no_answer';
     output = `I don't have that in my notes yet, so I don't want to guess. Would you like me to bring in someone from the team?`;
   }
+  if (pictures.length) {
+    const seen = pictures.map((p) => `${p.width}×${p.height}`).join(', ');
+    status = 'answered';
+    output = message.trim()
+      ? `I looked at your ${pictures.length > 1 ? `${pictures.length} pictures` : 'picture'} (${seen}). ${output}`
+      : `Thanks for the ${pictures.length > 1 ? 'pictures' : 'picture'} (${seen}). What would you like to know about ${pictures.length > 1 ? 'them' : 'it'}?`;
+  }
   if (b.max_output_tokens < 40) output = output.split(' ').slice(0, Math.max(3, b.max_output_tokens)).join(' ') + '…';
 
-  const usage = { input_tokens: 1400 + Math.floor(r() * 900) + selected.length * 220, output_tokens: Math.ceil(output.length / 4), total_tokens: 0, cost: 0 };
+  const usage = { input_tokens: 1400 + Math.floor(r() * 900) + selected.length * 220 + pictures.length * 760, output_tokens: Math.ceil(output.length / 4), total_tokens: 0, cost: 0 };
   usage.total_tokens = usage.input_tokens + usage.output_tokens;
   const billed = pricing(model);
   usage.cost = +((usage.input_tokens * billed.billed_input_price_per_mtok + usage.output_tokens * billed.billed_output_price_per_mtok) / 1e6).toFixed(6);
@@ -1992,13 +2215,13 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   }
 
   if (conv) {
-    const user: PlaygroundMessage = { id: newId('msg'), role: 'user', content: message, created_at: now };
+    const user: PlaygroundMessage = { id: newId('msg'), role: 'user', content: message, ...(pictures.length && { attachments: pictures as any }), created_at: now };
     const reply: PlaygroundMessage = { id: newId('msg'), role: 'assistant', content: output, model: model.id, usage, status, sources, tool_calls, latency_ms: latency, created_at: now };
     if (!b.resend) conv.messages.push(user);
     conv.messages.push(reply);
     conv.updated_at = now;
     result.conversation_id = conv.id;
-    result.user_message = user;
+    result.user_message = withSignedPictures(user);
     result.reply = reply;
   }
   return result;

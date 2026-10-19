@@ -606,6 +606,8 @@ export interface TicketMessage {
   error?: string;
   model?: string;
   usage?: Usage;
+  /** The customer's pictures (image input). Their `url` expires after an hour: reload the ticket, never keep it. */
+  attachments?: Attachment[];
   created_at: string;
 }
 
@@ -924,8 +926,53 @@ export interface Source {
   score?: number;
 }
 
+/** The limit an error names. `image_input` has no plan counter: the plan either has picture input or not. */
+export type LimitName = keyof Limits | 'image_input';
+
+/* ------------------------------------------------------------------ */
+/* Image input (planned, 2026-10-19). Not served until the API ships.   */
+/* ------------------------------------------------------------------ */
+
+/** A picture a customer message carried, as the server stored it (shrunk, a JPEG, metadata removed). `url` is signed and lasts 1 hour. */
+export interface Attachment {
+  id: string;
+  content_type: 'image/jpeg';
+  width: number;
+  height: number;
+  size: number;
+  url: string;
+  url_expires_at: string;
+}
+
+/** `GET /playground/attachments/config`. The limits are only meaningful with `enabled: true`. */
+export interface AttachmentConfig {
+  enabled: boolean;
+  /** With `enabled: false`: the plan has no image input, or no active model can read pictures. */
+  reason?: 'plan' | 'no_vision_model';
+  max_bytes?: number;
+  max_per_message?: number;
+  content_types?: string[];
+}
+
+export interface AttachmentRegistration {
+  filename: string;
+  content_type: string;
+  size: number;
+  sha256: string;
+}
+
+export interface AttachmentUpload {
+  attachment: { id: string; status: 'pending'; filename: string; content_type: string; size: number };
+  url: string;
+  method: 'PUT';
+  headers: Record<string, string>;
+  expires_at: string;
+}
+
 export interface PlaygroundRunInput {
   message?: string;
+  /** 1–3 attachment IDs from `POST /playground/attachments`; `message` may then be empty. Not allowed with `resend`. */
+  attachments?: string[];
   /** Required, 1–32768, but the platform's limit is used. */
   max_output_tokens: number;
   assistant_name?: string;
@@ -949,6 +996,8 @@ export interface PlaygroundMessage {
   sources?: Source[] | null;
   tool_calls?: ToolRun[];
   latency_ms?: number;
+  /** The pictures a user message carried (image input). Their `url` expires: never keep it. */
+  attachments?: Attachment[];
   created_at: string;
 }
 
@@ -1229,7 +1278,7 @@ export interface ApiErrorBody {
     message: string;
     request_id?: string;
     document_id?: string;
-    limit?: keyof Limits;
+    limit?: LimitName;
     /** SOLE_OWNER: the businesses the person is the only owner of. */
     tenants?: { id: string; name: string }[];
   };
