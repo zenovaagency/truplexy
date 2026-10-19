@@ -34,7 +34,7 @@ export interface ChatError {
   requestId?: string;
 }
 
-/** Image input (planned): the limits, as `GET /profile` reports them. Absent from an API that predates the feature: treat that as off. */
+/** Image input: the limits, as `GET /profile` reports them. Absent from an API that predates the feature: treat that as off. */
 export interface AttachmentConfig {
   /** false: don't offer an attach button. */
   enabled: boolean;
@@ -47,7 +47,7 @@ export interface AttachmentConfig {
 export interface ChatProfile {
   business?: { name?: string; logo_url?: string };
   bot?: { id?: string; name?: string; avatar_url?: string };
-  /** Image input (planned). Your route has to pass it on from the API's profile for a picture button to be possible. */
+  /** Image input. Your route has to pass it on from the API's profile for a picture button to be possible. */
   attachments?: AttachmentConfig;
 }
 

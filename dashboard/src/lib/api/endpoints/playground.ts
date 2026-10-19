@@ -38,7 +38,7 @@ export function useRunPlayground() {
 export type AttachmentConfigResult = AttachmentConfig & { unavailable?: true };
 
 /**
- * Image input (planned): whether the composer may offer pictures, and the limits.
+ * Image input: whether the composer may offer pictures, and the limits.
  * An API that predates the feature answers 404 NOT_FOUND, which is not an error
  * to show: it resolves to `{ enabled: false }`, as if the feature were off.
  * `unavailable` tells that apart from a server that has the feature but turned it off.

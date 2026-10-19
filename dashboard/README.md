@@ -43,9 +43,9 @@ When pointing at a real API:
 - Allow `PUT` from that origin on the R2 bucket, so knowledge uploads (and, once the API serves them, pictures in the playground) can go straight to storage. The rule needs `PUT` with `Content-Type`.
 - Add `<VITE_DASHBOARD_URL>/auth/callback` to Supabase Auth's redirect URLs, for magic links and Google.
 
-## Image input (planned)
+## Image input
 
-The API will let customers, and people testing in the playground, attach pictures to a message. It doesn't serve this yet (`GET /playground/attachments/config` is `404`), and the dashboard is built to cost nothing until it does:
+Customers, and people testing in the playground, can attach pictures to a message. A server can turn it off (`IMAGE_INPUT`), and it needs a plan that includes pictures and a model that reads them, so the dashboard asks before it shows anything:
 
 - Everything keys off `GET /playground/attachments/config`, asked once per bot and kept for the session (`src/lib/images/feature.ts`). `404`, `enabled: false` or a failed call hide the attach button, the drop zone and paste handling, and the playground is exactly what it was. `reason: "plan"` shows an upgrade hint where the composer is; `no_vision_model` shows a hint to platform admins only. The limits (count, types, size) always come from the config.
 - Upload and sending live in `src/lib/images/` (`pictures.ts` is the upload queue; `put.ts` is the `PUT` to R2, which carries only the headers the registration returned and never the app's token); the thumbnails are `components/domain/PictureComposer.tsx`, and pictures in messages (playground and tickets) are `components/domain/MessageImages.tsx`. Signed picture links last an hour, are never stored, and are renewed by reloading the conversation or ticket once.

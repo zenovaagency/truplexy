@@ -1015,7 +1015,7 @@ export interface Source {
 export type LimitName = keyof Limits | 'image_input';
 
 /* ------------------------------------------------------------------ */
-/* Image input (planned, 2026-10-19). Not served until the API ships.   */
+/* Image input (2026-10-19).                                           */
 /* ------------------------------------------------------------------ */
 
 /** A picture a customer message carried, as the server stored it (shrunk, a JPEG, metadata removed). `url` is signed and lasts 1 hour. */

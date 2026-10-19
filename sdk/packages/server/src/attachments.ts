@@ -1,5 +1,5 @@
 /**
- * Image input (planned: the API doesn't serve it yet; see `getAttachmentConfig()`).
+ * Image input (see `getAttachmentConfig()` for whether the API offers it).
  *
  * Pictures never pass through the API's JSON bodies. Each one is registered
  * (`POST /conversations/{id}/attachments`), `PUT` to the presigned R2 URL the

@@ -30,7 +30,7 @@ Options: `chatKey`, `apiBase` (default production `/v3`), and `fetch`. Environme
 | `upsertCustomer(input)` | `PUT /customer` | Customer; 201 new or 200 existing |
 | `createConversation({customer_id?, channel_id?}?)` | `POST /conversations` | Empty conversation; 201 |
 | `getConversation(id)` | `GET /conversations/{id}` | Latest 200 messages, oldest first |
-| `sendMessage(id, text \| {text?, images?, attachments?, idempotencyKey?, signal?})` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters (may be empty with pictures: [coming soon](#sending-pictures-coming-soon)). Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
+| `sendMessage(id, text \| {text?, images?, attachments?, idempotencyKey?, signal?})` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters (may be empty with pictures: [sending pictures](#sending-pictures)). Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
 | `handoff(id)` | `POST /conversations/{id}/handoff` | Flags the conversation and adds confirmation; AI keeps replying |
 | `escalate(id)` | `POST /conversations/{id}/escalate` | Opens/escalates a ticket; AI stops replying; safe to repeat |
 | `resume(id)` | `POST /conversations/{id}/resume` | Ends escalation; ticket stays open; safe to repeat |
@@ -38,16 +38,16 @@ Options: `chatKey`, `apiBase` (default production `/v3`), and `fetch`. Environme
 | `closeTicket(id)` | `POST /conversations/{id}/ticket/close` | Closes the open ticket, ends escalation, clears handoff; returns the latest ticket if already closed |
 | `sendReply(id, input)` | `POST /conversations/{id}/replies` | `{message, ticket_id, escalated}`; opens a ticket if necessary |
 | `getRealtimeToken(conversationId?)` | `POST /realtime/token` | Server topics, URL, publishable key, events |
-| `getAttachmentConfig()` | `GET /profile` | *Coming soon.* `profile.attachments`, or `{enabled: false}` while the API doesn't serve pictures |
-| `uploadImage(id, image, options?)` | `POST /conversations/{id}/attachments`, then `PUT` to storage | *Coming soon.* Hashes, registers and uploads one picture; resolves to the attachment ID |
-| `registerImage(id, image \| details, options?)` | `POST /conversations/{id}/attachments` | *Coming soon.* `{attachmentId, url, headers, …}` for a browser to `PUT`; uploads nothing |
-| `createAttachment(id, {filename, content_type, size, sha256})` | `POST /conversations/{id}/attachments` | *Coming soon.* The raw registration: `{attachment, url, method, headers, expires_at}` |
+| `getAttachmentConfig()` | `GET /profile` | `profile.attachments`, or `{enabled: false}` when the API predates pictures |
+| `uploadImage(id, image, options?)` | `POST /conversations/{id}/attachments`, then `PUT` to storage | Hashes, registers and uploads one picture; resolves to the attachment ID |
+| `registerImage(id, image \| details, options?)` | `POST /conversations/{id}/attachments` | `{attachmentId, url, headers, …}` for a browser to `PUT`; uploads nothing |
+| `createAttachment(id, {filename, content_type, size, sha256})` | `POST /conversations/{id}/attachments` | The raw registration: `{attachment, url, method, headers, expires_at}` |
 
 `sendReply` takes `content` (1–8000 characters), optional `author` (up to 64), `external_id` (up to 128), and `escalate` (default false). Reusing a platform message ID as `external_id` makes retries safe: a new reply returns 201, a repeated one 200. Ticket priorities are `low`, `normal`, `high`, `urgent`; statuses are `open` or `closed`.
 
-## Sending pictures (coming soon)
+## Sending pictures
 
-> **Not live yet.** The API doesn't serve image input: `attachments` is refused with `400 INVALID_REQUEST` and the new route answers `404 NOT_FOUND`. These methods are ready for the day it does. Until then `getAttachmentConfig()` resolves to `{ enabled: false }`, and nothing else in the client changes. The contract is in [API_REFERENCE.md](../API_REFERENCE.md#image-input-planned-2026-10-19).
+> **Live on `/v3` and `/v2`.** A server can turn it off, and it needs a plan that includes pictures and a model that reads them, so check `getAttachmentConfig()` before offering an attach button. Against an API that predates pictures, or one with them off, `getAttachmentConfig()` resolves to `{ enabled: false }` and nothing else in the client changes. The contract is in [API_REFERENCE.md](../API_REFERENCE.md#image-input-2026-10-19).
 
 A customer can attach 1–3 pictures to a message and the assistant reads them. A picture takes three steps: register it, `PUT` the file to the presigned storage URL with exactly the returned headers, then send the message with the attachment ID. The client does all three:
 

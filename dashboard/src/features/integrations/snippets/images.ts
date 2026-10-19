@@ -1,8 +1,8 @@
 import { PUBLIC_API, type Lang } from './types';
 
 /**
- * "Sending pictures" for the chat API guide (image input, planned: the API does not
- * serve it yet, so the dashboard labels the section "Coming soon" until it does).
+ * "Sending pictures" for the chat API guide (image input; the dashboard labels the section
+ * "Coming soon" while the API's feature check says it isn't served).
  *
  * Deliberately not part of the language packs: the public docs build their
  * channel guides from those, and nothing about pictures may appear there before

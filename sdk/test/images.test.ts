@@ -8,7 +8,7 @@ import { loadImageSnippets, loadSnippets } from '../scripts/snippets.mjs';
 import { serve } from '../playground/mock-api.mjs';
 
 /**
- * The "Sending pictures" example in the integration guide (image input, planned), run for real:
+ * The "Sending pictures" example in the integration guide (image input), run for real:
  * extracted next to its helper, then pointed at the mock API over HTTP. Python and Go were run the
  * same way by hand (see sdk/README.md); only Node is automated, because it needs nothing installed.
  */

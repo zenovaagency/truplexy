@@ -1895,7 +1895,7 @@ route('POST', '/billing/subscription/change', 'billing.write', (c) => {
 
 route('POST', '/billing/portal', 'billing.write', () => ({ url: 'https://sandbox-customer-portal.paddle.com/' }));
 
-/* Image input (planned) --------------------------------------------- */
+/* Image input --------------------------------------------- */
 
 /**
  * The mock serves image input only when asked to, so by default it behaves like

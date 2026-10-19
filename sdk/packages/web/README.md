@@ -98,9 +98,9 @@ For trusted identities, configure the server's `customer(request)` resolver and 
 
 `reset()` retains customer details. On account changes, destroy the old client and use separate storage per user or clear the store and recreate it; the server must still enforce authorization. See [customer identity, errors and migration](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md).
 
-## Pictures from a browser (coming soon)
+## Pictures from a browser
 
-The API doesn't serve image input yet. When it does, a browser never holds the chat key, so your server registers each picture (`chat.registerImage()` in `@truplexy/server`) and the browser puts the file straight into storage:
+A browser never holds the chat key, so your server registers each picture (`chat.registerImage()` in `@truplexy/server`) and the browser puts the file straight into storage:
 
 ```ts
 import { uploadImage } from "@truplexy/web";

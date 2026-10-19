@@ -30,13 +30,13 @@ export interface Customer {
 export interface Profile {
   business: { name: string; logo_url?: string };
   bot: { id: string; name: string; avatar_url?: string };
-  /** Image input (planned). Absent from an API that predates it: treat that as off. */
+  /** Image input. Absent from an API that predates it: treat that as off. */
   attachments?: AttachmentConfig;
 }
 export interface Message {
   id: string; role: 'user' | 'assistant'; content: string;
   author?: 'customer' | 'assistant' | 'agent'; agent?: string; created_at: string;
-  /** The pictures a customer message carried (image input, planned). Their `url` is signed for 1 hour. */
+  /** The pictures a customer message carried (image input). Their `url` is signed for 1 hour. */
   attachments?: Attachment[];
 }
 export interface Conversation {
@@ -176,7 +176,7 @@ export function createChatClient(options: ChatClientOptions = {}) {
     getConversation: (id: string) => request<Conversation>('GET', conversation(id)),
     /**
      * Sends a customer message. Plain text works as ever; pass `{ text, images }` to upload pictures first
-     * and send them with it (image input, planned: check `getAttachmentConfig()`).
+     * and send them with it (image input: check `getAttachmentConfig()`).
      */
     async sendMessage(id: string, message: string | MessageInput): Promise<MessageResult> {
       if (typeof message === 'string') return request<MessageResult>('POST', conversation(id, '/messages'), { message });
@@ -193,7 +193,7 @@ export function createChatClient(options: ChatClientOptions = {}) {
         { signal: message.signal, headers: message.idempotencyKey ? { 'Idempotency-Key': message.idempotencyKey } : undefined },
       );
     },
-    /** Image input (planned): the limits for this bot from `GET /profile`. `{ enabled: false }` while the API doesn't serve it. */
+    /** Image input: the limits for this bot from `GET /profile`. `{ enabled: false }` when the API predates it. */
     async getAttachmentConfig(): Promise<AttachmentConfig> { return (await request<Profile>('GET', '/profile')).attachments ?? { enabled: false }; },
     /** Registers a picture's details and returns the presigned `PUT` target. Low level: see `registerImage` and `uploadImage`. */
     createAttachment: (id: string, registration: AttachmentRegistration) => createAttachment(id, registration),

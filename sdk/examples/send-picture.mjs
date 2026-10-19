@@ -17,7 +17,7 @@ if (!path) {
 
 const chat = createChatClient(); // TRUPLEXY_CHAT_KEY, optional TRUPLEXY_API_BASE
 
-// Image input is planned: ask first. `enabled` is false until the API serves it, and for plans without it.
+// Ask first: `enabled` is false for plans without pictures, and when the API or server doesn't offer them.
 const pictures = await chat.getAttachmentConfig();
 if (!pictures.enabled) console.log("Pictures are not available for this bot, so only the text is sent.");
 

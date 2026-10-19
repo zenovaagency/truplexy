@@ -1,6 +1,6 @@
 // A pretend Truplexy chat API, used by the playground and to test server routes
 // written in other languages:  node playground/mock-api.mjs  → http://localhost:4301/v3
-// With image input (planned) on:  IMAGES=1 node playground/mock-api.mjs
+// With image input on:  IMAGES=1 node playground/mock-api.mjs
 import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 const LOGO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#e5484d"/><text x="32" y="43" font-family="system-ui,sans-serif" font-size="32" font-weight="700" text-anchor="middle" fill="#fff">A</text></svg>')}`;
 
 /**
- * `images` turns on image input (planned: the real API doesn't serve it yet):
+ * `images` turns on image input in the mock:
  *   false (default)  like the API today: /conversations/:id/attachments is 404 and `attachments` is an unknown field
  *   true             enabled, with the contract's limits
  *   'plan'           the plan has no image input: 403 PLAN_LIMIT_REACHED, limit image_input

@@ -5,7 +5,7 @@ import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
 /**
- * Image input is planned and not served yet, so every picture control asks
+ * Image input depends on the server, the plan and the model, so every picture control asks
  * this first. When the answer isn't "on", nothing about the pictures shows and
  * the app behaves exactly as it did before the feature.
  */

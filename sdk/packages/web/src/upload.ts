@@ -1,5 +1,5 @@
 /**
- * Image input (planned: the API doesn't serve it yet; see the `attachments` entry of your route's `profile`).
+ * Image input (the `attachments` entry of your route's `profile` says whether the API offers it).
  *
  * A browser never holds the chat key, so it never talks to the chat API's picture endpoints. Your
  * server does that: it registers the picture and hands the browser `{ attachmentId, url, headers }`.

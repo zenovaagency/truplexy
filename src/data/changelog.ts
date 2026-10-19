@@ -14,6 +14,27 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-10-19',
+    title: 'Pictures in messages',
+    tag: 'SDK',
+    items: [
+      'A customer can attach up to 3 pictures (JPEG, PNG or WebP) to a message and the assistant reads them. In the server package, pass images to sendMessage.',
+      'Check getAttachmentConfig() first: it reports enabled: false on plans that don’t include pictures.',
+      'For a website chat, your server registers each picture and the browser uploads it straight to storage with uploadImage in the web package, so the chat key never reaches the browser.',
+      'Released as 0.4.5 of the web, React, Vue and server packages.',
+    ],
+  },
+  {
+    date: '2026-10-19',
+    title: 'Pictures in the playground and tickets',
+    tag: 'Dashboard',
+    items: [
+      'Attach, drop or paste pictures into a playground message to see how the assistant reads them.',
+      'Pictures a customer sends show in the conversation and in the ticket, and open full size on click.',
+      'Plans without pictures see an upgrade hint instead of the attach button.',
+    ],
+  },
+  {
     date: '2026-10-12',
     title: 'Web search sources and tickets that stay open',
     tag: 'SDK',

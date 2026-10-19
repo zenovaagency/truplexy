@@ -21,7 +21,7 @@ export function loadSnippets(language, api = 'https://api.truplexy.com/v3') {
   return load(language).default;
 }
 
-/** The "Sending pictures" examples (image input, planned): one script per language, built on that language's helper. */
+/** The "Sending pictures" examples (image input): one script per language, built on that language's helper. */
 export function loadImageSnippets(api = 'https://api.truplexy.com/v3') {
   const source = readFileSync(new URL('images.ts', root), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;

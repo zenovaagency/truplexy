@@ -20,9 +20,9 @@ const result = await chat.sendMessage(conversation.id, "Hello");
 
 The [customer chat API guide](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md) documents every method, input and response type, errors, lifecycle controls, contact normalization, webhook delivery and realtime. `chatKey`, `apiBase` and `fetch` configure the client. `TruplexyApiError` preserves the HTTP status, code, request ID and additional error fields for server handling.
 
-## Pictures (coming soon)
+## Pictures
 
-Image input isn't served by the API yet; `getAttachmentConfig()` returns `{ enabled: false }` until it is, and plain-text `sendMessage(id, text)` is unchanged. When it is live:
+Image input needs a plan that includes pictures and a model that reads them, so check `getAttachmentConfig()` first: it returns `{ enabled: false }` when the API, the server or the plan doesn't offer pictures. Plain-text `sendMessage(id, text)` is unchanged. To send one:
 
 ```ts
 const chat = createChatClient();
@@ -31,7 +31,7 @@ if ((await chat.getAttachmentConfig()).enabled) {
 }
 ```
 
-`images` takes a `File`, `Blob`, `ArrayBuffer` or bytes. The client hashes each, registers it, `PUT`s it to storage with exactly the returned headers and no chat key (retrying a network error or 5xx twice), then sends the message. `uploadImage()` returns the attachment ID, and `registerImage()` returns `{ attachmentId, url, headers }` for a browser widget to `PUT` itself. `signal` and `idempotencyKey` are options. Errors are `TruplexyApiError`s: match on `code` (`IMAGE_TOO_LARGE`, `UNSUPPORTED_IMAGE_TYPE`, `INVALID_IMAGE`, `ATTACHMENT_NOT_FOUND`, `ATTACHMENT_NOT_UPLOADED`, `UPLOAD_FAILED`), and `error.limit` is `image_input` for a plan without pictures. Everything is in [the guide](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md#sending-pictures-coming-soon); runnable [examples](https://github.com/zenovaagency/truplexy/tree/main/sdk/examples) work against the mock API.
+`images` takes a `File`, `Blob`, `ArrayBuffer` or bytes. The client hashes each, registers it, `PUT`s it to storage with exactly the returned headers and no chat key (retrying a network error or 5xx twice), then sends the message. `uploadImage()` returns the attachment ID, and `registerImage()` returns `{ attachmentId, url, headers }` for a browser widget to `PUT` itself. `signal` and `idempotencyKey` are options. Errors are `TruplexyApiError`s: match on `code` (`IMAGE_TOO_LARGE`, `UNSUPPORTED_IMAGE_TYPE`, `INVALID_IMAGE`, `ATTACHMENT_NOT_FOUND`, `ATTACHMENT_NOT_UPLOADED`, `UPLOAD_FAILED`), and `error.limit` is `image_input` for a plan without pictures. Everything is in [the guide](https://github.com/zenovaagency/truplexy/blob/main/sdk/CHAT_API.md#sending-pictures); runnable [examples](https://github.com/zenovaagency/truplexy/tree/main/sdk/examples) work against the mock API.
 
 ## One line per framework
 
