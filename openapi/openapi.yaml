@@ -1539,6 +1539,42 @@ paths:
                           description: The AI cost of the tickets opened that day.
         default:
           $ref: '#/components/responses/Error'
+  /stats/performance:
+    get:
+      operationId: getPerformanceStats
+      summary: Requests, latency, reply pipeline stages and RAG quality for a date range (v2)
+      description: How the API performed for the bot, or the whole business with scope=business. Counts and latency of the HTTP requests it served (stored when the server runs with PERF_HTTP_STATS; see recording), where a reply's time went stage by stage, how well retrieval worked, and each model's call latency and failures. Percentiles are nearest-rank, in whole milliseconds. Read recording first; when recording.http is false, requests and latency are all zero.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: to
+          in: query
+          description: Last day (UTC), inclusive. Defaults to today.
+          schema:
+            type: string
+            format: date
+        - name: from
+          in: query
+          description: First day (UTC), inclusive. Defaults to 29 days before to. The range covers at most 366 days.
+          schema:
+            type: string
+            format: date
+        - name: scope
+          in: query
+          description: bot (the default) covers the requesting bot; business covers every bot of its business.
+          schema:
+            type: string
+            enum: [bot, business]
+      responses:
+        '200':
+          description: Performance statistics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceStats'
+        default:
+          $ref: '#/components/responses/Error'
   /bots/{id}/avatar:
     put:
       operationId: setBotAvatar
@@ -3251,6 +3287,36 @@ paths:
                 type: object
         default:
           $ref: '#/components/responses/Error'
+  /platform/performance:
+    get:
+      operationId: getPlatformPerformance
+      summary: Requests, latency, reply pipeline stages and RAG quality across every business (v2)
+      description: The same body as getPerformanceStats, covering every business and the requests no business could be identified for, with scope platform. Adds tenants, the businesses with the most requests. Takes no scope.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: to
+          in: query
+          description: Last day (UTC), inclusive. Defaults to today.
+          schema:
+            type: string
+            format: date
+        - name: from
+          in: query
+          description: First day (UTC), inclusive. Defaults to 29 days before to. The range covers at most 366 days.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Performance statistics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceStats'
+        default:
+          $ref: '#/components/responses/Error'
   /profile:
     get:
       operationId: getChatProfile
@@ -4336,6 +4402,242 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    LatencyStats:
+      type: object
+      description: Durations in milliseconds with nearest-rank percentiles. count is how many durations it covers.
+      required: [count, avg_ms, p50_ms, p95_ms, p99_ms, max_ms]
+      properties:
+        count:
+          type: integer
+        avg_ms:
+          type: number
+        p50_ms:
+          type: integer
+        p95_ms:
+          type: integer
+        p99_ms:
+          type: integer
+        max_ms:
+          type: integer
+    RoutePerformance:
+      description: One route's requests and latency. route is the router's pattern without the API version.
+      allOf:
+        - $ref: '#/components/schemas/LatencyStats'
+        - type: object
+          required: [method, route, requests, errors, server_errors, error_rate]
+          properties:
+            method:
+              type: string
+            route:
+              type: string
+              example: /conversations/{id}/messages
+            requests:
+              type: integer
+            errors:
+              type: integer
+              description: 4xx and 5xx responses.
+            server_errors:
+              type: integer
+              description: 5xx responses.
+            error_rate:
+              type: number
+    StagePerformance:
+      description: One pipeline stage's latency, over the replies it ran for.
+      allOf:
+        - $ref: '#/components/schemas/LatencyStats'
+        - type: object
+          required: [stage, ran, share]
+          properties:
+            stage:
+              type: string
+              description: prepare, quota, retrieval, web_search, llm, postprocess or other; or a retrieval stage (rewrite, embed, dense, lexical, load, rerank).
+            ran:
+              type: integer
+              description: Replies the stage took at least 1 ms for.
+            share:
+              type: number
+              description: The stage's part of all reply time, from 0 to 1.
+    PerformanceStats:
+      type: object
+      required: [from, to, scope, recording, requests, latency, pipeline, rag, models]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        scope:
+          type: string
+          enum: [bot, business, platform]
+        recording:
+          type: object
+          description: Which records the server keeps, so zero can be told from not recorded.
+          required: [http, sample_rate, model_attempts]
+          properties:
+            http:
+              type: boolean
+              description: Requests are stored (PERF_HTTP_STATS).
+            sample_rate:
+              type: number
+              description: The share of requests stored, above 0 and at most 1.
+            model_attempts:
+              type: boolean
+              description: Model calls are stored (MODEL_ATTEMPT_RECORDS).
+        requests:
+          type: object
+          description: HTTP requests handled. Counts are scaled by the sample weight; latency percentiles are over the stored sample.
+          required: [total, errors, server_errors, error_rate, server_error_rate, by_status, by_route, by_day]
+          properties:
+            total:
+              type: integer
+            errors:
+              type: integer
+            server_errors:
+              type: integer
+            error_rate:
+              type: number
+            server_error_rate:
+              type: number
+            by_status:
+              type: object
+              description: Counts by status class, 2xx, 3xx, 4xx and 5xx.
+              additionalProperties:
+                type: integer
+            by_route:
+              type: array
+              description: The 50 busiest routes.
+              items:
+                $ref: '#/components/schemas/RoutePerformance'
+            by_day:
+              type: array
+              description: Every day in the range.
+              items:
+                type: object
+                required: [date, requests, errors, server_errors, p50_ms, p95_ms]
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  requests:
+                    type: integer
+                  errors:
+                    type: integer
+                  server_errors:
+                    type: integer
+                  p50_ms:
+                    type: integer
+                  p95_ms:
+                    type: integer
+        latency:
+          $ref: '#/components/schemas/LatencyStats'
+        pipeline:
+          type: object
+          description: Where a reply's time went, from the answers recorded in the range.
+          required: [replies, total, stages, retrieval_stages]
+          properties:
+            replies:
+              type: integer
+            total:
+              $ref: '#/components/schemas/LatencyStats'
+            stages:
+              type: array
+              description: prepare, quota, retrieval, web_search, llm, postprocess and other, in order. They add up to total; other is the time no stage accounts for, which includes the prepare, quota and postprocess time of replies recorded before those timings existed.
+              items:
+                $ref: '#/components/schemas/StagePerformance'
+            retrieval_stages:
+              type: array
+              description: rewrite, embed, dense, lexical, load and rerank. They overlap (dense and lexical search run together), so they do not add up.
+              items:
+                $ref: '#/components/schemas/StagePerformance'
+        rag:
+          type: object
+          description: How well retrieval served the replies of the range. Rates are shares of replies, from 0 to 1.
+          required: [replies, answered_rate, no_answer_rate, clarification_rate, handoff_rate, empty_retrieval_rate, cache_hit_rate, cache_hits, rewrite_rate, degraded_rate, degraded, confidence, web_search_rate, split_rate, avg_candidates, avg_passages, avg_top_score, retrieval]
+          properties:
+            replies:
+              type: integer
+            answered_rate:
+              type: number
+            no_answer_rate:
+              type: number
+            clarification_rate:
+              type: number
+            handoff_rate:
+              type: number
+            empty_retrieval_rate:
+              type: number
+              description: Replies with no passage to answer from.
+            cache_hit_rate:
+              type: number
+            cache_hits:
+              type: object
+              description: Cache hits by kind, such as semantic or retrieval.
+              additionalProperties:
+                type: integer
+            rewrite_rate:
+              type: number
+            degraded_rate:
+              type: number
+            degraded:
+              type: object
+              description: Replies that went on without a stage that failed, by stage.
+              additionalProperties:
+                type: integer
+            confidence:
+              type: object
+              description: Replies by how well the evidence supported an answer, high, low or none; unknown when nothing was searched.
+              additionalProperties:
+                type: integer
+            web_search_rate:
+              type: number
+              description: Replies that used web results.
+            split_rate:
+              type: number
+              description: Replies whose message was split into several questions.
+            avg_candidates:
+              type: number
+            avg_passages:
+              type: number
+            avg_top_score:
+              type: number
+              description: The best passage's average rerank score.
+            retrieval:
+              $ref: '#/components/schemas/LatencyStats'
+        models:
+          type: array
+          description: The 10 most-called models, including calls that failed before a fallback answered. Empty unless MODEL_ATTEMPT_RECORDS is on.
+          items:
+            allOf:
+              - $ref: '#/components/schemas/LatencyStats'
+              - type: object
+                required: [model, attempts, failures, failure_rate]
+                properties:
+                  model:
+                    type: string
+                  attempts:
+                    type: integer
+                  failures:
+                    type: integer
+                  failure_rate:
+                    type: number
+        tenants:
+          type: array
+          description: The 20 businesses with the most requests. Platform scope only.
+          items:
+            type: object
+            required: [tenant_id, name, requests, server_errors, server_error_rate]
+            properties:
+              tenant_id:
+                type: string
+              name:
+                type: string
+              requests:
+                type: integer
+              server_errors:
+                type: integer
+              server_error_rate:
+                type: number
     ToolCall:
       type: object
       required: [name, arguments, status, output, latency_ms]

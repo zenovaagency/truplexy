@@ -4,13 +4,28 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Image input (planned, 2026-10-19)](#image-input-planned-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (planned, 2026-10-19)](#image-input-planned-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Performance stats (2026-10-19)
+
+Two new read-only endpoints report how the API itself performs. They add fields and routes only: nothing existing changed.
+
+- `GET /stats/performance` (`usage.read`, v2): one bot, or with `scope=business` all of a business's bots. For a business's **Performance** page.
+- `GET /platform/performance` (platform admins, v2): every business. For the platform console.
+
+Both return the same sections, described under [`GET /stats/performance`](#get-statsperformance): HTTP **requests** (counts, error rates, per-route and per-day), HTTP **latency** (p50/p95/p99), the reply **pipeline** (where a reply's time goes, stage by stage) and **RAG** quality (no-answer, empty retrieval, cache hits, confidence, degraded stages), plus per-**model** call latency and failures.
+
+**What a dashboard must handle:**
+
+- Check `recording` first. `recording.http: false` means the server isn't storing requests (`PERF_HTTP_STATS` is off), so `requests`, `latency` and `by_route` are all zero. Say "request stats are off" rather than showing a flat chart. `recording.model_attempts: false` means `models` is empty for the same reason. The pipeline and RAG sections need no setting.
+- Replies recorded before this release have no `prepare`, `quota` or `postprocess` timings; their time shows as `other`. Expect that for ranges that start before the deploy.
+- Every percentile is in whole milliseconds. Don't average percentiles across days or routes: use the ones the API gives for the range.
 
 ## Image input (planned, 2026-10-19)
 
@@ -397,6 +412,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/webhook/deliveries/{id}/replay` | `integrations.write` | Put a queued event back in line (v2); answers `202` |
 | `GET` | `/usage/summary` | `usage.read` | Model usage, cost and answer quality |
 | `GET` | `/stats/support` | `usage.read` | Tickets, response times and cost per ticket (v2) |
+| `GET` | `/stats/performance` | `usage.read` | Requests, latency, reply pipeline stages and RAG quality (v2) |
 | `GET` | `/billing` | `usage.read` | Balance, this month's tokens and the extra-token slider (v2) |
 | `GET` | `/billing/ledger` | `usage.read` | Changes to the balance (v2) |
 | `GET` | `/billing/token-addons/quote` | `usage.read` | Price extra tokens for the slider (v2) |
@@ -426,6 +442,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/platform/tools` | platform | API tools across businesses (v2) |
 | `PATCH` | `/platform/tools/{id}` | platform | Turn a tool off or on (v2) |
 | `GET` | `/platform/usage` | platform | Usage by business, model or day (v2) |
+| `GET` | `/platform/performance` | platform | Requests, latency, reply pipeline stages and RAG quality across businesses (v2) |
 | `GET` | `/platform/models` | platform | The model catalog (v2) |
 | `POST` | `/platform/models` | platform | Add a model (v2) |
 | `PATCH` | `/platform/models/{id}` | platform | Change a model (v2) |
@@ -1378,6 +1395,64 @@ export function verify(rawBody, header, secret) {
 
 **Errors:** `400 INVALID_REQUEST`.
 
+#### `GET /stats/performance`
+
+`usage.read` (v2). How the API performed for the bot: requests served, how long they took, where a reply's time went and how well retrieval worked.
+- `from` and `to`: as above.
+- `scope`: `bot` (default), or `business` for every bot of the business.
+
+Percentiles are nearest-rank and in whole milliseconds. Every list is present, empty when there is no data; rates run from 0 to 1.
+
+**200**:
+
+```text
+{
+  from, to, scope,                 // "bot" | "business"
+  recording: {http, sample_rate, model_attempts},
+                   // http: requests are being stored (PERF_HTTP_STATS); sample_rate: the share stored
+                   // model_attempts: model calls are being stored (MODEL_ATTEMPT_RECORDS)
+  requests: {
+    total, errors, server_errors,  // errors = 4xx + 5xx; server_errors = 5xx
+    error_rate, server_error_rate,
+    by_status: {"2xx", "3xx", "4xx", "5xx"},
+    by_route: [{method, route, requests, errors, server_errors, error_rate,
+                count, avg_ms, p50_ms, p95_ms, p99_ms, max_ms}],     // busiest 50
+                   // route is the router's pattern, e.g. "/conversations/{id}/messages", without /v3
+    by_day:   [{date, requests, errors, server_errors, p50_ms, p95_ms}]   // every day, zeros included
+  },
+  latency: {count, avg_ms, p50_ms, p95_ms, p99_ms, max_ms},     // every route together
+  pipeline: {
+    replies,                       // answers recorded in the range
+    total: {count, avg_ms, p50_ms, p95_ms, p99_ms, max_ms},   // time until the reply was ready
+    stages: [{stage, ran, share, count, avg_ms, p50_ms, p95_ms, p99_ms, max_ms}],
+                   // in order: prepare, quota, retrieval, web_search, llm, postprocess, other
+                   // these add up to total; share is the stage's part of all reply time
+    retrieval_stages: [{stage, ran, share, ...}]
+                   // rewrite, embed, dense, lexical, load, rerank: retrieval's own breakdown;
+                   // they overlap (dense and lexical run together) so they don't add up
+  },
+  rag: {
+    replies, answered_rate, no_answer_rate, clarification_rate, handoff_rate,
+    empty_retrieval_rate,          // replies with no passage to answer from
+    cache_hit_rate, cache_hits: {"<kind>": n},     // e.g. "semantic", "retrieval"
+    rewrite_rate,
+    degraded_rate, degraded: {"<stage>": n},       // replies that went on without a failed stage
+    confidence: {"high": n, "low": n, "none": n, "unknown": n},   // unknown: nothing was searched
+    web_search_rate, split_rate,   // replies that used web results / split a complex question
+    avg_candidates, avg_passages, avg_top_score,
+    retrieval: {count, avg_ms, p50_ms, p95_ms, p99_ms, max_ms}
+  },
+  models: [{model, attempts, failures, failure_rate, count, avg_ms, p50_ms, p95_ms, p99_ms, max_ms}]
+                   // most-called 10; includes calls that failed before a fallback answered
+}
+```
+
+**How to read the stages.** `ran` is how many replies the stage took at least 1 ms for, and its `count`, average and percentiles are over those replies only, so a stage that few replies use (`web_search`, `rewrite`) isn't diluted by zeros. A cached answer skips most stages. `prepare` is validating the request and the database reads before the reply starts, `quota` reserving the reply's place in the plan, `postprocess` everything after the model's first reply (a web retry, checking and repairing the draft, citations), and `other` the time no stage accounts for. A repaired reply's model time is in both `llm` and `postprocess`.
+
+**Sampling.** With `PERF_HTTP_SAMPLE_RATE` below 1, `requests` counts are scaled back up, so they stay right; `latency` and `by_route` percentiles are over the stored sample.
+
+**Errors:** `400 INVALID_REQUEST` (a bad or reversed range, or an unknown `scope`).
+
 ### Billing: balance and extra tokens
 
 Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; Free sells none, and Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. Balances are not paid through Paddle: a platform admin credits them (`POST /platform/tenants/{id}/balance`). The plan itself is paid by subscription, below.
@@ -1845,6 +1920,14 @@ Read only, across businesses, most recently updated first, 100 per page.
 
 **200** `{from, to, group, data: [{key, label, requests, input_tokens, output_tokens, cached_tokens, total_tokens, estimated_cost, billed_cost, avg_latency_ms}]}`. `key` is the business ID, model ID or date. `estimated_cost` is what OpenRouter charged in USD; `billed_cost` adds each reply's fee and commission, what businesses were billed. Rows by business or model are sorted by `estimated_cost`.
 
+#### `GET /platform/performance`
+
+The performance of every business together: the same body as [`GET /stats/performance`](#get-statsperformance) with `scope: "platform"`, covering the requests no business could be identified for as well (a rejected key, a missing route). It takes `from` and `to`, and no `scope`.
+
+It adds `tenants`, the 20 businesses with the most requests: `[{tenant_id, name, requests, server_errors, server_error_rate}]`. Use it to find who is driving load or seeing errors.
+
+**Errors:** `400 INVALID_REQUEST`.
+
 #### `GET /platform/models`
 
 **200** `{models: [Model + {bots, effective_fee_percent, effective_commission_percent, billed_input_price_per_mtok, billed_output_price_per_mtok}]}`, where `bots` counts the saved bots using each model. The `effective_` percentages are the model's own or the platform defaults (`PRICE_FEE_PERCENT`, `PRICE_COMMISSION_PERCENT`), and the `billed_` prices are what businesses see in `GET /models`: price × (1 + (fee + commission) / 100), rounded to 6 decimals.
@@ -2131,6 +2214,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Onboarding | `GET /business-types`, `POST /tenants` |
 | Accepting an invitation | `POST /invites/preview`, then `POST /invites/accept` |
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
+| Performance | `GET /stats/performance` (`scope=bot` or `business`); read `recording` first |
 | Customers | `GET /customers` (search with `q`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, and `GET /tickets?customer=` for all of their tickets |
 | Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
@@ -2141,7 +2225,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
 | Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
 | Team | `GET /members`, `PATCH`/`DELETE /members/{user_id}`, `GET`/`POST /invites`, `DELETE /invites/{id}`, `GET /audit` |
-| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `DELETE /platform/tenants/{id}`, `POST …/restore`, `GET /platform/deleted-tenants`, `GET /platform/deletion-requests` with `POST …/approve` and `…/reject`, `GET`/`POST`/`PATCH`/`DELETE /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…`, `GET`/`POST`/`PATCH /platform/channel-types…`, `GET`/`PATCH /platform/channels…`, `GET /platform/customers` |
+| Platform console | `GET /platform/overview`, `GET`/`PATCH /platform/tenants…`, `GET /platform/tenants/{id}/detail`, `POST /platform/tenants/{id}/balance`, `DELETE /platform/tenants/{id}`, `POST …/restore`, `GET /platform/deleted-tenants`, `GET /platform/deletion-requests` with `POST …/approve` and `…/reject`, `GET`/`POST`/`PATCH`/`DELETE /platform/users…`, `GET /platform/tickets`, `GET`/`PATCH /platform/tools…`, `GET /platform/usage`, `GET /platform/performance`, `GET`/`POST`/`PATCH /platform/models…` (and `POST …/refresh-pricing`), `GET`/`POST`/`PATCH /platform/prompt-templates…`, `GET`/`POST`/`PATCH /platform/channel-types…`, `GET`/`PATCH /platform/channels…`, `GET /platform/customers` |
 
 ## 6. Errors
 
