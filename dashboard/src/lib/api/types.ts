@@ -97,6 +97,8 @@ export interface Limits {
   web_search?: boolean;
   /** Web searches a month; 0 = unlimited (v2). */
   web_searches_per_month?: number;
+  /** Whether customers may attach pictures to a message (image input). Plans don't list it; a business's limits always do. Free has none. */
+  image_input?: boolean;
 }
 
 /** The extra-token slider a plan sells. */
@@ -1011,8 +1013,8 @@ export interface Source {
   score?: number;
 }
 
-/** The limit an error names. `image_input` has no plan counter: the plan either has picture input or not. */
-export type LimitName = keyof Limits | 'image_input';
+/** The limit an error names. */
+export type LimitName = keyof Limits;
 
 /* ------------------------------------------------------------------ */
 /* Image input (planned, 2026-10-19). Not served until the API ships.   */
@@ -1303,6 +1305,8 @@ export interface PlatformModel {
   max_output_tokens: number;
   supports_tools: boolean;
   supports_prompt_cache: boolean;
+  /** The model reads pictures (image input). OpenRouter lists it, and a platform admin may change it. */
+  supports_vision: boolean;
   /** Which messages routing gives this model: null = not used by routing. The lowest sort_order in a tier is tried first. */
   routing_tier: RoutingTier | null;
   status: CatalogStatus;
@@ -1316,6 +1320,20 @@ export interface PlatformModel {
   /** What businesses see in GET /models. */
   billed_input_price_per_mtok: number;
   billed_output_price_per_mtok: number;
+}
+
+/** `GET /platform/settings` (v2): settings that apply to the whole platform. */
+export interface PlatformSettings {
+  /** The model that answers a message with pictures when the bot's own model can't read them. */
+  vision_model: {
+    /** What a platform admin set; "" when nothing is set. */
+    value: string;
+    /** The server's LLM_VISION_MODEL; "" when unset. */
+    default: string;
+    /** The model in use; "" when there is none. */
+    effective: string;
+    source: 'console' | 'env' | 'none';
+  };
 }
 
 export interface PlatformTemplate {

@@ -1,5 +1,5 @@
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { api, isApiError } from '@/lib/api/client';
 import type {
   Business,
   DeletionRequest,
@@ -14,6 +14,7 @@ import type {
   PlatformBusinessDetail,
   PlatformModel,
   PlatformOverview,
+  PlatformSettings,
   PlatformTemplate,
   PlatformTicket,
   PlatformTool,
@@ -298,7 +299,14 @@ export type ModelInput = Omit<
   | 'effective_commission_percent'
   | 'billed_input_price_per_mtok'
   | 'billed_output_price_per_mtok'
->;
+  | 'supports_vision'
+> & {
+  /** Leave out on create and the API reads it from OpenRouter. */
+  supports_vision?: boolean;
+};
+
+/** A model that can read pictures changes whether the playground offers them: ask again next time. */
+const refreshPictureConfig = (qc: QueryClient) => qc.invalidateQueries({ predicate: (q) => q.queryKey.at(-1) === 'attachment-config' });
 
 export function useSavePlatformModel() {
   const qc = useQueryClient();
@@ -310,7 +318,10 @@ export function useSavePlatformModel() {
             body: Object.fromEntries(Object.entries(body).filter(([k]) => k !== 'id')),
           })
         : api<PlatformModel>('/platform/models', { method: 'POST', body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('models') }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.platform('models') });
+      refreshPictureConfig(qc);
+    },
     meta: { success: 'Model saved' },
   });
 }
@@ -329,6 +340,37 @@ export function useRefreshAllPricing() {
   return useMutation({
     mutationFn: () => api<{ models: PlatformModel[]; failed: { id: string; error: string }[] }>('/platform/models/refresh-pricing', { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.platform('models') }),
+  });
+}
+
+/* Platform settings ------------------------------------------------------ */
+
+/** The settings, or null from an API that predates them (404): there is nothing to change then. */
+export function usePlatformSettings() {
+  return useQuery({
+    queryKey: qk.platform('settings'),
+    queryFn: async ({ signal }) => {
+      try {
+        return await api<PlatformSettings>('/platform/settings', { signal });
+      } catch (e) {
+        if (isApiError(e) && e.status === 404) return null;
+        throw e;
+      }
+    },
+    retry: false,
+  });
+}
+
+/** Set the vision model to an OpenRouter model ID, or null to go back to the server's LLM_VISION_MODEL. */
+export function useUpdatePlatformSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vision_model: string | null) => api<PlatformSettings>('/platform/settings', { method: 'PATCH', body: { vision_model } }),
+    onSuccess: (data) => {
+      qc.setQueryData(qk.platform('settings'), data);
+      refreshPictureConfig(qc);
+    },
+    meta: { success: 'Vision model saved' },
   });
 }
 

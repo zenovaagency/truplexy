@@ -101,7 +101,7 @@ const WEB_SEARCHES: Record<string, number> = { starter: 500, pro: 3000 };
 
 function limitsOf(t: MockTenant): Limits {
   const plan = PLANS.find((p) => p.id === t.plan) ?? PLANS[0]!;
-  return { ...plan.limits, web_search: t.plan !== 'free', web_searches_per_month: WEB_SEARCHES[t.plan] ?? 0, ...t.limit_overrides };
+  return { ...plan.limits, web_search: t.plan !== 'free', web_searches_per_month: WEB_SEARCHES[t.plan] ?? 0, image_input: t.plan !== 'free', ...t.limit_overrides };
 }
 
 const MAX_AUTO_CLOSE = 2160;
@@ -224,7 +224,7 @@ function audit(c: Ctx, action: string, target: string, details: Record<string, u
   });
 }
 
-function requireLimit(t: MockTenant, key: Exclude<keyof Limits, 'web_search'>, used: number) {
+function requireLimit(t: MockTenant, key: Exclude<keyof Limits, 'web_search' | 'image_input'>, used: number) {
   const max = limitsOf(t)[key] ?? 0;
   if (max > 0 && used >= max) throw err(403, 'PLAN_LIMIT_REACHED', `The ${t.plan} plan allows ${max} ${key.replace(/_/g, ' ')}.`, { limit: key });
 }
@@ -2301,6 +2301,11 @@ route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
         out.web_search = v;
         continue;
       }
+      if (k === 'image_input') {
+        if (typeof v !== 'boolean') throw invalid('image_input must be true or false.');
+        out.image_input = v;
+        continue;
+      }
       if (!['bots', 'documents_per_bot', 'members', 'replies_per_month', 'tokens_per_month', 'web_searches_per_month'].includes(k)) throw invalid(`Unknown limit ${k}.`);
       const max = k === 'tokens_per_month' ? 100_000_000_000 : 10_000_000;
       if (typeof v !== 'number' || v < 0 || v > max) throw invalid(`${k} must be 0–${max.toLocaleString('en-US')}.`);
@@ -2729,6 +2734,36 @@ const modelBots = (db: MockDb, id: string) => db.workspaces.filter((w) => (w.bot
 
 const modelOut = (db: MockDb, m: MockModel) => ({ ...m, ...pricing(m), bots: modelBots(db, m.id) });
 
+/** The server's LLM_VISION_MODEL in the demo. */
+const ENV_VISION_MODEL = 'google/gemini-3.1-flash-lite';
+
+function visionSettings(db: MockDb) {
+  const value = db.settings.vision_model;
+  const effective = value || ENV_VISION_MODEL;
+  return { vision_model: { value, default: ENV_VISION_MODEL, effective, source: value ? 'console' : ENV_VISION_MODEL ? 'env' : 'none' } };
+}
+
+route('GET', '/platform/settings', 'platform', ({ db }) => visionSettings(db));
+
+route('PATCH', '/platform/settings', 'platform', ({ db, body }) => {
+  if (!body || !('vision_model' in body)) throw invalid('vision_model is required.');
+  const id = body.vision_model;
+  if (id === null) {
+    db.settings.vision_model = '';
+    return visionSettings(db);
+  }
+  if (typeof id !== 'string' || !/^[a-z0-9-]+\/[a-z0-9._:-]+$/i.test(id)) throw invalid('vision_model must be an OpenRouter model ID such as vendor/model, or null.');
+  const listed = db.models.find((m) => m.id === id);
+  if (listed) {
+    if (listed.status === 'retired') throw invalid(`${id} is retired.`);
+    if (!listed.supports_vision) throw invalid(`${id} can't read pictures.`);
+  } else if (!openRouterModel(id).supports_vision) {
+    throw invalid(`${id} can't read pictures.`);
+  }
+  db.settings.vision_model = id;
+  return visionSettings(db);
+});
+
 route('GET', '/platform/models', 'platform', ({ db }) => ({
   models: [...db.models].sort((a, b) => a.sort_order - b.sort_order).map((m) => modelOut(db, m)),
 }));
@@ -2761,6 +2796,7 @@ function openRouterModel(id: string) {
     context_tokens: [128_000, 200_000, 1_000_000][h % 3]!,
     max_output_tokens: [8192, 16384, 32768][h % 3]!,
     supports_tools: h % 5 !== 0,
+    supports_vision: h % 4 !== 0,
   };
 }
 
@@ -2793,6 +2829,7 @@ route('POST', '/platform/models', 'platform', ({ db, body }) => {
     max_output_tokens: 0,
     supports_tools: true,
     supports_prompt_cache: false,
+    supports_vision: false,
     status: 'active',
     is_default: false,
     sort_order: 0,
