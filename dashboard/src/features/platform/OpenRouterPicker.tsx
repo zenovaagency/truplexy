@@ -5,15 +5,16 @@ import { formatCompact, formatPerM } from '@/lib/format';
 import { useOpenRouterModels, type OpenRouterModel } from '@/lib/openrouter';
 import { Popover, PopoverContent, PopoverTrigger, Spinner } from '@/components/ui';
 
-/** Search OpenRouter's public catalog and fill a model from it. */
-export function OpenRouterPicker({ onPick }: { onPick: (m: OpenRouterModel) => void }) {
+/** Search OpenRouter's public catalog and fill a model from it. `onlyVision` lists the models that read pictures. */
+export function OpenRouterPicker({ onPick, onlyVision }: { onPick: (m: OpenRouterModel) => void; onlyVision?: boolean }) {
   const [open, setOpen] = useState(false);
   const q = useOpenRouterModels();
+  const models = q.data ? (onlyVision ? q.data.list.filter((m) => m.vision) : q.data.list) : [];
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="input flex items-center gap-2 text-left">
         <Search className="size-4 text-ink-faint" />
-        <span className="flex-1 truncate text-ink-faint">Search {q.data ? `${q.data.list.length} ` : ''}OpenRouter models…</span>
+        <span className="flex-1 truncate text-ink-faint">Search {q.data ? `${models.length} ` : ''}OpenRouter {onlyVision ? 'models that read pictures' : 'models'}…</span>
         <ChevronDown className="size-4 text-ink-faint" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(440px,calc(100vw-32px))] p-0">
@@ -29,7 +30,7 @@ export function OpenRouterPicker({ onPick }: { onPick: (m: OpenRouterModel) => v
             ) : (
               <>
                 <Command.Empty className="py-6 text-center text-xs text-ink-faint">No model matches.</Command.Empty>
-                {q.data.list.map((m) => (
+                {models.map((m) => (
                   <Command.Item
                     key={m.id}
                     value={`${m.id} ${m.name}`}

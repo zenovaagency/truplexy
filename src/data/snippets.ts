@@ -13,6 +13,7 @@ import go from '../../dashboard/src/features/integrations/snippets/go';
 import java from '../../dashboard/src/features/integrations/snippets/java';
 import csharp from '../../dashboard/src/features/integrations/snippets/csharp';
 import ruby from '../../dashboard/src/features/integrations/snippets/ruby';
+import { IMAGE_CURL, IMAGE_SNIPPETS } from '../../dashboard/src/features/integrations/snippets/images';
 import type { ChannelId } from './channels';
 
 /** Most common first, like the dashboard. */
@@ -84,4 +85,20 @@ export function verifyTabs(): Tab[] {
     label: LANG_LABEL[lang],
     files: [{ name: pack.files.verify, code: pack.verify }],
   }));
+}
+
+/**
+ * "Send pictures" for the chat API guide: one complete script per language
+ * (each builds on that language's helper file, shown in the guide's server-code
+ * step) plus curl. They are plain HTTP: no SDK method is needed.
+ */
+export function pictureTabs(): Tab[] {
+  return [
+    ...PACKS.map(([lang]) => ({
+      id: lang,
+      label: LANG_LABEL[lang],
+      files: [{ name: IMAGE_SNIPPETS[lang].file, code: IMAGE_SNIPPETS[lang].code }],
+    })),
+    { id: 'curl', label: 'curl', files: [{ name: 'curl', code: IMAGE_CURL }] },
+  ];
 }

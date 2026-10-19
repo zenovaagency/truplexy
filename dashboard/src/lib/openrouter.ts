@@ -16,6 +16,8 @@ export interface OpenRouterModel {
   context: number;
   maxOutput: number | null;
   tools: boolean;
+  /** Takes pictures as input. */
+  vision: boolean;
 }
 
 interface Raw {
@@ -27,6 +29,7 @@ interface Raw {
   pricing?: { prompt?: string; completion?: string };
   top_provider?: { max_completion_tokens?: number | null };
   supported_parameters?: string[];
+  architecture?: { input_modalities?: string[] };
 }
 
 export interface OpenRouterCatalog {
@@ -56,6 +59,7 @@ async function fetchCatalog(signal: AbortSignal): Promise<OpenRouterCatalog> {
       context: r.context_length ?? 0,
       maxOutput: r.top_provider?.max_completion_tokens ?? null,
       tools: Boolean(r.supported_parameters?.includes('tools')),
+      vision: Boolean(r.architecture?.input_modalities?.includes('image')),
     };
     if (Number.isNaN(m.inPerM) || Number.isNaN(m.outPerM)) continue;
     list.push(m);

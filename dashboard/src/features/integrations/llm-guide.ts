@@ -1,6 +1,8 @@
 import type { Channel } from '@/lib/api/types';
 import type { Integration } from './catalog';
 import { CHAT_API_ENDPOINTS, CUSTOMER_RULES } from './snippets/chat-api';
+import { IMAGE_CURL, IMAGE_ERRORS, IMAGE_LIMITS, IMAGE_SNIPPETS } from './snippets/images';
+import { IMAGE_GUIDE_HIDDEN } from './ImageGuide';
 import { LANG_LABEL, PUBLIC_API, WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
 
 const fence = (code: string, lang = '') => `\`\`\`${lang}\n${code.replace(/\s+$/, '')}\n\`\`\``;
@@ -71,6 +73,28 @@ export function buildLlmGuide(o: {
     if (hook) add(`## Webhook: deliver the team's replies (${lang})`, fence(hook, o.lang), '### Signature check', fence(pack.verify, o.lang));
   } else if (i.id === 'web') {
     add(`## Website chat`, `The widget, its options and the server route are documented at ${WEB_SDK_DOCS}.`);
+  }
+
+  // Not for the website widget, which has no attach button.
+  if (!i.teamSide && !i.widget && !IMAGE_GUIDE_HIDDEN) {
+    add(
+      '## Sending pictures (optional)',
+      'A customer can attach 1 to 3 pictures to a message and the assistant reads them. Only add this if the platform lets customers send pictures. Each picture takes three steps:',
+      [
+        '1. Register it: `POST /conversations/{id}/attachments` with `{filename, content_type, size, sha256}`. The answer has a presigned `url`, the `headers` to send and an attachment `id`.',
+        '2. `PUT` the raw file to that `url` within 15 minutes, with exactly those headers. This goes to storage, not to Truplexy: never send the chat key with it.',
+        '3. Send the message with `attachments: ["att_…"]` (1 to 3 IDs). `message` may then be empty, but text gives better answers.',
+      ].join('\n'),
+      'Before offering the feature, read `attachments` from `GET /profile` on the server: absent means the API does not serve pictures, and `enabled: false` means this business cannot use them. Show the attach option only when `attachments.enabled` is true, and take the limits from there.',
+      IMAGE_LIMITS.map(([what, detail]) => `- ${what}: ${detail}`).join('\n'),
+      'Errors happen before anything is stored or paid for. Match on `error.code`, never the text. Do not retry `INVALID_IMAGE`, `UNSUPPORTED_IMAGE_TYPE` or `IMAGE_TOO_LARGE`; retry a failed `PUT` (a network error or a 5xx) up to twice.',
+      IMAGE_ERRORS.map(([name, status, what]) => `- \`${name}\` (${status}): ${what}`).join('\n'),
+    );
+    if (o.lang && code && pack) {
+      add(`### Picture upload (${LANG_LABEL[o.lang]})`, 'Builds on the Chat API helper above.', fence(IMAGE_SNIPPETS[o.lang].code, o.lang === 'node' ? 'js' : o.lang));
+    } else {
+      add('### Picture upload (curl)', fence(IMAGE_CURL, 'sh'));
+    }
   }
 
   add(
