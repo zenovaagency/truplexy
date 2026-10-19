@@ -241,8 +241,8 @@ paths:
   /playground/attachments/config:
     get:
       operationId: getPlaygroundAttachmentConfig
-      summary: Whether pictures can be attached, and the limits (image input, planned)
-      description: Not served yet. Until the feature is released this route is 404 NOT_FOUND, which a client treats as enabled false. Needs playground.run.
+      summary: Whether pictures can be attached, and the limits (image input)
+      description: A 404 NOT_FOUND means the API predates the feature, which a client treats as enabled false. Needs playground.run.
       security:
         - PlaygroundKey: []
         - MemberToken: []
@@ -258,8 +258,8 @@ paths:
   /playground/attachments:
     post:
       operationId: createPlaygroundAttachment
-      summary: Register a picture and get a presigned URL to upload it to R2 (image input, planned)
-      description: Not served yet. PUT the file to url with exactly headers within 15 minutes, then send the attachment's id in attachments on POST /playground/run. Registration checks only the declared details; the file itself is read, checked and shrunk (long edge at most 1280 px, JPEG, at most 1 MiB, metadata removed) when the message is sent. 403 PLAN_LIMIT_REACHED with limit image_input when the plan has no image input; 400 FEATURE_UNAVAILABLE when no active model can read pictures; 413 IMAGE_TOO_LARGE over 20 MB; 400 UNSUPPORTED_IMAGE_TYPE. Needs playground.run.
+      summary: Register a picture and get a presigned URL to upload it to R2 (image input)
+      description: PUT the file to url with exactly headers within 15 minutes, then send the attachment's id in attachments on POST /playground/run. Registration checks only the declared details; the file itself is read, checked and shrunk (long edge at most 1280 px, JPEG, at most 1 MiB, metadata removed) when the message is sent. 403 PLAN_LIMIT_REACHED with limit image_input when the plan has no image input; 400 FEATURE_UNAVAILABLE when no active model can read pictures; 413 IMAGE_TOO_LARGE over 20 MB; 400 UNSUPPORTED_IMAGE_TYPE. Needs playground.run.
       security:
         - PlaygroundKey: []
         - MemberToken: []
@@ -334,7 +334,7 @@ paths:
     post:
       operationId: sendChatMessage
       summary: Send a customer message and get the reply
-      description: Answers with the bot configuration saved in the dashboard (system prompt, model, temperature, output limit, knowledge retrieval, and tools), sending the conversation's recent messages as history. Both messages are stored and usage is recorded. A reply has 45 seconds by default (CHAT_REPLY_TIMEOUT_MS), including tool calls. A message starting with "[Context only" (such as a ticket's earlier history an integration passes on) is stored as history without a reply (status context). A message that only carries media the assistant can't see, such as "[sent an attachment in Discord]", gets a request to describe it (status clarification_required). With attachments (image input, planned) the assistant reads the pictures in this reply only; they are read, checked and shrunk before anything is stored, so a picture error (400 INVALID_IMAGE, 400 UNSUPPORTED_IMAGE_TYPE, 413 IMAGE_TOO_LARGE, 404 ATTACHMENT_NOT_FOUND, 409 ATTACHMENT_NOT_UPLOADED) leaves nothing behind. After a handoff_offered reply, a message saying yes ("yes please", "sure") accepts the offer as the handoff endpoint does.
+      description: Answers with the bot configuration saved in the dashboard (system prompt, model, temperature, output limit, knowledge retrieval, and tools), sending the conversation's recent messages as history. Both messages are stored and usage is recorded. A reply has 45 seconds by default (CHAT_REPLY_TIMEOUT_MS), including tool calls. A message starting with "[Context only" (such as a ticket's earlier history an integration passes on) is stored as history without a reply (status context). A message that only carries media the assistant can't see, such as "[sent an attachment in Discord]", gets a request to describe it (status clarification_required). With attachments (image input) the assistant reads the pictures in this reply only; they are read, checked and shrunk before anything is stored, so a picture error (400 INVALID_IMAGE, 400 UNSUPPORTED_IMAGE_TYPE, 413 IMAGE_TOO_LARGE, 404 ATTACHMENT_NOT_FOUND, 409 ATTACHMENT_NOT_UPLOADED) leaves nothing behind. After a handoff_offered reply, a message saying yes ("yes please", "sure") accepts the offer as the handoff endpoint does.
       security:
         - ChatKey: []
       parameters:
@@ -376,8 +376,8 @@ paths:
       - $ref: '#/components/parameters/ConversationID'
     post:
       operationId: createChatAttachment
-      summary: Register a picture for this conversation and get a presigned upload URL (image input, planned)
-      description: Not served yet. Same request, response and errors as POST /playground/attachments, plus 404 CONVERSATION_NOT_FOUND. The attachment can only be sent in this conversation, once, within an hour (404 ATTACHMENT_NOT_FOUND after that). Call from the integration's server, never a browser.
+      summary: Register a picture for this conversation and get a presigned upload URL (image input)
+      description: Same request, response and errors as POST /playground/attachments, plus 404 CONVERSATION_NOT_FOUND. The attachment can only be sent in this conversation, once, within an hour (404 ATTACHMENT_NOT_FOUND after that). Call from the integration's server, never a browser.
       security:
         - ChatKey: []
       requestBody:
@@ -2610,7 +2610,7 @@ paths:
     post:
       operationId: createCatalogModel
       summary: Offer a model (v2)
-      description: For platform admins. Making it the default stops the previous default being one. Without input_price_per_mtok or output_price_per_mtok, the model is read from OpenRouter (https://openrouter.ai/api/v1/model/{id}) for its prices and any label, context_tokens, max_output_tokens and supports_tools not sent; 400 INVALID_REQUEST when OpenRouter has no such model, 502 PRICING_UNAVAILABLE when it can't be reached.
+      description: For platform admins. Making it the default stops the previous default being one. Without input_price_per_mtok or output_price_per_mtok, the model is read from OpenRouter (https://openrouter.ai/api/v1/model/{id}) for its prices and any label, context_tokens, max_output_tokens, supports_tools and supports_vision not sent; 400 INVALID_REQUEST when OpenRouter has no such model, 502 PRICING_UNAVAILABLE when it can't be reached.
       security:
         - AdminKey: []
         - MemberToken: []
@@ -3356,7 +3356,7 @@ paths:
                   attachments:
                     allOf:
                       - $ref: '#/components/schemas/AttachmentConfig'
-                    description: Planned (image input). Absent before the feature exists. A widget shows an attach button only when enabled is true; the reason is not revealed to customers.
+                    description: Image input. Absent when the server has it off. A widget shows an attach button only when enabled is true; the reason is not revealed to customers.
         default:
           $ref: '#/components/responses/Error'
   /customer:
@@ -5018,6 +5018,9 @@ components:
         web_searches_per_month:
           type: integer
           description: Web searches that ran in a calendar month, UTC (v2).
+        image_input:
+          type: boolean
+          description: Whether customers may attach pictures to a message (image input). Free has none.
     LimitOverrides:
       type: object
       additionalProperties: false
@@ -5045,6 +5048,9 @@ components:
         web_searches_per_month:
           type: integer
           minimum: 0
+        image_input:
+          type: boolean
+          description: Turns image input on or off whatever the plan says.
     TokenAddon:
       type: object
       nullable: true
@@ -5847,7 +5853,7 @@ components:
           description: Set on an agent reply recorded through the chat API from an integration's platform.
         attachments:
           type: array
-          description: Planned (image input). The pictures a customer message carried; absent when it carried none.
+          description: Image input. The pictures a customer message carried; absent when it carried none.
           items:
             $ref: '#/components/schemas/Attachment'
     Conversation:
@@ -5901,6 +5907,9 @@ components:
           description: Caps the bot's maximum output tokens; 0 is no cap.
         supports_tools:
           type: boolean
+        supports_vision:
+          type: boolean
+          description: Whether the model reads pictures (image input).
         is_default:
           type: boolean
         offered:
@@ -5987,6 +5996,9 @@ components:
           type: boolean
         supports_prompt_cache:
           type: boolean
+        supports_vision:
+          type: boolean
+          description: Whether the model reads pictures (image input). Read from OpenRouter when the model is added without it.
         routing_tier:
           type: string
           nullable: true
@@ -6010,7 +6022,7 @@ components:
     CatalogModelInput:
       type: object
       additionalProperties: false
-      description: id is required when creating and ignored when changing. Creating a model without both prices reads them, and any label, context_tokens, max_output_tokens and supports_tools left out, from OpenRouter; with both prices, label is required.
+      description: id is required when creating and ignored when changing. Creating a model without both prices reads them, and any label, context_tokens, max_output_tokens, supports_tools and supports_vision left out, from OpenRouter; with both prices, label is required.
       properties:
         id:
           type: string
@@ -6053,6 +6065,9 @@ components:
           type: boolean
         supports_prompt_cache:
           type: boolean
+        supports_vision:
+          type: boolean
+          description: Whether the model reads pictures (image input). Read from OpenRouter when the model is added without it.
         routing_tier:
           type: string
           nullable: true
@@ -6386,14 +6401,14 @@ components:
       minItems: 1
       maxItems: 3
       uniqueItems: true
-      description: Planned (image input). Pictures for this message, from the registration endpoint of the same scope; each uploaded, unsent and registered within the last hour. The assistant reads them in this reply only. Not allowed with resend.
+      description: Image input. Pictures for this message, from the registration endpoint of the same scope; each uploaded, unsent and registered within the last hour. The assistant reads them in this reply only. Not allowed with resend.
       items:
         type: string
         pattern: '^att_[0-9a-f]{32}$'
     AttachmentConfig:
       type: object
       required: [enabled, max_bytes, max_per_message, content_types]
-      description: Planned (image input). What a client may offer.
+      description: Image input. What a client may offer.
       properties:
         enabled:
           type: boolean
@@ -6472,7 +6487,7 @@ components:
     Attachment:
       type: object
       required: [id, content_type, width, height, size, url, url_expires_at]
-      description: Planned (image input). A picture a message carried, as stored after shrinking.
+      description: Image input. A picture a message carried, as stored after shrinking.
       properties:
         id:
           type: string
@@ -6504,7 +6519,7 @@ components:
           description: Absent only on a reply that could not be stored.
         attachments:
           type: array
-          description: Planned (image input). The pictures a customer message carried; absent when it carried none.
+          description: Image input. The pictures a customer message carried; absent when it carried none.
           items:
             $ref: '#/components/schemas/Attachment'
         role:
@@ -6937,4 +6952,4 @@ components:
               description: With DUPLICATE_DOCUMENT, the document already holding this content.
             limit:
               type: string
-              description: With PLAN_LIMIT_REACHED, the limit reached - bots, documents_per_bot, members, replies_per_month, tokens_per_month, web_search or image_input (planned).
+              description: With PLAN_LIMIT_REACHED, the limit reached - bots, documents_per_bot, members, replies_per_month, tokens_per_month, web_search or image_input.
