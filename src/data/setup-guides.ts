@@ -79,6 +79,7 @@ export const COMMON_TROUBLESHOOTING: [string, string][] = [
   ['`PLAN_LIMIT_REACHED`', 'This month’s AI replies or tokens are used up. Upgrade or add tokens under Settings → Plan.'],
   ['`CUSTOMER_CONFLICT`', 'The contacts you sent belong to different customers. Correct them in Customers; nothing is changed until you do.'],
   ['`reply` is `null`', 'A person has taken over the conversation (status `escalated`), or the message only carried context. Send nothing; the team’s reply arrives through the webhook.'],
+  ['Customers send photos and the assistant doesn’t see them', 'The sample handler forwards text only. To have the assistant read pictures, download the photo on your server and send it as an attachment: see “Send pictures” in the chat API guide (/docs/api).'],
   ['Nothing arrives after your team replies', 'Check the webhook under Integrations → Webhook: it must be https, answer 2xx within 2.5 seconds, and verify `X-Truplexy-Signature` against the raw body.'],
 ];
 

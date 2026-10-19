@@ -159,21 +159,39 @@ describe('the guide content', () => {
 });
 
 /** Everything the public site builds its docs from, and the pages themselves. */
-describe('the public docs say nothing about pictures', () => {
+describe('the public docs cover pictures over plain HTTP', () => {
   const repo = join(process.cwd(), '..');
   const walk = (dir: string): string[] =>
     readdirSync(dir).flatMap((f) => {
       const p = join(dir, f);
       return statSync(p).isDirectory() ? walk(p) : [p];
     });
+  const site = () => walk(join(repo, 'src')).filter((f) => /\.(astro|ts|tsx|md|mdx)$/.test(f));
+  const read = (path: string) => readFileSync(join(repo, path), 'utf8');
 
-  it('neither the site nor the language packs import the picture guide or its snippets', () => {
-    const site = walk(join(repo, 'src')).filter((f) => /\.(astro|ts|tsx|md|mdx)$/.test(f));
-    expect(site.length).toBeGreaterThan(10);
-    for (const f of site) {
-      const text = readFileSync(f, 'utf8');
-      expect(text, relative(repo, f)).not.toMatch(/snippets\/images|ImageGuide|IMAGE_SNIPPETS|image input|attachments/i);
+  it('the site does not import the dashboard’s React guide', () => {
+    expect(site().length).toBeGreaterThan(10);
+    for (const f of site()) expect(readFileSync(f, 'utf8'), relative(repo, f)).not.toMatch(/ImageGuide/);
+  });
+
+  it('the site names no SDK method that is not published yet', () => {
+    for (const f of site()) {
+      expect(readFileSync(f, 'utf8'), relative(repo, f)).not.toMatch(/registerImage|uploadImage|getAttachmentConfig|IMAGE_WIDGET|IMAGE_ENDPOINTS|IMAGE_FEATURE_CHECK/);
     }
+  });
+
+  it('/docs/api has the pictures section and the web-sdk and channel guides point to it', () => {
+    expect(read('src/pages/docs/[id].astro')).toContain('<SendingPictures />');
+    expect(read('src/components/docs/SendingPictures.astro')).toContain('id="pictures"');
+    expect(read('src/pages/docs/web-sdk.astro')).toContain('/docs/api#pictures');
+    expect(read('src/data/setup-guides.ts')).toContain('/docs/api');
+  });
+
+  it('the pictures tabs are built from the dashboard’s snippets, with curl', () => {
+    const tabs = read('src/data/snippets.ts');
+    expect(tabs).toContain('pictureTabs');
+    expect(tabs).toContain('IMAGE_SNIPPETS');
+    expect(tabs).toContain('IMAGE_CURL');
   });
 
   it('the shared language packs and endpoint table are as they were', () => {

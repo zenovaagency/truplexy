@@ -5,6 +5,7 @@ import ChannelIcon from '../../components/ui/ChannelIcon';
 import CodeTabs from '../../components/docs/CodeTabs.astro';
 import DataTable from '../../components/docs/DataTable.astro';
 import Flow from '../../components/docs/Flow.astro';
+import SendingPictures from '../../components/docs/SendingPictures.astro';
 import { SITE } from '../../data/site';
 import { channel } from '../../data/channels';
 import { OVERVIEW_IDS } from '../../data/channel-pages';
@@ -58,7 +59,7 @@ if (isHooks) {
 } else {
   toc.push(['key', '1. Issue a chat key']);
   if (isApi) {
-    toc.push(['calls', '2. Call the chat API'], ['code', '3. Add the server code'], ['status', 'Reading the reply'], ['custom-channel', 'Build a custom channel']);
+    toc.push(['calls', '2. Call the chat API'], ['code', '3. Add the server code'], ['status', 'Reading the reply'], ['pictures', 'Send pictures'], ['custom-channel', 'Build a custom channel']);
   } else {
     toc.push(['platform', platformHeading]);
     if (code.length) toc.push(['code', kind === 'widget' ? 'The plugin' : '3. Add the server code']);
@@ -167,6 +168,8 @@ const next = guide.next.slice(0, 3);
 
           <h2 id="status">Reading the reply</h2>
           <p>Show <code>reply</code> for answered, clarification and no-answer statuses. Offer a handoff button for <code>handoff_offered</code>: a handoff notifies the team while the AI continues, while an escalation silences the AI. For <code>escalated</code> and <code>context</code> the reply is null: send nothing.</p>
+
+          <SendingPictures />
 
           <h2 id="custom-channel">Build a custom channel</h2>
           <p>To connect a platform without a ready-made guide (a messaging app, a game, an in-product chat), relay its messages through the calls above and treat it as its own channel:</p>
