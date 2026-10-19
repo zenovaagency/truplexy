@@ -4,13 +4,34 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Image input (planned, 2026-10-19)](#image-input-planned-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Image input (planned, 2026-10-19)
+
+> **Status: contract only, not served yet.** The endpoints, fields and error codes marked *image input* below are the agreed design. The API does not implement them: `attachments` is an unknown field today and fails with `400 INVALID_REQUEST`, and the new routes answer `404 NOT_FOUND`. Build against this contract behind the feature check below, and expect small corrections until the release lands. [`openapi/openapi.yaml`](openapi/openapi.yaml) carries the same contract.
+
+Customers (and people testing in the playground) can attach pictures to a message, and the assistant reads them. Pictures never pass through the API's JSON bodies: they go straight to R2 like knowledge files, and the message names them by ID.
+
+**Feature check.** Don't assume the feature exists.
+
+- A dashboard calls `GET /playground/attachments/config`. `404 NOT_FOUND` means the API predates the feature, and `enabled: false` means this business or server can't use it. Either way, hide the attach control.
+- A chat widget reads `attachments` in `GET /profile`. It is absent before the feature exists.
+
+**What changes for a dashboard:**
+
+- **Composer.** The playground message box can attach up to 3 pictures. Send them with the three-step flow in [Sending images](#sending-images-image-input), then pass the IDs as `attachments` to `POST /playground/run`.
+- **Messages carry `attachments`.** A customer message may now have `attachments: [{id, content_type, width, height, size, url, url_expires_at}]`. Render each `url` in an `<img>`. It is a signed link that works for 1 hour, so reload the conversation (or the ticket) when it expires. Old messages and messages without pictures have no `attachments`. This applies to the playground conversation, `user_message`, the chat API's conversation, ticket messages and the `message.created` event.
+- **`message` may be empty** when `attachments` are sent. Text is still best: knowledge retrieval searches on the text.
+- **Cost.** A picture costs roughly 250–1,500 input tokens, depending on the model that answers. It is counted in `usage.input_tokens` and the plan's tokens like any other input, so show it nowhere special.
+- **Earlier pictures aren't re-read.** The assistant sees a picture only in the reply to the message that carried it. Later turns see a short note that a picture was sent, plus the assistant's own earlier answer. A customer who needs a second look should send it again.
+- **New errors:** `IMAGE_TOO_LARGE`, `UNSUPPORTED_IMAGE_TYPE`, `INVALID_IMAGE`, `ATTACHMENT_NOT_FOUND`, `ATTACHMENT_NOT_UPLOADED`, and `PLAN_LIMIT_REACHED` with `limit: "image_input"`. See [Errors](#6-errors).
+- **Not included yet:** pictures in a person's reply from a ticket, GIF, HEIC and PDF.
 
 ## Changes for dashboards (2026-10-18)
 
@@ -146,6 +167,7 @@ The admin key (`ADMIN_API_KEY`) is a server-side credential with every permissio
   | Invitation | `inv_` |
   | Webhook event | `evt_` |
   | Prompt template | `tpl_` |
+  | Attachment (image input) | `att_` |
 
   Member and user IDs are UUIDs. Invitation tokens are `tpi_` plus 48 hex characters. A malformed ID returns the same 404 as an unknown one.
 - **Pages.**
@@ -175,6 +197,55 @@ Notes:
 - **Abandoned work.** If the client stops mid-way, a daily background job finishes documents left `processing`. Uploads registered but never processed are marked `failed` after an hour.
 - **Bulk uploads.** Unpacking a `.zip`, or reading a manifest of titles and metadata, happens entirely in the client: register each file in turn (three at a time works well). [README → Manifest](README.md#manifest) describes the manifest format the old dashboard used.
 
+### Sending images (image input)
+
+*Planned: see the [status](#image-input-planned-2026-10-19).* A message carries pictures by reference. Each one takes three calls, and the last is the message itself:
+
+1. Hash the file in the browser (SHA-256, as for knowledge uploads) and register it: `POST /playground/attachments` from a dashboard, or `POST /conversations/{id}/attachments` with a chat key. Send `{filename, content_type, size, sha256}`. **201** `{attachment, url, method: "PUT", headers, expires_at}`, with the attachment `pending`.
+2. `PUT` the raw file to `url` with exactly `headers`, within 15 minutes. This request goes to R2, not the API, so the R2 bucket's CORS rule needs `PUT` and `Content-Type` for the dashboard's origins (already true if knowledge uploads work).
+3. Send the message with `attachments: [id, …]` (1–3 IDs): `POST /playground/run` or `POST /conversations/{id}/messages`. The reply to that call has read the pictures.
+
+```ts
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+async function sha256Hex(file: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Registers and uploads one picture. Returns the ID to pass in `attachments`. */
+export async function uploadImage(file: File, scope: { tenant: string; bot: string }): Promise<string> {
+  if (!IMAGE_TYPES.includes(file.type)) throw new Error("Use a JPEG, PNG or WebP picture.");
+  const reg = await api<{ attachment: { id: string }; url: string; method: "PUT"; headers: Record<string, string> }>(
+    "/playground/attachments",
+    { method: "POST", body: JSON.stringify({ filename: file.name, content_type: file.type, size: file.size, sha256: await sha256Hex(file) }) },
+    scope,
+  );
+  const put = await fetch(reg.url, { method: reg.method, headers: reg.headers, body: file });
+  if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+  return reg.attachment.id;
+}
+```
+
+- **Big files are fine.** The API accepts pictures up to 20 MB (20,971,520 bytes) and shrinks every one before the assistant sees it. A frontend may downscale first (for example to 2048 px on the long edge with a canvas) to upload faster on a slow connection, but it isn't required.
+- **What the server does to each picture.** It trusts the file's bytes, not the declared type. It turns the picture upright using its EXIF orientation, removes all metadata (including location), puts transparency on a white background, scales the long edge to at most 1280 px, and stores a JPEG of at most 1 MiB. The `width`, `height` and `size` in a message's attachment describe that stored copy, never the original.
+- **Accepted:** JPEG, PNG and WebP, at least 8 px on each side and at most 16,384 px, and a size that decodes within the server's memory limit. A very large 16-bit PNG can be refused where the same picture as a JPEG isn't. Animated WebP, GIF, SVG and HEIC are refused. Set `accept="image/jpeg,image/png,image/webp"` on the file input; phones then usually convert a HEIC photo to JPEG when picking it.
+- **Checked when the message is sent.** Registration checks only the declared details. The picture itself is read, checked and shrunk when the message arrives, so a bad file fails that call (`400 INVALID_IMAGE`, `400 UNSUPPORTED_IMAGE_TYPE` or `413 IMAGE_TOO_LARGE`) **before** anything is stored or any tokens are spent. The failed attachment can't be reused; register a new one.
+- **One use.** An attachment belongs to the one message it is sent with. A retry of the same send with the same `Idempotency-Key` is safe and returns the first response.
+- **Unsent uploads expire.** An attachment registered but not sent within an hour answers `404 ATTACHMENT_NOT_FOUND`, and a background job removes the file. Sending before the `PUT` finished is `409 ATTACHMENT_NOT_UPLOADED`: finish the upload and send again.
+- **Lifetime.** Pictures are deleted with their conversation: when `POST /playground/conversations` clears earlier chats, and when a deleted business is purged. A conversation with a ticket keeps its pictures while the ticket exists.
+- **Showing a picture.** `url` works in `<img src>` with no extra setup. Fetching it with `fetch()` (to draw on a canvas, say) needs a `GET` rule in the R2 bucket's CORS.
+
+**A website widget** never holds a chat key. Its integration's server registers the picture, passes `url` and `headers` to the browser, which does the `PUT` straight to R2 (the website's origin needs the same R2 CORS rule), and then the server sends the message with the attachment ID. The file never has to pass through the integration's server.
+
+An integration's server can also do the whole thing itself with its chat key (never from a browser):
+
+```ts
+const reg = await chat(`/conversations/${id}/attachments`, { filename: "screenshot.png", content_type: "image/png", size: bytes.length, sha256 });
+await fetch(reg.url, { method: "PUT", headers: reg.headers, body: bytes });
+const { reply } = await chat(`/conversations/${id}/messages`, { message: "This error appears when I log in", attachments: [reg.attachment.id] });
+```
+
 ### Live updates
 
 Ticket and conversation changes are pushed through [Supabase Realtime Broadcast](https://supabase.com/docs/guides/realtime/broadcast), so a dashboard can update without polling. The API publishes events, and the browser holds the WebSocket to Supabase.
@@ -203,7 +274,7 @@ Ticket and conversation changes are pushed through [Supabase Realtime Broadcast]
 
 | Event | Sent when | `data` |
 | --- | --- | --- |
-| `message.created` | A customer message, an assistant reply, or a person's reply (from a ticket or an integration). | `{conversation_id, ticket_id?, message: {id, role, content, author?, agent?, created_at}}` |
+| `message.created` | A customer message, an assistant reply, or a person's reply (from a ticket or an integration). | `{conversation_id, ticket_id?, message: {id, role, content, author?, agent?, attachments?, created_at}}` (`attachments`: image input, planned; their `url` is signed for 1 hour, so reload the conversation rather than keeping it) |
 | `ticket.created` | A ticket is opened. | `{conversation_id, ticket: {id, subject, status, priority, escalated, channel_id?}}` |
 | `ticket.updated` | Status, priority, assignee, escalation or subject changes; a note is added; the ticket is deleted. | The same as `ticket.created`. A deletion sends `{ticket: {id}, deleted: true}`. |
 | `conversation.updated` | A conversation is flagged for the team (handoff). | `{conversation_id, status}` |
@@ -333,6 +404,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/playground/run` | `playground.run` | Answer a message with given settings |
 | `GET` | `/playground/conversations/current` | `playground.run` | The latest playground conversation |
 | `POST` | `/playground/conversations` | `playground.run` | Start a playground conversation, clearing the earlier ones |
+| `GET` | `/playground/attachments/config` | `playground.run` | Image input (planned): whether pictures can be attached, and the limits |
+| `POST` | `/playground/attachments` | `playground.run` | Image input (planned): register a picture and get a presigned upload URL |
 | `GET` | `/platform/overview` | platform | Platform totals and this month's activity (v2) |
 | `GET` | `/platform/tenants` | platform | Every business |
 | `PATCH` | `/platform/tenants/{id}` | platform | Change a business's plan, status or limits |
@@ -376,7 +449,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/conversations/{id}/ticket` | chat key | Open a ticket without escalating |
 | `POST` | `/conversations/{id}/ticket/close` | chat key | Close the conversation's ticket |
 | `POST` | `/conversations/{id}/replies` | chat key | Record a reply written on the integration's platform |
-| `GET` | `/profile` | chat key | The business and bot names and pictures, for a widget header (v2) |
+| `GET` | `/profile` | chat key | The business and bot names and pictures, for a widget header (v2); image input (planned) adds `attachments` |
+| `POST` | `/conversations/{id}/attachments` | chat key | Image input (planned): register a picture and get a presigned upload URL |
 | `PUT` | `/customer` | chat key | Find or create the customer your platform knows, by any contact: email, phone, platform user ID (v2) |
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
@@ -1103,7 +1177,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 #### `GET /tickets/{id}`
 
 `tickets.read`. **200** the ticket plus:
-- **`messages`:** the conversation's latest 200 messages, oldest first. Each is `{id, role, content, author, agent?, via?, status?, error?, model?, usage?, created_at}`.
+- **`messages`:** the conversation's latest 200 messages, oldest first. Each is `{id, role, content, author, agent?, via?, status?, error?, model?, usage?, attachments?, created_at}`. `attachments` (image input, planned) are the customer's pictures, as in [the attachment object](#the-attachment-object); a ticket page can show them inline.
   - `author` is `customer`, `assistant` or `agent`.
   - `via: "api"` marks a reply sent from the integration's platform.
   - `usage` is `{input_tokens, output_tokens, total_tokens, cost}` for generated replies.
@@ -1460,7 +1534,8 @@ Scope headers, `playground.run`. Runs real model and tool requests for trying se
 
 | Field | Rules |
 | --- | --- |
-| `message` | 1–4000 characters. May be omitted with `resend`. |
+| `message` | 1–4000 characters. May be omitted with `resend`, and may be empty when `attachments` is sent (image input, planned). |
+| `attachments` | Image input (planned). 1–3 distinct attachment IDs (`att_…`) from `POST /playground/attachments`, uploaded and not yet sent. The assistant reads them in this reply only. Not allowed with `resend`. `400 FEATURE_UNAVAILABLE` when no vision-capable model is available, `403 PLAN_LIMIT_REACHED` (`limit: "image_input"`) when the plan has no image input. See [Sending images](#sending-images-image-input). |
 | `max_output_tokens` | Required. 1–32768. Replaced by the platform's `CHAT_MAX_TOKENS`. |
 | `prompt_template_id`, `prompt_variables` | The template to answer with, checked as saving would. Usually the bot's saved or draft values. |
 | `assistant_name` | Fills `{{assistant_name}}`; defaults to the saved bot's. |
@@ -1487,17 +1562,69 @@ Scope headers, `playground.run`. Runs real model and tool requests for trying se
   status,                                                          // answered | clarification_required | no_answer | handoff | escalated
   sources,                                                         // null with retrieval off; web results have kind: "web"
   context_tokens,
-  conversation_id?, user_message?, reply?,                         // with conversation_id: the stored messages
+  conversation_id?, user_message?, reply?,                         // with conversation_id: the stored messages; user_message.attachments lists the pictures (image input, planned)
   debug?
 }
 ```
 
 There's no streaming; show a pending state, and allow cancelling with `AbortController`. Tokens may still be spent after a cancel.
 
+Without `conversation_id` nothing is stored, so the attachments are used for this reply and then deleted; `user_message` is absent and so are the pictures. Show the picture from the local file in your own chat view.
+
 **Errors:**
 - `400 INVALID_REQUEST`
 - `404 CONVERSATION_NOT_FOUND`
+- Image input (planned): `404 ATTACHMENT_NOT_FOUND`, `409 ATTACHMENT_NOT_UPLOADED`, `400 INVALID_IMAGE`, `400 UNSUPPORTED_IMAGE_TYPE`, `413 IMAGE_TOO_LARGE`, `400 FEATURE_UNAVAILABLE`, `403 PLAN_LIMIT_REACHED` (`limit: "image_input"`)
 - [Model errors](#6-errors)
+
+#### `GET /playground/attachments/config`
+
+*Image input, planned.* `playground.run`. Tells the composer whether to offer an attach control. **200**:
+
+```text
+{
+  enabled,            // false: hide the control
+  reason?,            // with enabled false: "plan" (the plan has no image input) or "no_vision_model" (no active model can read pictures)
+  max_bytes,          // largest upload, 20971520
+  max_per_message,    // 3
+  content_types       // ["image/jpeg", "image/png", "image/webp"]
+}
+```
+
+`reason: "plan"` is a good place for an upgrade prompt. Before the feature exists this route is `404 NOT_FOUND`: treat that as `enabled: false`.
+
+#### `POST /playground/attachments`
+
+*Image input, planned.* `playground.run`. Registers a picture and returns a presigned R2 URL (see [Sending images](#sending-images-image-input)).
+
+| Field | Rules |
+| --- | --- |
+| `filename` | Required. Up to 260 characters, no slashes. Ends in `.jpg`, `.jpeg`, `.png` or `.webp`. |
+| `content_type` | Required. `image/jpeg`, `image/png` or `image/webp`. The file's bytes are what count: a mismatch is found when the message is sent. |
+| `size` | Required. Bytes, 1 to 20,971,520 (20 MB). |
+| `sha256` | Required. 64 lowercase hex characters; the upload must match. |
+
+**201** `{attachment, url, method: "PUT", headers, expires_at}`. `attachment` is `{id, status: "pending", filename, content_type, size}`. Upload within 15 minutes (`expires_at`); register again for a fresh URL.
+
+**Errors:**
+- `400 INVALID_REQUEST`
+- `400 UNSUPPORTED_IMAGE_TYPE`
+- `413 IMAGE_TOO_LARGE`: `size` is over 20 MB.
+- `403 PLAN_LIMIT_REACHED` (`limit: "image_input"`)
+- `400 FEATURE_UNAVAILABLE`
+
+#### The attachment object
+
+*Image input, planned.* An attachment in a message is `{id, content_type, width, height, size, url, url_expires_at}`:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | `att_` plus 32 hex characters. |
+| `content_type` | Always `image/jpeg`: the stored copy, whatever was uploaded. |
+| `width`, `height`, `size` | Pixels and bytes of the stored copy. |
+| `url`, `url_expires_at` | A signed link for showing the picture, valid for 1 hour. Never store it; reload the conversation for a fresh one. |
+
+Only pictures that were sent appear in a message. A `pending` attachment (just registered) appears only in the registration response.
 
 #### `GET /playground/conversations/current`
 
@@ -1878,7 +2005,7 @@ These endpoints are for websites, apps and messaging platforms, called from the 
 **Conversation:**
 - Fields: `{id, status, channel_id?, customer_id?, escalated, created_at, updated_at, messages}`. `channel_id` names the bot's [channel](#channels-v2) the conversation started on; `customer_id` the [customer](#customers-v2) it was started for.
 - `status` is `open`, or `handoff` once it has been flagged for the team.
-- `messages` holds up to the latest 200, oldest first. Each is `{id, role, content, author?, agent?, created_at}`, with `role` `user` or `assistant`. A person's reply has `author: "agent"` and `agent` naming them.
+- `messages` holds up to the latest 200, oldest first. Each is `{id, role, content, author?, agent?, attachments?, created_at}`, with `role` `user` or `assistant`. A person's reply has `author: "agent"` and `agent` naming them. `attachments` (image input, planned) lists the pictures a customer message carried, as in [the attachment object](#the-attachment-object); their `url` is signed for 1 hour.
 
 #### `GET /profile` (v2)
 
@@ -1891,7 +2018,9 @@ How the key's business and bot present themselves, for a widget's header. **200*
 }
 ```
 
-`bot.name` is the name saved in the bot's configuration, which customers see. `logo_url` and `avatar_url` are left out when there is no picture ([profile images](#profile-images-v2)). Nothing about the plan, team or account is returned. Unlike other chat endpoints it may be cached: `Cache-Control: private, max-age=60`.
+`bot.name` is the name saved in the bot's configuration, which customers see. `logo_url` and `avatar_url` are left out when there is no picture ([profile images](#profile-images-v2)). Nothing about the plan, team or account is returned.
+
+Image input (planned) adds `attachments: {enabled, max_bytes, max_per_message, content_types}`, with the values `GET /playground/attachments/config` gives, so a widget knows whether to offer an attach button. It is absent before the feature exists, and `enabled: false` hides the button. The reason (plan or model) isn't revealed to customers. Unlike other chat endpoints it may be cached: `Cache-Control: private, max-age=60`.
 
 #### `PUT /customer` (v2)
 
@@ -1914,9 +2043,13 @@ A key bound to a channel that is turned off or deleted gets `403 CHANNEL_DISABLE
 
 **200** the conversation. Polling it is one way to pick up the team's replies; the webhook and live topics are the others.
 
+#### `POST /conversations/{id}/attachments`
+
+*Image input, planned.* Registers a picture for this conversation and returns a presigned R2 URL. The body, the **201** response and the errors are those of [`POST /playground/attachments`](#post-playgroundattachments), plus `404 CONVERSATION_NOT_FOUND`. The attachment can only be sent in this conversation. See [Sending images](#sending-images-image-input).
+
 #### `POST /conversations/{id}/messages`
 
-`{message}`, 1–4000 characters. The reply is generated with the bot's saved configuration and has 45 seconds by default.
+`{message, attachments?}`. `message` is 1–4000 characters, or may be empty when `attachments` is sent (image input, planned). `attachments` is 1–3 distinct attachment IDs from `POST /conversations/{id}/attachments`, uploaded and not yet sent; the assistant reads them in this reply only. The reply is generated with the bot's saved configuration and has 45 seconds by default. A message that only carries a placeholder such as `[sent an attachment in Discord]`, with no `attachments`, is handled as before: the assistant asks the customer to describe it.
 
 **200** `{message, reply, status, sources}`:
 - `reply` is `null` for `escalated` and `context`.
@@ -1936,9 +2069,10 @@ A key bound to a channel that is turned off or deleted gets `403 CHANNEL_DISABLE
 - `400 INVALID_REQUEST`
 - `404 CONVERSATION_NOT_FOUND`
 - `429 PLAN_LIMIT_REACHED`: the business's monthly replies are used up (`limit: "replies_per_month"`), or its tokens are and its balance is empty (`limit: "tokens_per_month"`)
+- Image input (planned): `404 ATTACHMENT_NOT_FOUND`, `409 ATTACHMENT_NOT_UPLOADED`, `400 INVALID_IMAGE`, `400 UNSUPPORTED_IMAGE_TYPE`, `413 IMAGE_TOO_LARGE`, `400 FEATURE_UNAVAILABLE`, and `403 PLAN_LIMIT_REACHED` with `limit: "image_input"`
 - [Model errors](#6-errors)
 
-After an error the message stays stored, marked unanswered, and is left out of the conversation.
+After a model error the message stays stored, marked unanswered, and is left out of the conversation. A picture error (the image errors above) happens before anything is stored, so nothing is left behind.
 
 #### `POST /conversations/{id}/escalate`
 
@@ -2002,7 +2136,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
-| Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`) |
+| Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`); image input (planned): `GET /playground/attachments/config`, then `POST /playground/attachments` (and the R2 `PUT`) for each picture |
 | Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…`, and the chat API section as the integrator guide |
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
 | Plan and billing | `GET /plans` (each plan with its `token_addon` slider), `GET /billing` (balance, tokens left), `GET /billing/token-addons/quote` (the slider's price), `POST /billing/token-addons` (the slider's buy button, for `billing.write`), `GET /billing/ledger` |
@@ -2023,7 +2157,7 @@ Every error has its HTTP status and this body:
 }
 ```
 
-`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month`, `tokens_per_month` or `web_search`. `SOLE_OWNER` adds `tenants`.
+`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month`, `tokens_per_month`, `web_search` or `image_input` (planned). `SOLE_OWNER` adds `tenants`.
 
 | HTTP | Codes | What to do |
 | --- | --- | --- |
@@ -2033,7 +2167,9 @@ Every error has its HTTP status and this body:
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /prompt-templates` and fill required variables. `MODEL_NOT_ALLOWED` now only means the platform's default model can't call tools while tools are on: ask a platform admin. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
-| 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. |
+| 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. For image input (planned) it means no active model can read pictures: hide the attach control. |
+| 400 | `UNSUPPORTED_IMAGE_TYPE` | Image input (planned). The file isn't a JPEG, PNG or WebP picture. Ask for another file. |
+| 400 | `INVALID_IMAGE` | Image input (planned). The file can't be read, is under 8 px or over 16,384 px on a side, or is too big to open safely. Ask for another file; `message` says why. |
 | 400 | `ADDON_NOT_AVAILABLE` | The plan sells no extra tokens (Free), or the business's tokens are unlimited and it needs none. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |
 | 402 | `INSUFFICIENT_BALANCE` | The balance is too low; ask a platform admin for a top-up or buy less. |
@@ -2044,6 +2180,7 @@ Every error has its HTTP status and this body:
 | 403 | `INVITE_EMAIL_MISMATCH` | Sign in with the invited address. |
 | 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. |
 | 404 | `NOT_FOUND` | No such route. |
+| 404 | `ATTACHMENT_NOT_FOUND` | Image input (planned). The attachment doesn't exist, was already sent, belongs to another conversation or bot, or expired after an hour. Register it again. |
 | 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
@@ -2052,8 +2189,10 @@ Every error has its HTTP status and this body:
 | 409 | `LAST_OWNER`, `OWN_ACCESS`, `LAST_PLATFORM_ADMIN`, `SOLE_OWNER` | The change would leave a business without an owner or the platform without an admin, or change your own account's access. |
 | 409 | `EMAIL_TAKEN` | Another account has this email address. |
 | 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE` | State conflicts. |
+| 409 | `ATTACHMENT_NOT_UPLOADED` | Image input (planned). The message names an attachment whose file hasn't reached R2. Finish the `PUT`, then send again. |
 | 410 | `INVITE_REVOKED`, `INVITE_EXPIRED` | A new invitation is needed. |
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
+| 413 | `IMAGE_TOO_LARGE` | Image input (planned). The picture is over 20 MB, or can't be shrunk under 1 MiB without ruining it. Ask for a smaller or simpler picture. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Send `Content-Type: application/json`. |
 | 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up, or its tokens are and the balance is empty. |
 | 429 | `LLM_RATE_LIMITED` | The model provider is busy; retry shortly. |
