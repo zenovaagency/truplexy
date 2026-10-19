@@ -28,6 +28,9 @@ import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketPriorit
 import { cn } from '@/lib/cn';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime, pluralize } from '@/lib/format';
 import { notifySuccess } from '@/lib/notify';
+import type { ImageRefresher } from '@/lib/images/refresh';
+import { useImageRefresher } from '@/lib/images/useImageRefresher';
+import { MessageImages } from '@/components/domain/MessageImages';
 import { shareUrl, useScopeCtx } from '@/lib/session/scope-context';
 import { useCopy, useMediaQuery } from '@/hooks';
 import {
@@ -60,6 +63,8 @@ type Item = { kind: 'message'; at: string; m: TicketMessage } | { kind: 'note' |
 
 export function TicketDetail({ id, backHref }: { id: string; backHref?: string }) {
   const q = useTicket(id);
+  // A picture's link lasts an hour: when one stops loading, the ticket is reloaded once for a fresh one.
+  const refresher = useImageRefresher(() => q.refetch());
   const wide = useMediaQuery('(min-width: 1600px)');
   const [details, setDetails] = useState(false);
 
@@ -93,7 +98,7 @@ export function TicketDetail({ id, backHref }: { id: string; backHref?: string }
       <Header ticket={t} backHref={backHref} onDetails={wide ? undefined : () => setDetails(true)} />
       <div className={cn('grid min-h-0 flex-1', wide && 'grid-cols-[minmax(0,1fr)_300px]')}>
         <div className="flex min-h-0 flex-col">
-          <Transcript ticket={t} />
+          <Transcript ticket={t} refresher={refresher} />
           <Composer ticket={t} />
         </div>
         {wide && (
@@ -252,7 +257,7 @@ function dayLabel(iso: string) {
   return formatDate(iso, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function Transcript({ ticket: t }: { ticket: TDetail }) {
+export function Transcript({ ticket: t, refresher }: { ticket: TDetail; refresher: ImageRefresher }) {
   const ref = useRef<HTMLDivElement>(null);
   const items = useMemo<Item[]>(() => {
     const out: Item[] = t.messages.map((m) => ({ kind: 'message', at: m.created_at, m }));
@@ -284,7 +289,7 @@ function Transcript({ ticket: t }: { ticket: TDetail }) {
                     <span className="h-px flex-1 bg-line" />
                   </div>
                 )}
-                {it.kind === 'message' ? <MessageBubble m={it.m} /> : <ReplyBubble r={it.r} />}
+                {it.kind === 'message' ? <MessageBubble m={it.m} refresher={refresher} /> : <ReplyBubble r={it.r} />}
               </Fragment>
             );
           })}
@@ -373,11 +378,13 @@ function Meta({ children, right }: { children: React.ReactNode; right?: boolean 
   return <p className={cn('flex items-center gap-1.5 px-1 text-[0.7rem] text-ink-faint', right && 'justify-end')}>{children}</p>;
 }
 
-function MessageBubble({ m }: { m: TicketMessage }) {
+function MessageBubble({ m, refresher }: { m: TicketMessage; refresher: ImageRefresher }) {
   if (m.author === 'customer') {
     return (
       <div className="flex flex-col items-start gap-1">
-        <div className="bubble bubble-customer">{m.content}</div>
+        {m.attachments?.length ? <MessageImages images={m.attachments} refresher={refresher} /> : null}
+        {/* A message may be pictures alone: no empty text bubble then. */}
+        {(m.content || !m.attachments?.length) && <div className="bubble bubble-customer">{m.content}</div>}
         <Meta>
           <UserRound className="size-3" /> Customer · {formatTime(m.created_at)}
         </Meta>

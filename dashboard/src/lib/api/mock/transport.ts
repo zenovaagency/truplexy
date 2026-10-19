@@ -4,7 +4,8 @@ import type { LiveEvent } from '@/lib/realtime';
 import { activeTopics, emit, subscribe } from './bus';
 import { clearDb, loadDb, newId, nowIso, saveDb, type MockDb } from './db';
 import { seedDb } from './fixtures';
-import { dispatch, MockHttpError, pendingObjects } from './handlers';
+import { PutError } from '@/lib/images/put';
+import { dispatch, MockHttpError, pendingImages, pendingObjects } from './handlers';
 
 /**
  * Mock mode: answers the dashboard's API calls in the browser from a seeded,
@@ -97,6 +98,53 @@ export async function mockPutObject(url: string, file: File, onProgress: (p: num
   }
   const textual = /\.(md|markdown|txt|text|csv|json|html?)$/i.test(file.name);
   pendingObjects.set(id, textual ? (await file.text()).slice(0, 50_000) : '');
+}
+
+/** A small stand-in for the stored copy of a picture: what the server would have read, and a thumbnail to show. */
+async function imageThumb(blob: Blob): Promise<{ thumb: string; width: number; height: number }> {
+  let bmp: ImageBitmap;
+  try {
+    bmp = await createImageBitmap(blob);
+  } catch {
+    return { thumb: '', width: 0, height: 0 };
+  }
+  const k = Math.min(1, 320 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bmp.width * k));
+  canvas.height = Math.max(1, Math.round(bmp.height * k));
+  canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const out = { thumb: canvas.toDataURL('image/webp', 0.8), width: bmp.width, height: bmp.height };
+  bmp.close();
+  return out;
+}
+
+const droppedOnce = new Set<string>();
+
+/**
+ * Stands in for the browser's PUT of a picture to R2. With
+ * `localStorage.setItem('truplexy.mock.imageFlaky', '1')` the first attempt of each file is cut off
+ * halfway, to see the retry.
+ */
+export async function mockPutImage(url: string, file: Blob, onProgress: (p: number) => void, signal?: AbortSignal) {
+  const id = url.replace('mock://r2/', '');
+  const steps = 8;
+  let flaky = false;
+  try {
+    flaky = localStorage.getItem('truplexy.mock.imageFlaky') === '1' && !droppedOnce.has(id);
+  } catch {
+    /* no storage */
+  }
+  for (let i = 1; i <= steps; i++) {
+    await sleep(60 + Math.min(file.size / 40_000, 120), signal);
+    onProgress(i / steps);
+    if (flaky && i === 4) {
+      droppedOnce.add(id);
+      throw new PutError(0, 'The upload was interrupted. Check your connection.');
+    }
+  }
+  const reg = pendingImages.get(id);
+  if (!reg) throw new PutError(403, 'Storage answered 403');
+  reg.uploaded = { ...(await imageThumb(file)), size: file.size };
 }
 
 /* ------------------------------------------------------------------ */

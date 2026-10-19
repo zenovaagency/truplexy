@@ -1,5 +1,5 @@
 import { env } from '@/lib/env';
-import type { ApiErrorBody, Limits } from './types';
+import type { ApiErrorBody, LimitName } from './types';
 
 /** The business and bot an endpoint acts on, sent as X-Truplexy-* headers. */
 export interface Scope {
@@ -12,7 +12,7 @@ export class ApiError extends Error {
   readonly status: number;
   readonly requestId?: string;
   readonly documentId?: string;
-  readonly limit?: keyof Limits;
+  readonly limit?: LimitName;
   /** SOLE_OWNER: the businesses the person is the only owner of. */
   readonly tenants?: { id: string; name: string }[];
 
@@ -22,7 +22,7 @@ export class ApiError extends Error {
     status: number;
     requestId?: string;
     documentId?: string;
-    limit?: keyof Limits;
+    limit?: LimitName;
     tenants?: { id: string; name: string }[];
   }) {
     super(init.message);

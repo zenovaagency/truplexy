@@ -10,6 +10,8 @@ npm run dev:mock      # demo mode: sample data in your browser, no backend neede
 npm run dev           # against a real API (configure .env.local first)
 npm run build         # type-check and build to dist/
 npm run build:mock    # a demo build, e.g. for a preview deploy
+npm test              # vitest: unit tests, plus the playground and guide rendered against a fake API
+npm run typecheck
 ```
 
 Node 22.12 or later.
@@ -38,8 +40,17 @@ Model list prices come from OpenRouter's public model list (`https://openrouter.
 
 When pointing at a real API:
 - Add the dashboard's origin to the API's `CORS_ALLOWED_ORIGINS`.
-- Allow `PUT` from that origin on the R2 bucket, so knowledge uploads can go straight to storage.
+- Allow `PUT` from that origin on the R2 bucket, so knowledge uploads (and, once the API serves them, pictures in the playground) can go straight to storage. The rule needs `PUT` with `Content-Type`.
 - Add `<VITE_DASHBOARD_URL>/auth/callback` to Supabase Auth's redirect URLs, for magic links and Google.
+
+## Image input (planned)
+
+The API will let customers, and people testing in the playground, attach pictures to a message. It doesn't serve this yet (`GET /playground/attachments/config` is `404`), and the dashboard is built to cost nothing until it does:
+
+- Everything keys off `GET /playground/attachments/config`, asked once per bot and kept for the session (`src/lib/images/feature.ts`). `404`, `enabled: false` or a failed call hide the attach button, the drop zone and paste handling, and the playground is exactly what it was. `reason: "plan"` shows an upgrade hint where the composer is; `no_vision_model` shows a hint to platform admins only. The limits (count, types, size) always come from the config.
+- Upload and sending live in `src/lib/images/` (`pictures.ts` is the upload queue; `put.ts` is the `PUT` to R2, which carries only the headers the registration returned and never the app's token); the thumbnails are `components/domain/PictureComposer.tsx`, and pictures in messages (playground and tickets) are `components/domain/MessageImages.tsx`. Signed picture links last an hour, are never stored, and are renewed by reloading the conversation or ticket once.
+- The integration guide's "Sending pictures" section (Integrations → API, and API keys) is labelled **Coming soon** until the same check says the API serves it. Set `VITE_IMAGE_INPUT_GUIDE=hidden` at build time to leave it out. The public docs (`../src`) never import it or its snippets (`src/features/integrations/snippets/images.ts`); a test fails if they do.
+- Demo mode serves image input only when asked, so by default it answers like the API today. In the browser console: `localStorage.setItem('truplexy.mock.imageInput', 'on')` (or `plan`, `no_vision`, `on-expired` for links that are dead the first time), then reload. `localStorage.setItem('truplexy.mock.imageFail', 'invalid')` (also `not_found`, `not_uploaded`, `too_large`, `unsupported`) fails the next send once, and `localStorage.setItem('truplexy.mock.imageFlaky', '1')` cuts off the first `PUT` of each file. `VITE_MOCK_IMAGE_INPUT=on` sets the mode at build time.
 
 ## Deploying
 

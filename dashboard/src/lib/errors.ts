@@ -73,6 +73,9 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   INVALID_IMAGE: { title: "That image can't be used", hint: 'It must be readable and 16–4096 pixels on each side.' },
   IMAGE_TOO_LARGE: { title: 'That image is too large', hint: 'Use a file of 512 KiB or less.' },
   UNSUPPORTED_IMAGE_TYPE: { title: 'Use a PNG, JPEG or WebP image', hint: "SVG and GIF files aren't supported." },
+  ATTACHMENT_NOT_FOUND: { title: 'A picture expired', hint: 'Pictures must be sent within an hour of being added. Add it again.' },
+  ATTACHMENT_NOT_UPLOADED: { title: "A picture hadn't finished uploading", hint: 'Wait for it to finish, then send again.' },
+  FEATURE_UNAVAILABLE: { title: "That isn't available right now", useMessage: true },
   NOT_CONFIGURED: { title: "This isn't set up on this server", useMessage: true },
   USER_NOT_FOUND: { title: 'Account not found', hint: 'It may have been deleted. Reload the page, then try again.' },
   BODY_TOO_LARGE: { title: 'That is too large to send' },
@@ -118,6 +121,7 @@ export function describeError(e: unknown): Described {
     if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'tokens_per_month') detail = "This month's tokens are used up and the balance is empty. Buy extra tokens in Settings → Billing.";
     else if (e.code === 'SOLE_OWNER' && e.tenants?.length) detail = `Make someone else an owner of ${e.tenants.map((t) => t.name).join(', ')} first.`;
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'web_search') detail = "This business's plan doesn't include web search. See Settings → Plan & usage.";
+    else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'image_input') detail = "This business's plan doesn't include pictures. See Settings → Plan & usage.";
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit) detail = `Your plan has no room for more ${LIMIT_LABEL[e.limit] ?? e.limit}. See Settings → Plan & usage.`;
     return { title: c?.title ?? 'Request failed', detail, code: e.code, requestId: e.requestId };
   }

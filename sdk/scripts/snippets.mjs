@@ -21,6 +21,19 @@ export function loadSnippets(language, api = 'https://api.truplexy.com/v3') {
   return load(language).default;
 }
 
+/** The "Sending pictures" examples (image input, planned): one script per language, built on that language's helper. */
+export function loadImageSnippets(api = 'https://api.truplexy.com/v3') {
+  const source = readFileSync(new URL('images.ts', root), 'utf8');
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const module = { exports: {} };
+  const require = (id) => {
+    if (id === './types') return { PUBLIC_API: api };
+    throw new Error(`Unexpected snippet import: ${id}`);
+  };
+  new Function('require', 'module', 'exports', js)(require, module, module.exports);
+  return module.exports;
+}
+
 // Extract for syntax checks or running the Python/Go routes against the mock API.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [out, api] = process.argv.slice(2);
@@ -34,6 +47,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     for (const [name, code] of Object.entries(pack.integrations)) {
       writeFileSync(resolve(dir, `${name}-${code.file ?? pack.files.server}`), code.handler);
     }
+    // Next to the helper it builds on: IMAGES=1 node playground/mock-api.mjs, then run it with a picture.
+    const picture = loadImageSnippets(api).IMAGE_SNIPPETS[language];
+    writeFileSync(resolve(dir, picture.file), picture.code);
   }
   console.log(`Extracted integration code to ${resolve(out)}`);
 }

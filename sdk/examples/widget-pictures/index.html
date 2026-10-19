@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Send a picture</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 3rem auto; padding: 0 1rem; }
+  label, button { display: block; margin-top: 1rem; }
+  output { display: block; margin-top: 1.5rem; white-space: pre-wrap; }
+</style>
+<h1>Send a picture</h1>
+<p id="off" hidden>Pictures are not available for this chat.</p>
+<form id="form" hidden>
+  <label>Pictures <input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple /></label>
+  <label>Message <input id="text" type="text" size="40" placeholder="What would you like to know?" /></label>
+  <button>Send</button>
+</form>
+<output id="out" aria-live="polite"></output>
+<script type="module">
+  import { uploadImage } from "/web.js";
+
+  const $ = (id) => document.getElementById(id);
+  const post = (path, body, headers = {}) =>
+    fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) }).then(async (r) => {
+      const data = await r.json();
+      if (!r.ok) throw Object.assign(new Error(data.error?.code), { code: data.error?.code, requestId: data.error?.request_id });
+      return data;
+    });
+
+  // Feature check: show the picture input only when the API serves it. The limits come from the server.
+  const config = await fetch("/api/config").then((r) => r.json());
+  if (!config.enabled) $("off").hidden = false;
+  else {
+    $("form").hidden = false;
+    $("files").setAttribute("accept", config.content_types.join(","));
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const files = [...$("files").files].slice(0, config.max_per_message);
+    $("out").textContent = "Uploading…";
+    try {
+      // 2. Describe, have the server register, PUT straight to storage. Resolves to the attachment ID.
+      const attachments = await Promise.all(files.map((file) => uploadImage(file, (details) => post("/api/pictures", details))));
+      const r = await post("/api/message", { text: $("text").value, attachments }, { "Idempotency-Key": crypto.randomUUID() });
+      $("out").textContent = r.reply ?? `(${r.status})`;
+    } catch (err) {
+      // Match on the code, never the text.
+      $("out").textContent = `That didn't work (${err.code ?? "error"}${err.requestId ? `, request ${err.requestId}` : ""}).`;
+    }
+  });
+</script>

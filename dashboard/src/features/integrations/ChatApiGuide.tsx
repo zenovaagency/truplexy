@@ -2,6 +2,7 @@ import { CodeBlock } from '@/components/ui';
 import { ALL_LANGS, LangPicker, useLang, useLangPack } from './languages';
 import { PUBLIC_API } from './snippets/types';
 import { CHAT_API_ENDPOINTS, CUSTOMER_RULES } from './snippets/chat-api';
+import { SendingPictures } from './ImageGuide';
 
 export function ChatApiQuickStart() {
   const [lang, setLang] = useLang(ALL_LANGS);
@@ -48,5 +49,6 @@ export function ChatApiReference() {
     <p className="text-[0.8125rem] text-ink-muted">Chat keys reach chat API conversations for their bot. A channel-bound key supplies the default channel; channel_id can override it. Disabled channels return CHANNEL_DISABLED. These are server calls without scope headers. Customer management under /customers requires a staff token and scope; it is separate from the chat API.</p>
     <p className="text-[0.8125rem] text-ink-muted">Agent replies accept content (1–8000 characters), author (up to 64), external_id (up to 128), and escalate (default false). Integration replies and resume actions are not echoed to the webhook. Deliver the platform reply through your own routing.</p>
     <p className="text-[0.8125rem] text-ink-muted">Realtime includes conversation messages and ticket changes. Webhooks report staff replies and ticket changes, exclude notes and integration actions, require raw-body HMAC verification, and must be acknowledged within 2.5 seconds. Deduplicate X-Truplexy-Delivery: a failed delivery can be retried once. Only REALTIME_NOT_CONFIGURED triggers polling fallback.</p>
+    <SendingPictures />
   </div>;
 }

@@ -34,10 +34,21 @@ export interface ChatError {
   requestId?: string;
 }
 
+/** Image input (planned): the limits, as `GET /profile` reports them. Absent from an API that predates the feature: treat that as off. */
+export interface AttachmentConfig {
+  /** false: don't offer an attach button. */
+  enabled: boolean;
+  max_bytes?: number;
+  max_per_message?: number;
+  content_types?: string[];
+}
+
 /** The business and bot behind the chat key, as your server route's `profile` action returns it. Any field can be missing. */
 export interface ChatProfile {
   business?: { name?: string; logo_url?: string };
   bot?: { id?: string; name?: string; avatar_url?: string };
+  /** Image input (planned). Your route has to pass it on from the API's profile for a picture button to be possible. */
+  attachments?: AttachmentConfig;
 }
 
 /** Who is chatting. Asked once, kept in the visitor's browser. */

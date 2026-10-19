@@ -8,7 +8,8 @@ export { demoTransport } from './demo';
 export { localStore, type SessionStore, type Saved } from './store';
 export { renderMarkdown } from './markdown';
 export { DEFAULT_LABELS, type Labels } from './labels';
-export type { ChatMessage, ChatProfile, Customer, TicketRef, ChatState, ChatError, ReplyStatus, Source, Transport } from './types';
+export { describeImage, putImage, uploadImage, TruplexyUploadError, ATTACHMENT_ERROR_CODES, type ImageDetails, type UploadTarget, type PutImageOptions } from './upload';
+export type { AttachmentConfig, ChatMessage, ChatProfile, Customer, TicketRef, ChatState, ChatError, ReplyStatus, Source, Transport } from './types';
 
 defineTruplexyChat();
 

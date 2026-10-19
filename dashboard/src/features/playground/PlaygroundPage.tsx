@@ -1,16 +1,24 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, CircleStop, ExternalLink, FileText, Globe, MessageSquarePlus, RefreshCw, Send, Sparkles, Wrench } from 'lucide-react';
+import { ChevronDown, CircleStop, ExternalLink, FileText, Globe, ImagePlus, MessageSquarePlus, RefreshCw, Send, Sparkles, Wrench } from 'lucide-react';
 import { isApiError } from '@/lib/api/client';
 import { useCurrentPlayground, useNewPlayground, useRunPlayground } from '@/lib/api/endpoints/playground';
 import type { PlaygroundConversation, PlaygroundMessage, PlaygroundRunInput, PlaygroundRunResult } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { describeError } from '@/lib/errors';
 import { formatCurrency, formatMs, formatNumber } from '@/lib/format';
+import { describePictureError, isPictureError } from '@/lib/images/errors';
+import { usePictureFeature } from '@/lib/images/feature';
+import { sendWithPictures } from '@/lib/images/send';
+import { useImageRefresher } from '@/lib/images/useImageRefresher';
+import { usePictures } from '@/lib/images/usePictures';
+import type { ImageRefresher } from '@/lib/images/refresh';
 import { qk } from '@/lib/query-keys';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Card, CodeBlock, DescList, EmptyState, ErrorState, Page, PageHeader, Skeleton, Switch, Tip, useConfirm } from '@/components/ui';
 import { ReplyStatusBadge } from '@/components/domain/badges';
+import { LocalImages, MessageImages } from '@/components/domain/MessageImages';
+import { AttachButton, PictureHint, PictureTray, usePictureInput } from '@/components/domain/PictureComposer';
 import { useBotDraft } from '@/features/llm/draft';
 
 /** "https://docs.example.com/a" → "docs.example.com". */
@@ -29,7 +37,7 @@ const SUGGESTIONS = ['Where is my order?', 'Can I return something I opened?', '
 
 export default function PlaygroundPage() {
   const { draft, dirty } = useBotDraft();
-  const { scope, bot } = useScopeCtx();
+  const { scope, bot, href, isPlatformAdmin } = useScopeCtx();
   const qc = useQueryClient();
   const current = useCurrentPlayground();
   const fresh = useNewPlayground();
@@ -40,6 +48,13 @@ export default function PlaygroundPage() {
   const [error, setError] = useState<unknown>(null);
   const [debug, setDebug] = useState(false);
   const [lastDebug, setLastDebug] = useState<PlaygroundRunResult['debug'] | null>(null);
+  // Image input: all of it hangs off the feature check, and does nothing while that says "off".
+  const { feature, turnOff } = usePictureFeature();
+  const { set: pictureSet, pictures } = usePictures(feature, turnOff);
+  const pic = usePictureInput(pictureSet, feature, run.isPending);
+  const refresher = useImageRefresher(() => current.refetch());
+  /** The pictures of the message on its way, shown from the local files until the stored message arrives. */
+  const [pendingPics, setPendingPics] = useState<{ key: string; name: string; previewUrl: string }[]>([]);
   const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const b = draft.bot;
@@ -77,31 +92,57 @@ export default function PlaygroundPage() {
 
   const send = async (message?: string, resend = false) => {
     const content = (message ?? text).trim();
-    if ((!content && !resend) || run.isPending) return;
+    // Pictures go with the message written in the composer, never with a suggestion or a regenerate.
+    const withPictures = !resend && message === undefined && pictures.length > 0;
+    if (run.isPending) return;
+    if (!content && !resend && !withPictures) return;
+    if (withPictures && pictures.some((p) => p.phase !== 'ready')) return; // Send is disabled until every upload is done
     // A conversation is needed so both messages are stored and shared with the team.
     let convId = conv?.id;
     if (!convId) convId = (await fresh.mutateAsync()).id;
     setError(null);
     setPending(resend ? '' : content);
     if (!resend) setText('');
+    const previews = withPictures ? pictures.map(({ key, name, previewUrl }) => ({ key, name, previewUrl })) : [];
+    setPendingPics(previews);
     abort.current = new AbortController();
-    run.mutate(
-      { input: input({ message: resend ? undefined : content, conversation_id: convId, resend: resend || undefined }), signal: abort.current.signal },
-      {
-        onSuccess: (r) => {
-          store(r, resend);
-          setLastDebug(r.debug ?? null);
-        },
-        onError: (e) => {
-          if ((e as Error)?.name === 'AbortError') {
-            if (!resend) setText(content);
-            return;
-          }
-          setError(e);
-        },
-        onSettled: () => setPending(null),
-      },
-    );
+    const signal = abort.current.signal;
+    let sent = false;
+    try {
+      const r = await sendWithPictures(pictureSet, (ids) =>
+        run.mutateAsync({
+          input: input({ message: resend ? undefined : content, conversation_id: convId, resend: resend || undefined, attachments: withPictures && ids.length ? ids : undefined }),
+          signal,
+        }),
+      );
+      store(r, resend);
+      setLastDebug(r.debug ?? null);
+      if (withPictures) {
+        sent = true;
+        pictureSet.take(); // the pictures belong to the sent message now; their previews are revoked below
+      }
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError') {
+        if (!resend) setText(content);
+        return;
+      }
+      if (isPictureError(e)) {
+        // Rejected before anything was stored or paid for: the message can go again as it was.
+        const p = describePictureError(e);
+        if (!resend) setText(content);
+        if (p.action === 'hide' && p.offReason) turnOff(p.offReason);
+        else if (p.action === 'remove') {
+          const now = pictureSet.getSnapshot();
+          if (now.length === 1) pictureSet.remove(now[0]!.key);
+          else pictureSet.invalidate(); // the error doesn't say which file it was
+        }
+      }
+      setError(e);
+    } finally {
+      setPending(null);
+      setPendingPics([]);
+      if (sent) pictureSet.release(previews);
+    }
   };
 
   const reset = () =>
@@ -110,8 +151,19 @@ export default function PlaygroundPage() {
       description: 'This clears the current conversation and its messages. Earlier playground chats are not kept.',
       confirmLabel: 'New conversation',
       tone: 'danger',
-      onConfirm: () => fresh.mutateAsync().then(() => (setError(null), setLastDebug(null))),
+      onConfirm: () =>
+        fresh.mutateAsync().then(() => {
+          // The earlier chats and their pictures are gone on the server; drop what is held here too.
+          pictureSet.clear();
+          setPendingPics([]);
+          setError(null);
+          setLastDebug(null);
+        }),
     });
+
+  // Send waits for every picture to finish uploading; a message may be pictures alone. With the feature off there are no pictures and this is just "has text".
+  const blocked = pictures.some((p) => p.phase !== 'ready');
+  const canSend = !run.isPending && !blocked && (Boolean(text.trim()) || pictures.length > 0);
 
   return (
     <Page>
@@ -121,6 +173,14 @@ export default function PlaygroundPage() {
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card flush className="flex h-[min(760px,calc(100dvh-220px))] min-h-[520px] flex-col overflow-hidden" bodyClassName="flex min-h-0 flex-col">
+          <div className="relative flex min-h-0 flex-1 flex-col" {...pic.dropProps}>
+          {pic.dragging && (
+            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center border-2 border-dashed border-accent bg-accent-soft/80 text-sm font-semibold text-accent">
+              <span className="inline-flex items-center gap-2">
+                <ImagePlus className="size-5" aria-hidden /> Drop pictures to attach
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-2 border-b border-line px-4 py-3">
             <span className="grid size-8 place-items-center rounded-[10px] bg-[image:var(--gradient-brand)] text-white">
               <Sparkles className="size-4" />
@@ -146,7 +206,7 @@ export default function PlaygroundPage() {
               </div>
             ) : current.isError ? (
               <ErrorState error={current.error} onRetry={() => current.refetch()} />
-            ) : !messages.length && pending === null ? (
+            ) : !messages.length && pending === null && !pendingPics.length && !error ? (
               <EmptyState
                 icon={<Sparkles />}
                 title={`Chat with ${b.name}`}
@@ -164,10 +224,11 @@ export default function PlaygroundPage() {
             ) : (
               <div className="mx-auto flex max-w-[720px] flex-col gap-3">
                 {messages.map((m, i) => (
-                  <Bubble key={m.id} m={m} last={i === messages.length - 1 && pending === null} onResend={() => void send(undefined, true)} busy={run.isPending} />
+                  <Bubble key={m.id} m={m} last={i === messages.length - 1 && pending === null} onResend={() => void send(undefined, true)} busy={run.isPending} refresher={refresher} />
                 ))}
                 {pending !== null && (
                   <>
+                    <LocalImages pictures={pendingPics} />
                     {pending && <div className="bubble bubble-me">{pending}</div>}
                     <div className="flex items-center gap-3 self-start">
                       <div className="bubble bubble-bot">
@@ -193,8 +254,24 @@ export default function PlaygroundPage() {
               e.preventDefault();
               void send();
             }}
-            className="flex items-end gap-2 border-t border-line bg-surface p-3"
+            className="grid gap-2 border-t border-line bg-surface p-3"
           >
+            {pic.notice && (
+              <p role="status" className="flex items-start gap-2 rounded-[10px] bg-warn-soft px-3 py-2 text-xs text-warn">
+                <span className="flex-1">{pic.notice}</span>
+                <button type="button" onClick={pic.dismissNotice} className="font-semibold underline [@media(pointer:coarse)]:min-h-0">
+                  Dismiss
+                </button>
+              </p>
+            )}
+            <PictureTray pictures={pictures} set={pictureSet} disabled={run.isPending} />
+            {pictureSet.busy && (
+              <p id="picture-status" role="status" className="px-1 text-xs text-ink-faint">
+                Uploading pictures… you can send once they are done.
+              </p>
+            )}
+            <div className="flex items-end gap-2">
+            <AttachButton feature={feature} onFiles={pic.addFiles} disabled={run.isPending} />
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, 4000))}
@@ -204,15 +281,19 @@ export default function PlaygroundPage() {
                   void send();
                 }
               }}
+              onPaste={pic.onPaste}
               rows={1}
               placeholder="Message as a customer…  (Shift + Enter for a new line)"
               className="input max-h-40 min-h-[42px] flex-1 resize-none py-2.5"
               aria-label="Message"
             />
-            <Button type="submit" variant="accent" icon size="sm" className="h-[42px] w-[42px]" disabled={!text.trim() || run.isPending} aria-label="Send">
+            <Button type="submit" variant="accent" icon size="sm" className="h-[42px] w-[42px]" disabled={!canSend} aria-label="Send" aria-describedby={blocked ? 'picture-status' : undefined}>
               <Send />
             </Button>
+            </div>
+            <PictureHint feature={feature} upgradeTo={href('settings/plan')} platformAdmin={isPlatformAdmin} modelsTo="/platform/models" />
           </form>
+          </div>
         </Card>
 
         <div className="grid content-start gap-5">
@@ -240,7 +321,8 @@ export default function PlaygroundPage() {
 }
 
 function RunError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  const d = describeError(error);
+  // The image error codes also mean something else for avatars, so pictures get their own wording.
+  const d = isPictureError(error) ? describePictureError(error) : describeError(error);
   const retryable = isApiError(error) && ['LLM_RATE_LIMITED', 'LLM_TIMEOUT', 'TIMEOUT', 'LLM_PROVIDER_ERROR', 'NETWORK_ERROR'].includes(error.code);
   return (
     <div className="self-start rounded-[14px] border border-danger/30 bg-danger-soft px-4 py-3 text-[0.8125rem]">
@@ -256,9 +338,17 @@ function RunError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   );
 }
 
-function Bubble({ m, last, onResend, busy }: { m: PlaygroundMessage; last: boolean; onResend: () => void; busy: boolean }) {
+function Bubble({ m, last, onResend, busy, refresher }: { m: PlaygroundMessage; last: boolean; onResend: () => void; busy: boolean; refresher: ImageRefresher }) {
   const [open, setOpen] = useState(false);
-  if (m.role === 'user') return <div className="bubble bubble-me">{m.content}</div>;
+  if (m.role === 'user') {
+    // A message may be pictures alone: no empty text bubble then.
+    return (
+      <div className="flex flex-col items-end gap-1.5 self-end">
+        {m.attachments?.length ? <MessageImages images={m.attachments} refresher={refresher} align="end" /> : null}
+        {(m.content || !m.attachments?.length) && <div className="bubble bubble-me">{m.content}</div>}
+      </div>
+    );
+  }
   const hasDetails = Boolean(m.sources?.length || m.tool_calls?.length);
   return (
     <div className="flex flex-col items-start gap-1.5">
