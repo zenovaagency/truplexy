@@ -60,12 +60,19 @@ public static class Truplexy
         if (channelId is not null) opening["channel_id"] = channelId;
         return await Call("/conversations", opening);
     }
-    public static async Task<Answer> Ask(string thread, string text, object? customer = null, string? channelId = null)
+    public static async Task<string> ConversationFor(string thread, object? customer = null, string? channelId = null)
     {
         if (!Threads.TryGetValue(thread, out var id))
             Threads[thread] = id = (await CreateConversation(customer, channelId)).GetProperty("id").GetString()!;
-        var message = text.Length > 4000 ? text[..4000] : text;
-        var r = await Call($"/conversations/{id}/messages", new { message });
+        return id;
+    }
+    /// <summary>attachments: IDs of pictures you registered and uploaded (optional).</summary>
+    public static async Task<Answer> Ask(string thread, string text, object? customer = null, string? channelId = null, string[]? attachments = null)
+    {
+        var id = await ConversationFor(thread, customer, channelId);
+        var body = new Dictionary<string, object> { ["message"] = text.Length > 4000 ? text[..4000] : text };
+        if (attachments is { Length: > 0 }) body["attachments"] = attachments;
+        var r = await Call($"/conversations/{id}/messages", body);
         return new Answer(r.GetProperty("reply").GetString(), r.GetProperty("status").GetString()!, id);
     }
 
@@ -140,6 +147,7 @@ async Task OnEvent(JsonElement evt)
     discord: {
       file: 'Bot.cs',
       handler: `// dotnet add package Discord.Net — keeps a gateway connection open.
+using System.Security.Cryptography;
 using Discord;
 using Discord.WebSocket;
 
@@ -148,13 +156,56 @@ var discord = new DiscordSocketClient(new DiscordSocketConfig
     GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.DirectMessages | GatewayIntents.MessageContent,
 });
 
+// A plain client for Discord's files and for storage: Truplexy's own client carries your chat key.
+var plain = new HttpClient();
+
+// Pictures in a Discord message → Truplexy attachment IDs. Empty when pictures are off for this business.
+async Task<string[]> UploadPictures(SocketMessage m, string conversationId)
+{
+    var pictures = m.Attachments
+        .Where(a => (a.ContentType is "image/jpeg" or "image/png" or "image/webp") && a.Size <= 20 * 1024 * 1024)
+        .Take(3).ToList();
+    if (pictures.Count == 0) return [];
+    // Absent or enabled: false means the API or the plan can't read pictures: send the text only.
+    var profile = await Truplexy.Call("/profile", method: "GET");
+    if (!(profile.TryGetProperty("attachments", out var config) && config.GetProperty("enabled").GetBoolean())) return [];
+    var ids = new List<string>();
+    foreach (var a in pictures)
+    {
+        var data = await plain.GetByteArrayAsync(a.Url);
+        // 1. Register it. The server reads the real bytes later; this is what you declare.
+        var reg = await Truplexy.Call($"/conversations/{conversationId}/attachments", new
+        {
+            filename = a.Filename,
+            content_type = a.ContentType,
+            size = data.Length,
+            sha256 = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant(),
+        });
+        // 2. PUT it to storage with exactly the headers returned.
+        using var put = new HttpRequestMessage(HttpMethod.Put, reg.GetProperty("url").GetString()) { Content = new ByteArrayContent(data) };
+        foreach (var h in reg.GetProperty("headers").EnumerateObject())
+            if (!put.Content.Headers.TryAddWithoutValidation(h.Name, h.Value.GetString())) put.Headers.TryAddWithoutValidation(h.Name, h.Value.GetString());
+        using var res = await plain.SendAsync(put);
+        res.EnsureSuccessStatusCode();
+        ids.Add(reg.GetProperty("attachment").GetProperty("id").GetString()!);
+    }
+    return [.. ids];
+}
+
 discord.MessageReceived += m =>
 {
-    if (m.Author.IsBot || string.IsNullOrEmpty(m.Content)) return Task.CompletedTask;
+    if (m.Author.IsBot || (string.IsNullOrEmpty(m.Content) && m.Attachments.Count == 0)) return Task.CompletedTask;
     _ = Task.Run(async () =>   // don't block the gateway
     {
         using var typing = m.Channel.EnterTypingState();
-        var a = await Truplexy.Ask($"dc:{m.Channel.Id}:{m.Author.Id}", m.Content, new { contacts = new[] { new { type = "discord", value = m.Author.Id.ToString() } } });
+        var thread = $"dc:{m.Channel.Id}:{m.Author.Id}";
+        var customer = new { contacts = new[] { new { type = "discord", value = m.Author.Id.ToString() } } };
+        string[] pictures = [];
+        try { pictures = await UploadPictures(m, await Truplexy.ConversationFor(thread, customer)); }
+        catch (Exception e) { Console.WriteLine($"pictures skipped: {e.Message}"); }   // answer the text instead
+        if (string.IsNullOrEmpty(m.Content) && pictures.Length == 0) return;
+        // 3. Send the message, naming the pictures. Text may be empty, but it gives better answers.
+        var a = await Truplexy.Ask(thread, m.Content, customer, attachments: pictures);
         if (a.Reply is { } reply) await m.Channel.SendMessageAsync(reply, messageReference: new MessageReference(m.Id));
     });
     return Task.CompletedTask;

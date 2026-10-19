@@ -128,7 +128,7 @@ type Answer struct {
 	ConversationID string \`json:"conversationId"\`
 }
 
-func ask(thread, text string, options ...ConversationOptions) (Answer, error) {
+func conversationFor(thread string, options ...ConversationOptions) (string, error) {
 	mu.Lock()
 	id, ok := threads[thread]
 	mu.Unlock()
@@ -137,16 +137,31 @@ func ask(thread, text string, options ...ConversationOptions) (Answer, error) {
         if len(options) > 0 { option = options[0] }
         var err error
         id, err = createConversation(option)
-        if err != nil { return Answer{}, err }
+        if err != nil { return "", err }
 		mu.Lock()
 		threads[thread] = id
 		mu.Unlock()
 	}
+	return id, nil
+}
+
+func ask(thread, text string, options ...ConversationOptions) (Answer, error) {
+	return askWithPictures(thread, text, nil, options...)
+}
+
+// attachments: IDs of pictures you registered and uploaded (optional).
+func askWithPictures(thread, text string, attachments []string, options ...ConversationOptions) (Answer, error) {
+	id, err := conversationFor(thread, options...)
+	if err != nil { return Answer{}, err }
 	if r := []rune(text); len(r) > 4000 {
 		text = string(r[:4000])
 	}
+	body := map[string]any{"message": text}
+	if len(attachments) > 0 {
+		body["attachments"] = attachments
+	}
 	var a Answer
-	err := call("/conversations/"+id+"/messages", map[string]string{"message": text}, &a)
+	err = call("/conversations/"+id+"/messages", body, &a)
 	a.ConversationID = id
 	return a, err
 }
@@ -566,7 +581,72 @@ func sendTelegram(chatID, text string) error {
 
     discord: {
       handler: `// go get github.com/bwmarrin/discordgo — keeps a gateway connection open.
+// Also imports: bytes, crypto/sha256, encoding/hex, fmt, io, log, net/http (beside the discordgo import).
 var discord *discordgo.Session
+
+var pictureTypes = map[string]bool{"image/jpeg": true, "image/png": true, "image/webp": true}
+
+// uploadPictures turns the pictures in a Discord message into Truplexy attachment IDs.
+// It returns none when pictures are off for this business.
+func uploadPictures(m *discordgo.MessageCreate, conversationID string) ([]string, error) {
+	var pictures []*discordgo.MessageAttachment
+	for _, a := range m.Attachments {
+		if pictureTypes[a.ContentType] && a.Size <= 20<<20 && len(pictures) < 3 {
+			pictures = append(pictures, a)
+		}
+	}
+	if len(pictures) == 0 {
+		return nil, nil
+	}
+	// Absent or enabled: false means the API or the plan can't read pictures: send the text only.
+	var profile struct{ Attachments *struct{ Enabled bool } }
+	if err := callMethod("GET", "/profile", nil, &profile); err != nil || profile.Attachments == nil || !profile.Attachments.Enabled {
+		return nil, err
+	}
+	var ids []string
+	for _, a := range pictures {
+		res, err := httpClient.Get(a.URL)
+		if err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		// 1. Register it. The server reads the real bytes later; this is what you declare.
+		sum := sha256.Sum256(data)
+		var reg struct {
+			Attachment  struct{ ID string }
+			URL, Method string
+			Headers     map[string]string
+		}
+		err = call("/conversations/"+conversationID+"/attachments", map[string]any{
+			"filename": a.Filename, "content_type": a.ContentType, "size": len(data), "sha256": hex.EncodeToString(sum[:]),
+		}, &reg)
+		if err != nil {
+			return nil, err
+		}
+		// 2. PUT it to storage with exactly the headers returned. Not to Truplexy: no chat key here.
+		req, err := http.NewRequest(reg.Method, reg.URL, bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		for name, value := range reg.Headers {
+			req.Header.Set(name, value)
+		}
+		put, err := httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		put.Body.Close()
+		if put.StatusCode >= 300 {
+			return nil, fmt.Errorf("picture upload failed (%d)", put.StatusCode)
+		}
+		ids = append(ids, reg.Attachment.ID)
+	}
+	return ids, nil
+}
 
 func startDiscord() error {
 	dg, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN"))
@@ -575,11 +655,23 @@ func startDiscord() error {
 	}
 	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsDirectMessages | discordgo.IntentMessageContent
 	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-		if m.Author.Bot || m.Content == "" {
+		if m.Author.Bot || (m.Content == "" && len(m.Attachments) == 0) {
 			return
 		}
 		s.ChannelTyping(m.ChannelID)
-		a, err := ask("dc:"+m.ChannelID+":"+m.Author.ID, m.Content, identify("discord", m.Author.ID))
+		thread, who := "dc:"+m.ChannelID+":"+m.Author.ID, identify("discord", m.Author.ID)
+		var pictures []string
+		if id, err := conversationFor(thread, who); err == nil {
+			// If the pictures fail, answer the text instead.
+			if pictures, err = uploadPictures(m, id); err != nil {
+				log.Println("pictures skipped:", err)
+			}
+		}
+		if m.Content == "" && len(pictures) == 0 {
+			return
+		}
+		// 3. Send the message, naming the pictures. Text may be empty, but it gives better answers.
+		a, err := askWithPictures(thread, m.Content, pictures, who)
 		if err == nil && a.Reply != "" {
 			s.ChannelMessageSendReply(m.ChannelID, a.Reply, m.Reference())
 		}
