@@ -274,7 +274,7 @@ export function PlatformOverview() {
             {[
               { to: '/platform/businesses', icon: Building2, title: 'Businesses', text: 'Plans, limits and suspensions.' },
               { to: '/platform/deletions', icon: Trash2, title: 'Deletions', text: 'Owner requests and restores.' },
-              { to: '/platform/models', icon: Cpu, title: 'Models', text: 'What businesses can choose from.' },
+              { to: '/platform/models', icon: Cpu, title: 'Models', text: 'What Truplexy answers with, by routing tier.' },
               { to: '/platform/templates', icon: FileText, title: 'Prompt templates', text: 'Starting instructions per business type.' },
             ].map((l) => (
               <Link key={l.to} to={l.to} className="panel flex items-center gap-3 p-4 transition-colors hover:border-line-strong">
