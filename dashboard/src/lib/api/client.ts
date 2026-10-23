@@ -15,6 +15,8 @@ export class ApiError extends Error {
   readonly limit?: LimitName;
   /** SOLE_OWNER: the businesses the person is the only owner of. */
   readonly tenants?: { id: string; name: string }[];
+  /** Seconds the API asks the caller to wait (Retry-After): rate limits and busy checkouts. */
+  readonly retryAfter?: number;
 
   constructor(init: {
     code: string;
@@ -24,6 +26,7 @@ export class ApiError extends Error {
     documentId?: string;
     limit?: LimitName;
     tenants?: { id: string; name: string }[];
+    retryAfter?: number;
   }) {
     super(init.message);
     this.name = 'ApiError';
@@ -33,6 +36,7 @@ export class ApiError extends Error {
     this.documentId = init.documentId;
     this.limit = init.limit;
     this.tenants = init.tenants;
+    this.retryAfter = init.retryAfter;
   }
 }
 
@@ -71,6 +75,8 @@ export interface RequestOptions {
   query?: Query;
   scope?: Scope;
   signal?: AbortSignal;
+  /** Extra request headers, such as Idempotency-Key. */
+  headers?: Record<string, string>;
 }
 
 function buildUrl(path: string, query?: Query) {
@@ -85,6 +91,7 @@ function buildUrl(path: string, query?: Query) {
 
 async function send(path: string, opts: RequestOptions, token: string | null) {
   const headers = new Headers();
+  for (const [name, value] of Object.entries(opts.headers ?? {})) headers.set(name, value);
   if (token) headers.set('Authorization', `Bearer ${token}`);
   // Files go as they are; the browser sets the multipart boundary itself.
   const raw = opts.body instanceof Blob || opts.body instanceof FormData;
@@ -105,6 +112,12 @@ async function send(path: string, opts: RequestOptions, token: string | null) {
     if ((e as Error)?.name === 'AbortError') throw e;
     throw new ApiError({ code: 'NETWORK_ERROR', message: "Couldn't reach the Truplexy API. Check your connection.", status: 0 });
   }
+}
+
+/** Retry-After in whole seconds (it can also be a date, which the API doesn't send). */
+function parseRetryAfter(value: string | null) {
+  const n = value === null ? NaN : Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.ceil(n) : undefined;
 }
 
 /**
@@ -145,6 +158,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
       documentId: err?.document_id,
       limit: err?.limit,
       tenants: err?.tenants,
+      retryAfter: parseRetryAfter(res.headers.get('Retry-After')),
     });
   }
   return body as T;

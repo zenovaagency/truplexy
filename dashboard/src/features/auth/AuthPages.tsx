@@ -620,6 +620,8 @@ export function InvitePage() {
 
   // Only the invited address can accept. The mock accepts any address, so it isn't checked there.
   const mismatchError = accept.isError && hasCode(accept.error, 'INVITE_EMAIL_MISMATCH');
+  // The address isn't confirmed yet: keep the invitation on screen, since it works once it is.
+  const unverifiedError = accept.isError && hasCode(accept.error, 'EMAIL_NOT_VERIFIED');
   const wrongAccount =
     mismatchError || (!env.useMocks && !!preview.data && !!auth.user?.email && preview.data.email.toLowerCase() !== auth.user.email.toLowerCase());
   // Signing out shows the signed-out invitation, whose sign-in links come back here.
@@ -628,7 +630,7 @@ export function InvitePage() {
     void auth.signOut().finally(() => setSwitching(false));
   };
 
-  const err = preview.error ?? (mismatchError ? null : accept.error);
+  const err = preview.error ?? (mismatchError || unverifiedError ? null : accept.error);
   const d = err ? describeError(err) : null;
 
   return (
@@ -683,9 +685,16 @@ export function InvitePage() {
                 </Button>
               </>
             ) : (
-              <Button variant="accent" size="md" loading={accept.isPending} onClick={onAccept}>
-                Accept and continue
-              </Button>
+              <>
+                {unverifiedError && (
+                  <Callout tone="warn" title="Confirm your email address first">
+                    We sent a confirmation message to <span className="font-semibold text-ink">{auth.user?.email}</span>. Open it, then come back to this page and accept again.
+                  </Callout>
+                )}
+                <Button variant="accent" size="md" loading={accept.isPending} onClick={onAccept}>
+                  Accept and continue
+                </Button>
+              </>
             )}
           </div>
         )

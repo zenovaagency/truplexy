@@ -19,10 +19,20 @@ declare module '@tanstack/react-query' {
 /** Errors the app answers itself: a disabled account signs out, a lost business redirects. Both notify once. */
 const handledElsewhere = (e: unknown) => hasCode(e, 'ACCOUNT_DISABLED', 'TENANT_NOT_FOUND', 'BOT_NOT_FOUND');
 
-/** Client errors won't change on retry; network and server errors might. */
+/**
+ * Client errors won't change on retry; network and server errors might. A rate
+ * limit is tried once more, after the wait the API asks for, and not at all if
+ * that wait is long: retrying sooner only extends it.
+ */
 function retry(count: number, e: unknown) {
+  if (isApiError(e) && e.code === 'RATE_LIMITED') return count < 1 && (e.retryAfter ?? 5) <= 15;
   if (isApiError(e) && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) return false;
   return count < 2;
+}
+
+function retryDelay(count: number, e: unknown) {
+  if (isApiError(e) && e.retryAfter) return Math.min(e.retryAfter, 30) * 1000;
+  return Math.min(1000 * 2 ** count, 30_000);
 }
 
 export function createQueryClient() {
@@ -49,6 +59,7 @@ export function createQueryClient() {
       queries: {
         staleTime: 20_000,
         retry,
+        retryDelay,
         refetchOnWindowFocus: true,
       },
       mutations: { retry: false },
