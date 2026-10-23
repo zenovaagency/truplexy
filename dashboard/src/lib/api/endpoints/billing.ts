@@ -10,14 +10,34 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 /* The plan subscription, paid through Paddle. The plan on the business changes when Paddle's webhook reaches the API. */
 
-export function useSubscription(enabled = true) {
+/** What GET /billing/subscription answers: the subscription, and whether a checkout now would get the free trial. */
+interface SubscriptionState {
+  subscription: Subscription | null;
+  /** Absent from an API that predates it; read with trialEligible(). */
+  trial_eligible?: boolean;
+}
+
+/** A trial is promised unless the API says there isn't one to give. */
+export const trialEligible = (state: SubscriptionState | undefined) => state?.trial_eligible !== false;
+
+function useSubscriptionState<T>(select: (state: SubscriptionState) => T, enabled: boolean) {
   const scope = useScope();
   return useQuery({
     queryKey: qk.tenant(scope, 'billing', 'subscription'),
-    queryFn: ({ signal }) => api<{ subscription: Subscription | null }>('/billing/subscription', { scope, signal }).then((r) => r.subscription),
+    queryFn: ({ signal }) => api<SubscriptionState>('/billing/subscription', { scope, signal }),
+    select,
     staleTime: 30_000,
     enabled,
   });
+}
+
+export function useSubscription(enabled = true) {
+  return useSubscriptionState((state) => state.subscription, enabled);
+}
+
+/** Whether to say "free trial": false once the business or the person has had one and the API enforces that. */
+export function useTrialEligible(enabled = true) {
+  return useSubscriptionState(trialEligible, enabled);
 }
 
 /** Re-reads everything a plan change touches. */

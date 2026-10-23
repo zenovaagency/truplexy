@@ -1868,7 +1868,8 @@ const isCheckoutPlan = (v: unknown): v is CheckoutPlan => v === 'starter' || v =
 const isBillingInterval = (v: unknown): v is BillingInterval => v === 'monthly' || v === 'yearly';
 const TRIAL_MS = 7 * 24 * 3600 * 1000;
 
-route('GET', '/billing/subscription', 'usage.read', (c) => ({ subscription: c.tenant.subscription ?? null }));
+// Like the API with the trial guard enforcing: a business that has had a subscription gets no second trial.
+route('GET', '/billing/subscription', 'usage.read', (c) => ({ subscription: c.tenant.subscription ?? null, trial_eligible: !c.tenant.subscription }));
 
 route('POST', '/billing/checkout', 'billing.write', (c) => {
   const { plan, interval } = c.body ?? {};

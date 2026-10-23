@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { AlertTriangle, CreditCard } from 'lucide-react';
-import { useBillingPortal, useChangePlan, useRefreshPlan, useStartCheckout, useSubscription } from '@/lib/api/endpoints/billing';
+import { useBillingPortal, useChangePlan, useRefreshPlan, useStartCheckout, useSubscription, useTrialEligible } from '@/lib/api/endpoints/billing';
 import type { BillingInterval, CheckoutPlan, PlanId, Subscription } from '@/lib/api/types';
 import { CHECKOUT_PLANS, TRIAL_DAYS } from '@/lib/billing';
 import { cn } from '@/lib/cn';
@@ -42,6 +42,8 @@ export function SubscriptionCard({ plan }: { plan: PlanId }) {
   const { can } = useScopeCtx();
   const allowed = can('billing.write');
   const sub = useSubscription();
+  // Promise a trial only when the API says one would be sold.
+  const trial = useTrialEligible().data !== false;
   const checkout = useStartCheckout();
   const change = useChangePlan();
   const portal = useBillingPortal();
@@ -176,8 +178,12 @@ export function SubscriptionCard({ plan }: { plan: PlanId }) {
   // No live subscription: choose a plan and start the trial.
   return (
     <Card
-      title="Start your free trial"
-      description={`${TRIAL_DAYS} days free on any plan. Add a card to start; you're charged when the trial ends, and you can cancel before then.`}
+      title={trial ? 'Start your free trial' : 'Choose a plan'}
+      description={
+        trial
+          ? `${TRIAL_DAYS} days free on any plan. Add a card to start; you're charged when the trial ends, and you can cancel before then.`
+          : "Add a card to subscribe. You're charged at checkout, and you can cancel any time."
+      }
     >
       <div className="grid gap-4">
         {subscription?.status === 'canceled' && (
@@ -231,7 +237,7 @@ export function SubscriptionCard({ plan }: { plan: PlanId }) {
               loading={checkout.isPending}
               onClick={() => picked && checkout.mutate({ plan: picked, interval })}
             >
-              Start {TRIAL_DAYS}-day free trial
+              {trial ? `Start ${TRIAL_DAYS}-day free trial` : 'Subscribe'}
             </Button>
           ) : (
             <p className="text-xs text-ink-faint">Owners and admins can start a plan.</p>

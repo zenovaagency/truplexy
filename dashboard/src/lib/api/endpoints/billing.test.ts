@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { configureApi } from '@/lib/api/client';
-import { buyTokens } from './billing';
+import { buyTokens, trialEligible } from './billing';
 
 const scope = { tenant: 'acme', bot: 'support' };
 const purchase = { addon: { id: 'tad_1', tokens: 1_000_000, price: 8, month: '2026-10', actor: 'u', created_at: '2026-10-01T00:00:00Z' } };
@@ -53,5 +53,17 @@ describe('buyTokens', () => {
     serve([() => json(201, purchase)]);
     const done = await buyTokens(scope, 10);
     expect(done.billing).toBeUndefined();
+  });
+});
+
+describe('trialEligible', () => {
+  it('promises a trial unless the API says there is none to give', () => {
+    expect(trialEligible({ subscription: null, trial_eligible: true })).toBe(true);
+    expect(trialEligible({ subscription: null, trial_eligible: false })).toBe(false);
+  });
+
+  it('promises one while the answer is unknown, or from an API that predates the field', () => {
+    expect(trialEligible(undefined)).toBe(true);
+    expect(trialEligible({ subscription: null })).toBe(true);
   });
 });
