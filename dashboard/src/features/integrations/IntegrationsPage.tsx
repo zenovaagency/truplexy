@@ -109,24 +109,33 @@ export function CatalogTab() {
   const [group, setGroup] = useState<IntegrationGroup | 'all' | 'connected'>('all');
   /** A platform admin marked the integration's channel type upcoming: it can't be added yet. */
   const isUpcoming = (i: Integration) => Boolean(i.channelType && types.data?.some((t) => t.id === i.channelType && t.upcoming));
+  /**
+   * The same catalog as Platform → Channel types: an integration whose channel type
+   * the platform doesn't list (hidden and unused, or not in the catalog) isn't shown.
+   * If the catalog can't be read, show everything rather than an empty page.
+   */
+  const available = useMemo(
+    () => (types.data ? INTEGRATIONS.filter((i) => !i.channelType || types.data.some((t) => t.id === i.channelType)) : INTEGRATIONS),
+    [types.data],
+  );
   // Connect integrations have no guide, even from an old ?guide= link.
-  const open = INTEGRATIONS.find((i) => i.id === params.get('guide') && !i.connect);
+  const open = available.find((i) => i.id === params.get('guide') && !i.connect);
   const [failed, clearFailed] = useConnectReturn();
 
   /** Its active channels when it has a channel type; otherwise keys named after it. */
   const connected = (i: Integration): unknown[] => (i.channelType ? channelsFor(i, channels.data ?? []) : keysFor(i, keys.data ?? [], scope.bot));
   const list = useMemo(
     () =>
-      INTEGRATIONS.filter(
+      available.filter(
         (i) =>
           (group === 'all' || (group === 'connected' ? connected(i).length > 0 : i.group === group)) &&
           (!q || `${i.name} ${i.blurb}`.toLowerCase().includes(q.toLowerCase())),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q, group, keys.data, channels.data],
+    [available, q, group, keys.data, channels.data],
   );
   const groups = (Object.keys(GROUP_LABEL) as IntegrationGroup[]).filter((g) => list.some((i) => i.group === g));
-  const connectedCount = INTEGRATIONS.filter((i) => connected(i).length).length;
+  const connectedCount = available.filter((i) => connected(i).length).length;
 
   const openGuide = (i: Integration) =>
     i.id === 'webhooks'
@@ -160,9 +169,17 @@ export function CatalogTab() {
 
       {failed && <ConnectError failed={failed} onDismiss={clearFailed} />}
 
-      {!list.length && <EmptyState compact icon={<Search />} title="No channels match" />}
+      {types.isPending ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, n) => (
+            <Skeleton key={n} className="h-[148px] rounded-[14px]" />
+          ))}
+        </div>
+      ) : (
+        !list.length && <EmptyState compact icon={<Search />} title="No channels match" />
+      )}
 
-      {groups.map((g) => (
+      {(types.isPending ? [] : groups).map((g) => (
         <section key={g} className="grid gap-3">
           <h2 className="mono text-ink-faint">{GROUP_LABEL[g]}</h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
