@@ -245,6 +245,8 @@ export interface ChannelType {
   icon: string;
   /** False for a hidden type one of the bot's channels still uses; don't offer it for new channels. */
   offered: boolean;
+  /** True for a type the platform marked upcoming: show it as "Upcoming" and don't offer it. Absent on older APIs. */
+  upcoming?: boolean;
   /** 'oauth': channels of the type are added with POST /channels/connect (the platform's own sign-in), not POST /channels. */
   connect: ChannelConnectMethod;
 }
@@ -1356,8 +1358,11 @@ export interface PlatformChannelType {
   label: string;
   description: string;
   icon: string;
-  /** A hidden type isn't offered for new channels; channels already of it keep working. */
-  status: 'active' | 'hidden';
+  /**
+   * A hidden type isn't offered for new channels; channels already of it keep working.
+   * An upcoming type is listed to businesses as "Upcoming" and can't be added yet.
+   */
+  status: 'active' | 'hidden' | 'upcoming';
   /** Set by the API for platforms it has an app for; read-only here. */
   connect: ChannelConnectMethod;
   sort_order: number;

@@ -795,9 +795,9 @@ route('GET', '/channel-types', 'channels.read', (c) => {
   const used = new Set(botChannels(c).map((x) => x.type));
   return {
     data: c.db.channelTypes
-      .filter((t) => t.status === 'active' || used.has(t.id))
+      .filter((t) => t.status === 'active' || t.status === 'upcoming' || used.has(t.id))
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map((t) => ({ id: t.id, label: t.label, description: t.description, icon: t.icon, offered: t.status === 'active', connect: t.connect ?? null })),
+      .map((t) => ({ id: t.id, label: t.label, description: t.description, icon: t.icon, offered: t.status === 'active', upcoming: t.status === 'upcoming', connect: t.connect ?? null })),
   };
 });
 
@@ -2947,7 +2947,7 @@ function applyChannelType(t: Partial<MockDb['channelTypes'][number]>, b: any) {
   if (b.description !== undefined) t.description = str(b.description, 'description', 0, 300)!;
   if (b.icon !== undefined) t.icon = str(b.icon, 'icon', 0, 200)!;
   if (b.status !== undefined) {
-    if (!['active', 'hidden'].includes(b.status)) throw invalid('status must be active or hidden.');
+    if (!['active', 'hidden', 'upcoming'].includes(b.status)) throw invalid('status must be active, upcoming or hidden.');
     t.status = b.status;
   }
   if (b.sort_order !== undefined) {

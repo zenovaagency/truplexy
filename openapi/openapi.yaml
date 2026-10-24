@@ -555,7 +555,7 @@ paths:
     get:
       operationId: listChannelTypes
       summary: The channel types the bot may add channels of (v2)
-      description: Needs channels.read. The platform's active types, plus a hidden type one of the bot's channels still uses (offered false).
+      description: Needs channels.read. The platform's active types, any type marked upcoming (offered false, upcoming true), plus a hidden type one of the bot's channels still uses (offered false).
       security:
         - AdminKey: []
         - MemberToken: []
@@ -2900,7 +2900,7 @@ paths:
     patch:
       operationId: updateChannelType
       summary: Change or hide a channel type (v2)
-      description: Types aren't deleted; a hidden type isn't offered for new channels, and channels already of it keep working. 404 CHANNEL_TYPE_NOT_FOUND.
+      description: Types aren't deleted; a hidden type isn't offered for new channels, an upcoming type is shown to businesses as "Upcoming" and can't be added yet, and channels already of either keep working. 404 CHANNEL_TYPE_NOT_FOUND.
       security:
         - AdminKey: []
         - MemberToken: []
@@ -5619,7 +5619,10 @@ components:
           type: string
         offered:
           type: boolean
-          description: False for a hidden type one of the bot's channels still uses; don't offer it for new channels.
+          description: False for an upcoming type, or a hidden type one of the bot's channels still uses; don't offer it for new channels.
+        upcoming:
+          type: boolean
+          description: True for a type a platform admin marked upcoming; show it as "Upcoming". Absent on APIs that predate the status.
     AdminChannelType:
       type: object
       required: [id, label, description, icon, status, sort_order, channels, created_at, updated_at]
@@ -5634,7 +5637,7 @@ components:
           type: string
         status:
           type: string
-          enum: [active, hidden]
+          enum: [active, upcoming, hidden]
         sort_order:
           type: integer
         channels:
@@ -5668,7 +5671,7 @@ components:
           maxLength: 200
         status:
           type: string
-          enum: [active, hidden]
+          enum: [active, upcoming, hidden]
         sort_order:
           type: integer
           minimum: -10000
