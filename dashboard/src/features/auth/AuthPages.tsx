@@ -48,6 +48,7 @@ interface Creds {
 
 function validate(v: Creds, mode: 'signin' | 'signup' | 'magic') {
   const errs: Partial<Record<keyof Creds, string>> = {};
+  if (mode === 'signup' && !v.name.trim()) errs.name = 'Enter your name';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) errs.email = 'Enter a valid email address';
   if (mode !== 'magic' && v.password.length < 8) errs.password = 'At least 8 characters';
   return errs;
@@ -100,7 +101,7 @@ export function SignInPage() {
         await auth.sendMagicLink(v.email, next);
         if (!env.useMocks) setSent(v.email);
       } else if (mode === 'signup') {
-        const r = await auth.signUp(v.email, v.password, v.name || undefined, next);
+        const r = await auth.signUp(v.email, v.password, v.name.trim(), next);
         if (r.needsConfirmation) setSent(v.email);
       } else {
         await auth.signInWithPassword(v.email, v.password);
@@ -199,7 +200,7 @@ export function SignInPage() {
 
         <form onSubmit={submit} className="grid gap-4" noValidate>
           {mode === 'signup' && (
-            <Field label="Your name" optional>
+            <Field label="Your name" error={errs.name}>
               <Input autoComplete="name" {...field('name')} />
             </Field>
           )}
