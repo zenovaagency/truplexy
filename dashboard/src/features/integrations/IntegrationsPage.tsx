@@ -103,9 +103,12 @@ export function CatalogTab() {
   const { can, scope, href } = useScopeCtx();
   const keys = useApiKeys(can('integrations.read'));
   const channels = useChannels();
+  const types = useChannelTypes();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [group, setGroup] = useState<IntegrationGroup | 'all' | 'connected'>('all');
+  /** A platform admin marked the integration's channel type upcoming: it can't be added yet. */
+  const isUpcoming = (i: Integration) => Boolean(i.channelType && types.data?.some((t) => t.id === i.channelType && t.upcoming));
   // Connect integrations have no guide, even from an old ?guide= link.
   const open = INTEGRATIONS.find((i) => i.id === params.get('guide') && !i.connect);
   const [failed, clearFailed] = useConnectReturn();
@@ -166,6 +169,17 @@ export function CatalogTab() {
             {list
               .filter((i) => i.group === g)
               .map((i) => {
+                // Channels it already has keep working, so only an unused upcoming type becomes a plain card.
+                if (isUpcoming(i) && !connected(i).length)
+                  return (
+                    <div key={i.id} className={cn(CARD, 'opacity-80')} aria-disabled="true">
+                      <CardHead i={i} />
+                      <div className="mt-auto flex items-center justify-between pt-3">
+                        <Badge tone="accent" dot>Upcoming</Badge>
+                        <span className="text-xs text-ink-faint">Not available yet</span>
+                      </div>
+                    </div>
+                  );
                 if (i.connect) return <ConnectCard key={i.id} i={i} channels={(channels.data ?? []).filter((c) => c.type === i.channelType)} />;
                 const n = connected(i).length;
                 const card = (

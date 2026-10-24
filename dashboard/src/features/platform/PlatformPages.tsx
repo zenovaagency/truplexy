@@ -140,7 +140,7 @@ import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseField';
 import { PRIORITIES, PRIORITY, PriorityBadge, RoleBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 
-const STATUS_TONE: Record<CatalogStatus, Tone> = { active: 'live', hidden: 'warn', retired: 'neutral' };
+const STATUS_TONE: Record<CatalogStatus | PlatformChannelType['status'], Tone> = { active: 'live', hidden: 'warn', retired: 'neutral', upcoming: 'accent' };
 
 /** Known plans cheapest first; any other plan sorts after them. */
 const PLAN_ORDER = ['free', 'starter', 'pro', 'enterprise'];
@@ -2439,7 +2439,7 @@ export function PlatformChannelTypes() {
       <PageHeader
         eyebrow="Platform"
         title="Channel types"
-        description="The kinds of channel businesses can add to a bot. Hide a type to stop offering it; channels already of it keep working."
+        description="The kinds of channel businesses can add to a bot. Mark a type upcoming while it isn't available yet, or hide it to stop offering it; channels already of it keep working."
         actions={<Button variant="accent" leading={<Plus />} onClick={() => setEdit('new')}>New type</Button>}
       />
       <Card flush>
@@ -2542,8 +2542,21 @@ function ChannelTypeSheet({ type, onClose }: { type: PlatformChannelType | 'new'
           </div>
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Status" hint={t.status === 'hidden' ? "Not offered for new channels; existing ones keep working." : 'Offered to every business.'}>
-            <Select value={t.status} onChange={(e) => set('status', e.target.value as ChannelTypeInput['status'])} options={[{ value: 'active', label: 'Active' }, { value: 'hidden', label: 'Hidden' }]} />
+          <Field
+            label="Status"
+            hint={
+              t.status === 'hidden'
+                ? 'Not offered for new channels; existing ones keep working.'
+                : t.status === 'upcoming'
+                  ? 'Shown to businesses as "Upcoming". They can\'t add it yet.'
+                  : 'Offered to every business.'
+            }
+          >
+            <Select
+              value={t.status}
+              onChange={(e) => set('status', e.target.value as ChannelTypeInput['status'])}
+              options={[{ value: 'active', label: 'Active' }, { value: 'upcoming', label: 'Upcoming' }, { value: 'hidden', label: 'Hidden' }]}
+            />
           </Field>
           <Field label="Sort order" hint="Lower comes first." error={orderOk ? undefined : 'A whole number from -10,000 to 10,000.'}>
             <Input type="number" min={-10000} max={10000} value={t.sort_order} onChange={(e) => set('sort_order', Number(e.target.value))} />

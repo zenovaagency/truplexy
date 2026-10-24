@@ -791,7 +791,7 @@ Channels tell the team where each ticket came from:
 
 #### `GET /channel-types`
 
-`channels.read`. **200** `{data: [{id, label, description, icon, offered}]}`, in the platform's order: the types the bot may add channels of, plus any hidden type one of its channels still uses (`offered: false`; don't offer it for new channels).
+`channels.read`. **200** `{data: [{id, label, description, icon, offered, upcoming?}]}`, in the platform's order: the types the bot may add channels of, any type a platform admin marked upcoming (`offered: false`, `upcoming: true`; show it as "Upcoming" and don't offer it), plus any hidden type one of its channels still uses (`offered: false`; don't offer it for new channels). `upcoming` is absent on APIs that predate the status.
 
 #### `GET /channels`
 
@@ -2069,7 +2069,7 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 | `label` | Required. 1–80 characters. |
 | `description` | Up to 300 characters. |
 | `icon` | Up to 200 characters: an icon name or URL for dashboards. |
-| `status` | `active` (default) or `hidden`. A hidden type isn't offered for new channels; channels already of it keep working. |
+| `status` | `active` (default), `upcoming` or `hidden`. An upcoming type is listed to businesses as "Upcoming" but can't be added (`CHANNEL_TYPE_NOT_ALLOWED`); a hidden type isn't listed or offered for new channels. In both, channels already of the type keep working. |
 | `sort_order` | -10,000 to 10,000. |
 | `auto_close_hours` | 0 (never) to 2160, or `null` (the default) to leave it to each business. Open tickets from channels of the type close after this many hours without activity, unless a channel sets its own. In `PATCH`, `null` clears it and leaving it out keeps it. |
 
