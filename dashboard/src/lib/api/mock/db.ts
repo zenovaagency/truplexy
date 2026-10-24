@@ -153,6 +153,8 @@ export interface MockDb {
   replies: Record<string, TicketReply[]>;
   webhooks: Record<string, Webhook & { secret: string }>;
   models: MockModel[];
+  /** Platform settings. `vision_model` is what a platform admin set; "" = nothing. */
+  settings: { vision_model: string };
   templates: Omit<PlatformTemplate, 'bots'>[];
   playground: Record<string, PlaygroundConversation>;
   deletionRequests: DeletionRequest[];
@@ -163,7 +165,7 @@ export interface MockDb {
   customers: MockCustomer[];
 }
 
-export const DB_VERSION = 10;
+export const DB_VERSION = 11;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

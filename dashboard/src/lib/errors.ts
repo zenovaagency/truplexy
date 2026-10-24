@@ -84,6 +84,17 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   TENANT_PROTECTED: { title: "This business can't be deleted", hint: 'The default business is kept.' },
   TENANT_DELETED: { title: 'This business is already deleted' },
   RESTORE_EXPIRED: { title: "It can't be restored", hint: 'It was deleted more than 30 days ago.' },
+  RATE_LIMITED: { title: 'Too many requests', hint: 'Wait a few seconds, then try again.' },
+  CHECKOUT_IN_PROGRESS: { title: 'Checkout is being set up', hint: 'Another request for this business is still creating it. Try again in a few seconds.' },
+  SUBSCRIPTION_EXISTS: { title: 'This business already has a subscription', hint: 'Reload the page to manage it.' },
+  NO_SUBSCRIPTION: { title: 'There is no subscription to change', hint: 'Start a plan first.' },
+  PAYMENT_NOT_CONFIGURED: { title: "Payments aren't set up on this server", useMessage: true },
+  PAYMENT_PROVIDER_ERROR: { title: "The payment provider couldn't complete that", hint: 'Nothing was charged or changed. Try again in a moment.' },
+  EMAIL_NOT_VERIFIED: { title: 'Confirm your email address first', hint: 'Open the confirmation email we sent you, then open the invitation link again.' },
+  REQUEST_IN_PROGRESS: { title: 'That request is still being handled', hint: 'Wait a moment before trying again.' },
+  IDEMPOTENCY_KEY_REUSED: { title: 'That request was already used for something else', hint: 'Reload the page and try again.' },
+  IDEMPOTENCY_UNAVAILABLE: { title: "Couldn't make that safe to repeat", hint: 'Try again in a moment.' },
+  QUOTA_UNAVAILABLE: { title: "Usage limits couldn't be checked", hint: 'Try again in a moment.' },
   INTERNAL_ERROR: { title: 'Something went wrong on our side', hint: 'Quote the request ID if you contact support.' },
 };
 
@@ -118,7 +129,8 @@ export function describeError(e: unknown): Described {
   if (isApiError(e)) {
     const c = COPY[e.code];
     let detail = c?.useMessage || !c ? e.message : c.hint;
-    if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'tokens_per_month') detail = "This month's tokens are used up and the balance is empty. Buy extra tokens in Settings → Billing.";
+    if ((e.code === 'RATE_LIMITED' || e.code === 'CHECKOUT_IN_PROGRESS') && e.retryAfter) detail = `Try again in ${e.retryAfter} second${e.retryAfter === 1 ? '' : 's'}.`;
+    else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'tokens_per_month') detail = "This month's tokens are used up and the balance is empty. Buy extra tokens in Settings → Billing.";
     else if (e.code === 'SOLE_OWNER' && e.tenants?.length) detail = `Make someone else an owner of ${e.tenants.map((t) => t.name).join(', ')} first.`;
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'web_search') detail = "This business's plan doesn't include web search. See Settings → Plan & usage.";
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'image_input') detail = "This business's plan doesn't include pictures. See Settings → Plan & usage.";

@@ -1,0 +1,42 @@
+---
+import CodeBlock from './CodeBlock.astro';
+import CodeTabs from './CodeTabs.astro';
+import DataTable from './DataTable.astro';
+import { pictureTabs } from '../../data/snippets';
+import { IMAGE_ERRORS, IMAGE_LIMITS, IMAGE_NOTES } from '../../../dashboard/src/features/integrations/snippets/images';
+import { PUBLIC_API } from '../../../dashboard/src/features/integrations/snippets/types';
+
+/**
+ * "Send pictures": the image input flow over plain HTTP. The code comes from the
+ * dashboard's snippet file, so a fix made once shows up in both places. The
+ * dashboard's own guide (React) is not used here.
+ */
+const availability = `# Run on your server. "attachments" is absent when the API doesn't serve pictures.
+curl --fail-with-body ${PUBLIC_API}/profile -H "Authorization: Bearer $TRUPLEXY_CHAT_KEY"
+# → {…, "attachments": {"enabled": true, "max_bytes": 20971520, "max_per_message": 3, "content_types": ["image/jpeg", "image/png", "image/webp"]}}
+# Show your attach button only when attachments.enabled is true, and take the limits from here.
+# The answer may be cached for 60 seconds (Cache-Control: private, max-age=60).`;
+---
+
+<h2 id="pictures">Send pictures</h2>
+<p>A customer can attach 1 to 3 pictures to a message and the assistant reads them. Pictures never pass through the JSON bodies: they go straight to storage, and the message names them by ID. Each one takes three steps, and the third is the message itself:</p>
+<ol>
+  <li><strong>Register</strong> the picture: <code>POST /conversations/{'{id}'}/attachments</code> with <code>{'{filename, content_type, size, sha256}'}</code>. The answer has a presigned <code>url</code>, the <code>headers</code> to send and an attachment <code>id</code>.</li>
+  <li><strong>PUT</strong> the raw file to that <code>url</code> within 15 minutes, with exactly those headers and nothing else. This request goes to storage, not to Truplexy, so it never carries your chat key.</li>
+  <li><strong>Send the message</strong> with <code>attachments: ["att_…"]</code> (1 to 3 IDs). <code>message</code> may then be empty, but text gives better answers. The reply to that call has read the pictures.</li>
+</ol>
+<p>Pictures are available on plans that include image input, and only while the assistant has a model that can read them. Check first, and hide the attach button when it isn’t there:</p>
+<CodeBlock name="curl" code={availability} />
+<CodeTabs group="pictures" remember="lang" label="Your server language" tabs={pictureTabs()} />
+<p>Server code only: the chat key never goes in a browser or an app. Each script builds on the helper file in step 3 of this guide.</p>
+
+<h3 id="pictures-limits">Limits, and what happens to a picture</h3>
+<DataTable headers={['Limit', 'Detail']} rows={IMAGE_LIMITS} codeFirst={false} />
+<p>Read the limits from <code>GET /profile</code> rather than copying them: the numbers above are today’s, and the server may change them. Don’t assume the stored picture matches the file you uploaded in size, dimensions or type.</p>
+
+<h3 id="pictures-notes">Behavior notes</h3>
+<ul>{IMAGE_NOTES.map((note) => <li>{note}</li>)}</ul>
+
+<h3 id="pictures-errors">Picture errors</h3>
+<p>A picture error happens before anything is stored or paid for, so there is nothing to clean up. Match on <code>error.code</code>, never on the text. Don’t retry <code>INVALID_IMAGE</code>, <code>UNSUPPORTED_IMAGE_TYPE</code> or <code>IMAGE_TOO_LARGE</code>; do retry a failed PUT (a network error or a 5xx) up to twice with a short wait. Retrying the <em>message</em> with the same <code>Idempotency-Key</code> is safe; an attachment itself is single-use.</p>
+<DataTable headers={['Code', 'HTTP', 'What to do']} rows={IMAGE_ERRORS} />

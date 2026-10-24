@@ -60,11 +60,18 @@ def thread_for(conversation_id: str) -> str | None:
     return next((t for t, c in threads.items() if c == conversation_id), None)
 
 
-async def ask(thread: str, text: str, customer=None, channel_id=None) -> dict:
+async def conversation_for(thread: str, customer=None, channel_id=None) -> str:
     conv = threads.get(thread)
     if not conv:
         conv = threads[thread] = (await create_conversation(customer, channel_id))["id"]
-    r = await call(f"/conversations/{conv}/messages", {"message": text[:4000]})
+    return conv
+
+
+# attachments: IDs of pictures you registered and uploaded (optional).
+async def ask(thread: str, text: str, customer=None, channel_id=None, attachments=None) -> dict:
+    conv = await conversation_for(thread, customer, channel_id)
+    body = {"message": text[:4000], **({"attachments": attachments} if attachments else {})}
+    r = await call(f"/conversations/{conv}/messages", body)
     # "escalated" (a person has it) and "context" have no reply: send nothing.
     return {"reply": r.get("reply"), "status": r["status"], "conversation_id": conv}
 
@@ -356,21 +363,58 @@ async def send_telegram(chat_id, text: str):
     discord: {
       file: 'bot.py',
       handler: `# pip install discord.py — keeps a gateway connection open.
+import hashlib
 import os
 import discord
-from truplexy import ask
+import httpx
+from truplexy import ask, call, conversation_for
 
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+TYPES = ("image/jpeg", "image/png", "image/webp")
+
+
+async def upload_pictures(m: discord.Message, conversation_id: str) -> list[str]:
+    """Pictures in a Discord message → Truplexy attachment IDs. Empty when pictures are off for this business."""
+    pictures = [a for a in m.attachments if a.content_type in TYPES and a.size <= 20 * 1024 * 1024][:3]
+    if not pictures:
+        return []
+    # Absent or enabled: false means the API or the plan can't read pictures: send the text only.
+    if not (await call("/profile", method="GET")).get("attachments", {}).get("enabled"):
+        return []
+    ids = []
+    # Storage, not Truplexy: use a plain client, because the one in truplexy.py carries your chat key.
+    async with httpx.AsyncClient(timeout=60) as storage:
+        for a in pictures:
+            data = await a.read()
+            # 1. Register it. The server reads the real bytes later; this is what you declare.
+            reg = await call(f"/conversations/{conversation_id}/attachments", {
+                "filename": a.filename, "content_type": a.content_type, "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+            })
+            # 2. PUT it to storage with exactly the headers returned.
+            (await storage.put(reg["url"], headers=reg["headers"], content=data)).raise_for_status()
+            ids.append(reg["attachment"]["id"])
+    return ids
+
 
 @client.event
 async def on_message(m: discord.Message):
-    if m.author.bot or not m.content:
+    if m.author.bot or not (m.content or m.attachments):
         return
     async with m.channel.typing():
-        r = await ask(f"dc:{m.channel.id}:{m.author.id}", m.content, {"contacts": [{"type": "discord", "value": str(m.author.id)}]})
+        thread = f"dc:{m.channel.id}:{m.author.id}"
+        customer = {"contacts": [{"type": "discord", "value": str(m.author.id)}]}
+        try:
+            attachments = await upload_pictures(m, await conversation_for(thread, customer))
+        except Exception as e:  # answer the text instead
+            print("pictures skipped:", getattr(e, "code", e))
+            attachments = []
+        if not (m.content or attachments):
+            return
+        # 3. Send the message, naming the pictures. Text may be empty, but it gives better answers.
+        r = await ask(thread, m.content, customer, attachments=attachments)
     if r["reply"]:
         await m.reply(r["reply"])
 

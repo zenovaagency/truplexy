@@ -188,6 +188,7 @@ const toc = [
   ['widget', '3. Add the widget'],
   ['customers', 'Customer identity'],
   ['chat-api', 'Server chat API'],
+  ['pictures', 'Pictures'],
   ['customise', 'Customise'],
   ['api', 'JavaScript API'],
   ['headless', 'Build your own UI'],
@@ -269,6 +270,11 @@ const result = await chat.sendMessage(conversation.id, "Hello");`} />
           <p>Agent replies take <code>content</code> (1–8000 characters), optional <code>author</code> (up to 64), <code>external_id</code> (up to 128), and <code>escalate</code> (default false). Reuse the platform message ID to deduplicate retries. New replies return 201; repeated IDs return 200.</p>
           <p>Realtime includes messages and ticket changes; pass only the visitor’s conversation topic to their browser. Webhooks report staff actions, exclude internal notes and integration actions, and do not echo resume or agent replies sent through the integration. Verify the raw-body signature, acknowledge within 2.5 seconds and deduplicate the delivery ID across its possible retry.</p>
           <p>Migration: the five widget protocol actions and signed-session format remain compatible. Customer linking errors now stop new identified chats. Background context and automatic ticket creation remain best effort. Only <code>REALTIME_NOT_CONFIGURED</code> triggers polling fallback.</p>
+
+          <h2 id="pictures">Pictures</h2>
+          <p>The assistant can read pictures a customer attaches, on plans that include image input. The ready-made widget has no attach button yet, so this is for a chat UI you build yourself.</p>
+          <p>A browser never holds your chat key, so it never calls the picture endpoints. Your route registers each picture (<code>POST /conversations/{'{id}'}/attachments</code>, with only the filename, type, size and SHA-256 the browser sends you) and passes the returned <code>url</code> and <code>headers</code> back. The browser then <code>PUT</code>s the file straight to that <code>url</code> with exactly those headers and no cookies or <code>Authorization</code>. Your route finally sends the message with the picture IDs in <code>attachments</code>. Protect the registration route like the message route: sign-in or rate limits.</p>
+          <p>A browser’s <code>PUT</code> needs the storage bucket’s CORS rule to allow <code>PUT</code> and <code>Content-Type</code> from your site’s origin. The calls, limits and errors are in the <a href="/docs/api#pictures">chat API guide</a>.</p>
 
           <h2 id="customise">Customise</h2>
           <h3>Attributes</h3>

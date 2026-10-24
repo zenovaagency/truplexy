@@ -48,10 +48,14 @@ interface Creds {
 
 function validate(v: Creds, mode: 'signin' | 'signup' | 'magic') {
   const errs: Partial<Record<keyof Creds, string>> = {};
+  if (mode === 'signup' && !v.name.trim()) errs.name = 'Enter your name';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) errs.email = 'Enter a valid email address';
   if (mode !== 'magic' && v.password.length < 8) errs.password = 'At least 8 characters';
   return errs;
 }
+
+// Temporarily disabled; flip to true to bring back "Continue with Google".
+const GOOGLE_SIGN_IN_ENABLED = false;
 
 function GoogleIcon() {
   return <img src="/brands/google.svg" alt="" draggable={false} className="size-4 object-contain" />;
@@ -97,7 +101,7 @@ export function SignInPage() {
         await auth.sendMagicLink(v.email, next);
         if (!env.useMocks) setSent(v.email);
       } else if (mode === 'signup') {
-        const r = await auth.signUp(v.email, v.password, v.name || undefined, next);
+        const r = await auth.signUp(v.email, v.password, v.name.trim(), next);
         if (r.needsConfirmation) setSent(v.email);
       } else {
         await auth.signInWithPassword(v.email, v.password);
@@ -163,36 +167,40 @@ export function SignInPage() {
           </Callout>
         )}
 
-        <Button
-          size="md"
-          variant="ghost"
-          className="w-full"
-          loading={google}
-          leading={<GoogleIcon />}
-          disabled={!authConfigured}
-          onClick={async () => {
-            setGoogle(true);
-            try {
-              await auth.signInWithGoogle(next);
-              if (env.useMocks) nav(next, { replace: true });
-            } catch (e) {
-              setError(e instanceof Error ? e.message : 'Google sign-in failed.');
-              setGoogle(false);
-            }
-          }}
-        >
-          Continue with Google
-        </Button>
+        {GOOGLE_SIGN_IN_ENABLED && (
+          <>
+            <Button
+              size="md"
+              variant="ghost"
+              className="w-full"
+              loading={google}
+              leading={<GoogleIcon />}
+              disabled={!authConfigured}
+              onClick={async () => {
+                setGoogle(true);
+                try {
+                  await auth.signInWithGoogle(next);
+                  if (env.useMocks) nav(next, { replace: true });
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Google sign-in failed.');
+                  setGoogle(false);
+                }
+              }}
+            >
+              Continue with Google
+            </Button>
 
-        <div className="flex items-center gap-3 text-xs text-ink-faint">
-          <span className="h-px flex-1 bg-line" />
-          or with email
-          <span className="h-px flex-1 bg-line" />
-        </div>
+            <div className="flex items-center gap-3 text-xs text-ink-faint">
+              <span className="h-px flex-1 bg-line" />
+              or with email
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          </>
+        )}
 
         <form onSubmit={submit} className="grid gap-4" noValidate>
           {mode === 'signup' && (
-            <Field label="Your name" optional>
+            <Field label="Your name" error={errs.name}>
               <Input autoComplete="name" {...field('name')} />
             </Field>
           )}
@@ -620,6 +628,8 @@ export function InvitePage() {
 
   // Only the invited address can accept. The mock accepts any address, so it isn't checked there.
   const mismatchError = accept.isError && hasCode(accept.error, 'INVITE_EMAIL_MISMATCH');
+  // The address isn't confirmed yet: keep the invitation on screen, since it works once it is.
+  const unverifiedError = accept.isError && hasCode(accept.error, 'EMAIL_NOT_VERIFIED');
   const wrongAccount =
     mismatchError || (!env.useMocks && !!preview.data && !!auth.user?.email && preview.data.email.toLowerCase() !== auth.user.email.toLowerCase());
   // Signing out shows the signed-out invitation, whose sign-in links come back here.
@@ -628,7 +638,7 @@ export function InvitePage() {
     void auth.signOut().finally(() => setSwitching(false));
   };
 
-  const err = preview.error ?? (mismatchError ? null : accept.error);
+  const err = preview.error ?? (mismatchError || unverifiedError ? null : accept.error);
   const d = err ? describeError(err) : null;
 
   return (
@@ -683,9 +693,16 @@ export function InvitePage() {
                 </Button>
               </>
             ) : (
-              <Button variant="accent" size="md" loading={accept.isPending} onClick={onAccept}>
-                Accept and continue
-              </Button>
+              <>
+                {unverifiedError && (
+                  <Callout tone="warn" title="Confirm your email address first">
+                    We sent a confirmation message to <span className="font-semibold text-ink">{auth.user?.email}</span>. Open it, then come back to this page and accept again.
+                  </Callout>
+                )}
+                <Button variant="accent" size="md" loading={accept.isPending} onClick={onAccept}>
+                  Accept and continue
+                </Button>
+              </>
             )}
           </div>
         )

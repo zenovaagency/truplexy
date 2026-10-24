@@ -41,6 +41,7 @@ import {
   usePlatformDeletionRequests,
   usePlatformModels,
   usePlatformOverview,
+  usePlatformSettings,
   usePlatformTemplates,
   usePlatformTenantDetail,
   usePlatformTenants,
@@ -58,6 +59,7 @@ import {
   useSavePlatformTemplate,
   useTogglePlatformChannel,
   useTogglePlatformTool,
+  useUpdatePlatformSettings,
   useUpdatePlatformTenant,
   useUpdatePlatformUser,
   type ChannelTypeInput,
@@ -399,7 +401,7 @@ function BusinessStatusBadge({ business: b }: { business: PlatformBusiness }) {
 /** Businesses that can still be filtered on: deleted ones have nothing to show. */
 const liveBusinesses = (list: PlatformBusiness[] | undefined) => (list ?? []).filter((t) => !t.deleted_at);
 
-type NumericLimit = Exclude<keyof Limits, 'web_search'>;
+type NumericLimit = Exclude<keyof Limits, 'web_search' | 'image_input'>;
 
 const LIMIT_FIELDS: { key: NumericLimit; label: string; max: number }[] = [
   { key: 'replies_per_month', label: 'AI replies / month', max: 10_000_000 },
@@ -450,6 +452,7 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
     const out: Partial<Limits> = {};
     for (const f of LIMIT_FIELDS) if (limits[f.key] !== undefined && limits[f.key] !== '') out[f.key] = Math.max(0, Math.min(f.max, Math.round(Number(limits[f.key]))));
     if (limits.web_search === 'true' || limits.web_search === 'false') out.web_search = limits.web_search === 'true';
+    if (limits.image_input === 'true' || limits.image_input === 'false') out.image_input = limits.image_input === 'true';
     update.mutate({ id: b.id, body: { limits: out } });
   };
 
@@ -524,6 +527,17 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
               <Select
                 value={limits.web_search ?? ''}
                 onChange={(e) => setLimits({ ...limits, web_search: e.target.value })}
+                options={[
+                  { value: '', label: "The plan's setting" },
+                  { value: 'true', label: 'On' },
+                  { value: 'false', label: 'Off' },
+                ]}
+              />
+            </Field>
+            <Field label="Pictures in messages" hint={`Now ${b.limits.image_input ? 'on' : 'off'} for this business.`}>
+              <Select
+                value={limits.image_input ?? ''}
+                onChange={(e) => setLimits({ ...limits, image_input: e.target.value })}
                 options={[
                   { value: '', label: "The plan's setting" },
                   { value: 'true', label: 'On' },
@@ -1880,6 +1894,7 @@ export function PlatformModels() {
           {emptyTiers(q.data).map((t) => `${t.label} handles ${t.handles}`).join('. ')}. Give at least one active model to each tier.
         </Callout>
       )}
+      <VisionModelCard />
       <Card flush>
         {q.isPending ? (
           <SkeletonRows rows={5} className="p-4" />
@@ -1952,7 +1967,7 @@ export function PlatformModels() {
                 },
               },
               { key: 'ctx', header: 'Context', align: 'right', hideBelowLg: true, cell: (m) => <span className="tabular-nums text-ink-muted">{formatCompact(m.context_tokens)}</span> },
-              { key: 'caps', header: 'Features', hideBelowLg: true, cell: (m) => <span className="flex gap-1">{m.supports_tools && <Badge tone="outline">Tools</Badge>}{m.supports_prompt_cache && <Badge tone="outline">Cache</Badge>}</span> },
+              { key: 'caps', header: 'Features', hideBelowLg: true, cell: (m) => <span className="flex gap-1">{m.supports_tools && <Badge tone="outline">Tools</Badge>}{m.supports_prompt_cache && <Badge tone="outline">Cache</Badge>}{m.supports_vision && <Badge tone="outline">Pictures</Badge>}</span> },
               { key: 'bots', header: 'Bots', align: 'right', cell: (m) => <span className="tabular-nums">{m.bots}</span> },
               { key: 'edit', header: <span className="sr-only">Edit</span>, align: 'right', cell: (m) => <Button size="xs" icon variant="quiet" aria-label={`Edit ${m.label}`} onClick={() => setEdit(m)}><Pencil /></Button> },
             ]}
@@ -1961,6 +1976,64 @@ export function PlatformModels() {
       </Card>
       <ModelSheet model={edit} onClose={() => setEdit(null)} />
     </Page>
+  );
+}
+
+const VISION_SOURCE: Record<'console' | 'env' | 'none', { label: string; tone: Tone }> = {
+  console: { label: 'Set here', tone: 'accent' },
+  env: { label: 'Server default', tone: 'neutral' },
+  none: { label: 'None', tone: 'warn' },
+};
+
+/** The model that answers a message with pictures when the bot's own model can't read them (picture input). */
+export function VisionModelCard() {
+  const q = usePlatformSettings();
+  const save = useUpdatePlatformSettings();
+  const [draft, setDraft] = useState('');
+  const v = q.data?.vision_model;
+  useEffect(() => {
+    if (v) setDraft(v.value);
+  }, [v?.value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // An API that predates the setting answers 404, and there is nothing to change.
+  if (q.isPending || q.data === null) return null;
+  if (q.isError || !v) return <Card title="Vision model"><ErrorState error={q.error} onRetry={() => q.refetch()} /></Card>;
+
+  const id = draft.trim();
+  const valid = /^[a-z0-9-]+\/[a-z0-9._:-]+$/i.test(id);
+  const saving = save.isPending ? save.variables : undefined;
+  return (
+    <Card
+      title="Vision model"
+      description="Answers a message with pictures when the bot's own model can't read them. A bot whose model reads pictures always uses its own."
+      actions={<Badge tone={VISION_SOURCE[v.source].tone}>{VISION_SOURCE[v.source].label}</Badge>}
+    >
+      <div className="grid gap-3">
+        {v.source === 'none' ? (
+          <Callout tone="warn" title="No vision model is in use">
+            Bots whose model can't read pictures can't answer them, and the playground and chat widgets hide the attach button. Choose a model below.
+          </Callout>
+        ) : (
+          <p className="text-sm text-ink-muted">
+            In use: <span className="font-mono text-ink">{v.effective}</span>
+          </p>
+        )}
+        <Field label="Model" hint="An OpenRouter model ID that reads pictures. It takes effect within a minute.">
+          <Input className="font-mono" value={draft} placeholder={v.default || 'vendor/model'} spellCheck={false} onChange={(e) => setDraft(e.target.value)} />
+        </Field>
+        <OpenRouterPicker onlyVision onPick={(m) => setDraft(m.id)} />
+        <div className="flex flex-wrap gap-2">
+          <Button size="xs" variant="soft" disabled={!valid || id === v.value} loading={saving !== undefined && saving !== null} onClick={() => save.mutate(id)}>
+            Save
+          </Button>
+          {v.value && (
+            <Button size="xs" variant="ghost" loading={saving === null} onClick={() => save.mutate(null)}>
+              {v.default ? 'Use the server default' : 'Remove the setting'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -2031,6 +2104,7 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
       context_tokens: p.context,
       max_output_tokens: p.maxOutput ?? 0,
       supports_tools: p.tools,
+      supports_vision: p.vision,
     }));
   // Tiers this save would leave without an active model (they had one before).
   const others = (allModels.data ?? []).filter((x) => x.id !== existing?.id);
@@ -2166,6 +2240,7 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
         )}
         <Switch checked={m.supports_tools} onCheckedChange={(v) => set('supports_tools', v)} label="Supports tool calls" />
         <Switch checked={m.supports_prompt_cache} onCheckedChange={(v) => set('supports_prompt_cache', v)} label="Prompt caching" description="Sends the system prompt as a cache breakpoint." />
+        <Switch checked={m.supports_vision ?? false} onCheckedChange={(v) => set('supports_vision', v)} label="Reads pictures" description="Can answer a message that carries pictures. Left alone on a new model, the API reads it from OpenRouter." />
         <Switch checked={m.is_default} disabled={m.status !== 'active'} onCheckedChange={(v) => set('is_default', v)} label="Default model" description="Answers unless routing picks another model. Must be active." />
       </div>
     </Sheet>

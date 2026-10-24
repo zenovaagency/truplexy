@@ -159,28 +159,66 @@ describe('the guide content', () => {
 });
 
 /** Everything the public site builds its docs from, and the pages themselves. */
-describe('the public docs say nothing about pictures', () => {
+describe('the public docs cover pictures over plain HTTP', () => {
   const repo = join(process.cwd(), '..');
   const walk = (dir: string): string[] =>
     readdirSync(dir).flatMap((f) => {
       const p = join(dir, f);
       return statSync(p).isDirectory() ? walk(p) : [p];
     });
+  const site = () => walk(join(repo, 'src')).filter((f) => /\.(astro|ts|tsx|md|mdx)$/.test(f));
+  const read = (path: string) => readFileSync(join(repo, path), 'utf8');
 
-  it('neither the site nor the language packs import the picture guide or its snippets', () => {
-    const site = walk(join(repo, 'src')).filter((f) => /\.(astro|ts|tsx|md|mdx)$/.test(f));
-    expect(site.length).toBeGreaterThan(10);
-    for (const f of site) {
-      const text = readFileSync(f, 'utf8');
-      expect(text, relative(repo, f)).not.toMatch(/snippets\/images|ImageGuide|IMAGE_SNIPPETS|image input|attachments/i);
+  it('the site does not import the dashboard’s React guide', () => {
+    expect(site().length).toBeGreaterThan(10);
+    for (const f of site()) expect(readFileSync(f, 'utf8'), relative(repo, f)).not.toMatch(/ImageGuide/);
+  });
+
+  it('the site names no SDK method that is not published yet', () => {
+    for (const f of site()) {
+      expect(readFileSync(f, 'utf8'), relative(repo, f)).not.toMatch(/registerImage|uploadImage|getAttachmentConfig|IMAGE_WIDGET|IMAGE_ENDPOINTS|IMAGE_FEATURE_CHECK/);
     }
   });
 
-  it('the shared language packs and endpoint table are as they were', () => {
-    const dir = join(process.cwd(), 'src/features/integrations/snippets');
-    for (const f of ['node', 'python', 'php', 'go', 'java', 'csharp', 'ruby', 'chat-api', 'types', 'web-sdk', 'wordpress-plugin']) {
-      const text = readFileSync(join(dir, `${f}.ts`), 'utf8');
-      expect(text, f).not.toMatch(/\/attachments|attachments:|image input|registerImage|uploadImage/i);
+  it('/docs/api has the pictures section and the web-sdk and channel guides point to it', () => {
+    expect(read('src/pages/docs/[id].astro')).toContain('<SendingPictures />');
+    expect(read('src/components/docs/SendingPictures.astro')).toContain('id="pictures"');
+    expect(read('src/pages/docs/web-sdk.astro')).toContain('/docs/api#pictures');
+    expect(read('src/data/setup-guides.ts')).toContain('/docs/api');
+  });
+
+  it('the pictures tabs are built from the dashboard’s snippets, with curl', () => {
+    const tabs = read('src/data/snippets.ts');
+    expect(tabs).toContain('pictureTabs');
+    expect(tabs).toContain('IMAGE_SNIPPETS');
+    expect(tabs).toContain('IMAGE_CURL');
+  });
+
+  const snippets = join(process.cwd(), 'src/features/integrations/snippets');
+
+  it('only the packs with a Discord bot, and only that bot, upload pictures; the others are as they were', () => {
+    for (const f of ['php', 'java', 'ruby', 'chat-api', 'types', 'web-sdk', 'wordpress-plugin']) {
+      expect(readFileSync(join(snippets, `${f}.ts`), 'utf8'), f).not.toMatch(/\/attachments|attachments:|image input|registerImage|uploadImage/i);
+    }
+    for (const f of ['node', 'python', 'go', 'csharp']) {
+      const text = readFileSync(join(snippets, `${f}.ts`), 'utf8');
+      expect(text, f).not.toMatch(/registerImage|uploadImage/);
+      // Only the Discord handler registers pictures: every other channel handler is text only.
+      expect(text.split(/\/attachments/).length - 1, f).toBe(1);
+    }
+  });
+
+  it('the Discord bot checks GET /profile, keeps the chat key off storage and falls back to the text', async () => {
+    for (const lang of ['node', 'python', 'go', 'csharp'] as const) {
+      const pack = (await import(`./snippets/${lang}.ts`)).default;
+      const bot: string = pack.integrations.discord.handler;
+      expect(bot, lang).toContain('/profile');
+      expect(bot, lang).toMatch(/enabled/i);
+      expect(bot, lang).toContain('/attachments');
+      expect(bot, lang).toMatch(/Not to Truplexy|plain client|storage/);
+      expect(bot, lang).toMatch(/send the text only|answer the text instead|If the pictures fail/);
+      // The picture upload never adds an Authorization header of its own.
+      expect(bot, lang).not.toMatch(/Authorization|TRUPLEXY_CHAT_KEY/);
     }
   });
 });
