@@ -53,6 +53,9 @@ function validate(v: Creds, mode: 'signin' | 'signup' | 'magic') {
   return errs;
 }
 
+// Temporarily disabled; flip to true to bring back "Continue with Google".
+const GOOGLE_SIGN_IN_ENABLED = false;
+
 function GoogleIcon() {
   return <img src="/brands/google.svg" alt="" draggable={false} className="size-4 object-contain" />;
 }
@@ -163,32 +166,36 @@ export function SignInPage() {
           </Callout>
         )}
 
-        <Button
-          size="md"
-          variant="ghost"
-          className="w-full"
-          loading={google}
-          leading={<GoogleIcon />}
-          disabled={!authConfigured}
-          onClick={async () => {
-            setGoogle(true);
-            try {
-              await auth.signInWithGoogle(next);
-              if (env.useMocks) nav(next, { replace: true });
-            } catch (e) {
-              setError(e instanceof Error ? e.message : 'Google sign-in failed.');
-              setGoogle(false);
-            }
-          }}
-        >
-          Continue with Google
-        </Button>
+        {GOOGLE_SIGN_IN_ENABLED && (
+          <>
+            <Button
+              size="md"
+              variant="ghost"
+              className="w-full"
+              loading={google}
+              leading={<GoogleIcon />}
+              disabled={!authConfigured}
+              onClick={async () => {
+                setGoogle(true);
+                try {
+                  await auth.signInWithGoogle(next);
+                  if (env.useMocks) nav(next, { replace: true });
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Google sign-in failed.');
+                  setGoogle(false);
+                }
+              }}
+            >
+              Continue with Google
+            </Button>
 
-        <div className="flex items-center gap-3 text-xs text-ink-faint">
-          <span className="h-px flex-1 bg-line" />
-          or with email
-          <span className="h-px flex-1 bg-line" />
-        </div>
+            <div className="flex items-center gap-3 text-xs text-ink-faint">
+              <span className="h-px flex-1 bg-line" />
+              or with email
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          </>
+        )}
 
         <form onSubmit={submit} className="grid gap-4" noValidate>
           {mode === 'signup' && (
