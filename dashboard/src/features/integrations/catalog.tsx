@@ -139,7 +139,7 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'shopify',
     name: 'Shopify',
     group: 'business',
-    blurb: 'Install the Truplexy app on your store, so the assistant can check order status and search your products.',
+    blurb: 'Install the Truplexy app on your store: a chat window on every page, and order status and product search for the assistant.',
     icon: '/brands/shopify.svg',
     color: 'var(--color-ink)',
     connect: 'shopify',

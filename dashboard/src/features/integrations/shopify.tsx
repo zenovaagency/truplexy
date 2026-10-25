@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Link2, Lock, Wrench } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Link2, Lock, MessageCircle, Wrench } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import { useEnableShopifyTools, useTools, useWorkspace } from '@/lib/api/endpoints/bot';
 import { useConnectChannel } from '@/lib/api/endpoints/channels';
@@ -11,6 +11,7 @@ import { qk } from '@/lib/query-keys';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { SHOPIFY_TOOLS, connectErrorMessage, markShopifyUnavailable, readConnectReturn, shopifyUnavailable, storeFieldError, subscribeShopifyUnavailable } from '@/lib/shopify';
 import { Button, Callout, Dialog, Field, Input, Tip } from '@/components/ui';
+import { ShopifyChatSetup } from './ShopifyChatSetup';
 
 const UNAVAILABLE = "Shopify connections aren't set up on this server yet.";
 
@@ -26,6 +27,8 @@ export function useConnectReturn() {
   const ret = useMemo(() => readConnectReturn(params), [params]);
   const [failed, setFailed] = useState<string | null>(null);
   const [connected, setConnected] = useState<{ channelId: string | null } | null>(null);
+  // The channel whose chat window the person is asked to set up, right after the install.
+  const [customize, setCustomize] = useState<string | null>(null);
   const told = useRef('');
 
   useEffect(() => {
@@ -38,6 +41,7 @@ export function useConnectReturn() {
       void qc.invalidateQueries({ queryKey: qk.bot(scope, 'channels') });
       void qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') });
       setConnected({ channelId: ret.channelId });
+      setCustomize(ret.channelId);
       setFailed(null);
     } else {
       setFailed(ret.code);
@@ -59,7 +63,29 @@ export function useConnectReturn() {
     /** Set after a successful return; channelId is the store's channel. */
     connected,
     dismissConnected: () => setConnected(null),
+    /** The store's channel, until the chat window set-up that opens after the install is closed. */
+    customize,
+    closeCustomize: () => setCustomize(null),
   };
+}
+
+/** The chat window set-up that opens right after a store connects. */
+export function ConnectedChatSetup({ back }: { back: Pick<ReturnType<typeof useConnectReturn>, 'customize' | 'closeCustomize'> }) {
+  if (!back.customize) return null;
+  return <ShopifyChatSetup channelId={back.customize} fresh onClose={back.closeCustomize} />;
+}
+
+/** Opens the chat window set-up for a connected store's channel, at any time. */
+export function CustomizeChatButton({ channelId, size = 'xs', variant = 'soft' }: { channelId: string; size?: 'xs' | 'sm'; variant?: 'accent' | 'soft' }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button size={size} variant={variant} leading={<MessageCircle />} onClick={() => setOpen(true)}>
+        Customize chat
+      </Button>
+      {open && <ShopifyChatSetup channelId={channelId} onClose={() => setOpen(false)} />}
+    </>
+  );
 }
 
 /** Why the store wasn't connected. Stays until dismissed, with a way to try again. */
