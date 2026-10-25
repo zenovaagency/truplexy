@@ -589,6 +589,15 @@ paths:
             type: string
             maxLength: 100
           description: Matches the start of the name or of any contact's value.
+        - name: property
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+          description: property[key]=value keeps customers whose custom property has the value (up to 5). Sensitive properties need customers.write.
         - name: limit
           in: query
           schema:
@@ -723,13 +732,79 @@ paths:
     delete:
       operationId: deleteCustomer
       summary: Delete a customer (v2)
-      description: Needs customers.write. Deletes the customer and their contacts. Their conversations and tickets keep customer_id, and the contacts can be used again.
+      description: Needs customers.write. Deletes the customer, their contacts and their picture. Their conversations and tickets keep customer_id, and the contacts can be used again.
       security:
         - AdminKey: []
         - MemberToken: []
       responses:
         '204':
           description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /customers/{id}/avatar:
+    parameters:
+      - $ref: '#/components/parameters/CustomerID'
+    put:
+      operationId: setCustomerAvatar
+      summary: Upload a customer's picture (v2)
+      description: Needs customers.write. PNG, JPEG or WebP, as multipart file or the raw body. Kept when the chat API later sends avatar_url. 404 CUSTOMER_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: The picture's URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [avatar_url]
+                properties:
+                  avatar_url:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteCustomerAvatar
+      summary: Remove a customer's picture (v2)
+      description: Needs customers.write. 404 CUSTOMER_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: Removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatar_url:
+                    type: string
+                    nullable: true
         default:
           $ref: '#/components/responses/Error'
   /properties:
@@ -5896,7 +5971,7 @@ components:
           description: Null leaves it to each business; leaving it out keeps it (v2).
     Customer:
       type: object
-      required: [id, tenant_id, bot_id, name, contacts, metadata, first_seen_at, last_seen_at, conversations, tickets, open_tickets, created_at, updated_at]
+      required: [id, tenant_id, bot_id, name, contacts, metadata, properties, first_seen_at, last_seen_at, conversations, tickets, open_tickets, created_at, updated_at]
       properties:
         id:
           type: string
@@ -5916,6 +5991,22 @@ components:
           type: object
           additionalProperties: true
           description: Whatever the caller keeps about the customer, up to 4 KB.
+        properties:
+          type: object
+          additionalProperties: true
+          description: The bot's custom property values by key (see /properties).
+        masked_properties:
+          type: array
+          description: Keys of sensitive values left out because the caller may not see them; absent when none.
+          items:
+            type: string
+        avatar_url:
+          type: string
+          description: The customer's picture; absent for none.
+        avatar_source:
+          type: string
+          enum: [upload, url]
+          description: upload when the team uploaded the picture, url when it was copied from a link.
         first_seen_at:
           type: string
           format: date-time
@@ -5969,6 +6060,14 @@ components:
           type: object
           additionalProperties: true
           description: Up to 4 KB.
+        properties:
+          type: object
+          additionalProperties: true
+          description: Values of the bot's custom properties by key, merged into the customer's; null clears one.
+        avatar_url:
+          type: string
+          maxLength: 2048
+          description: An https link to a PNG, JPEG or WebP picture to copy as the customer's; empty removes it. A link that can't be fetched leaves the picture as it was.
     PropertyEntity:
       type: string
       enum: [customer]

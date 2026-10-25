@@ -25,6 +25,9 @@ export const ENTITY_LABEL: Record<PropertyEntity, { one: string; many: string }>
 
 export const hasOptions = (t: PropertyType) => t === 'select' || t === 'multi_select';
 
+/** Properties a list can be filtered by with a picker: choices and yes/no. */
+export const pickable = (d: PropertyDefinition) => (d.type === 'select' || d.type === 'multi_select' || d.type === 'boolean') && !d.sensitive;
+
 /** Keys the API keeps for fields records already have. */
 export const RESERVED_KEYS = new Set([
   'id', 'name', 'email', 'phone', 'status', 'type', 'metadata', 'properties', 'contacts', 'created_at', 'updated_at', 'deleted_at',

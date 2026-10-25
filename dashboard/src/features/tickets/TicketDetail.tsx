@@ -582,9 +582,11 @@ function CustomerSection({ id }: { id: string }) {
         <Skeleton className="h-12 rounded-[12px]" />
       ) : c ? (
         <div className="flex items-center gap-3 rounded-[12px] border border-line bg-surface-2/60 p-3">
-          <Avatar name={c.name} email={contactOf(c, 'email')} size={32} />
+          <Avatar name={c.name} email={contactOf(c, 'email')} src={c.avatar_url} size={32} />
           <div className="grid min-w-0 flex-1">
-            <span className="truncate text-[0.8125rem] font-semibold text-ink">{customerLabel(c)}</span>
+            <Link to={href(`customers/${c.id}`)} className="truncate text-[0.8125rem] font-semibold text-ink hover:underline">
+              {customerLabel(c)}
+            </Link>
             {c.name && contactOf(c, 'email') && (
               <a href={`mailto:${contactOf(c, 'email')}`} className="truncate text-xs text-ink-faint hover:underline">
                 {contactOf(c, 'email')}
