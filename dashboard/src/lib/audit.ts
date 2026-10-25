@@ -45,6 +45,7 @@ const VERB: Record<string, string> = {
   'channel.create': 'added channel',
   'channel.update': 'changed channel',
   'channel.delete': 'deleted channel',
+  'channel.widget_update': 'changed the chat window of',
   'channel.platform_disabled': 'turned off channel',
   'channel.platform_enabled': 'turned back on channel',
   'channel.connect_started': 'started connecting a Shopify store',

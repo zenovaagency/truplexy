@@ -80,3 +80,39 @@ describe('built-in tools', () => {
     expect(wrong.output).toBe('No order matches that order number and email.');
   });
 });
+
+describe('the chat window of a Shopify channel', () => {
+  const store = () => {
+    connect('demo-store');
+    return shopify()[0].id as string;
+  };
+
+  it('starts on the defaults, and keeps what is saved', () => {
+    const id = store();
+    const fresh = call('GET', `/channels/${id}/widget`);
+    expect(fresh).toMatchObject({ channel_id: id, enabled: true, shop: 'demo-store.myshopify.com', last_seen_at: '' });
+    expect(fresh.settings).toEqual(fresh.defaults);
+    expect(fresh.activation_url).toContain('demo-store.myshopify.com/admin/themes/current/editor');
+
+    const saved = call('PUT', `/channels/${id}/widget`, { enabled: false, settings: { ...fresh.defaults, heading: 'Help', accent: '#AA3366', position: 'left' } });
+    expect(saved).toMatchObject({ enabled: false, settings: { heading: 'Help', accent: '#aa3366', position: 'left' } });
+    expect(call('GET', `/channels/${id}/widget`).settings.heading).toBe('Help');
+    // Leaving enabled out keeps the switch.
+    expect(call('PUT', `/channels/${id}/widget`, { settings: saved.settings }).enabled).toBe(false);
+  });
+
+  it('refuses what the API refuses', () => {
+    const id = store();
+    const { defaults } = call('GET', `/channels/${id}/widget`);
+    for (const settings of [{ ...defaults, accent: 'red' }, { ...defaults, theme: 'neon' }, { ...defaults, position: 'top' }, { ...defaults, avatar_url: 'http://x.test/a.png' }, { ...defaults, font: 'x' }]) {
+      expect(fails(() => call('PUT', `/channels/${id}/widget`, { settings })).code).toBe('INVALID_REQUEST');
+    }
+    expect(fails(() => call('PUT', `/channels/${id}/widget`, {})).code).toBe('INVALID_REQUEST');
+  });
+
+  it("is only for a Shopify store's channel", () => {
+    const web = (call('GET', '/channels').data as any[]).find((c) => c.type !== 'shopify');
+    if (web) expect(fails(() => call('GET', `/channels/${web.id}/widget`)).code).toBe('WIDGET_NOT_SUPPORTED');
+    expect(fails(() => call('GET', '/channels/chn_missing/widget')).code).toBe('CHANNEL_NOT_FOUND');
+  });
+});

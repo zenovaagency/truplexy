@@ -291,6 +291,48 @@ export type ChannelInput = Pick<Channel, 'type' | 'name' | 'description' | 'exte
   auto_close_hours?: number | null;
 };
 
+/**
+ * How a Shopify store's chat window looks on its storefront. An empty text, colour or
+ * picture leaves the choice to the window: the business's name and logo, and its own wording.
+ */
+export interface ChannelWidgetSettings {
+  /** Up to 60 characters. */
+  heading: string;
+  /** Up to 100. */
+  subtitle: string;
+  /** Up to 300, Markdown. */
+  greeting: string;
+  /** Up to 80. */
+  placeholder: string;
+  /** #rrggbb. */
+  accent: string;
+  /** An https link, up to 500 characters. */
+  avatar_url: string;
+  theme: 'light' | 'dark' | 'auto';
+  position: 'right' | 'left';
+  /** Link the pages an answer came from. */
+  show_sources: boolean;
+  /** `ask` shows a name and email form before the first message. */
+  details: 'ask' | 'off';
+}
+
+/** GET and PUT /channels/{id}/widget (v2). */
+export interface ChannelWidget {
+  channel_id: string;
+  /** Whether the window is shown; the channel's own switch still turns the whole channel off. */
+  enabled: boolean;
+  settings: ChannelWidgetSettings;
+  /** What an empty setting shows. */
+  defaults: ChannelWidgetSettings;
+  /** When a page of the store first and last loaded the window; empty until one has. */
+  first_seen_at: string;
+  last_seen_at: string;
+  /** The store's myshopify.com domain. */
+  shop: string;
+  /** The store's theme editor with the chat's app embed switched on. */
+  activation_url: string;
+}
+
 /* ------------------------------------------------------------------ */
 /* Bot configuration                                                   */
 /* ------------------------------------------------------------------ */

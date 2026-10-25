@@ -1694,6 +1694,61 @@ paths:
           description: Deleted.
         default:
           $ref: '#/components/responses/Error'
+  /channels/{id}/widget:
+    parameters:
+      - $ref: '#/components/parameters/ChannelID'
+    get:
+      operationId: getChannelWidget
+      summary: How a Shopify store's chat window looks on its storefront (v2)
+      description: >-
+        Needs channels.read. A channel that never saved settings returns the defaults. first_seen_at and last_seen_at
+        are when the store's pages last loaded the window, empty until one has. activation_url opens the store's theme
+        editor with the Truplexy chat app embed turned on. 409 WIDGET_NOT_SUPPORTED for a channel that isn't a
+        Shopify store's; 503 SHOPIFY_NOT_CONFIGURED when the server has no Shopify app.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The chat window.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelWidget'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: saveChannelWidget
+      summary: Save the chat window's settings (v2)
+      description: >-
+        Needs channels.write. Replaces all settings; leave a text, colour or picture empty to use the window's own.
+        enabled, when sent, shows or hides the window on the storefront; the channel's own switch still turns the whole
+        channel off. The storefront sees the change within 30 seconds.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [settings]
+              properties:
+                enabled:
+                  type: boolean
+                settings:
+                  $ref: '#/components/schemas/ChannelWidgetSettings'
+      responses:
+        '200':
+          description: The saved chat window.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelWidget'
+        default:
+          $ref: '#/components/responses/Error'
   /workspace:
     get:
       operationId: getWorkspace
@@ -7393,6 +7448,70 @@ components:
           description: The business types the preset suits; empty suits every business.
           items:
             type: string
+    ChannelWidgetSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        heading:
+          type: string
+          maxLength: 60
+          description: The header's title; empty uses the business name.
+        subtitle:
+          type: string
+          maxLength: 100
+        greeting:
+          type: string
+          maxLength: 300
+          description: The first message, as Markdown; empty uses the window's own.
+        placeholder:
+          type: string
+          maxLength: 80
+        accent:
+          type: string
+          pattern: '^#[0-9a-fA-F]{6}$'
+          default: '#2338e6'
+        avatar_url:
+          type: string
+          maxLength: 500
+          description: An https link to the header picture; empty uses the business logo.
+        theme:
+          type: string
+          enum: [light, dark, auto]
+          default: light
+        position:
+          type: string
+          enum: [right, left]
+          default: right
+        show_sources:
+          type: boolean
+          description: Link the pages an answer came from.
+        details:
+          type: string
+          enum: [ask, 'off']
+          default: ask
+          description: ask shows a name and email form before the first message.
+    ChannelWidget:
+      type: object
+      required: [channel_id, enabled, settings, first_seen_at, last_seen_at, defaults, shop, activation_url]
+      properties:
+        channel_id:
+          type: string
+        enabled:
+          type: boolean
+        settings:
+          $ref: '#/components/schemas/ChannelWidgetSettings'
+        defaults:
+          $ref: '#/components/schemas/ChannelWidgetSettings'
+        first_seen_at:
+          type: string
+        last_seen_at:
+          type: string
+        shop:
+          type: string
+          description: The store's myshopify.com domain.
+        activation_url:
+          type: string
+          format: uri
     Channel:
       type: object
       required: [id, tenant_id, bot_id, type, type_label, name, description, external_id, enabled, disabled_by_platform, active, open_tickets, tickets, api_keys, created_at, updated_at]
