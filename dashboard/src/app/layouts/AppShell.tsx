@@ -8,6 +8,7 @@ import { useTicketCounts } from '@/lib/api/endpoints/tickets';
 import { cn } from '@/lib/cn';
 import { formatCompact } from '@/lib/format';
 import { usePerformanceNav } from '@/lib/performance';
+import { useFeatureNav } from '@/lib/features';
 import { useLiveUpdates, type LiveStatus } from '@/lib/realtime';
 import { ScopeContext, useScopeCtx } from '@/lib/session/scope-context';
 import { useHotkeys, useIsDesktop, useIsTablet, useStoredState } from '@/hooks';
@@ -143,7 +144,8 @@ function BusinessSidebar({ collapsed, onNavigate, onToggleCollapsed }: { collaps
   const { can, href, isPlatformAdmin, membership } = useScopeCtx();
   const counts = useTicketCounts(can('tickets.read'));
   const served = usePerformanceNav();
-  const sections = BUSINESS_NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.permission || can(i.permission)) && served(i)) }));
+  const featured = useFeatureNav();
+  const sections = BUSINESS_NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.permission || can(i.permission)) && served(i) && featured(i)) }));
   const plan = membership?.plan;
   return (
     <Sidebar
@@ -286,9 +288,10 @@ function GoShortcuts() {
   const { can, href } = useScopeCtx();
   const nav = useNavigate();
   const served = usePerformanceNav();
+  const featured = useFeatureNav();
   const bindings: Record<string, () => void> = {};
   for (const item of BUSINESS_NAV.flatMap((s) => s.items)) {
-    if (item.key && (!item.permission || can(item.permission)) && served(item)) bindings[`g ${item.key}`] = () => nav(href(item.path));
+    if (item.key && (!item.permission || can(item.permission)) && served(item) && featured(item)) bindings[`g ${item.key}`] = () => nav(href(item.path));
   }
   useHotkeys(bindings);
   return null;

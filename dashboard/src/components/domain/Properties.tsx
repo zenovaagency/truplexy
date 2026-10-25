@@ -182,3 +182,29 @@ export function SensitiveMark() {
     </Tip>
   );
 }
+
+/** One picker over every choice and yes/no property of a list: "Loyalty tier: Gold". Its value is `key=value`, or "". */
+export function PropertyFilter({ defs, value, onChange, all }: { defs: PropertyDefinition[]; value: string; onChange: (v: string) => void; all: string }) {
+  const pickable = defs.filter((d) => (d.type === 'select' || d.type === 'multi_select' || d.type === 'boolean') && !d.sensitive);
+  if (!pickable.length) return null;
+  return (
+    <Select className="w-auto max-w-[220px]" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter by property">
+      <option value="">{all}</option>
+      {pickable.map((d) => (
+        <optgroup key={d.key} label={d.label}>
+          {(d.type === 'boolean' ? [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }] : d.options).map((o) => (
+            <option key={o.value} value={`${d.key}=${o.value}`}>
+              {d.label}: {o.label}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </Select>
+  );
+}
+
+/** A `key=value` filter as the query's properties. */
+export const filterOf = (f: string): Record<string, string> => {
+  const i = f.indexOf('=');
+  return i > 0 ? { [f.slice(0, i)]: f.slice(i + 1) } : {};
+};

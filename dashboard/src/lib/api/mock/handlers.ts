@@ -37,7 +37,9 @@ import { emit, topicFor } from './bus';
 import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 import { buildPerformance, performanceMode } from './performance';
-import { PRESETS, PROPERTY_ENTITIES, PropertyError, changeDefinition, newDefinition, type MockProperty } from './properties';
+import { PRESETS, PROPERTY_ENTITIES, PropertyError, applyValues, changeDefinition, matchesFilters, newDefinition, visibleValues, type MockProperty } from './properties';
+import { readCsv, sampleDrafts, type MockImport, type MockProduct } from './products';
+import { isLink, parsePrice } from '@/lib/products';
 
 /* ------------------------------------------------------------------ */
 /* Plumbing                                                            */
@@ -1084,6 +1086,198 @@ route('DELETE', '/properties/:id', 'properties.write', (c) => {
   c.db.properties = c.db.properties.filter((x) => x !== d);
   // Its values go with it, in every record of the bot.
   for (const cu of botCustomers(c) as { properties?: Record<string, unknown> }[]) if (cu.properties) delete cu.properties[d.key];
+  for (const p of botProducts(c)) delete p.properties[d.key];
+  return noContent();
+});
+
+/* Products ----------------------------------------------------------- */
+
+const botProducts = (c: Ctx) => (c.db.products ??= []).filter((p) => p.tenant_id === c.tenant.id && p.bot_id === c.botId);
+
+function productView(c: Ctx, p: MockProduct) {
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('products.write');
+  const { properties, masked_properties } = visibleValues(definitionsOf(c, 'product'), p.properties, sensitive);
+  return { ...p, properties, ...(masked_properties.length && { masked_properties }) };
+}
+
+function productOf(c: Ctx, id: unknown) {
+  const p = botProducts(c).find((x) => x.id === id);
+  if (!p) throw notFound('PRODUCT_NOT_FOUND', 'Product');
+  return p;
+}
+
+/** Validates POST and PATCH /products fields onto p, like the API. */
+function applyProduct(c: Ctx, p: MockProduct, b: any, creating: boolean) {
+  if (b.name !== undefined) p.name = String(b.name).replace(/\s+/g, ' ').trim();
+  if (b.sku !== undefined) p.sku = String(b.sku).trim();
+  if (b.description !== undefined) p.description = String(b.description).trim();
+  if (b.price !== undefined) {
+    const price = b.price === null ? null : parsePrice(String(b.price));
+    if (price === undefined) throw invalid('Set price to an amount such as "19.90" (up to 12 digits and 4 decimals), or null.');
+    p.price = price;
+  }
+  if (b.currency !== undefined) p.currency = String(b.currency).trim().toUpperCase();
+  if (b.stock !== undefined) {
+    if (b.stock !== null && (!Number.isInteger(b.stock) || b.stock < 0)) throw invalid('Set stock to a whole number from 0, or null when it isn\'t tracked.');
+    p.stock = b.stock;
+  }
+  if (b.url !== undefined) p.url = String(b.url).trim();
+  if (b.image_url !== undefined) p.image_url = String(b.image_url).trim();
+  if (b.status !== undefined) p.status = b.status;
+  if (!p.name || p.name.length > 200) throw invalid('Give the product a name of 1–200 characters.');
+  if (p.sku.length > 64) throw invalid('Keep the SKU to 64 characters on one line.');
+  if (p.currency && !/^[A-Z]{3}$/.test(p.currency)) throw invalid('Set currency to a three-letter ISO 4217 code such as USD or EUR.');
+  if (!['active', 'draft', 'archived'].includes(p.status)) throw invalid('Set status to active, draft or archived.');
+  if (!isLink(p.url)) throw invalid('Set url to an http or https link.');
+  if (!isLink(p.image_url)) throw invalid('Set image_url to an http or https link.');
+  if (b.properties !== undefined || creating) p.properties = checked(() => applyValues(definitionsOf(c, 'product'), p.properties, b.properties, creating));
+  if (p.sku && botProducts(c).some((x) => x !== p && x.sku === p.sku)) throw err(409, 'PRODUCT_EXISTS', 'Another product of this bot already has this SKU.');
+}
+
+route('GET', '/products', 'products.read', (c) => {
+  const s = (c.query.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  const status = c.query.get('status');
+  const defs = definitionsOf(c, 'product');
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('products.write');
+  const filtered = botProducts(c)
+    .filter((p) => !s || [p.name, p.sku, p.description].some((f) => f.toLowerCase().includes(s)))
+    .filter((p) => !status || p.status === status)
+    .filter((p) => checked(() => matchesFilters(defs, p.properties, c.query, sensitive)))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const limit = Math.min(200, Math.max(1, Number(c.query.get('limit') ?? 50)));
+  const start = Number(c.query.get('cursor') ?? 0);
+  return { data: filtered.slice(start, start + limit).map((p) => productView(c, p)), next_cursor: start + limit < filtered.length ? String(start + limit) : undefined };
+});
+
+route('POST', '/products', 'products.write', (c) => {
+  const now = nowIso();
+  const p: MockProduct = { id: newId('prd'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', sku: '', description: '', price: null, currency: '', stock: null, url: '', image_url: '',
+    status: 'active', source: 'manual', properties: {}, created_at: now, updated_at: now };
+  applyProduct(c, p, c.body ?? {}, true);
+  c.db.products.push(p);
+  return created(productView(c, p));
+});
+
+route('GET', '/products/imports', 'products.read', (c) => ({
+  data: (c.db.productImports ??= [])
+    .filter((i) => i.tenant_id === c.tenant.id && i.bot_id === c.botId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 20)
+    .map(({ items: _items, tenant_id: _t, bot_id: _b, ...i }) => i),
+}));
+
+function importOf(c: Ctx, id: unknown) {
+  const i = (c.db.productImports ??= []).find((x) => x.id === id && x.tenant_id === c.tenant.id && x.bot_id === c.botId);
+  if (!i) throw notFound('IMPORT_NOT_FOUND', 'Import');
+  return i;
+}
+
+function importOut(c: Ctx, i: MockImport) {
+  const { tenant_id: _t, bot_id: _b, ...out } = i;
+  const skus = new Set(botProducts(c).map((p) => p.sku).filter(Boolean));
+  return { ...out, items: i.status === 'ready' ? i.items.map((d) => ({ ...d, exists: Boolean(d.sku) && skus.has(d.sku) })) : [] };
+}
+
+function readyImport(c: Ctx, i: MockImport, items: MockImport['items'] | string, method: MockImport['method'], truncated = false) {
+  Object.assign(i, { updated_at: nowIso(), method });
+  if (typeof items === 'string' || !items.length) Object.assign(i, { status: 'failed', error: typeof items === 'string' ? items : 'No products were found.' });
+  else Object.assign(i, { status: 'ready', items, item_count: items.length, truncated, error: undefined });
+  return importOut(c, i);
+}
+
+route('POST', '/products/imports', 'products.write', (c) => {
+  const b = c.body ?? {};
+  const now = nowIso();
+  const base = { id: newId('imp'), tenant_id: c.tenant.id, bot_id: c.botId, items: [], item_count: 0, truncated: false, created: 0, updated: 0, skipped: 0, created_at: now, updated_at: now };
+  if (b.source === 'file') {
+    const name = str(b.filename, 'filename', 1, 260)!;
+    if (!/\.(csv|tsv|json|txt|md|pdf|docx|html?)$/i.test(name)) throw invalid("This file type isn't read. Use .csv, .tsv, .json, .txt, .md, .pdf, .docx, .html; export a spreadsheet as CSV.");
+    const i: MockImport = { ...base, source: 'file', name, status: 'uploading' };
+    c.db.productImports.push(i);
+    return created({ import: importOut(c, i), url: `mock://r2/${i.id}`, method: 'PUT', headers: { 'Content-Type': 'text/csv' }, expires_at: new Date(Date.now() + 1_800_000).toISOString() });
+  }
+  if (b.source === 'url') {
+    const link = String(b.url ?? '').trim();
+    if (!/^https:\/\/[^\s/]+\.[^\s]+/.test(link) || /localhost|127\.0\.0\.1|169\.254\./.test(link)) throw invalid("Send the page's full https:// link.");
+    const i: MockImport = { ...base, source: 'url', name: link, status: 'processing' };
+    c.db.productImports.push(i);
+    // A link with "fail" in it shows a page that couldn't be read.
+    if (/fail/i.test(link)) return created(readyImport(c, i, 'The page answered 404 Not Found.', undefined));
+    return created(readyImport(c, i, sampleDrafts(link, definitionsOf(c, 'product')), /ai/i.test(link) ? 'ai' : 'json_ld'));
+  }
+  throw invalid('Send {"source": "file", ...} or {"source": "url", ...}.');
+});
+
+route('GET', '/products/imports/:id', 'products.read', (c) => importOut(c, importOf(c, c.params.id)));
+
+route('POST', '/products/imports/:id/process', 'products.write', (c) => {
+  const i = importOf(c, c.params.id);
+  if (i.source !== 'file' || !['uploading', 'failed'].includes(i.status)) throw err(409, 'IMPORT_STATE', "The import can't do this now.");
+  const text = pendingObjects.get(i.id);
+  if (text === undefined) return readyImport(c, i, "The file hasn't been uploaded yet. Upload it, then try again.", undefined);
+  const defs = definitionsOf(c, 'product');
+  if (/\.(csv|tsv)$/i.test(i.name)) {
+    const read = readCsv(text, defs);
+    return typeof read === 'string' ? readyImport(c, i, read, 'csv') : readyImport(c, i, read.items, 'csv', read.truncated);
+  }
+  return readyImport(c, i, sampleDrafts(i.name, defs), /\.json$/i.test(i.name) ? 'json' : 'ai');
+});
+
+route('POST', '/products/imports/:id/commit', 'products.write', (c) => {
+  const i = importOf(c, c.params.id);
+  if (i.status !== 'ready') throw err(409, 'IMPORT_STATE', "The import can't do this now.");
+  const b = c.body ?? {};
+  const indexes: number[] = b.indexes?.length ? b.indexes : i.items.map((_, n) => n);
+  const errors: { index: number; message: string }[] = [];
+  let made = 0;
+  let changed = 0;
+  let skipped = 0;
+  for (const n of indexes) {
+    const d = i.items[n];
+    if (!d) throw invalid(`indexes names drafts by their place in items, each once: ${n} isn't one.`);
+    const fields = { name: d.name, sku: d.sku, description: d.description, price: d.price, currency: d.currency, stock: d.stock, url: d.url, image_url: d.image_url, properties: d.properties, ...b.edits?.[n] };
+    const same = fields.sku ? botProducts(c).find((p) => p.sku === fields.sku) : undefined;
+    if (same && b.on_duplicate !== 'update') {
+      skipped++;
+      continue;
+    }
+    const now = nowIso();
+    const p: MockProduct = same ?? { id: newId('prd'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', sku: '', description: '', price: null, currency: '', stock: null, url: '', image_url: '',
+      status: 'active', source: i.source === 'url' ? 'web' : i.method === 'csv' || i.method === 'json' ? 'csv' : 'document', properties: {}, created_at: now, updated_at: now };
+    try {
+      applyProduct(c, p, { ...fields, properties: undefined }, false);
+      p.properties = checked(() => applyValues(definitionsOf(c, 'product'), same?.properties ?? {}, fields.properties, false));
+    } catch (e) {
+      errors.push({ index: n, message: e instanceof Error ? e.message : String(e) });
+      continue;
+    }
+    p.updated_at = now;
+    if (same) changed++;
+    else c.db.products.push(p), made++;
+  }
+  Object.assign(i, { status: 'committed', committed_at: nowIso(), created: made, updated: changed, skipped, items: [] });
+  return { import: importOut(c, i), errors };
+});
+
+route('DELETE', '/products/imports/:id', 'products.write', (c) => {
+  const i = importOf(c, c.params.id);
+  c.db.productImports = c.db.productImports.filter((x) => x !== i);
+  return noContent();
+});
+
+route('GET', '/products/:id', 'products.read', (c) => productView(c, productOf(c, c.params.id)));
+
+route('PATCH', '/products/:id', 'products.write', (c) => {
+  const p = productOf(c, c.params.id);
+  const next = { ...p, properties: { ...p.properties } };
+  applyProduct(c, next, c.body ?? {}, false);
+  Object.assign(p, next, { updated_at: nowIso() });
+  return productView(c, p);
+});
+
+route('DELETE', '/products/:id', 'products.write', (c) => {
+  const p = productOf(c, c.params.id);
+  c.db.products = c.db.products.filter((x) => x !== p);
   return noContent();
 });
 

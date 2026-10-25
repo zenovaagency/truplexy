@@ -63,6 +63,16 @@ Businesses define typed fields (text, number, date, single and multiple choice, 
 - Sensitive properties come back masked (`masked_properties`) to people who can't edit the record; they show as **Hidden**.
 - Demo mode serves properties, with three on Acme's support bot, and checks values with the API's rules (`src/lib/api/mock/properties.ts`).
 
+## Products
+
+**Products** (`src/features/products/`) is the bot's catalog: search, a status and property filter, an add/edit sheet with the product's properties, and imports. It shows in the menu once `GET /products` answers (`src/lib/features.ts`).
+
+- **Import** reads a file (CSV, JSON, PDF, Word, Markdown, text, HTML) or a web page into drafts (`ImportDialog.tsx`); files go straight to storage like knowledge uploads (`putObject` in `src/lib/upload.ts`). Nothing is saved until someone reviews the drafts on `/products/imports/:id` (`ImportReviewPage.tsx`), unticks or fixes rows, and saves; only the indexes and the fields changed are sent, so big imports stay small.
+- Files read by their columns (CSV, JSON) and pages with product data cost nothing; the rest are read with AI, billed as a reply, which the dialog says before it starts.
+- Product pictures are links to other sites, shown with `referrerPolicy="no-referrer"` and a placeholder when they don't load.
+- Settings → Properties gets a Products tab once the catalog is served.
+- Demo mode imports a CSV as the API would (`src/lib/api/mock/products.ts`); other files and pages give a small sample shop. A link with `fail` in it shows a page that couldn't be read, and one with `ai` a page read with AI.
+
 ## Deploying
 
 The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.truplexy.com`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.

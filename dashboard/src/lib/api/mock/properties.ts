@@ -8,7 +8,7 @@ import { KEY_RE, MAX_PROPERTIES, RESERVED_KEYS } from '@/lib/properties';
 export class PropertyError extends Error {}
 const bad = (message: string) => new PropertyError(message);
 
-export const PROPERTY_ENTITIES: PropertyEntity[] = ['customer'];
+export const PROPERTY_ENTITIES: PropertyEntity[] = ['customer', 'product'];
 const TYPES: PropertyType[] = ['text', 'long_text', 'number', 'boolean', 'date', 'select', 'multi_select', 'email', 'phone', 'url'];
 const withOptions = (t: PropertyType) => t === 'select' || t === 'multi_select';
 
@@ -223,4 +223,12 @@ export const PRESETS: PropertyPreset[] = [
   { entity: 'customer', key: 'preferred_area', label: 'Preferred area', description: '', type: 'text', options: [], sensitive: false, business_types: ['real_estate'] },
   { entity: 'customer', key: 'move_in_date', label: 'Move-in date', description: '', type: 'date', options: [], sensitive: false, business_types: ['real_estate'] },
   { entity: 'customer', key: 'dietary_needs', label: 'Dietary needs', description: '', type: 'text', options: [], sensitive: false, business_types: ['hospitality'] },
+  { entity: 'product', key: 'brand', label: 'Brand', description: '', type: 'text', options: [], sensitive: false, business_types: [] },
+  { entity: 'product', key: 'category', label: 'Category', description: '', type: 'text', options: [], sensitive: false, business_types: [] },
+  { entity: 'product', key: 'warranty', label: 'Warranty', description: '', type: 'text', options: [], sensitive: false, business_types: [] },
+  { entity: 'product', key: 'color', label: 'Color', description: '', type: 'text', options: [], sensitive: false, business_types: ['ecommerce'] },
+  { entity: 'product', key: 'size', label: 'Size', description: '', type: 'multi_select', options: opts('xs', 'XS', 's', 'S', 'm', 'M', 'l', 'L', 'xl', 'XL'), sensitive: false, business_types: ['ecommerce'] },
+  { entity: 'product', key: 'material', label: 'Material', description: '', type: 'text', options: [], sensitive: false, business_types: ['ecommerce'] },
+  { entity: 'product', key: 'cost_price', label: 'Cost price', description: 'What the business pays; never shown to the assistant.', type: 'number', options: [], sensitive: true, business_types: ['ecommerce'] },
+  { entity: 'product', key: 'billing_period', label: 'Billing period', description: '', type: 'select', options: opts('monthly', 'Monthly', 'yearly', 'Yearly', 'one_time', 'One-time'), sensitive: false, business_types: ['saas'] },
 ];

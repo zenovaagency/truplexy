@@ -865,6 +865,312 @@ paths:
           description: Deleted.
         default:
           $ref: '#/components/responses/Error'
+  /products:
+    get:
+      operationId: listProducts
+      summary: The bot's products (v2)
+      description: Needs products.read. Most recently changed first; deleted products are left out.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+          description: Matches the name, SKU or description.
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, draft, archived]
+        - name: property
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+          description: property[key]=value keeps products whose custom property has the value (up to 5).
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of products.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  next_cursor:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createProduct
+      summary: Add a product (v2)
+      description: Needs products.write. 409 PRODUCT_EXISTS when another product has the SKU.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProductInput'
+                - type: object
+                  required: [name]
+      responses:
+        '201':
+          description: The new product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports:
+    get:
+      operationId: listProductImports
+      summary: The latest product imports (v2)
+      description: Needs products.read. The latest 20, without their drafts.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The imports.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createProductImport
+      summary: Start an import from a file or a web page (v2)
+      description: Needs products.write. A file answers where to PUT it, then call /process; a web page is read before the answer, which is the import (ready or failed).
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [source]
+              properties:
+                source:
+                  type: string
+                  enum: [file, url]
+                filename:
+                  type: string
+                  maxLength: 260
+                size:
+                  type: integer
+                  minimum: 1
+                url:
+                  type: string
+                  maxLength: 2048
+      responses:
+        '201':
+          description: The upload (file) or the read import (url).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProductImportUpload'
+                  - $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ImportID'
+    get:
+      operationId: getProductImport
+      summary: An import with its drafts (v2)
+      description: Needs products.read. 404 IMPORT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The import.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteProductImport
+      summary: Discard an import (v2)
+      description: Needs products.write. Deletes it and its file. 404 IMPORT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Discarded.
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports/{id}/process:
+    parameters:
+      - $ref: '#/components/parameters/ImportID'
+    post:
+      operationId: processProductImport
+      summary: Read an uploaded file (v2)
+      description: Needs products.write. Answers the import, ready or failed with error. 409 IMPORT_STATE while it is read, or once ready or committed.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The import.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports/{id}/commit:
+    parameters:
+      - $ref: '#/components/parameters/ImportID'
+    post:
+      operationId: commitProductImport
+      summary: Save an import's reviewed drafts (v2)
+      description: Needs products.write. Drafts that fail checks are listed in errors and the rest are saved. 409 IMPORT_STATE when the import isn't ready.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                indexes:
+                  type: array
+                  description: The drafts to save, by their place in items; none saves all.
+                  items:
+                    type: integer
+                    minimum: 0
+                edits:
+                  type: object
+                  description: Fields of picked drafts to change, by index; properties replace the draft's.
+                  additionalProperties:
+                    $ref: '#/components/schemas/ProductInput'
+                on_duplicate:
+                  type: string
+                  enum: [skip, update]
+                  default: skip
+      responses:
+        '200':
+          description: What was saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [import, errors]
+                properties:
+                  import:
+                    $ref: '#/components/schemas/ProductImport'
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      required: [index, message]
+                      properties:
+                        index:
+                          type: integer
+                        message:
+                          type: string
+        default:
+          $ref: '#/components/responses/Error'
+  /products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ProductID'
+    get:
+      operationId: getProduct
+      summary: A product (v2)
+      description: Needs products.read. 404 PRODUCT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateProduct
+      summary: Change a product (v2)
+      description: Needs products.write. Fields left out keep their value; properties are merged. 404 PRODUCT_NOT_FOUND, 409 PRODUCT_EXISTS.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProductInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The updated product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteProduct
+      summary: Delete a product (v2)
+      description: Needs products.write. Its SKU can be used again. 404 PRODUCT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
   /channels:
     get:
       operationId: listChannels
@@ -4578,6 +4884,20 @@ components:
       scheme: bearer
       description: ADMIN_API_KEY, a service credential with every permission in every business. It acts for the default bot, or for the bot named by the X-Truplexy-Tenant and X-Truplexy-Bot headers (404 BOT_NOT_FOUND if it doesn't exist). Missing configuration returns 503 ADMIN_NOT_CONFIGURED; D1 failures return 502 DATABASE_ERROR, and R2, Vectorize, or Workers AI failures 502 STORAGE_ERROR.
   parameters:
+    ProductID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^prd_[0-9a-f]{32}$'
+    ImportID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^imp_[0-9a-f]{32}$'
     PropertyID:
       name: id
       in: path
@@ -5969,9 +6289,192 @@ components:
           type: object
           additionalProperties: true
           description: Up to 4 KB.
+    Product:
+      type: object
+      required: [id, tenant_id, bot_id, name, sku, description, price, currency, stock, url, image_url, status, source, properties, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^prd_[0-9a-f]{32}$'
+        tenant_id:
+          type: string
+        bot_id:
+          type: string
+        name:
+          type: string
+        sku:
+          type: string
+        description:
+          type: string
+        price:
+          type: string
+          nullable: true
+          description: A decimal string such as "19.90"; null when unknown.
+        currency:
+          type: string
+          description: ISO 4217 code, or empty.
+        stock:
+          type: integer
+          nullable: true
+          description: null when stock isn't tracked.
+        url:
+          type: string
+        image_url:
+          type: string
+        status:
+          type: string
+          enum: [active, draft, archived]
+        source:
+          type: string
+          enum: [manual, csv, document, web]
+        properties:
+          type: object
+          additionalProperties: true
+        masked_properties:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProductInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sku:
+          type: string
+          maxLength: 64
+        description:
+          type: string
+          maxLength: 5000
+        price:
+          description: An amount as text or a number; null clears it.
+          nullable: true
+          oneOf:
+            - type: string
+            - type: number
+        currency:
+          type: string
+        stock:
+          type: integer
+          minimum: 0
+          nullable: true
+        url:
+          type: string
+          maxLength: 2048
+        image_url:
+          type: string
+          maxLength: 2048
+        status:
+          type: string
+          enum: [active, draft, archived]
+        properties:
+          type: object
+          additionalProperties: true
+    ProductDraft:
+      type: object
+      required: [name, sku, description, price, currency, stock, url, image_url, properties, problems, exists]
+      properties:
+        name:
+          type: string
+        sku:
+          type: string
+        description:
+          type: string
+        price:
+          type: string
+          nullable: true
+        currency:
+          type: string
+        stock:
+          type: integer
+          nullable: true
+        url:
+          type: string
+        image_url:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+        problems:
+          type: array
+          description: What was left out or needs a look.
+          items:
+            type: string
+        exists:
+          type: boolean
+          description: The catalog already has a product with this SKU.
+    ProductImport:
+      type: object
+      required: [id, source, name, status, item_count, truncated, created, updated, skipped, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^imp_[0-9a-f]{32}$'
+        source:
+          type: string
+          enum: [file, url]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [uploading, processing, ready, failed, committed]
+        method:
+          type: string
+          enum: [csv, json, json_ld, ai]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductDraft'
+        item_count:
+          type: integer
+        truncated:
+          type: boolean
+        error:
+          type: string
+        created:
+          type: integer
+        updated:
+          type: integer
+        skipped:
+          type: integer
+        committed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProductImportUpload:
+      type: object
+      required: [import, url, method, headers, expires_at]
+      properties:
+        import:
+          $ref: '#/components/schemas/ProductImport'
+        url:
+          type: string
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
     PropertyEntity:
       type: string
-      enum: [customer]
+      enum: [customer, product]
       description: The kind of record a property belongs to.
     PropertyType:
       type: string

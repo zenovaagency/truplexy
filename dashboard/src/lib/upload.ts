@@ -25,7 +25,7 @@ export async function sha256Hex(file: Blob) {
 }
 
 /** PUT with upload progress (fetch can't report it). Mock mode intercepts mock:// URLs. */
-async function putObject(url: string, headers: Record<string, string>, file: File, onProgress: (p: number) => void) {
+export async function putObject(url: string, headers: Record<string, string>, file: File, onProgress: (p: number) => void) {
   if (import.meta.env.VITE_USE_MOCKS === 'true' && url.startsWith('mock://')) {
     const { mockPutObject } = await import('@/lib/api/mock/transport');
     return mockPutObject(url, file, onProgress);

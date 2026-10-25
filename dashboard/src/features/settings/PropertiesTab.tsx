@@ -15,6 +15,7 @@ import type { PropertyDefinition, PropertyEntity, PropertyInput, PropertyOption,
 import { ENTITY_LABEL, MAX_PROPERTIES, PROPERTY_TYPES, PROPERTY_TYPE_LABEL, hasOptions, keyFromLabel, keyProblem, optionValue, optionsProblem } from '@/lib/properties';
 import { pluralize } from '@/lib/format';
 import { isRouteMissing } from '@/lib/performance';
+import { useFeature } from '@/lib/features';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import {
   Badge,
@@ -39,13 +40,14 @@ import {
 } from '@/components/ui';
 import { SensitiveMark } from '@/components/domain/Properties';
 
-const ENTITIES: PropertyEntity[] = ['customer'];
-
 /** Settings → Properties: the typed fields a business adds to its bot's records. */
 export function PropertiesTab() {
   const { can, bot } = useScopeCtx();
   const writable = can('properties.write');
   const [params, setParams] = useSearchParams();
+  // Products have properties once the API serves the catalog.
+  const products = useFeature('products') === 'on';
+  const ENTITIES: PropertyEntity[] = products ? ['customer', 'product'] : ['customer'];
   const entity = (ENTITIES as string[]).includes(params.get('entity') ?? '') ? (params.get('entity') as PropertyEntity) : ENTITIES[0]!;
   const list = useProperties(entity);
   const del = useDeleteProperty();

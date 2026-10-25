@@ -1,5 +1,5 @@
 import type { BillingAddon, BusinessType, LedgerEntry, Plan, TicketMessage, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
-import { DB_VERSION, hex, type MockChannel, type MockCustomer, type MockProperty, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
+import { DB_VERSION, hex, type MockChannel, type MockCustomer, type MockProduct, type MockProperty, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
 
 /* ------------------------------------------------------------------ */
 /* Deterministic randomness, so every seed tells the same story.        */
@@ -1109,7 +1109,30 @@ Hand over when: {{escalation_policy}}
     channels,
     customers,
     properties: seedProperties(),
+    products: seedProducts(),
+    productImports: [],
   };
+}
+
+/** A small catalog on Acme's support bot. */
+function seedProducts(): MockProduct[] {
+  const r = rng(9102);
+  const rows: [string, string, string | null, number | null, MockProduct['status'], string][] = [
+    ['Trail running shoe', 'SHOE-TR-01', '129.00', 24, 'active', 'Light, grippy and made for wet trails.'],
+    ['Merino crew socks (3 pack)', 'SOCK-M-03', '32.00', 140, 'active', 'Soft merino that stays dry.'],
+    ['Waterproof shell jacket', 'JKT-WS-02', '249.00', 0, 'active', 'Seam-sealed, packs into its own pocket.'],
+    ['Insulated bottle 750 ml', 'BTL-750', '29.50', 63, 'active', 'Keeps drinks cold for 24 hours.'],
+    ['Gift card', '', null, null, 'active', 'Any amount from $25.'],
+    ['Winter beanie', 'HAT-WB-01', '24.00', 12, 'draft', 'Coming in November.'],
+  ];
+  return rows.map(([name, sku, price, stock, status, description], i) => {
+    const at = ago((30 - i * 3) * DAY);
+    return {
+      id: id('prd', r), tenant_id: 'acme', bot_id: 'support', name, sku, description, price, currency: price ? 'USD' : '', stock,
+      url: `https://acme.example/products/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, image_url: '', status, source: 'manual' as const,
+      properties: {}, created_at: at, updated_at: at,
+    };
+  });
 }
 
 /** A few custom properties on Acme's support bot, so Settings → Properties has something to show. */
