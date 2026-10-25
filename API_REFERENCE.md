@@ -197,6 +197,23 @@ The admin key (`ADMIN_API_KEY`) is a server-side credential with every permissio
   - A webhook test that failed: `ok: false`.
   - A document that failed to index: `status: "failed"`.
 
+### Rate limits
+
+Every request is counted, and a client that sends too many gets **`429 RATE_LIMITED`** with `Retry-After` (seconds) and the `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` headers, which also describe the allowance on answered requests. Wait `Retry-After` seconds and send again; a dashboard should not retry sooner. The limits are generous, per minute, and the operator can change them (`RATE_LIMIT_*` in `.env.example`):
+
+| What is limited | Default | By |
+| --- | --- | --- |
+| All requests (not `/health`, Paddle's webhook, scheduled jobs) | 1,200 | client address |
+| Credentials the API rejects (`401`); past the limit the address is refused for a while, even with a valid credential | 30 | client address |
+| Everything a chat key or playground credential does | 1,200 | credential |
+| Starting work with it: `POST /conversations`, `POST /conversations/{id}/messages`, `POST /playground/run`, `POST /playground/conversations` | 300 | credential |
+| Reads / writes in a business | 600 / 180 | person (the admin key counts as one per business) |
+| Calls that cost money or reach other systems: ticket summaries, tool and webhook tests, knowledge search, reindexing, invitations, new API keys | 20 | business |
+| Subscription and balance changes: checkout, change, portal, extra tokens | 10 | business |
+| A person's own account and the platform console | as reads / writes | person |
+
+Plan limits (`429 PLAN_LIMIT_REACHED`) and model limits (`429 LLM_RATE_LIMITED`) are different errors with their own causes. IPv6 clients are counted by their /64.
+
 ### Long-running work: uploading and indexing knowledge
 
 Files never pass through the API. To add one to the bot's knowledge base:
@@ -472,6 +489,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
 | `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
+| `GET` | `/internal/cron/billing` | `CRON_SECRET` | Cancel deleted businesses' subscriptions; compare Paddle with the database (v2; not for frontends) |
 | `GET` | `/internal/cron/tickets` | `CRON_SECRET` | Close tickets left without activity (v2; not for frontends) |
 
 ## 4. Endpoints
@@ -1559,9 +1577,18 @@ Startup fails if a key doesn't match `PADDLE_ENV` or a price is missing. The Pad
 - `billing_subscriptions`: one row per business: `tenant_id`, `paddle_customer_id`, `paddle_subscription_id`, `status`, `plan`, `interval`, `trial_ends_at`, `current_period_end`, `cancel_at`, `provider_updated_at`. A new subscription after a canceled one replaces the row.
 - `paddle_events`: the IDs of webhook events already handled, so a repeated delivery is skipped.
 
+#### Trial eligibility (`TRIAL_GUARD`)
+
+Off by default. The trial belongs to the Paddle price, so without the guard every checkout is sold with it. With migration `0036_trial_claims.sql` applied and `TRIAL_GUARD` set, the API remembers each subscription that started a trial in `billing_trial_claims`, which outlives the business (the purge job leaves it). A customer is recognised by their Paddle customer, the signed-in person who opened the checkout (named in the transaction's `custom_data.user_id`; a hint, since a checkout can be opened in Paddle.js), and a keyed hash (`TRIAL_GUARD_KEY`) of the billing email with `+tags` removed and Gmail dots ignored. Each of the three can appear in only one claim.
+
+- `shadow`: records claims and reports a trial that repeats one (`billing.repeat_trial` in `GET /audit`, once per subscription, and a log line). A checkout that would have been sold without a trial is reported (`billing.trial_guard_would_withhold`). No response and no price changes.
+- `enforce`: as shadow, and `POST /billing/checkout` sells a customer who has had a trial the matching `PADDLE_PRICE_*_NOTRIAL` price (`billing.trial_withheld` in the activity log). The response is unchanged. Startup needs all four no-trial prices. If the claims cannot be read the checkout fails rather than selling a second trial; a webhook whose claim cannot be written is answered 5xx so Paddle delivers it again.
+
+A subscription on a no-trial price is recognised like the others. A repeat that still starts (a checkout opened outside this API, or two started together) is reported and left running: ending its trial is a decision for a person. It cannot identify someone who uses another account, email and card.
+
 #### `GET /billing/subscription`
 
-`usage.read`. **200** `{subscription}`, where `subscription` is `null` when the business has never subscribed:
+`usage.read`. **200** `{subscription, trial_eligible}`. `trial_eligible` is whether a checkout now, by the person asking, would be sold with the free trial: `true` unless `TRIAL_GUARD` is `enforce` and the business, the person or their email has had one (see "Trial eligibility"). A dashboard shows "start your free trial" only when it is `true`. `subscription` is `null` when the business has never subscribed:
 
 ```text
 subscription: {
@@ -1578,7 +1605,11 @@ subscription: {
 
 `billing.write`. `{plan, interval}` with `plan` = `starter` or `pro` and `interval` = `monthly` or `yearly`. Creates a Paddle transaction for that price, with `custom_data.tenant_id` set to the business (Paddle copies it to the subscription), and returns **200** `{transaction_id}` (`txn_…`) for Paddle.js `Checkout.open({transactionId})`. A business that has been a customer before keeps its Paddle customer. Price IDs never reach the browser.
 
-**Errors:** `400 INVALID_REQUEST`, `409 SUBSCRIPTION_EXISTS` (the business has a subscription that isn't `canceled`: change it with the endpoint below), `503 PAYMENT_NOT_CONFIGURED`, `502 PAYMENT_PROVIDER_ERROR` (Paddle failed; nothing changed).
+**One checkout per business.** Requests for one business at the same time share a single Paddle transaction, so a double click, a retry after a timeout or two people cannot create two payable transactions: the first request makes it, the others wait a few seconds and receive the same `transaction_id`. A transaction left unpaid is offered again for an hour (when Paddle says it can still be paid), moved to the new price if the plan or interval asked for changed. Needs `0038_billing_checkouts.sql`; without it each request makes its own transaction, as before, and the API logs an error.
+
+**Signed.** The transaction's `custom_data` carries a signature of the business (and person) it was made for, under a key only the server has. The webhook applies a new subscription only when that signature is right, so a checkout opened in the browser with the public client token cannot attach a subscription to another business. Subscriptions already tracked keep their business, so those made before signatures existed carry on. `PADDLE_TENANT_BINDING` is `enforce` (the default: an unsigned new subscription is ignored and reported as `billing.unbound_subscription`), `report` (applied and reported) or `off`. **Deploying this with checkouts in flight:** a customer who started a checkout before the deploy and pays after it has an unsigned subscription. Run `report` for a day first, or find them under `billing.unbound_subscription` and record the subscription by hand.
+
+**Errors:** `400 INVALID_REQUEST`, `409 SUBSCRIPTION_EXISTS` (the business has a subscription that isn't `canceled`: change it with the endpoint below), `409 CHECKOUT_IN_PROGRESS` (another request is still setting up the business's checkout; wait `Retry-After` seconds), `503 PAYMENT_NOT_CONFIGURED`, `502 PAYMENT_PROVIDER_ERROR` (Paddle failed; nothing changed).
 
 #### `POST /billing/subscription/change`
 
@@ -2125,6 +2156,8 @@ Read only, every business's customers, most recently seen first.
 
 These endpoints are for websites, apps and messaging platforms, called from the integration's **server** with a chat key. Never call them from a browser. A dashboard doesn't call them, but it issues the keys (`POST /api-keys`) and should show integrators this section. A key reaches only conversations started through the chat API for its bot. Anything else returns `404 CONVERSATION_NOT_FOUND`.
 
+**Pictures (image input).** A customer's message can carry up to 3 pictures. Check `attachments` in [`GET /profile`](#get-profile-v2) first: if it is absent or `enabled` is `false`, don't offer an attach button. Then, per picture: [register it](#post-conversationsidattachments) with `POST /conversations/{id}/attachments`, `PUT` the file to the returned URL, and send the IDs with `POST /conversations/{id}/messages` (`message` may be empty). The assistant reads the pictures in that reply only; later turns see a `[sent a picture]` note. Pictures come back on the message as `attachments` with links signed for an hour, so reload the conversation for fresh links rather than storing them. A website widget never holds the chat key: its server registers the picture and passes the upload URL to the browser. See [Sending images](#sending-images-image-input) for the flow, limits and errors. A person's reply recorded with `POST /conversations/{id}/replies` is text only.
+
 **Conversation:**
 - Fields: `{id, status, channel_id?, customer_id?, escalated, created_at, updated_at, messages}`. `channel_id` names the bot's [channel](#channels-v2) the conversation started on; `customer_id` the [customer](#customers-v2) it was started for.
 - `status` is `open`, or `handoff` once it has been flagged for the team.
@@ -2219,7 +2252,7 @@ No body. Closes the open ticket, ends escalation and clears the handoff flag. If
 
 #### `POST /conversations/{id}/replies`
 
-Records a reply a person wrote on the integration's platform.
+Records a reply a person wrote on the integration's platform. It is text only: pictures in a person's reply aren't supported yet.
 
 | Field | Rules |
 | --- | --- |
@@ -2239,6 +2272,10 @@ For the scheduler only (Vercel Cron, `Authorization: Bearer <CRON_SECRET>`). It 
 #### `GET /internal/cron/purge`
 
 For the scheduler only, authenticated like the one above; Vercel runs it daily. It erases the businesses deleted more than 30 days ago: their knowledge files in R2, their vectors, then every D1 record of theirs, and marks their deletion `purged`. People's accounts stay. It works for up to 45 seconds and the next run continues what is left. **200** `{purged: [tenant_id], pending: [tenant_id]}`.
+
+#### `GET /internal/cron/billing`
+
+For the scheduler only, authenticated like the ones above; Vercel runs it daily and the Cloudflare Worker hourly. It cancels, at Paddle, the subscription of every deleted business that still has one (the purge job will not erase a business until that is done), then compares every subscription Paddle still bills with the database. It answers `200` with what it did: `deleted_canceled`, `deleted_failed`, `reconcile_mode`, `compared`, `drift`, `fixed`, `untracked`, `truncated`. A subscription Paddle bills that the database has no record of, or has under another state, is logged as an error (`billing drift…`) and entered in the business's activity log (`billing.drift`, `billing.untracked_subscription`, `billing.reconciled_missing`). `PADDLE_RECONCILE` chooses `report` (the default: log and record only), `apply` (also bring a tracked subscription in line with Paddle, and record a signed subscription whose webhook was missed) or `off`. A second subscription for a business that has one is never touched: cancel or refund it in Paddle. A Paddle failure answers `502 PAYMENT_PROVIDER_ERROR`.
 
 #### `GET /internal/cron/tickets`
 
@@ -2314,10 +2351,13 @@ Every error has its HTTP status and this body:
 | 409 | `EMAIL_TAKEN` | Another account has this email address. |
 | 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE` | State conflicts. |
 | 409 | `ATTACHMENT_NOT_UPLOADED` | Image input. The message names an attachment whose file hasn't reached R2. Finish the `PUT`, then send again. |
+| 403 | `EMAIL_NOT_VERIFIED` | Accepting an invitation needs a confirmed email address (`AUTH_REQUIRE_VERIFIED_EMAIL`); the invitation is not used up. Confirm the address, then open the link again. |
+| 409 | `CHECKOUT_IN_PROGRESS` | Billing. Another request is setting up the business's checkout; wait `Retry-After` seconds. |
 | 410 | `INVITE_REVOKED`, `INVITE_EXPIRED` | A new invitation is needed. |
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
 | 413 | `IMAGE_TOO_LARGE` | Image input. The picture is over 20 MB, or can't be shrunk under 1 MiB without ruining it. Ask for a smaller or simpler picture. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Send `Content-Type: application/json`. |
+| 429 | `RATE_LIMITED` | Too many requests too fast; wait `Retry-After` seconds. See "Rate limits". |
 | 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up, or its tokens are and the balance is empty. |
 | 429 | `LLM_RATE_LIMITED` | The model provider is busy; retry shortly. |
 | 500 | `INTERNAL_ERROR` | Unexpected; quote the request ID. |
