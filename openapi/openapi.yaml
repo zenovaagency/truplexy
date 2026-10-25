@@ -3854,6 +3854,66 @@ paths:
                 $ref: '#/components/schemas/Channel'
         default:
           $ref: '#/components/responses/Error'
+  /platform/customers:
+    get:
+      operationId: listPlatformCustomers
+      summary: Every business's customers (v2)
+      description: Read only, most recently seen first; deleted customers are left out.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: tenant
+          in: query
+          schema:
+            type: string
+          description: A business ID.
+        - name: bot
+          in: query
+          schema:
+            type: string
+          description: A bot ID.
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+          description: Matches the start of the name or of any contact's value.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: The next_cursor of the previous page.
+      responses:
+        '200':
+          description: A page of customers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Customer'
+                        - type: object
+                          required: [tenant_name]
+                          properties:
+                            tenant_name:
+                              type: string
+                  next_cursor:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
   /platform/overview:
     get:
       operationId: getPlatformOverview
@@ -4450,7 +4510,7 @@ paths:
     post:
       operationId: buyTokenAddon
       summary: Buy extra tokens for this month from the balance (v2)
-      description: billing.write. With an Idempotency-Key (1-255 printable characters) a purchase happens once per key: a repeat after it finished gets the first response (Idempotent-Replayed - true), a repeat while it runs gets 409 REQUEST_IN_PROGRESS, and the same key for another amount gets 422 IDEMPOTENCY_KEY_REUSED; a failed purchase leaves the key free to retry. If the billing summary can't be read after a purchase, the response has addon and no billing. millions must be a position on the plan's token_addon slider; the price is what GET /billing/token-addons/quote gives. 400 INVALID_REQUEST off the slider, 400 ADDON_NOT_AVAILABLE when the plan sells none or the business's tokens are unlimited, 402 INSUFFICIENT_BALANCE when the balance is below the price (nothing changes).
+      description: billing.write. With an Idempotency-Key (1-255 printable characters) a purchase happens once per key. A repeat after it finished gets the first response (Idempotent-Replayed - true), a repeat while it runs gets 409 REQUEST_IN_PROGRESS, and the same key for another amount gets 422 IDEMPOTENCY_KEY_REUSED; a failed purchase leaves the key free to retry. If the billing summary can't be read after a purchase, the response has addon and no billing. millions must be a position on the plan's token_addon slider; the price is what GET /billing/token-addons/quote gives. 400 INVALID_REQUEST off the slider, 400 ADDON_NOT_AVAILABLE when the plan sells none or the business's tokens are unlimited, 402 INSUFFICIENT_BALANCE when the balance is below the price (nothing changes).
       security:
         - AdminKey: []
         - MemberToken: []
@@ -4487,6 +4547,108 @@ paths:
                     $ref: '#/components/schemas/TokenAddonPurchase'
                   billing:
                     $ref: '#/components/schemas/BillingSummary'
+        default:
+          $ref: '#/components/responses/Error'
+  /billing/subscription:
+    get:
+      operationId: getBillingSubscription
+      summary: The business's Paddle subscription (v2)
+      description: usage.read. subscription is null when the business has never subscribed. trial_eligible is whether a checkout now, by the person asking, would be sold with the free trial; show "start your free trial" only when it is true.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [subscription, trial_eligible]
+                properties:
+                  subscription:
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/BillingSubscription'
+                  trial_eligible:
+                    type: boolean
+        default:
+          $ref: '#/components/responses/Error'
+  /billing/subscription/change:
+    post:
+      operationId: changeBillingSubscription
+      summary: Move the subscription to another plan or billing period (v2)
+      description: billing.write. While trialing nothing is billed and the new price applies when the trial ends; otherwise Paddle prorates and charges or credits the difference at once. Asking for the plan the business is already on changes nothing. 400 INVALID_REQUEST, 404 NO_SUBSCRIPTION, 503 PAYMENT_NOT_CONFIGURED, 502 PAYMENT_PROVIDER_ERROR.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillingPlanChoice'
+      responses:
+        '200':
+          description: The subscription, as Paddle now has it.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [subscription]
+                properties:
+                  subscription:
+                    $ref: '#/components/schemas/BillingSubscription'
+        default:
+          $ref: '#/components/responses/Error'
+  /billing/checkout:
+    post:
+      operationId: createBillingCheckout
+      summary: Start a Paddle checkout for a plan (v2)
+      description: billing.write. Creates a Paddle transaction for the plan's price and returns its id for Paddle.js Checkout.open. Requests for one business at the same time share one transaction. 400 INVALID_REQUEST, 409 SUBSCRIPTION_EXISTS (change the plan with /billing/subscription/change), 409 CHECKOUT_IN_PROGRESS (wait Retry-After seconds), 503 PAYMENT_NOT_CONFIGURED, 502 PAYMENT_PROVIDER_ERROR.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillingPlanChoice'
+      responses:
+        '200':
+          description: The transaction to open.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transaction_id]
+                properties:
+                  transaction_id:
+                    type: string
+                    description: A Paddle transaction ID (txn_…).
+        default:
+          $ref: '#/components/responses/Error'
+  /billing/portal:
+    post:
+      operationId: openBillingPortal
+      summary: Open the Paddle customer portal (v2)
+      description: billing.write. Where the customer updates their card, downloads invoices and cancels. 404 NO_SUBSCRIPTION when the business has never subscribed, 503 PAYMENT_NOT_CONFIGURED, 502 PAYMENT_PROVIDER_ERROR.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The portal session.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url:
+                    type: string
+                    format: uri
         default:
           $ref: '#/components/responses/Error'
   /platform/tenants/{id}/balance:
@@ -6117,6 +6279,45 @@ components:
         created_at:
           type: string
           format: date-time
+    BillingPlanChoice:
+      type: object
+      additionalProperties: false
+      required: [plan, interval]
+      properties:
+        plan:
+          type: string
+          enum: [starter, pro]
+        interval:
+          type: string
+          enum: [monthly, yearly]
+    BillingSubscription:
+      type: object
+      required: [status, plan, interval]
+      properties:
+        status:
+          type: string
+          enum: [trialing, active, past_due, paused, canceled]
+        plan:
+          type: string
+          enum: [starter, pro]
+        interval:
+          type: string
+          enum: [monthly, yearly]
+        trial_ends_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set while trialing.
+        current_period_end:
+          type: string
+          format: date-time
+          nullable: true
+          description: The next renewal, or the end of the paid period once canceled.
+        cancel_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set when a cancellation is scheduled; access ends then.
     BillingSummary:
       type: object
       required: [currency, balance, month, plan, tokens, token_addon, addons]
