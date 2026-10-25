@@ -589,6 +589,15 @@ paths:
             type: string
             maxLength: 100
           description: Matches the start of the name or of any contact's value.
+        - name: property
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+          description: property[key]=value keeps customers whose custom property has the value (up to 5). Sensitive properties need customers.write.
         - name: limit
           in: query
           schema:
@@ -723,13 +732,817 @@ paths:
     delete:
       operationId: deleteCustomer
       summary: Delete a customer (v2)
-      description: Needs customers.write. Deletes the customer and their contacts. Their conversations and tickets keep customer_id, and the contacts can be used again.
+      description: Needs customers.write. Deletes the customer, their contacts and their picture. Their conversations and tickets keep customer_id, and the contacts can be used again.
       security:
         - AdminKey: []
         - MemberToken: []
       responses:
         '204':
           description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /customers/{id}/avatar:
+    parameters:
+      - $ref: '#/components/parameters/CustomerID'
+    put:
+      operationId: setCustomerAvatar
+      summary: Upload a customer's picture (v2)
+      description: Needs customers.write. PNG, JPEG or WebP, as multipart file or the raw body. Kept when the chat API later sends avatar_url. 404 CUSTOMER_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: The picture's URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [avatar_url]
+                properties:
+                  avatar_url:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteCustomerAvatar
+      summary: Remove a customer's picture (v2)
+      description: Needs customers.write. 404 CUSTOMER_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: Removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatar_url:
+                    type: string
+                    nullable: true
+        default:
+          $ref: '#/components/responses/Error'
+  /properties:
+    get:
+      operationId: listProperties
+      summary: The custom properties of one kind of record (v2)
+      description: Needs properties.read. In sort_order. 400 INVALID_REQUEST for an unknown entity.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: entity
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PropertyEntity'
+        - name: scope_id
+          in: query
+          schema:
+            type: string
+          description: For entities whose properties are per type, one type's.
+      responses:
+        '200':
+          description: The properties.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PropertyDefinition'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createProperty
+      summary: Add a custom property (v2)
+      description: Needs properties.write. An entity has up to 50 properties (400 INVALID_REQUEST beyond). 409 PROPERTY_EXISTS when the entity already has the key.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PropertyInput'
+                - type: object
+                  required: [entity, key, label, type]
+      responses:
+        '201':
+          description: The new property.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyDefinition'
+        default:
+          $ref: '#/components/responses/Error'
+  /properties/presets:
+    get:
+      operationId: listPropertyPresets
+      summary: Suggested properties for the business's type (v2)
+      description: Needs properties.read. Add one with POST /properties.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: entity
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PropertyEntity'
+        - name: business_type
+          in: query
+          schema:
+            type: string
+          description: The business's type; left out, every preset is listed.
+      responses:
+        '200':
+          description: The presets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PropertyPreset'
+        default:
+          $ref: '#/components/responses/Error'
+  /properties/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PropertyID'
+    patch:
+      operationId: updateProperty
+      summary: Change a custom property (v2)
+      description: Needs properties.write. entity, scope_id, key and type can't change. 404 PROPERTY_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PropertyInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The updated property.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyDefinition'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteProperty
+      summary: Delete a custom property and its values (v2)
+      description: Needs properties.write. Erases the property's value from every record in the same transaction. 404 PROPERTY_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /products:
+    get:
+      operationId: listProducts
+      summary: The bot's products (v2)
+      description: Needs products.read. Most recently changed first; deleted products are left out.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+          description: Matches the name, SKU or description.
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, draft, archived]
+        - name: property
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+          description: property[key]=value keeps products whose custom property has the value (up to 5).
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of products.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  next_cursor:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createProduct
+      summary: Add a product (v2)
+      description: Needs products.write. 409 PRODUCT_EXISTS when another product has the SKU.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProductInput'
+                - type: object
+                  required: [name]
+      responses:
+        '201':
+          description: The new product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports:
+    get:
+      operationId: listProductImports
+      summary: The latest product imports (v2)
+      description: Needs products.read. The latest 20, without their drafts.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The imports.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createProductImport
+      summary: Start an import from a file or a web page (v2)
+      description: Needs products.write. A file answers where to PUT it, then call /process; a web page is read before the answer, which is the import (ready or failed).
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [source]
+              properties:
+                source:
+                  type: string
+                  enum: [file, url]
+                filename:
+                  type: string
+                  maxLength: 260
+                size:
+                  type: integer
+                  minimum: 1
+                url:
+                  type: string
+                  maxLength: 2048
+      responses:
+        '201':
+          description: The upload (file) or the read import (url).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProductImportUpload'
+                  - $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ImportID'
+    get:
+      operationId: getProductImport
+      summary: An import with its drafts (v2)
+      description: Needs products.read. 404 IMPORT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The import.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteProductImport
+      summary: Discard an import (v2)
+      description: Needs products.write. Deletes it and its file. 404 IMPORT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Discarded.
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports/{id}/process:
+    parameters:
+      - $ref: '#/components/parameters/ImportID'
+    post:
+      operationId: processProductImport
+      summary: Read an uploaded file (v2)
+      description: Needs products.write. Answers the import, ready or failed with error. 409 IMPORT_STATE while it is read, or once ready or committed.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The import.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImport'
+        default:
+          $ref: '#/components/responses/Error'
+  /products/imports/{id}/commit:
+    parameters:
+      - $ref: '#/components/parameters/ImportID'
+    post:
+      operationId: commitProductImport
+      summary: Save an import's reviewed drafts (v2)
+      description: Needs products.write. Drafts that fail checks are listed in errors and the rest are saved. 409 IMPORT_STATE when the import isn't ready.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                indexes:
+                  type: array
+                  description: The drafts to save, by their place in items; none saves all.
+                  items:
+                    type: integer
+                    minimum: 0
+                edits:
+                  type: object
+                  description: Fields of picked drafts to change, by index; properties replace the draft's.
+                  additionalProperties:
+                    $ref: '#/components/schemas/ProductInput'
+                on_duplicate:
+                  type: string
+                  enum: [skip, update]
+                  default: skip
+      responses:
+        '200':
+          description: What was saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [import, errors]
+                properties:
+                  import:
+                    $ref: '#/components/schemas/ProductImport'
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      required: [index, message]
+                      properties:
+                        index:
+                          type: integer
+                        message:
+                          type: string
+        default:
+          $ref: '#/components/responses/Error'
+  /products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ProductID'
+    get:
+      operationId: getProduct
+      summary: A product (v2)
+      description: Needs products.read. 404 PRODUCT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateProduct
+      summary: Change a product (v2)
+      description: Needs products.write. Fields left out keep their value; properties are merged. 404 PRODUCT_NOT_FOUND, 409 PRODUCT_EXISTS.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProductInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The updated product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteProduct
+      summary: Delete a product (v2)
+      description: Needs products.write. Its SKU can be used again. 404 PRODUCT_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /query-types:
+    get:
+      operationId: listQueryTypes
+      summary: The query types the role may see (v2)
+      description: Needs queries.read.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: archived
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: The types.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueryType'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createQueryType
+      summary: Add a query type (v2)
+      description: Needs queries.manage. Up to 30 per bot. 409 QUERY_TYPE_EXISTS.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryTypeInput'
+                - type: object
+                  required: [key, name]
+      responses:
+        '201':
+          description: The new type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryType'
+        default:
+          $ref: '#/components/responses/Error'
+  /query-types/presets:
+    get:
+      operationId: listQueryTypePresets
+      summary: Suggested query types (v2)
+      description: Needs queries.read. Create the type, then its fields with POST /properties (entity query, scope_id the type).
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: business_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The presets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        default:
+          $ref: '#/components/responses/Error'
+  /query-types/{id}:
+    parameters:
+      - $ref: '#/components/parameters/QueryTypeID'
+    patch:
+      operationId: updateQueryType
+      summary: Change or archive a query type (v2)
+      description: Needs queries.manage. key can't change; a status queries are in can't be removed. 404 QUERY_TYPE_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryTypeInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryType'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteQueryType
+      summary: Delete a query type without queries (v2)
+      description: Needs queries.manage. 409 QUERY_TYPE_IN_USE when it has queries; archive it instead.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /queries:
+    get:
+      operationId: listQueries
+      summary: The bot's queries (v2)
+      description: Needs queries.read. Only types the role may see; most recently changed first.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [open, pending, done, active]
+        - name: customer
+          in: query
+          schema:
+            type: string
+        - name: conversation
+          in: query
+          schema:
+            type: string
+        - name: assignee
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: property
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of queries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Query'
+                  next_cursor:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createQuery
+      summary: Open a query (v2)
+      description: Needs queries.write. Required fields of the type's form must be filled in.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryInput'
+                - type: object
+                  required: [type_id]
+      responses:
+        '201':
+          description: The new query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Query'
+        default:
+          $ref: '#/components/responses/Error'
+  /queries/{id}:
+    parameters:
+      - $ref: '#/components/parameters/QueryID'
+    get:
+      operationId: getQuery
+      summary: A query (v2)
+      description: Needs queries.read. 404 QUERY_NOT_FOUND, also for a type the role may not see.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Query'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateQuery
+      summary: Change a query, or add a note (v2)
+      description: Needs queries.write. The type and the conversation can't change.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Query'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteQuery
+      summary: Delete a query (v2)
+      description: Needs queries.delete.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /queries/{id}/events:
+    parameters:
+      - $ref: '#/components/parameters/QueryID'
+    get:
+      operationId: listQueryEvents
+      summary: A query's history (v2)
+      description: Needs queries.read. Oldest first.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The history.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueryEvent'
         default:
           $ref: '#/components/responses/Error'
   /channels:
@@ -4607,6 +5420,41 @@ components:
       scheme: bearer
       description: ADMIN_API_KEY, a service credential with every permission in every business. It acts for the default bot, or for the bot named by the X-Truplexy-Tenant and X-Truplexy-Bot headers (404 BOT_NOT_FOUND if it doesn't exist). Missing configuration returns 503 ADMIN_NOT_CONFIGURED; D1 failures return 502 DATABASE_ERROR, and R2, Vectorize, or Workers AI failures 502 STORAGE_ERROR.
   parameters:
+    QueryID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^qry_[0-9a-f]{32}$'
+    QueryTypeID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^qtp_[0-9a-f]{32}$'
+    ProductID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^prd_[0-9a-f]{32}$'
+    ImportID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^imp_[0-9a-f]{32}$'
+    PropertyID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^prp_[0-9a-f]{32}$'
     CustomerID:
       name: id
       in: path
@@ -5957,7 +6805,7 @@ components:
           description: Null leaves it to each business; leaving it out keeps it (v2).
     Customer:
       type: object
-      required: [id, tenant_id, bot_id, name, contacts, metadata, first_seen_at, last_seen_at, conversations, tickets, open_tickets, created_at, updated_at]
+      required: [id, tenant_id, bot_id, name, contacts, metadata, properties, first_seen_at, last_seen_at, conversations, tickets, open_tickets, created_at, updated_at]
       properties:
         id:
           type: string
@@ -5977,6 +6825,22 @@ components:
           type: object
           additionalProperties: true
           description: Whatever the caller keeps about the customer, up to 4 KB.
+        properties:
+          type: object
+          additionalProperties: true
+          description: The bot's custom property values by key (see /properties).
+        masked_properties:
+          type: array
+          description: Keys of sensitive values left out because the caller may not see them; absent when none.
+          items:
+            type: string
+        avatar_url:
+          type: string
+          description: The customer's picture; absent for none.
+        avatar_source:
+          type: string
+          enum: [upload, url]
+          description: upload when the team uploaded the picture, url when it was copied from a link.
         first_seen_at:
           type: string
           format: date-time
@@ -6030,6 +6894,505 @@ components:
           type: object
           additionalProperties: true
           description: Up to 4 KB.
+        properties:
+          type: object
+          additionalProperties: true
+          description: Values of the bot's custom properties by key, merged into the customer's; null clears one.
+        avatar_url:
+          type: string
+          maxLength: 2048
+          description: An https link to a PNG, JPEG or WebP picture to copy as the customer's; empty removes it. A link that can't be fetched leaves the picture as it was.
+    Product:
+      type: object
+      required: [id, tenant_id, bot_id, name, sku, description, price, currency, stock, url, image_url, status, source, properties, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^prd_[0-9a-f]{32}$'
+        tenant_id:
+          type: string
+        bot_id:
+          type: string
+        name:
+          type: string
+        sku:
+          type: string
+        description:
+          type: string
+        price:
+          type: string
+          nullable: true
+          description: A decimal string such as "19.90"; null when unknown.
+        currency:
+          type: string
+          description: ISO 4217 code, or empty.
+        stock:
+          type: integer
+          nullable: true
+          description: null when stock isn't tracked.
+        url:
+          type: string
+        image_url:
+          type: string
+        status:
+          type: string
+          enum: [active, draft, archived]
+        source:
+          type: string
+          enum: [manual, csv, document, web]
+        properties:
+          type: object
+          additionalProperties: true
+        masked_properties:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProductInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sku:
+          type: string
+          maxLength: 64
+        description:
+          type: string
+          maxLength: 5000
+        price:
+          description: An amount as text or a number; null clears it.
+          nullable: true
+          oneOf:
+            - type: string
+            - type: number
+        currency:
+          type: string
+        stock:
+          type: integer
+          minimum: 0
+          nullable: true
+        url:
+          type: string
+          maxLength: 2048
+        image_url:
+          type: string
+          maxLength: 2048
+        status:
+          type: string
+          enum: [active, draft, archived]
+        properties:
+          type: object
+          additionalProperties: true
+    ProductDraft:
+      type: object
+      required: [name, sku, description, price, currency, stock, url, image_url, properties, problems, exists]
+      properties:
+        name:
+          type: string
+        sku:
+          type: string
+        description:
+          type: string
+        price:
+          type: string
+          nullable: true
+        currency:
+          type: string
+        stock:
+          type: integer
+          nullable: true
+        url:
+          type: string
+        image_url:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+        problems:
+          type: array
+          description: What was left out or needs a look.
+          items:
+            type: string
+        exists:
+          type: boolean
+          description: The catalog already has a product with this SKU.
+    ProductImport:
+      type: object
+      required: [id, source, name, status, item_count, truncated, created, updated, skipped, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^imp_[0-9a-f]{32}$'
+        source:
+          type: string
+          enum: [file, url]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [uploading, processing, ready, failed, committed]
+        method:
+          type: string
+          enum: [csv, json, json_ld, ai]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductDraft'
+        item_count:
+          type: integer
+        truncated:
+          type: boolean
+        error:
+          type: string
+        created:
+          type: integer
+        updated:
+          type: integer
+        skipped:
+          type: integer
+        committed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProductImportUpload:
+      type: object
+      required: [import, url, method, headers, expires_at]
+      properties:
+        import:
+          $ref: '#/components/schemas/ProductImport'
+        url:
+          type: string
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    QueryStatus:
+      type: object
+      required: [key, label, category]
+      properties:
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        label:
+          type: string
+          maxLength: 40
+        category:
+          type: string
+          enum: [open, pending, done]
+    QueryType:
+      type: object
+      required: [id, key, name, description, statuses, default_status, visible_roles, bot_enabled, sort_order, archived, open, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^qtp_[0-9a-f]{32}$'
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        statuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryStatus'
+        default_status:
+          type: string
+        visible_roles:
+          type: array
+          description: Empty lets every role with queries.read see the type; owners and admins always do.
+          items:
+            type: string
+            enum: [editor, agent, viewer]
+        bot_enabled:
+          type: boolean
+        sort_order:
+          type: integer
+        archived:
+          type: boolean
+        open:
+          type: integer
+          description: Its queries not done.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    QueryTypeInput:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        name:
+          type: string
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 300
+        statuses:
+          type: array
+          minItems: 2
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/QueryStatus'
+        default_status:
+          type: string
+        visible_roles:
+          type: array
+          items:
+            type: string
+            enum: [editor, agent, viewer]
+        bot_enabled:
+          type: boolean
+        sort_order:
+          type: integer
+        archived:
+          type: boolean
+    Query:
+      type: object
+      required: [id, reference, number, type_id, type_name, subject, status, status_label, status_category, source, properties, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^qry_[0-9a-f]{32}$'
+        reference:
+          type: string
+          example: Q-1001
+        number:
+          type: integer
+        type_id:
+          type: string
+        type_name:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+        status_label:
+          type: string
+        status_category:
+          type: string
+          enum: [open, pending, done]
+        customer_id:
+          type: string
+        customer_name:
+          type: string
+        conversation_id:
+          type: string
+        ticket_id:
+          type: string
+        assignee_user_id:
+          type: string
+        assignee_name:
+          type: string
+        source:
+          type: string
+          enum: [dashboard, assistant]
+        properties:
+          type: object
+          additionalProperties: true
+        masked_properties:
+          type: array
+          items:
+            type: string
+        closed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    QueryInput:
+      type: object
+      additionalProperties: false
+      properties:
+        type_id:
+          type: string
+        subject:
+          type: string
+          maxLength: 200
+        status:
+          type: string
+        customer_id:
+          type: string
+        conversation_id:
+          type: string
+        ticket_id:
+          type: string
+        assignee_user_id:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+        note:
+          type: string
+          maxLength: 4000
+    QueryEvent:
+      type: object
+      required: [id, kind, actor_type, created_at]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [created, status, assigned, fields, note]
+        from:
+          type: string
+        to:
+          type: string
+        note:
+          type: string
+        actor_type:
+          type: string
+          enum: [member, assistant, key]
+        actor_id:
+          type: string
+        actor_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    PropertyEntity:
+      type: string
+      enum: [customer, product, query]
+      description: The kind of record a property belongs to.
+    PropertyType:
+      type: string
+      enum: [text, long_text, number, boolean, date, select, multi_select, email, phone, url]
+    PropertyOption:
+      type: object
+      required: [value, label]
+      properties:
+        value:
+          type: string
+          maxLength: 60
+          description: What records store; unique in the property, ignoring case.
+        label:
+          type: string
+          maxLength: 60
+    PropertyDefinition:
+      type: object
+      required: [id, entity, key, label, description, type, options, required, sensitive, sort_order, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^prp_[0-9a-f]{32}$'
+        entity:
+          $ref: '#/components/schemas/PropertyEntity'
+        scope_id:
+          type: string
+          description: For entities whose properties are per type; absent otherwise.
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        label:
+          type: string
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 300
+        type:
+          $ref: '#/components/schemas/PropertyType'
+        options:
+          type: array
+          description: select and multi_select only.
+          items:
+            $ref: '#/components/schemas/PropertyOption'
+        required:
+          type: boolean
+        sensitive:
+          type: boolean
+          description: Shown only to members who may edit the record; never given to the assistant or sent in webhooks.
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PropertyInput:
+      type: object
+      additionalProperties: false
+      properties:
+        entity:
+          $ref: '#/components/schemas/PropertyEntity'
+        scope_id:
+          type: string
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        label:
+          type: string
+          minLength: 1
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 300
+        type:
+          $ref: '#/components/schemas/PropertyType'
+        options:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PropertyOption'
+        required:
+          type: boolean
+        sensitive:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
+          maximum: 10000
+    PropertyPreset:
+      type: object
+      required: [entity, key, label, description, type, options, sensitive, business_types]
+      properties:
+        entity:
+          $ref: '#/components/schemas/PropertyEntity'
+        key:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: '#/components/schemas/PropertyType'
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyOption'
+        sensitive:
+          type: boolean
+        business_types:
+          type: array
+          description: The business types the preset suits; empty suits every business.
+          items:
+            type: string
     Channel:
       type: object
       required: [id, tenant_id, bot_id, type, type_label, name, description, external_id, enabled, disabled_by_platform, active, open_tickets, tickets, api_keys, created_at, updated_at]

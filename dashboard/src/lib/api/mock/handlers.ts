@@ -37,6 +37,11 @@ import { emit, topicFor } from './bus';
 import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 import { buildPerformance, performanceMode } from './performance';
+import { PRESETS, PROPERTY_ENTITIES, PropertyError, applyValues, changeDefinition, matchesFilters, newDefinition, visibleValues, type MockProperty } from './properties';
+import { readCsv, sampleDrafts, type MockImport, type MockProduct } from './products';
+import { isLink, parsePrice } from '@/lib/products';
+import { QUERY_PRESETS, type MockQuery, type MockQueryType } from './queries';
+import type { CustomerQuery, QueryType } from '@/lib/api/types';
 
 /* ------------------------------------------------------------------ */
 /* Plumbing                                                            */
@@ -79,6 +84,13 @@ interface Route {
 }
 
 const routes: Route[] = [];
+const DEFAULT_QUERY_STATUSES: MockQueryType['statuses'] = [
+  { key: 'new', label: 'New', category: 'open' },
+  { key: 'in_progress', label: 'In progress', category: 'open' },
+  { key: 'waiting_customer', label: 'Waiting on customer', category: 'pending' },
+  { key: 'resolved', label: 'Resolved', category: 'done' },
+  { key: 'rejected', label: 'Rejected', category: 'done' },
+];
 function route(method: string, path: string, access: Access, fn: Handler) {
   const keys: string[] = [];
   const re = new RegExp(`^${path.replace(/:([a-z_]+)/g, (_, k) => (keys.push(k), '([^/]+)'))}$`);
@@ -903,6 +915,13 @@ route('DELETE', '/channels/:id', 'channels.write', (c) => {
 
 /* Customers ------------------------------------------------------------ */
 
+/** A customer as a member of the business sees it: sensitive values only for those who can edit customers. */
+function customerView(c: Ctx, cu: MockCustomer): Customer {
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('customers.write');
+  const { properties, masked_properties } = visibleValues(definitionsOf(c, 'customer'), cu.properties, sensitive);
+  return { ...customerOut(c.db, cu), properties, ...(masked_properties.length && { masked_properties }) };
+}
+
 function customerOut(db: MockDb, cu: MockCustomer): Customer {
   const tickets = db.tickets.filter((t) => t.customer_id === cu.id && t.tenant_id === cu.tenant_id);
   return {
@@ -962,6 +981,16 @@ function applyCustomer(c: Ctx, cu: Partial<MockCustomer>, b: any, existing?: Moc
     if (JSON.stringify(b.metadata).length > 4096) throw invalid('metadata is at most 4 KB.');
     cu.metadata = b.metadata;
   }
+  if (b.properties !== undefined || !existing) {
+    cu.properties = checked(() => applyValues(definitionsOf(c, 'customer'), existing?.properties ?? {}, b.properties, !existing));
+  }
+  if (b.avatar_url !== undefined) {
+    const link = String(b.avatar_url ?? '').trim();
+    if (link && !/^https:\/\/[^\s/@]+\//.test(link)) throw invalid('Set avatar_url to an https link to a PNG, JPEG or WebP picture, or to "" to remove the picture.');
+    // The API copies the picture; the demo shows the link itself.
+    cu.avatar_url = link || undefined;
+    cu.avatar_source = link ? 'url' : undefined;
+  }
   const next = { ...existing, ...cu };
   if (!next.name && !next.contacts?.length) throw invalid('A customer needs a name or at least one contact.');
   for (const k of next.contacts ?? []) {
@@ -973,30 +1002,33 @@ function applyCustomer(c: Ctx, cu: Partial<MockCustomer>, b: any, existing?: Moc
 
 route('GET', '/customers', 'customers.read', (c) => {
   const s = (c.query.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  const defs = definitionsOf(c, 'customer');
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('customers.write');
   const filtered = botCustomers(c)
     .filter((x) => !s || [x.name, ...x.contacts.map((k) => k.value)].some((f) => f.toLowerCase().startsWith(s) || f.toLowerCase().split(/\s+/).some((w) => w.startsWith(s))))
+    .filter((x) => checked(() => matchesFilters(defs, x.properties, c.query, sensitive)))
     .sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at));
   const limit = Math.min(200, Math.max(1, Number(c.query.get('limit') ?? 50)));
   const start = Number(c.query.get('cursor') ?? 0);
   return {
-    data: filtered.slice(start, start + limit).map((x) => customerOut(c.db, x)),
+    data: filtered.slice(start, start + limit).map((x) => customerView(c, x)),
     next_cursor: start + limit < filtered.length ? String(start + limit) : undefined,
   };
 });
 
 route('POST', '/customers', 'customers.write', (c) => {
   const now = nowIso();
-  const cu = { id: newId('cus'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', contacts: [], metadata: {}, first_seen_at: now, last_seen_at: now, created_at: now, updated_at: now } as MockCustomer;
+  const cu: MockCustomer = { id: newId('cus'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', contacts: [], metadata: {}, properties: {}, first_seen_at: now, last_seen_at: now, created_at: now, updated_at: now };
   applyCustomer(c, cu, c.body ?? {});
   c.db.customers.push(cu);
-  return created(customerOut(c.db, cu));
+  return created(customerView(c, cu));
 });
 
 route('GET', '/customers/:id', 'customers.read', (c) => {
   const cu = customerOf(c, c.params.id);
   const latest = <T extends { updated_at: string }>(rows: T[]) => rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10);
   return {
-    ...customerOut(c.db, cu),
+    ...customerView(c, cu),
     recent_conversations: latest(c.db.conversations.filter((x) => x.customer_id === cu.id)).map((x) => ({ id: x.id, created_at: x.created_at, updated_at: x.updated_at })),
     recent_tickets: latest(botTickets(c).filter((t) => t.customer_id === cu.id)).map((t) => ({ id: t.id, subject: t.subject, status: t.status, created_at: t.created_at, updated_at: t.updated_at })),
   };
@@ -1005,11 +1037,24 @@ route('GET', '/customers/:id', 'customers.read', (c) => {
 route('PATCH', '/customers/:id', 'customers.write', (c) => {
   const cu = customerOf(c, c.params.id);
   const b = c.body ?? {};
-  if (!['name', 'contacts', 'metadata'].some((k) => b[k] !== undefined)) throw invalid('Send at least one field to change.');
+  if (!['name', 'contacts', 'metadata', 'properties', 'avatar_url'].some((k) => b[k] !== undefined)) throw invalid('Send at least one field to change.');
   const patch: Partial<MockCustomer> = {};
   applyCustomer(c, patch, b, cu);
   Object.assign(cu, patch, { updated_at: nowIso() });
-  return customerOut(c.db, cu);
+  return customerView(c, cu);
+});
+
+route('PUT', '/customers/:id/avatar', 'customers.write', (c) => {
+  const cu = customerOf(c, c.params.id);
+  Object.assign(cu, { avatar_url: pictureOf(c), avatar_source: 'upload' as const });
+  return { avatar_url: cu.avatar_url };
+});
+
+route('DELETE', '/customers/:id/avatar', 'customers.write', (c) => {
+  const cu = customerOf(c, c.params.id);
+  delete cu.avatar_url;
+  delete cu.avatar_source;
+  return { avatar_url: null };
 });
 
 route('DELETE', '/customers/:id', 'customers.write', (c) => {
@@ -1018,6 +1063,467 @@ route('DELETE', '/customers/:id', 'customers.write', (c) => {
   c.db.customers = c.db.customers.filter((x) => x !== cu);
   return noContent();
 });
+
+/* Custom properties -------------------------------------------------- */
+
+const botProperties = (c: Ctx) =>
+  (c.db.properties ??= []).filter((d) => d.tenant_id === c.tenant.id && d.bot_id === c.botId).sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
+
+/** A record's property definitions, for checking and showing its values. */
+export const definitionsOf = (c: Ctx, entity: MockProperty['entity'], scopeId?: string) =>
+  botProperties(c).filter((d) => d.entity === entity && (scopeId === undefined || (d.scope_id ?? '') === scopeId));
+
+const propertyOut = ({ tenant_id: _t, bot_id: _b, ...d }: MockProperty) => d;
+
+/** Runs a property check, turning its refusal into 400 INVALID_REQUEST. */
+export function checked<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (e) {
+    if (e instanceof PropertyError) throw invalid(e.message);
+    throw e;
+  }
+}
+
+function propertyOf(c: Ctx, id: unknown) {
+  const d = botProperties(c).find((x) => x.id === id);
+  if (!d) throw notFound('PROPERTY_NOT_FOUND', 'Property');
+  return d;
+}
+
+route('GET', '/properties', 'properties.read', (c) => {
+  const entity = c.query.get('entity') as MockProperty['entity'];
+  if (!PROPERTY_ENTITIES.includes(entity)) throw invalid(`Set entity to one of ${PROPERTY_ENTITIES.join(', ')}.`);
+  const scope = c.query.get('scope_id') || undefined;
+  return { data: definitionsOf(c, entity, entity === 'query' ? scope : '').map(propertyOut) };
+});
+
+route('GET', '/properties/presets', 'properties.read', (c) => {
+  const entity = c.query.get('entity');
+  const type = c.query.get('business_type');
+  if (!PROPERTY_ENTITIES.includes(entity as MockProperty['entity'])) throw invalid(`Set entity to one of ${PROPERTY_ENTITIES.join(', ')}.`);
+  return { data: PRESETS.filter((p) => p.entity === entity && (!type || !p.business_types.length || p.business_types.includes(type))) };
+});
+
+route('POST', '/properties', 'properties.write', (c) => {
+  const b = c.body ?? {};
+  if (b.entity === 'query' && !queryTypesOf(c).some((t) => t.id === b.scope_id)) throw invalid('scope_id names no query type of this bot.');
+  const def = checked(() => newDefinition(b, definitionsOf(c, b.entity)));
+  if (definitionsOf(c, def.entity, def.scope_id ?? '').some((d) => d.key === def.key)) throw err(409, 'PROPERTY_EXISTS', 'Another property of this entity already has this key.');
+  const now = nowIso();
+  const d: MockProperty = { ...def, id: newId('prp'), tenant_id: c.tenant.id, bot_id: c.botId, created_at: now, updated_at: now };
+  c.db.properties.push(d);
+  return created(propertyOut(d));
+});
+
+route('PATCH', '/properties/:id', 'properties.write', (c) => {
+  const d = propertyOf(c, c.params.id);
+  const b = c.body ?? {};
+  if (!['entity', 'scope_id', 'key', 'label', 'description', 'type', 'options', 'required', 'sensitive', 'sort_order'].some((k) => b[k] !== undefined)) throw invalid('Send at least one field to change.');
+  const next = { ...d };
+  checked(() => changeDefinition(next, b));
+  Object.assign(d, next, { updated_at: nowIso() });
+  return propertyOut(d);
+});
+
+route('DELETE', '/properties/:id', 'properties.write', (c) => {
+  const d = propertyOf(c, c.params.id);
+  c.db.properties = c.db.properties.filter((x) => x !== d);
+  // Its values go with it, in every record of the bot.
+  for (const cu of botCustomers(c)) delete cu.properties?.[d.key];
+  for (const p of botProducts(c)) delete p.properties[d.key];
+  for (const q of botQueries(c)) if (q.type_id === d.scope_id) delete q.properties[d.key];
+  return noContent();
+});
+
+/* Products ----------------------------------------------------------- */
+
+const botProducts = (c: Ctx) => (c.db.products ??= []).filter((p) => p.tenant_id === c.tenant.id && p.bot_id === c.botId);
+
+function productView(c: Ctx, p: MockProduct) {
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('products.write');
+  const { properties, masked_properties } = visibleValues(definitionsOf(c, 'product'), p.properties, sensitive);
+  return { ...p, properties, ...(masked_properties.length && { masked_properties }) };
+}
+
+function productOf(c: Ctx, id: unknown) {
+  const p = botProducts(c).find((x) => x.id === id);
+  if (!p) throw notFound('PRODUCT_NOT_FOUND', 'Product');
+  return p;
+}
+
+/** Validates POST and PATCH /products fields onto p, like the API. */
+function applyProduct(c: Ctx, p: MockProduct, b: any, creating: boolean) {
+  if (b.name !== undefined) p.name = String(b.name).replace(/\s+/g, ' ').trim();
+  if (b.sku !== undefined) p.sku = String(b.sku).trim();
+  if (b.description !== undefined) p.description = String(b.description).trim();
+  if (b.price !== undefined) {
+    const price = b.price === null ? null : parsePrice(String(b.price));
+    if (price === undefined) throw invalid('Set price to an amount such as "19.90" (up to 12 digits and 4 decimals), or null.');
+    p.price = price;
+  }
+  if (b.currency !== undefined) p.currency = String(b.currency).trim().toUpperCase();
+  if (b.stock !== undefined) {
+    if (b.stock !== null && (!Number.isInteger(b.stock) || b.stock < 0)) throw invalid('Set stock to a whole number from 0, or null when it isn\'t tracked.');
+    p.stock = b.stock;
+  }
+  if (b.url !== undefined) p.url = String(b.url).trim();
+  if (b.image_url !== undefined) p.image_url = String(b.image_url).trim();
+  if (b.status !== undefined) p.status = b.status;
+  if (!p.name || p.name.length > 200) throw invalid('Give the product a name of 1–200 characters.');
+  if (p.sku.length > 64) throw invalid('Keep the SKU to 64 characters on one line.');
+  if (p.currency && !/^[A-Z]{3}$/.test(p.currency)) throw invalid('Set currency to a three-letter ISO 4217 code such as USD or EUR.');
+  if (!['active', 'draft', 'archived'].includes(p.status)) throw invalid('Set status to active, draft or archived.');
+  if (!isLink(p.url)) throw invalid('Set url to an http or https link.');
+  if (!isLink(p.image_url)) throw invalid('Set image_url to an http or https link.');
+  if (b.properties !== undefined || creating) p.properties = checked(() => applyValues(definitionsOf(c, 'product'), p.properties, b.properties, creating));
+  if (p.sku && botProducts(c).some((x) => x !== p && x.sku === p.sku)) throw err(409, 'PRODUCT_EXISTS', 'Another product of this bot already has this SKU.');
+}
+
+route('GET', '/products', 'products.read', (c) => {
+  const s = (c.query.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  const status = c.query.get('status');
+  const defs = definitionsOf(c, 'product');
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('products.write');
+  const filtered = botProducts(c)
+    .filter((p) => !s || [p.name, p.sku, p.description].some((f) => f.toLowerCase().includes(s)))
+    .filter((p) => !status || p.status === status)
+    .filter((p) => checked(() => matchesFilters(defs, p.properties, c.query, sensitive)))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const limit = Math.min(200, Math.max(1, Number(c.query.get('limit') ?? 50)));
+  const start = Number(c.query.get('cursor') ?? 0);
+  return { data: filtered.slice(start, start + limit).map((p) => productView(c, p)), next_cursor: start + limit < filtered.length ? String(start + limit) : undefined };
+});
+
+route('POST', '/products', 'products.write', (c) => {
+  const now = nowIso();
+  const p: MockProduct = { id: newId('prd'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', sku: '', description: '', price: null, currency: '', stock: null, url: '', image_url: '',
+    status: 'active', source: 'manual', properties: {}, created_at: now, updated_at: now };
+  applyProduct(c, p, c.body ?? {}, true);
+  c.db.products.push(p);
+  return created(productView(c, p));
+});
+
+route('GET', '/products/imports', 'products.read', (c) => ({
+  data: (c.db.productImports ??= [])
+    .filter((i) => i.tenant_id === c.tenant.id && i.bot_id === c.botId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 20)
+    .map(({ items: _items, tenant_id: _t, bot_id: _b, ...i }) => i),
+}));
+
+function importOf(c: Ctx, id: unknown) {
+  const i = (c.db.productImports ??= []).find((x) => x.id === id && x.tenant_id === c.tenant.id && x.bot_id === c.botId);
+  if (!i) throw notFound('IMPORT_NOT_FOUND', 'Import');
+  return i;
+}
+
+function importOut(c: Ctx, i: MockImport) {
+  const { tenant_id: _t, bot_id: _b, ...out } = i;
+  const skus = new Set(botProducts(c).map((p) => p.sku).filter(Boolean));
+  return { ...out, items: i.status === 'ready' ? i.items.map((d) => ({ ...d, exists: Boolean(d.sku) && skus.has(d.sku) })) : [] };
+}
+
+function readyImport(c: Ctx, i: MockImport, items: MockImport['items'] | string, method: MockImport['method'], truncated = false) {
+  Object.assign(i, { updated_at: nowIso(), method });
+  if (typeof items === 'string' || !items.length) Object.assign(i, { status: 'failed', error: typeof items === 'string' ? items : 'No products were found.' });
+  else Object.assign(i, { status: 'ready', items, item_count: items.length, truncated, error: undefined });
+  return importOut(c, i);
+}
+
+route('POST', '/products/imports', 'products.write', (c) => {
+  const b = c.body ?? {};
+  const now = nowIso();
+  const base = { id: newId('imp'), tenant_id: c.tenant.id, bot_id: c.botId, items: [], item_count: 0, truncated: false, created: 0, updated: 0, skipped: 0, created_at: now, updated_at: now };
+  if (b.source === 'file') {
+    const name = str(b.filename, 'filename', 1, 260)!;
+    if (!/\.(csv|tsv|json|txt|md|pdf|docx|html?)$/i.test(name)) throw invalid("This file type isn't read. Use .csv, .tsv, .json, .txt, .md, .pdf, .docx, .html; export a spreadsheet as CSV.");
+    const i: MockImport = { ...base, source: 'file', name, status: 'uploading' };
+    c.db.productImports.push(i);
+    return created({ import: importOut(c, i), url: `mock://r2/${i.id}`, method: 'PUT', headers: { 'Content-Type': 'text/csv' }, expires_at: new Date(Date.now() + 1_800_000).toISOString() });
+  }
+  if (b.source === 'url') {
+    const link = String(b.url ?? '').trim();
+    if (!/^https:\/\/[^\s/]+\.[^\s]+/.test(link) || /localhost|127\.0\.0\.1|169\.254\./.test(link)) throw invalid("Send the page's full https:// link.");
+    const i: MockImport = { ...base, source: 'url', name: link, status: 'processing' };
+    c.db.productImports.push(i);
+    // A link with "fail" in it shows a page that couldn't be read.
+    if (/fail/i.test(link)) return created(readyImport(c, i, 'The page answered 404 Not Found.', undefined));
+    return created(readyImport(c, i, sampleDrafts(link, definitionsOf(c, 'product')), /ai/i.test(link) ? 'ai' : 'json_ld'));
+  }
+  throw invalid('Send {"source": "file", ...} or {"source": "url", ...}.');
+});
+
+route('GET', '/products/imports/:id', 'products.read', (c) => importOut(c, importOf(c, c.params.id)));
+
+route('POST', '/products/imports/:id/process', 'products.write', (c) => {
+  const i = importOf(c, c.params.id);
+  if (i.source !== 'file' || !['uploading', 'failed'].includes(i.status)) throw err(409, 'IMPORT_STATE', "The import can't do this now.");
+  const text = pendingObjects.get(i.id);
+  if (text === undefined) return readyImport(c, i, "The file hasn't been uploaded yet. Upload it, then try again.", undefined);
+  const defs = definitionsOf(c, 'product');
+  if (/\.(csv|tsv)$/i.test(i.name)) {
+    const read = readCsv(text, defs);
+    return typeof read === 'string' ? readyImport(c, i, read, 'csv') : readyImport(c, i, read.items, 'csv', read.truncated);
+  }
+  return readyImport(c, i, sampleDrafts(i.name, defs), /\.json$/i.test(i.name) ? 'json' : 'ai');
+});
+
+route('POST', '/products/imports/:id/commit', 'products.write', (c) => {
+  const i = importOf(c, c.params.id);
+  if (i.status !== 'ready') throw err(409, 'IMPORT_STATE', "The import can't do this now.");
+  const b = c.body ?? {};
+  const indexes: number[] = b.indexes?.length ? b.indexes : i.items.map((_, n) => n);
+  const errors: { index: number; message: string }[] = [];
+  let made = 0;
+  let changed = 0;
+  let skipped = 0;
+  for (const n of indexes) {
+    const d = i.items[n];
+    if (!d) throw invalid(`indexes names drafts by their place in items, each once: ${n} isn't one.`);
+    const fields = { name: d.name, sku: d.sku, description: d.description, price: d.price, currency: d.currency, stock: d.stock, url: d.url, image_url: d.image_url, properties: d.properties, ...b.edits?.[n] };
+    const same = fields.sku ? botProducts(c).find((p) => p.sku === fields.sku) : undefined;
+    if (same && b.on_duplicate !== 'update') {
+      skipped++;
+      continue;
+    }
+    const now = nowIso();
+    const p: MockProduct = same ?? { id: newId('prd'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', sku: '', description: '', price: null, currency: '', stock: null, url: '', image_url: '',
+      status: 'active', source: i.source === 'url' ? 'web' : i.method === 'csv' || i.method === 'json' ? 'csv' : 'document', properties: {}, created_at: now, updated_at: now };
+    try {
+      applyProduct(c, p, { ...fields, properties: undefined }, false);
+      p.properties = checked(() => applyValues(definitionsOf(c, 'product'), same?.properties ?? {}, fields.properties, false));
+    } catch (e) {
+      errors.push({ index: n, message: e instanceof Error ? e.message : String(e) });
+      continue;
+    }
+    p.updated_at = now;
+    if (same) changed++;
+    else c.db.products.push(p), made++;
+  }
+  Object.assign(i, { status: 'committed', committed_at: nowIso(), created: made, updated: changed, skipped, items: [] });
+  return { import: importOut(c, i), errors };
+});
+
+route('DELETE', '/products/imports/:id', 'products.write', (c) => {
+  const i = importOf(c, c.params.id);
+  c.db.productImports = c.db.productImports.filter((x) => x !== i);
+  return noContent();
+});
+
+route('GET', '/products/:id', 'products.read', (c) => productView(c, productOf(c, c.params.id)));
+
+route('PATCH', '/products/:id', 'products.write', (c) => {
+  const p = productOf(c, c.params.id);
+  const next = { ...p, properties: { ...p.properties } };
+  applyProduct(c, next, c.body ?? {}, false);
+  Object.assign(p, next, { updated_at: nowIso() });
+  return productView(c, p);
+});
+
+route('DELETE', '/products/:id', 'products.write', (c) => {
+  const p = productOf(c, c.params.id);
+  c.db.products = c.db.products.filter((x) => x !== p);
+  return noContent();
+});
+
+/* Queries ------------------------------------------------------------ */
+
+const queryTypesOf = (c: Ctx) => (c.db.queryTypes ??= []).filter((t) => t.tenant_id === c.tenant.id && t.bot_id === c.botId).sort((a, b) => a.sort_order - b.sort_order);
+const botQueries = (c: Ctx) => (c.db.queries ??= []).filter((q) => q.tenant_id === c.tenant.id && q.bot_id === c.botId && !q.deleted);
+const seesAll = (c: Ctx) => c.user.platform_admin || c.role === 'owner' || c.role === 'admin';
+const seesType = (c: Ctx, t: MockQueryType) => seesAll(c) || !t.visible_roles.length || t.visible_roles.includes(c.role as never);
+
+function queryTypeOut(c: Ctx, t: MockQueryType): QueryType {
+  const { tenant_id: _t, bot_id: _b, ...out } = t;
+  return { ...out, open: botQueries(c).filter((q) => q.type_id === t.id && q.status_category !== 'done').length };
+}
+
+function queryTypeOf(c: Ctx, id: unknown, mustSee = true) {
+  const t = queryTypesOf(c).find((x) => x.id === id);
+  if (!t || (mustSee && !seesType(c, t))) throw notFound('QUERY_TYPE_NOT_FOUND', 'Query type');
+  return t;
+}
+
+function queryOut(c: Ctx, q: MockQuery): CustomerQuery {
+  const t = queryTypeOf(c, q.type_id, false);
+  const status = t.statuses.find((s) => s.key === q.status);
+  const customer = c.db.customers.find((x) => x.id === q.customer_id);
+  const assignee = q.assignee_user_id ? userById(c.db, q.assignee_user_id) : undefined;
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('queries.write');
+  const { properties, masked_properties } = visibleValues(definitionsOf(c, 'query', t.id), q.properties, sensitive);
+  const { tenant_id: _t, bot_id: _b, deleted: _d, events: _e, ...out } = q;
+  return {
+    ...out,
+    reference: `Q-${q.number}`,
+    type_name: t.name,
+    status_label: status?.label ?? q.status,
+    customer_name: customer?.name,
+    assignee_name: assignee ? assignee.name || assignee.email : undefined,
+    properties,
+    ...(masked_properties.length && { masked_properties }),
+  };
+}
+
+function queryOf(c: Ctx, id: unknown) {
+  const q = botQueries(c).find((x) => x.id === id);
+  if (!q || !seesType(c, queryTypeOf(c, q.type_id, false))) throw notFound('QUERY_NOT_FOUND', 'Query');
+  return q;
+}
+
+function checkType(b: any, t: Partial<MockQueryType>) {
+  if (b.name !== undefined) t.name = String(b.name).trim();
+  if (b.description !== undefined) t.description = String(b.description).trim();
+  if (b.statuses !== undefined) t.statuses = b.statuses;
+  if (b.default_status !== undefined) t.default_status = b.default_status;
+  if (b.visible_roles !== undefined) t.visible_roles = b.visible_roles;
+  if (b.bot_enabled !== undefined) t.bot_enabled = b.bot_enabled === true;
+  if (b.archived !== undefined) t.archived = b.archived === true;
+  if (!t.name) throw invalid('Give the query type a name of 1–60 characters.');
+  const s = t.statuses ?? [];
+  if (s.length < 2 || s.length > 12) throw invalid('Give a query type 2–12 statuses.');
+  if (!s.some((x) => x.category === 'open') || !s.some((x) => x.category === 'done')) throw invalid('A query type needs at least one open status and one done status.');
+  if (new Set(s.map((x) => x.key)).size !== s.length || s.some((x) => !/^[a-z][a-z0-9_]{0,39}$/.test(x.key))) throw invalid('Give each status a unique key of lowercase letters, digits or underscores.');
+  const def = s.find((x) => x.key === t.default_status);
+  if (!def || def.category === 'done') throw invalid("Set default_status to one of the type's statuses that isn't done.");
+}
+
+route('GET', '/query-types', 'queries.read', (c) => ({
+  data: queryTypesOf(c)
+    .filter((t) => seesType(c, t) && (c.query.get('archived') === 'true' || !t.archived))
+    .map((t) => queryTypeOut(c, t)),
+}));
+
+route('GET', '/query-types/presets', 'queries.read', (c) => {
+  const type = c.query.get('business_type');
+  return { data: QUERY_PRESETS.filter((p) => !type || !p.business_types.length || p.business_types.includes(type)) };
+});
+
+route('POST', '/query-types', 'queries.manage', (c) => {
+  const b = c.body ?? {};
+  const key = String(b.key ?? '').trim();
+  if (!/^[a-z][a-z0-9_]{0,39}$/.test(key)) throw invalid('Set key to 1–40 lowercase letters, digits or underscores, starting with a letter, such as order_issue.');
+  if (queryTypesOf(c).some((t) => t.key === key)) throw err(409, 'QUERY_TYPE_EXISTS', 'Another query type of this bot already has this key.');
+  const now = nowIso();
+  const t: MockQueryType = {
+    id: newId('qtp'), tenant_id: c.tenant.id, bot_id: c.botId, key, name: '', description: '', statuses: DEFAULT_QUERY_STATUSES, default_status: 'new', visible_roles: [],
+    bot_enabled: false, sort_order: queryTypesOf(c).length, archived: false, created_at: now, updated_at: now,
+  };
+  checkType(b, t);
+  c.db.queryTypes.push(t);
+  return created(queryTypeOut(c, t));
+});
+
+route('PATCH', '/query-types/:id', 'queries.manage', (c) => {
+  const t = queryTypeOf(c, c.params.id);
+  const b = c.body ?? {};
+  if (b.key !== undefined && b.key !== t.key) throw invalid("A query type's key can't change.");
+  const next = { ...t };
+  checkType(b, next);
+  const used = botQueries(c).find((q) => q.type_id === t.id && !next.statuses.some((s) => s.key === q.status));
+  if (used) throw invalid(`Queries are ${used.status}. Move them to another status before removing it.`);
+  for (const q of botQueries(c).filter((x) => x.type_id === t.id)) q.status_category = next.statuses.find((s) => s.key === q.status)!.category;
+  Object.assign(t, next, { updated_at: nowIso() });
+  return queryTypeOut(c, t);
+});
+
+route('DELETE', '/query-types/:id', 'queries.manage', (c) => {
+  const t = queryTypeOf(c, c.params.id);
+  if (botQueries(c).some((q) => q.type_id === t.id)) throw err(409, 'QUERY_TYPE_IN_USE', 'This query type has queries. Archive it instead, so it takes no new ones.');
+  c.db.queryTypes = c.db.queryTypes.filter((x) => x !== t);
+  c.db.properties = c.db.properties.filter((d) => !(d.entity === 'query' && d.scope_id === t.id));
+  return noContent();
+});
+
+route('GET', '/queries', 'queries.read', (c) => {
+  const p = c.query;
+  const text = (p.get('q') ?? '').trim().toLowerCase();
+  const ref = /^#?q?-?(\d+)$/i.exec(text)?.[1];
+  const category = p.get('category');
+  const assignee = p.get('assignee');
+  const type = p.get('type');
+  const defs = type ? definitionsOf(c, 'query', type) : [];
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('queries.write');
+  const rows = botQueries(c)
+    .filter((q) => seesType(c, queryTypeOf(c, q.type_id, false)))
+    .filter((q) => !type || q.type_id === type)
+    .filter((q) => !p.get('status') || q.status === p.get('status'))
+    .filter((q) => !category || (category === 'active' ? q.status_category !== 'done' : q.status_category === category))
+    .filter((q) => !p.get('customer') || q.customer_id === p.get('customer'))
+    .filter((q) => !p.get('conversation') || q.conversation_id === p.get('conversation'))
+    .filter((q) => !assignee || (assignee === 'none' ? !q.assignee_user_id : q.assignee_user_id === (assignee === 'me' ? c.user.id : assignee)))
+    .filter((q) => !text || (ref ? q.number === Number(ref) : [q.subject, c.db.customers.find((x) => x.id === q.customer_id)?.name ?? ''].some((s) => s.toLowerCase().includes(text))))
+    .filter((q) => !type || checked(() => matchesFilters(defs, q.properties, p, sensitive)))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const limit = Math.min(200, Math.max(1, Number(p.get('limit') ?? 50)));
+  const start = Number(p.get('cursor') ?? 0);
+  return { data: rows.slice(start, start + limit).map((q) => queryOut(c, q)), next_cursor: start + limit < rows.length ? String(start + limit) : undefined };
+});
+
+function queryEvent(c: Ctx, q: MockQuery, kind: MockQuery['events'][number]['kind'], extra: Partial<MockQuery['events'][number]> = {}) {
+  q.events.push({ id: newId('qev'), kind, actor_type: 'member', actor_id: c.user.id, actor_name: c.user.name, created_at: nowIso(), ...extra });
+}
+
+route('POST', '/queries', 'queries.write', (c) => {
+  const b = c.body ?? {};
+  const t = queryTypeOf(c, b.type_id);
+  if (t.archived) throw invalid(`${t.name} is archived, so it takes no new queries.`);
+  const status = t.statuses.find((s) => s.key === (b.status ?? t.default_status));
+  if (!status) throw invalid(`${t.name} has no status "${b.status}".`);
+  const now = nowIso();
+  const conversation = b.conversation_id ? c.db.conversations.find((x) => x.id === b.conversation_id && x.tenant_id === c.tenant.id) : undefined;
+  if (b.conversation_id && !conversation) throw invalid('conversation_id names no conversation of this bot.');
+  const customer = b.customer_id || conversation?.customer_id;
+  if (b.customer_id && !botCustomers(c).some((x) => x.id === b.customer_id)) throw invalid('customer_id names no customer of this bot.');
+  const q: MockQuery = {
+    id: newId('qry'), tenant_id: c.tenant.id, bot_id: c.botId, number: botQueries(c).reduce((m, x) => Math.max(m, x.number), 1000) + 1, type_id: t.id,
+    subject: String(b.subject ?? '').trim(), status: status.key, status_category: status.category, customer_id: customer || undefined, conversation_id: b.conversation_id || undefined,
+    ticket_id: b.ticket_id || undefined, assignee_user_id: b.assignee_user_id || undefined, source: 'dashboard',
+    properties: checked(() => applyValues(definitionsOf(c, 'query', t.id), {}, b.properties, true)), events: [], created_at: now, updated_at: now,
+    ...(status.category === 'done' && { closed_at: now }),
+  };
+  queryEvent(c, q, 'created', { to: q.status, note: b.note });
+  c.db.queries.push(q);
+  return created(queryOut(c, q));
+});
+
+route('GET', '/queries/:id', 'queries.read', (c) => queryOut(c, queryOf(c, c.params.id)));
+
+route('PATCH', '/queries/:id', 'queries.write', (c) => {
+  const q = queryOf(c, c.params.id);
+  const t = queryTypeOf(c, q.type_id, false);
+  const b = c.body ?? {};
+  if (!Object.keys(b).length) throw invalid('Send at least one field to change.');
+  if (b.subject !== undefined) q.subject = String(b.subject).trim();
+  if (b.status !== undefined && b.status !== q.status) {
+    const s = t.statuses.find((x) => x.key === b.status);
+    if (!s) throw invalid(`${t.name} has no status "${b.status}".`);
+    queryEvent(c, q, 'status', { from: q.status, to: s.key });
+    Object.assign(q, { status: s.key, status_category: s.category, closed_at: s.category === 'done' ? (q.closed_at ?? nowIso()) : undefined });
+  }
+  if (b.assignee_user_id !== undefined && b.assignee_user_id !== (q.assignee_user_id ?? '')) {
+    queryEvent(c, q, 'assigned', { from: q.assignee_user_id, to: b.assignee_user_id });
+    q.assignee_user_id = b.assignee_user_id || undefined;
+  }
+  if (b.properties !== undefined) {
+    const before = JSON.stringify(q.properties);
+    q.properties = checked(() => applyValues(definitionsOf(c, 'query', t.id), q.properties, b.properties, false));
+    if (JSON.stringify(q.properties) !== before) queryEvent(c, q, 'fields', { to: Object.keys(b.properties).join(',') });
+  }
+  if (b.note !== undefined) {
+    if (!String(b.note).trim()) throw invalid('Write a note, or leave note out.');
+    queryEvent(c, q, 'note', { note: String(b.note).trim() });
+  }
+  q.updated_at = nowIso();
+  return queryOut(c, q);
+});
+
+route('DELETE', '/queries/:id', 'queries.delete', (c) => {
+  queryOf(c, c.params.id).deleted = true;
+  return noContent();
+});
+
+route('GET', '/queries/:id/events', 'queries.read', (c) => ({ data: queryOf(c, c.params.id).events }));
 
 /* Workspace ---------------------------------------------------------- */
 

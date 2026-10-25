@@ -1,16 +1,19 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { imageForm } from '@/lib/api/endpoints/account';
 import type { Customer, CustomerDetail, CustomerInput, CustomerList } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
 /* The bot's customers. Scope headers are required; these act on the bot. */
 
-export function useCustomers(q: string | undefined) {
+/** `properties` filters by exact values, sent as property[key]=value. */
+export function useCustomers(q: string | undefined, properties: Record<string, string> = {}) {
   const scope = useScope();
+  const filters = Object.fromEntries(Object.entries(properties).map(([k, v]) => [`property[${k}]`, v]));
   return useInfiniteQuery({
-    queryKey: qk.bot(scope, 'customers', 'list', q ?? ''),
-    queryFn: ({ pageParam, signal }) => api<CustomerList>('/customers', { scope, signal, query: { limit: 50, q: q || undefined, cursor: pageParam } }),
+    queryKey: qk.bot(scope, 'customers', 'list', q ?? '', filters),
+    queryFn: ({ pageParam, signal }) => api<CustomerList>('/customers', { scope, signal, query: { limit: 50, q: q || undefined, ...filters, cursor: pageParam } }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor,
     placeholderData: (prev) => prev,
@@ -63,5 +66,26 @@ export function useDeleteCustomer() {
     mutationFn: (id: string) => api<void>(`/customers/${id}`, { method: 'DELETE', scope }),
     onSuccess: invalidate,
     meta: { success: 'Customer deleted. Their tickets keep working.' },
+  });
+}
+
+/** Uploads a customer's picture. The team's upload is kept when the chat API later sends a link. */
+export function useSetCustomerAvatar() {
+  const scope = useScope();
+  const invalidate = useInvalidateCustomers();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => api<{ avatar_url: string }>(`/customers/${id}/avatar`, { method: 'PUT', body: imageForm(file), scope }),
+    onSuccess: invalidate,
+    meta: { success: 'Picture updated' },
+  });
+}
+
+export function useRemoveCustomerAvatar() {
+  const scope = useScope();
+  const invalidate = useInvalidateCustomers();
+  return useMutation({
+    mutationFn: (id: string) => api<{ avatar_url: null }>(`/customers/${id}/avatar`, { method: 'DELETE', scope }),
+    onSuccess: invalidate,
+    meta: { success: 'Picture removed' },
   });
 }

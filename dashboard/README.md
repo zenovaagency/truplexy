@@ -54,6 +54,36 @@ The API will let customers, and people testing in the playground, attach picture
 - Demo mode serves image input only when asked, so by default it answers like the API today. In the browser console: `localStorage.setItem('truplexy.mock.imageInput', 'on')` (or `plan`, `no_vision`, `on-expired` for links that are dead the first time), then reload. `localStorage.setItem('truplexy.mock.imageFail', 'invalid')` (also `not_found`, `not_uploaded`, `too_large`, `unsupported`) fails the next send once, and `localStorage.setItem('truplexy.mock.imageFlaky', '1')` cuts off the first `PUT` of each file. `VITE_MOCK_IMAGE_INPUT=on` sets the mode at build time.
 - Demo mode serves the Performance pages by default. To see each situation they handle, run `localStorage.setItem('truplexy.mock.performance', mode)` and reload: `off` (the routes answer 404, so the page drops out of the menu), `no_http` (request statistics are off), `sampled` (a 25% sample), `no_models` (model calls aren't stored), `old` (most reply time is "other"), `empty` (no activity), `noreplies` (requests but no replies) and `high` (a high error rate). `on` is the default.
 
+## Custom properties
+
+Businesses define typed fields (text, number, date, single and multiple choice, email, phone, link, yes/no) for a bot's records under **Settings → Properties** (`src/features/settings/PropertiesTab.tsx`, API reference "Custom properties"). Customers are the first records with them.
+
+- The tab, and every later screen that shows properties, keys off one cheap `GET /properties` per bot (`src/lib/features.ts`). Until it succeeds, nothing about properties shows, so an API without them, or with migration `0041` not applied, looks as it did before.
+- `src/components/domain/Properties.tsx` has the inputs (`PropertyFields`) and the read-only list (`PropertyList`) for any record; `src/lib/properties.ts` moves values between the API and the fields. Edits send only the values that changed, so a value the API would no longer accept (a removed option) isn't sent again.
+- Sensitive properties come back masked (`masked_properties`) to people who can't edit the record; they show as **Hidden**.
+- Demo mode serves properties, with three on Acme's support bot, and checks values with the API's rules (`src/lib/api/mock/properties.ts`).
+- **Customers** show their picture (`avatar_url`; agents and up can upload or remove one), their properties in the detail sheet and form, up to three property columns (remembered per browser), and a filter over choice and yes/no properties. The open customer is in the address (`/customers/cus_…`), so it can be linked to from tickets.
+- The chat API's `PUT /customer` takes `avatar_url` and `properties` too, but the SDK (`sdk/`), `sdk/CHAT_API.md` and the public docs' `CUSTOMER_RULES` (`src/features/integrations/snippets/chat-api.ts`) don't mention them yet: an API without them refuses unknown fields. Add them there once the API serves them.
+
+## Products
+
+**Products** (`src/features/products/`) is the bot's catalog: search, a status and property filter, an add/edit sheet with the product's properties, and imports. It shows in the menu once `GET /products` answers (`src/lib/features.ts`).
+
+- **Import** reads a file (CSV, JSON, PDF, Word, Markdown, text, HTML) or a web page into drafts (`ImportDialog.tsx`); files go straight to storage like knowledge uploads (`putObject` in `src/lib/upload.ts`). Nothing is saved until someone reviews the drafts on `/products/imports/:id` (`ImportReviewPage.tsx`), unticks or fixes rows, and saves; only the indexes and the fields changed are sent, so big imports stay small.
+- Files read by their columns (CSV, JSON) and pages with product data cost nothing; the rest are read with AI, billed as a reply, which the dialog says before it starts.
+- Product pictures are links to other sites, shown with `referrerPolicy="no-referrer"` and a placeholder when they don't load.
+- Settings → Properties gets a Products tab once the catalog is served.
+- Demo mode imports a CSV as the API would (`src/lib/api/mock/products.ts`); other files and pages give a small sample shop. A link with `fail` in it shows a page that couldn't be read, and one with `ai` a page read with AI.
+
+## Queries
+
+**Queries** (`src/features/queries/`) are structured requests — payments, orders, deliveries — of the query types a business sets up under **Settings → Query types** (`QueryTypesTab.tsx`): each type has its statuses, the roles that see it, whether the assistant handles it, and its form, which is the shared properties editor (`PropertiesEditor` in `PropertiesTab.tsx`) scoped to the type.
+
+- The page lists queries with status, type, assignee and text filters (all in the address), and opens one at `/queries/:id`: status changes save at once, fields and subject on **Save changes**, notes go into the history. Sensitive fields arrive masked for viewers.
+- `/queries?new=1&customer=…&conversation=…&ticket=…` opens a new query already linked; a ticket's sidebar links there, and a customer's details list their queries (`CustomerQueries.tsx`).
+- Everything shows once `GET /query-types` answers (`src/lib/features.ts`); a role a type doesn't list never sees its queries, because the API leaves them out.
+- Demo mode has two types on Acme's support bot (payment issues are limited to editors, so preview as an agent to see them disappear) and a few queries.
+
 ## Deploying
 
 The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.truplexy.com`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.

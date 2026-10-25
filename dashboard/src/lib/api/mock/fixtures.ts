@@ -1,5 +1,5 @@
 import type { BillingAddon, BusinessType, LedgerEntry, Plan, TicketMessage, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
-import { DB_VERSION, hex, type MockChannel, type MockCustomer, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
+import { DB_VERSION, hex, type MockChannel, type MockCustomer, type MockProduct, type MockProperty, type MockQuery, type MockQueryType, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
 
 /* ------------------------------------------------------------------ */
 /* Deterministic randomness, so every seed tells the same story.        */
@@ -713,6 +713,15 @@ function seedCustomers(conversations: MockConversation[], tickets: MockTicket[])
           ...(i % 4 === 1 ? [{ type: 'discord', value: String(80351110224678912n + BigInt(i) * 1117n), primary: true }] : []),
         ],
         metadata: i % 3 === 0 ? { plan: pick(r, ['free', 'pro', 'business']), signed_up_via: 'storefront' } : {},
+        // Values for the properties seedProperties gives Acme's support bot.
+        properties:
+          tenant === 'acme'
+            ? {
+                ...(i % 2 === 0 && { loyalty_tier: pick(r, ['bronze', 'silver', 'gold']) }),
+                ...(i % 4 === 0 && { vip: true }),
+                ...(i % 3 === 1 && { birthday: `19${70 + Math.floor(r() * 30)}-0${1 + Math.floor(r() * 9)}-1${Math.floor(r() * 9)}` }),
+              }
+            : {},
         first_seen_at: new Date(first).toISOString(),
         last_seen_at: new Date(seen).toISOString(),
         created_at: new Date(first).toISOString(),
@@ -1108,5 +1117,94 @@ Hand over when: {{escalation_policy}}
     channelTypes: channelTypes(),
     channels,
     customers,
+    properties: [...seedProperties(), ...seedQueryFields()],
+    products: seedProducts(),
+    productImports: [],
+    ...seedQueries(conversations),
   };
+}
+
+/** A small catalog on Acme's support bot. */
+function seedProducts(): MockProduct[] {
+  const r = rng(9102);
+  const rows: [string, string, string | null, number | null, MockProduct['status'], string][] = [
+    ['Trail running shoe', 'SHOE-TR-01', '129.00', 24, 'active', 'Light, grippy and made for wet trails.'],
+    ['Merino crew socks (3 pack)', 'SOCK-M-03', '32.00', 140, 'active', 'Soft merino that stays dry.'],
+    ['Waterproof shell jacket', 'JKT-WS-02', '249.00', 0, 'active', 'Seam-sealed, packs into its own pocket.'],
+    ['Insulated bottle 750 ml', 'BTL-750', '29.50', 63, 'active', 'Keeps drinks cold for 24 hours.'],
+    ['Gift card', '', null, null, 'active', 'Any amount from $25.'],
+    ['Winter beanie', 'HAT-WB-01', '24.00', 12, 'draft', 'Coming in November.'],
+  ];
+  return rows.map(([name, sku, price, stock, status, description], i) => {
+    const at = ago((30 - i * 3) * DAY);
+    return {
+      id: id('prd', r), tenant_id: 'acme', bot_id: 'support', name, sku, description, price, currency: price ? 'USD' : '', stock,
+      url: `https://acme.example/products/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, image_url: '', status, source: 'manual' as const,
+      properties: {}, created_at: at, updated_at: at,
+    };
+  });
+}
+
+const ORDER_TYPE = 'qtp_' + '0'.repeat(31) + '1';
+const PAYMENT_TYPE = 'qtp_' + '0'.repeat(31) + '2';
+
+/** The forms of the sample query types. */
+function seedQueryFields(): MockProperty[] {
+  const r = rng(6611);
+  const at = ago(20 * DAY);
+  const f = (scope_id: string, key: string, label: string, type: MockProperty['type'], extra: Partial<MockProperty> = {}): MockProperty => ({
+    id: id('prp', r), tenant_id: 'acme', bot_id: 'support', entity: 'query', scope_id, key, label, type, description: '', options: [], required: false, sensitive: false,
+    sort_order: 0, created_at: at, updated_at: at, ...extra,
+  });
+  return [
+    f(ORDER_TYPE, 'order_number', 'Order number', 'text', { required: true }),
+    f(ORDER_TYPE, 'problem', 'Problem', 'select', { required: true, sort_order: 1, options: [{ value: 'damaged', label: 'Arrived damaged' }, { value: 'wrong_item', label: 'Wrong item' }, { value: 'missing_item', label: 'Item missing' }] }),
+    f(ORDER_TYPE, 'address', 'Delivery address', 'long_text', { sensitive: true, sort_order: 2 }),
+    f(PAYMENT_TYPE, 'issue', 'Issue', 'select', { required: true, options: [{ value: 'failed', label: 'Payment failed' }, { value: 'double_charge', label: 'Charged twice' }, { value: 'refund', label: 'Refund request' }] }),
+    f(PAYMENT_TYPE, 'amount', 'Amount', 'number', { sort_order: 1 }),
+  ];
+}
+
+/** Two query types on Acme's support bot, and a few queries from its customers. */
+function seedQueries(conversations: MockConversation[]): Pick<MockDb, 'queryTypes' | 'queries'> {
+  const r = rng(6612);
+  const at = ago(20 * DAY);
+  const base = { tenant_id: 'acme', bot_id: 'support', description: '', visible_roles: [] as MockQueryType['visible_roles'], archived: false, created_at: at, updated_at: at };
+  const queryTypes: MockQueryType[] = [
+    { ...base, id: ORDER_TYPE, key: 'order', name: 'Order problem', description: 'An order that arrived damaged, wrong or incomplete.', sort_order: 0, bot_enabled: true, default_status: 'new',
+      statuses: [{ key: 'new', label: 'New', category: 'open' }, { key: 'in_progress', label: 'In progress', category: 'open' }, { key: 'waiting_customer', label: 'Waiting on customer', category: 'pending' }, { key: 'resolved', label: 'Resolved', category: 'done' }] },
+    { ...base, id: PAYMENT_TYPE, key: 'payment', name: 'Payment issue', description: 'A payment that failed, was charged twice, or needs a refund.', sort_order: 1, bot_enabled: false, default_status: 'new',
+      visible_roles: ['editor'], statuses: [{ key: 'new', label: 'New', category: 'open' }, { key: 'investigating', label: 'Investigating', category: 'open' }, { key: 'refunded', label: 'Refunded', category: 'done' }] },
+  ];
+  const withCustomer = conversations.filter((c) => c.tenant_id === 'acme' && c.customer_id).slice(0, 4);
+  const samples: [string, string, MockQuery['status_category'], Record<string, unknown>, string][] = [
+    [ORDER_TYPE, 'new', 'open', { order_number: '#4821', problem: 'damaged' }, 'Mug arrived cracked'],
+    [ORDER_TYPE, 'waiting_customer', 'pending', { order_number: '#4790', problem: 'wrong_item', address: '12 Elm St, Springfield' }, 'Got the wrong size'],
+    [PAYMENT_TYPE, 'investigating', 'open', { issue: 'double_charge', amount: 129 }, 'Charged twice for one order'],
+    [ORDER_TYPE, 'resolved', 'done', { order_number: '#4655', problem: 'missing_item' }, 'Socks missing from the box'],
+  ];
+  const queries: MockQuery[] = samples.map(([type_id, status, status_category, properties, subject], i) => {
+    const conv = withCustomer[i % Math.max(1, withCustomer.length)];
+    const created = ago((10 - i * 2) * DAY);
+    return {
+      id: id('qry', r), tenant_id: 'acme', bot_id: 'support', number: 1001 + i, type_id, subject, status, status_category, properties,
+      customer_id: conv?.customer_id, conversation_id: i % 2 === 0 ? conv?.id : undefined, source: i % 2 === 0 ? 'assistant' : 'dashboard',
+      ...(status_category === 'done' && { closed_at: ago((9 - i * 2) * DAY) }),
+      events: [{ id: id('qev', r), kind: 'created', to: 'new', actor_type: i % 2 === 0 ? 'assistant' : 'member', created_at: created }],
+      created_at: created, updated_at: ago((8 - i * 2) * DAY),
+    };
+  });
+  return { queryTypes, queries };
+}
+
+/** A few custom properties on Acme's support bot, so Settings → Properties has something to show. */
+function seedProperties(): MockProperty[] {
+  const r = rng(7731);
+  const at = ago(40 * DAY);
+  const base = { tenant_id: 'acme', bot_id: 'support', entity: 'customer' as const, description: '', options: [], required: false, sensitive: false, created_at: at, updated_at: at };
+  return [
+    { ...base, id: id('prp', r), key: 'loyalty_tier', label: 'Loyalty tier', type: 'select', sort_order: 0, options: [{ value: 'bronze', label: 'Bronze' }, { value: 'silver', label: 'Silver' }, { value: 'gold', label: 'Gold' }] },
+    { ...base, id: id('prp', r), key: 'vip', label: 'VIP', type: 'boolean', sort_order: 1, description: 'Gets priority from the team.' },
+    { ...base, id: id('prp', r), key: 'birthday', label: 'Birthday', type: 'date', sort_order: 2, sensitive: true },
+  ];
 }

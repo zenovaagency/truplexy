@@ -28,6 +28,14 @@ export type Permission =
   | 'channels.write'
   | 'customers.read'
   | 'customers.write'
+  | 'properties.read'
+  | 'properties.write'
+  | 'products.read'
+  | 'products.write'
+  | 'queries.read'
+  | 'queries.write'
+  | 'queries.delete'
+  | 'queries.manage'
   | 'bots.create'
   | 'members.write'
   | 'business.write'
@@ -690,6 +698,14 @@ export interface Customer {
   contacts: Contact[];
   /** A JSON object kept about them, up to 4 KB. */
   metadata: Record<string, unknown>;
+  /** The bot's custom property values by key. */
+  properties: PropertyValues;
+  /** Sensitive values left out because this person can't edit customers. */
+  masked_properties?: string[];
+  /** Their picture; absent for none. */
+  avatar_url?: string;
+  /** upload: the team uploaded it; url: copied from a link, such as their avatar on Discord. */
+  avatar_source?: 'upload' | 'url';
   first_seen_at: string;
   last_seen_at: string;
   conversations: number;
@@ -705,6 +721,295 @@ export interface CustomerInput {
   /** On PATCH this replaces the whole list; leave it out to keep the contacts. */
   contacts?: { type: string; value: string; label?: string; primary?: boolean }[];
   metadata?: Record<string, unknown>;
+  /** Merged into the customer's: keys sent replace their value, null clears one. */
+  properties?: PropertyValues;
+  /** An https link to copy their picture from; "" removes it. */
+  avatar_url?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Custom properties                                                   */
+/* ------------------------------------------------------------------ */
+
+/** The kinds of record that have custom properties. */
+export type PropertyEntity = 'customer' | 'product' | 'query';
+
+export type PropertyType = 'text' | 'long_text' | 'number' | 'boolean' | 'date' | 'select' | 'multi_select' | 'email' | 'phone' | 'url';
+
+export interface PropertyOption {
+  /** What records store; never changes meaning. */
+  value: string;
+  label: string;
+}
+
+export interface PropertyDefinition {
+  id: string;
+  entity: PropertyEntity;
+  /** For entities whose properties are per type; absent otherwise. */
+  scope_id?: string;
+  /** Never changes. */
+  key: string;
+  label: string;
+  description: string;
+  /** Never changes. */
+  type: PropertyType;
+  /** select and multi_select only. */
+  options: PropertyOption[];
+  required: boolean;
+  /** Shown only to members who may edit the record; never given to the assistant. */
+  sensitive: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields of POST and PATCH /properties. entity, scope_id, key and type are sent only on POST. */
+export interface PropertyInput {
+  entity?: PropertyEntity;
+  scope_id?: string;
+  key?: string;
+  label?: string;
+  description?: string;
+  type?: PropertyType;
+  options?: PropertyOption[];
+  required?: boolean;
+  sensitive?: boolean;
+  sort_order?: number;
+}
+
+export interface PropertyPreset {
+  entity: PropertyEntity;
+  key: string;
+  label: string;
+  description: string;
+  type: PropertyType;
+  options: PropertyOption[];
+  sensitive: boolean;
+  /** Empty suits every business. */
+  business_types: string[];
+}
+
+/** A record's values by property key, as stored: strings, numbers, booleans, or a list for multi_select. */
+export type PropertyValues = Record<string, unknown>;
+
+/* ------------------------------------------------------------------ */
+/* Products                                                            */
+/* ------------------------------------------------------------------ */
+
+export type ProductStatus = 'active' | 'draft' | 'archived';
+
+export interface Product {
+  id: string;
+  tenant_id: string;
+  bot_id: string;
+  name: string;
+  /** "" for none; unique among the bot's products when set. */
+  sku: string;
+  description: string;
+  /** A decimal string such as "19.90"; null when unknown. */
+  price: string | null;
+  /** ISO 4217, or "". */
+  currency: string;
+  /** null when stock isn't tracked. */
+  stock: number | null;
+  url: string;
+  image_url: string;
+  status: ProductStatus;
+  source: 'manual' | 'csv' | 'document' | 'web';
+  properties: PropertyValues;
+  masked_properties?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields of POST and PATCH /products; price and stock clear with null. */
+export interface ProductInput {
+  name?: string;
+  sku?: string;
+  description?: string;
+  price?: string | null;
+  currency?: string;
+  stock?: number | null;
+  url?: string;
+  image_url?: string;
+  status?: ProductStatus;
+  properties?: PropertyValues;
+}
+
+export interface ProductList {
+  data: Product[];
+  next_cursor?: string;
+}
+
+/** A product an import read, before review. */
+export interface ProductDraft {
+  name: string;
+  sku: string;
+  description: string;
+  price: string | null;
+  currency: string;
+  stock: number | null;
+  url: string;
+  image_url: string;
+  properties: PropertyValues;
+  /** What was left out or needs a look. */
+  problems: string[];
+  /** The catalog already has this SKU. */
+  exists: boolean;
+}
+
+export type ImportStatus = 'uploading' | 'processing' | 'ready' | 'failed' | 'committed';
+
+export interface ProductImport {
+  id: string;
+  source: 'file' | 'url';
+  /** The file's name or the page's link. */
+  name: string;
+  status: ImportStatus;
+  /** csv/json: by columns; json_ld: the page's structured data; ai: read by a model. */
+  method?: 'csv' | 'json' | 'json_ld' | 'ai';
+  items?: ProductDraft[];
+  item_count: number;
+  truncated: boolean;
+  error?: string;
+  created: number;
+  updated: number;
+  skipped: number;
+  committed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductImportUpload {
+  import: ProductImport;
+  url: string;
+  method: 'PUT';
+  headers: Record<string, string>;
+  expires_at: string;
+}
+
+export interface ImportCommit {
+  /** Drafts to save, by their place in items; none saves all. */
+  indexes?: number[];
+  /** Changes to picked drafts, by index; properties replace the draft's. */
+  edits?: Record<string, ProductInput>;
+  on_duplicate?: 'skip' | 'update';
+}
+
+export interface ImportCommitResult {
+  import: ProductImport;
+  errors: { index: number; message: string }[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Queries                                                             */
+/* ------------------------------------------------------------------ */
+
+export type QueryCategory = 'open' | 'pending' | 'done';
+
+export interface QueryStatus {
+  key: string;
+  label: string;
+  category: QueryCategory;
+}
+
+export type LimitableRole = 'editor' | 'agent' | 'viewer';
+
+export interface QueryType {
+  id: string;
+  /** Never changes. */
+  key: string;
+  name: string;
+  description: string;
+  statuses: QueryStatus[];
+  default_status: string;
+  /** Empty: every role with queries.read. Owners and admins always see every type. */
+  visible_roles: LimitableRole[];
+  /** The assistant may open queries of this type and report on them. */
+  bot_enabled: boolean;
+  sort_order: number;
+  archived: boolean;
+  /** Its queries not done. */
+  open: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueryTypeInput {
+  key?: string;
+  name?: string;
+  description?: string;
+  statuses?: QueryStatus[];
+  default_status?: string;
+  visible_roles?: LimitableRole[];
+  bot_enabled?: boolean;
+  sort_order?: number;
+  archived?: boolean;
+}
+
+export interface QueryTypePreset {
+  key: string;
+  name: string;
+  description: string;
+  statuses: QueryStatus[];
+  default_status: string;
+  fields: { key: string; label: string; type: PropertyType; options: PropertyOption[]; required: boolean; sensitive: boolean }[];
+  business_types: string[];
+}
+
+export interface CustomerQuery {
+  id: string;
+  /** Q-1001 */
+  reference: string;
+  number: number;
+  type_id: string;
+  type_name: string;
+  subject: string;
+  status: string;
+  status_label: string;
+  status_category: QueryCategory;
+  customer_id?: string;
+  customer_name?: string;
+  conversation_id?: string;
+  ticket_id?: string;
+  assignee_user_id?: string;
+  assignee_name?: string;
+  source: 'dashboard' | 'assistant';
+  properties: PropertyValues;
+  masked_properties?: string[];
+  closed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields of POST and PATCH /queries. type_id and conversation_id only on POST; "" clears customer, ticket and assignee. */
+export interface QueryInput {
+  type_id?: string;
+  subject?: string;
+  status?: string;
+  customer_id?: string;
+  conversation_id?: string;
+  ticket_id?: string;
+  assignee_user_id?: string;
+  properties?: PropertyValues;
+  note?: string;
+}
+
+export interface QueryList {
+  data: CustomerQuery[];
+  next_cursor?: string;
+}
+
+export interface QueryEvent {
+  id: string;
+  kind: 'created' | 'status' | 'assigned' | 'fields' | 'note';
+  from?: string;
+  to?: string;
+  note?: string;
+  actor_type: 'member' | 'assistant' | 'key';
+  actor_id?: string;
+  actor_name?: string;
+  created_at: string;
 }
 
 export interface CustomerList {

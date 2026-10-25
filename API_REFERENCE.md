@@ -4,13 +4,61 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Product catalog (2026-10-25)
+
+A bot can keep a catalog of what the business sells, with prices, stock, links and [custom properties](#custom-properties-v2) (entity `product`). The team adds products by hand, or imports them from a CSV or JSON file, a document (PDF, Word, Markdown, text, HTML) or a web page; every import is reviewed before anything reaches the catalog. The assistant searches active products through a new built-in tool. It adds routes, two permissions (`products.read` for every role, `products.write` for editors and up) and error codes; nothing existing changed. Apply migration `0042_products.sql` first.
+
+**What a dashboard does:**
+
+1. A **Products** page: [`GET /products`](#get-products-v2) with search, a status filter and `property[key]=`; add, edit and delete with `POST`/`PATCH`/`DELETE /products…`.
+2. **Import a file:** [`POST /products/imports`](#post-productsimports-v2) with `{source: "file", filename, size}`, `PUT` the file to the returned `url` with exactly its `headers`, then `POST /products/imports/{id}/process`.
+3. **Import from a web page:** `POST /products/imports` with `{source: "url", url}`. It answers when the page has been read.
+4. **Review:** show the import's `items`, each with its `problems` and whether its SKU is already in the catalog (`exists`). Let people untick drafts and fix fields, then [`POST /products/imports/{id}/commit`](#post-productsimportsidcommit-v2) with the indexes to save, the edits, and what to do with SKUs the catalog has (`skip` or `update`). Show `errors` for drafts that weren't saved.
+5. Let the business turn on `truplexy_product_search` in the bot's `tools` ([built-in tools](#built-in-tools-v2)).
+
+## Customer pictures and properties (2026-10-25)
+
+Customers now have a picture and the bot's [custom properties](#custom-properties-v2). It adds fields and two routes; nothing existing changed. Apply migrations `0041_properties.sql` and `0043_customer_profiles.sql` **before** deploying the API that reads them: every customer read uses the new columns.
+
+**What a dashboard does:**
+
+1. Show `avatar_url` wherever a customer appears, falling back to initials. `avatar_source` says whether the team uploaded it (`upload`) or it was copied from a link, such as the person's avatar on Discord (`url`).
+2. Let people with `customers.write` upload a picture with [`PUT /customers/{id}/avatar`](#put-customersidavatar-v2) and remove it with `DELETE`. An uploaded picture is kept when the chat API later sends a link.
+3. Show and edit `properties` with the bot's customer properties (`GET /properties?entity=customer`), sending only the values that changed. Keys in `masked_properties` are sensitive values the person may not see: show them as hidden.
+4. Filter the list with `property[key]=value`.
+
+**For integrations:** `PUT /customer` takes `avatar_url` (an https link to the person's picture on your platform) and `properties`. The picture is copied into Truplexy's storage, so the link may expire later; a link that can't be fetched leaves the picture as it was and never fails the request.
+
+## Queries (2026-10-25)
+
+A business defines **query types** — payment issues, order problems, deliveries, appointments — each with its own form (custom properties of entity `query`, scoped to the type), its own statuses and who may see it. Queries of a type are opened by the team or by the assistant in a conversation, and the assistant can tell a customer how *their own* queries stand, never anyone else's. It adds routes, four permissions (`queries.read` for every role, `queries.write` for agents and up, `queries.delete` and `queries.manage` for editors and up), two built-in tools, two live events and error codes; nothing existing changed. Apply migration `0044_queries.sql` first.
+
+**What a dashboard does:**
+
+1. A **Queries** page: [`GET /queries`](#get-queries-v2) with filters by type, status, category, customer, assignee, reference or text, and `property[key]=` with a type. Open one with `GET /queries/{id}` and its history with `GET /queries/{id}/events`; change status, fields and assignee, and add notes, with `PATCH /queries/{id}`.
+2. A **query types** settings page: `GET /query-types?archived=true`, add from `GET /query-types/presets?business_type=…` (create the type, then its fields with `POST /properties` and `scope_id` the type's ID), edit statuses, visible roles and whether the assistant handles it.
+3. Show a customer's queries with `GET /queries?customer=cus_…`, and a conversation's with `?conversation=`.
+4. Reload on the live events `query.created` and `query.updated` (bot topic only; they carry the query's ID and state, never its fields).
+5. Let the business turn on `truplexy_open_query` and `truplexy_query_status` in the bot's `tools` ([built-in tools](#built-in-tools-v2)).
+
+## Custom properties (2026-10-25)
+
+A business can define typed fields for its bot's records, the way it needs them: a customer's loyalty tier, a patient's date of birth, a tenant's move-in date. Customers, products and queries (each query type's form) have them. It adds routes, two permissions (`properties.read` for every role, `properties.write` for editors and up) and error codes; nothing existing changed. Apply migration `0041_properties.sql` first.
+
+**What a dashboard does:**
+
+1. Add a **Properties** settings page that lists `GET /properties?entity=customer` and lets people with `properties.write` add, edit, reorder and delete them ([Custom properties](#custom-properties-v2)).
+2. Offer **suggested** properties from `GET /properties/presets?entity=customer&business_type=<the business's type>`; adding one is a `POST /properties` with the preset's fields.
+3. Lock a property's `key` and `type` once it exists. Warn before deleting one: its values are erased from every record.
+4. Hide the page when `GET /properties` answers `404` (a server without this feature).
 
 ## Shopify stores (2026-10-25)
 
@@ -350,9 +398,9 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 
 | Permission | Viewer | Agent | Editor | Admin | Owner |
 | --- | :-: | :-: | :-: | :-: | :-: |
-| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read`, `customers.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `playground.run`, `tickets.write`, `customers.write` | | ✓ | ✓ | ✓ | ✓ |
-| `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read` | | | ✓ | ✓ | ✓ |
+| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read`, `customers.read`, `properties.read`, `products.read`, `queries.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `playground.run`, `tickets.write`, `customers.write`, `queries.write` | | ✓ | ✓ | ✓ | ✓ |
+| `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read`, `properties.write`, `products.write`, `queries.delete`, `queries.manage` | | | ✓ | ✓ | ✓ |
 | `integrations.write`, `channels.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
 | `owners.manage`, `business.delete` | | | | | ✓ |
 
@@ -406,6 +454,35 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/customers/{id}` | `customers.read` | A customer with their latest conversations and tickets (v2) |
 | `PATCH` | `/customers/{id}` | `customers.write` | Change a customer (v2) |
 | `DELETE` | `/customers/{id}` | `customers.write` | Delete a customer (v2) |
+| `PUT` | `/customers/{id}/avatar` | `customers.write` | Upload a customer's picture (v2) |
+| `DELETE` | `/customers/{id}/avatar` | `customers.write` | Remove a customer's picture (v2) |
+| `GET` | `/properties` | `properties.read` | The custom properties of one kind of record (v2) |
+| `GET` | `/properties/presets` | `properties.read` | Suggested properties for the business's type (v2) |
+| `POST` | `/properties` | `properties.write` | Add a custom property (v2) |
+| `PATCH` | `/properties/{id}` | `properties.write` | Change a custom property (v2) |
+| `DELETE` | `/properties/{id}` | `properties.write` | Delete a custom property and its values (v2) |
+| `GET` | `/products` | `products.read` | List and search the bot's products (v2) |
+| `POST` | `/products` | `products.write` | Add a product (v2) |
+| `GET` | `/products/{id}` | `products.read` | A product (v2) |
+| `PATCH` | `/products/{id}` | `products.write` | Change a product (v2) |
+| `DELETE` | `/products/{id}` | `products.write` | Delete a product (v2) |
+| `GET` | `/products/imports` | `products.read` | The latest imports (v2) |
+| `POST` | `/products/imports` | `products.write` | Start an import from a file or a web page (v2) |
+| `GET` | `/products/imports/{id}` | `products.read` | An import with its drafts (v2) |
+| `POST` | `/products/imports/{id}/process` | `products.write` | Read an uploaded file (v2) |
+| `POST` | `/products/imports/{id}/commit` | `products.write` | Save an import's reviewed drafts (v2) |
+| `DELETE` | `/products/imports/{id}` | `products.write` | Discard an import (v2) |
+| `GET` | `/query-types` | `queries.read` | The query types the role may see (v2) |
+| `GET` | `/query-types/presets` | `queries.read` | Suggested query types (v2) |
+| `POST` | `/query-types` | `queries.manage` | Add a query type (v2) |
+| `PATCH` | `/query-types/{id}` | `queries.manage` | Change or archive a query type (v2) |
+| `DELETE` | `/query-types/{id}` | `queries.manage` | Delete a query type without queries (v2) |
+| `GET` | `/queries` | `queries.read` | List queries (v2) |
+| `POST` | `/queries` | `queries.write` | Open a query (v2) |
+| `GET` | `/queries/{id}` | `queries.read` | A query (v2) |
+| `PATCH` | `/queries/{id}` | `queries.write` | Change a query, or add a note (v2) |
+| `DELETE` | `/queries/{id}` | `queries.delete` | Delete a query (v2) |
+| `GET` | `/queries/{id}/events` | `queries.read` | A query's history (v2) |
 | `GET` | `/workspace` | `bot.read` | The bot's configuration and versions |
 | `PUT` | `/workspace` | `bot.write` | Save the bot's configuration |
 | `GET` | `/models` | `bot.read` | Models the bot may use (v2) |
@@ -745,6 +822,10 @@ Scope headers; these act on the bot. A customer is a person the bot talks to, kn
   name,
   contacts: [{ type, value, label?, primary }],   // see below; in the order they were added
   metadata,                                // a JSON object you keep about them, up to 4 KB
+  properties,                              // the bot's custom property values by key (see Custom properties)
+  masked_properties?,                      // keys of sensitive values left out for a caller without customers.write
+  avatar_url?,                             // the customer's picture; absent for none
+  avatar_source?,                          // upload (by the team) or url (copied from a link)
   first_seen_at, last_seen_at,             // last_seen_at moves on PUT /customer and when a conversation is started for them
   conversations, tickets, open_tickets,    // counts
   created_at, updated_at
@@ -758,6 +839,8 @@ Fields of `POST` and `PATCH`:
 | `name` | Up to 120 characters; whitespace is collapsed. |
 | `contacts` | Up to 20 contacts (below). On `PATCH` the list replaces all of the customer's contacts; `[]` removes them. |
 | `metadata` | A JSON object of up to 4 KB. On `PATCH` it replaces the stored object. |
+| `properties` | Values of the bot's customer properties by key. Merged: keys sent replace their value, `null` clears one, keys left out keep theirs. Required properties must be set when adding a customer here (not through the chat API). See [Custom properties](#custom-properties-v2). |
+| `avatar_url` | An https link to a PNG, JPEG or WebP picture of up to 512 KB, which is copied as the customer's picture; `""` removes it. A link that can't be fetched leaves the picture as it was. |
 
 A customer needs a name or at least one contact. On `PATCH`, fields left out keep their value.
 
@@ -770,7 +853,7 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 
 #### `GET /customers`
 
-`customers.read`. Query: `q` (matches the start of the name or of any contact's value, up to 100 characters), `limit` (1–200, default 50), `cursor`. **200** `{data: [Customer], next_cursor?}`, most recently seen first. Pass `next_cursor` as `cursor` for the next page.
+`customers.read`. Query: `q` (matches the start of the name or of any contact's value, up to 100 characters), `property[key]=value` (up to 5; see [Filtering](#custom-properties-v2)), `limit` (1–200, default 50), `cursor`. **200** `{data: [Customer], next_cursor?}`, most recently seen first. Pass `next_cursor` as `cursor` for the next page.
 
 #### `POST /customers`
 
@@ -790,7 +873,274 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 
 #### `DELETE /customers/{id}`
 
-`customers.write`. Deletes the customer and their contacts. Their conversations and tickets keep their `customer_id`, and the contacts can be used again. **204**. **Errors:** `404 CUSTOMER_NOT_FOUND`.
+`customers.write`. Deletes the customer, their contacts and their picture. Their conversations and tickets keep their `customer_id`, and the contacts can be used again. **204**. **Errors:** `404 CUSTOMER_NOT_FOUND`.
+
+#### `PUT /customers/{id}/avatar` (v2)
+
+`customers.write`. Upload the customer's picture like a [profile image](#profile-images-v2): multipart `file`, or the raw body, PNG, JPEG or WebP. **200** `{avatar_url}`. It is kept when the chat API later sends `avatar_url` for the customer. **Errors:** as for profile images, and `404 CUSTOMER_NOT_FOUND`.
+
+#### `DELETE /customers/{id}/avatar` (v2)
+
+`customers.write`. Removes the picture. **200** `{avatar_url: null}`. **Errors:** `404 CUSTOMER_NOT_FOUND`.
+
+### Custom properties (v2)
+
+Scope headers; these act on the bot. A business defines typed **properties** for one kind of record, its **entity** (`customer`, `product`, or `query` for a query type's form with `scope_id` the type), and each record keeps its values in `properties`, an object keyed by the property's `key`. Properties belong to one bot.
+
+**Property:**
+
+```text
+{
+  id,                          // prp_…
+  entity,                      // customer, product or query
+  scope_id?,                   // for entities whose properties are per type; absent otherwise
+  key,                         // 1–40 lowercase letters, digits or _, starting with a letter; never changes
+  label,                       // 1–60 characters
+  description,                 // up to 300 characters
+  type,                        // text | long_text | number | boolean | date | select | multi_select | email | phone | url; never changes
+  options: [{ value, label }], // select and multi_select only: 1–100, values unique ignoring case
+  required,                    // a record must have a value when created, and can't clear it
+  sensitive,                   // see below
+  sort_order,                  // 0–10000; new properties go last
+  created_at, updated_at
+}
+```
+
+`key` can't be a field records already have (`id`, `name`, `email`, `phone`, `status`, `type`, `metadata`, `properties`, `contacts`, `sku`, `price`, `currency`, `stock`, `url`, `description`, `subject`, `number`, `source` and the like). An entity has up to 50 properties.
+
+**Values.** A record's `properties` is merged on each write: keys you send replace their value, `null` or `""` clears one, keys you leave out keep theirs. Unknown keys are refused. Values are checked and stored as:
+
+| Type | Send | Stored |
+| --- | --- | --- |
+| `text` | up to 500 characters | whitespace collapsed |
+| `long_text` | up to 5,000 characters | trimmed |
+| `number` | a number, or text such as `"1,200"` | a number up to 10^15 |
+| `boolean` | `true`/`false`, or `"yes"`, `"no"`, `"1"`, `"0"` | `true` or `false` |
+| `date` | `YYYY-MM-DD` (a timestamp keeps its date) | `YYYY-MM-DD` |
+| `select` | an option's value or label, any case | the option's value |
+| `multi_select` | a list, or comma-separated text, of up to 20 options | a list of values |
+| `email` | an address | lowercased |
+| `phone` | 5–20 digits, optionally `+`, with spaces or punctuation | digits only |
+| `url` | an `http` or `https` link, no user name | as sent |
+
+A record's properties are at most 16 KB. Changing a property's options never blocks editing a record that has an old value: only the values sent are checked.
+
+**Sensitive properties** (such as a date of birth or a product's cost price) are returned only to members who may edit the record (`customers.write` for customers, `products.write` for products). Others get the record without them, with their keys in `masked_properties`, and can't filter by them. They are never given to the assistant or sent in webhooks.
+
+**Filtering.** Listings of records with properties take `property[key]=value` (up to 5), matching the stored value exactly (`select` by value or label, `boolean` as `true`/`false`, `multi_select` when the list contains the option). An empty value finds records without one. `long_text` can't be filtered by.
+
+#### `GET /properties`
+
+`properties.read`. Query: `entity` (required), `scope_id`. **200** `{data: [Property]}` in `sort_order`.
+
+#### `GET /properties/presets`
+
+`properties.read`. Query: `entity` (required), `business_type` (optional; the business's type from `GET /tenant`). **200** `{data: [{entity, key, label, description, type, options, sensitive, business_types}]}`: properties businesses of that type often add. Add one with `POST /properties`.
+
+#### `POST /properties`
+
+`properties.write`. Body: `{entity, key, label, type, options?, description?, required?, sensitive?, sort_order?, scope_id?}`. **201** the property.
+
+**Errors:**
+- `400 INVALID_REQUEST`, also when the entity already has 50 properties.
+- `409 PROPERTY_EXISTS`: the entity already has a property with this key.
+
+#### `PATCH /properties/{id}`
+
+`properties.write`. Any of `label`, `description`, `options`, `required`, `sensitive`, `sort_order`, at least one. Sending a different `entity`, `scope_id`, `key` or `type` is refused. **200** the property. **Errors:** `400 INVALID_REQUEST`, `404 PROPERTY_NOT_FOUND`.
+
+#### `DELETE /properties/{id}`
+
+`properties.write`. Deletes the property and, in the same transaction, its value from every record, so a property added later with the same key starts empty. **204**. **Errors:** `404 PROPERTY_NOT_FOUND`.
+
+### Products (v2)
+
+Scope headers; these act on the bot. A bot's products are what the business sells. Active ones are what the assistant's `truplexy_product_search` finds; drafts and archived ones are for the team. A bot has up to 10,000 products.
+
+**Product:**
+
+```text
+{
+  id,                          // prd_…
+  tenant_id, bot_id,
+  name,                        // 1–200 characters
+  sku,                         // up to 64 characters; unique among the bot's products when set; "" for none
+  description,                 // up to 5,000 characters
+  price,                       // a decimal string such as "19.90", or null when unknown
+  currency,                    // ISO 4217 code such as "USD", or ""
+  stock,                       // a whole number, or null when it isn't tracked
+  url, image_url,              // http or https links, or ""
+  status,                      // active | draft | archived
+  source,                      // manual | csv | document | web
+  properties,                  // custom property values by key (see Custom properties)
+  masked_properties?,          // sensitive keys left out for a caller without products.write
+  created_at, updated_at
+}
+```
+
+`price` may be sent as a number or as text people write ("$1,299.00", "19,90"); it is stored as a plain decimal. `price` and `stock` clear with `null`. `properties` merge like customers'; required ones must be set when a product is added by hand.
+
+#### `GET /products`
+
+`products.read`. Query: `q` (matches the name, SKU or description, up to 100 characters), `status`, `property[key]=value`, `limit` (1–200, default 50), `cursor`. **200** `{data: [Product], next_cursor?}`, most recently changed first.
+
+#### `POST /products`
+
+`products.write`. Body: `{name, sku?, description?, price?, currency?, stock?, url?, image_url?, status?, properties?}`. **201** the product. **Errors:** `400 INVALID_REQUEST` (also past 10,000 products), `409 PRODUCT_EXISTS` (the SKU is taken).
+
+#### `GET /products/{id}`
+
+`products.read`. **200** the product. **Errors:** `404 PRODUCT_NOT_FOUND`.
+
+#### `PATCH /products/{id}`
+
+`products.write`. Any of the fields above, at least one. **200** the product. **Errors:** as for `POST`, and `404 PRODUCT_NOT_FOUND`.
+
+#### `DELETE /products/{id}`
+
+`products.write`. **204**; its SKU can be used again. **Errors:** `404 PRODUCT_NOT_FOUND`.
+
+#### Imports
+
+An import reads products into **drafts** the team reviews; nothing reaches the catalog until it is committed.
+
+```text
+{
+  id,                          // imp_…
+  source,                      // file | url
+  name,                        // the file's name or the page's link
+  status,                      // uploading | processing | ready | failed | committed
+  method?,                     // csv | json (columns), json_ld (the page's schema.org data), ai (read by a model)
+  items?,                      // the drafts, on GET /products/imports/{id} and the read endpoints
+  item_count,
+  truncated,                   // the source had more than was read
+  error?,                      // why a failed import couldn't be read, for people
+  created, updated, skipped,   // what committing did
+  committed_at?, created_at, updated_at
+}
+```
+
+A **draft** is `{name, sku, description, price, currency, stock, url, image_url, properties, problems: [string], exists}`: the values that were valid, `problems` naming what was left out (such as a price that isn't an amount), and `exists` when the catalog already has its SKU.
+
+- **CSV and JSON** files are read by their columns or keys, without a model: name or title (required), sku, description, price, currency, stock or quantity, url, image, and Shopify's and WooCommerce's export columns (`Variant SKU`, `Variant Price`, `Body (HTML)`, `Image Src`…). A column named like a product property's key or label fills it. Up to 500 products; a spreadsheet must be exported as CSV first.
+- **Documents** (PDF, Word, Markdown, text, HTML) and **web pages without structured data** are read by a model from their first 40,000 characters, up to 100 products, and billed like a reply; when the plan's AI replies or tokens are used up, the import fails with that reason in `error`. A bot may read 50 imports with AI a day. The document is treated as data: what it says can't change what is read, and the team reviews every draft.
+- **Web pages** are read from their schema.org `Product` data when they have some (most shops do): exact, and free. Only public `https` pages are fetched, through the same guard as API tools (no private, loopback or metadata addresses, redirects checked), up to 2 MB and 12 seconds.
+
+#### `GET /products/imports`
+
+`products.read`. **200** `{data: [Import]}`: the latest 20, without their drafts.
+
+#### `POST /products/imports` (v2)
+
+`products.write`.
+- `{source: "file", filename, size}`: CSV, TSV or JSON up to 5 MB, PDF, Word or HTML up to 10 MB. **201** `{import, url, method: "PUT", headers, expires_at}`. `PUT` the file to `url` with exactly `headers` within 30 minutes, then call `…/process`.
+- `{source: "url", url}`: **201** the import, read: `ready`, or `failed` with `error`.
+
+**Errors:** `400 INVALID_REQUEST`.
+
+#### `GET /products/imports/{id}`
+
+`products.read`. **200** the import with its drafts; `exists` is worked out again on each read. **Errors:** `404 IMPORT_NOT_FOUND`.
+
+#### `POST /products/imports/{id}/process` (v2)
+
+`products.write`. Reads the uploaded file. **200** the import: `ready`, or `failed` with `error` (it can be processed again). **Errors:** `404 IMPORT_NOT_FOUND`; `409 IMPORT_STATE` while it is being read or once it is ready or committed.
+
+#### `POST /products/imports/{id}/commit` (v2)
+
+`products.write`. Body: `{indexes?: [int], edits?: {"<index>": {…product fields…}}, on_duplicate?: "skip" | "update"}`. `indexes` picks drafts by their place in `items` (none saves all); `edits` changes fields of picked drafts first, with `properties` replacing the draft's. A draft whose SKU the catalog has is skipped, or with `update` replaces that product's fields (keeping its status and the properties not sent). Each draft is checked like `POST /products`; one that fails is listed in `errors` and the rest are saved. **200** `{import, errors: [{index, message}]}`. **Errors:** `400 INVALID_REQUEST`, `404 IMPORT_NOT_FOUND`, `409 IMPORT_STATE` (not ready, or already committed).
+
+#### `DELETE /products/imports/{id}` (v2)
+
+`products.write`. Discards the import and its file. **204**. **Errors:** `404 IMPORT_NOT_FOUND`.
+
+### Queries (v2)
+
+Scope headers; these act on the bot. A **query** is a structured request a customer makes, of one of the bot's **query types**.
+
+**Query type:**
+
+```text
+{
+  id,                          // qtp_…
+  key,                         // 1–40 lowercase letters, digits or _; never changes
+  name, description,           // 1–60 and up to 300 characters
+  statuses: [{ key, label, category }],   // 2–12; category open | pending | done; at least one open and one done
+  default_status,              // where new queries start; not a done status
+  visible_roles: [],           // editor, agent, viewer; [] lets every role with queries.read see it. Owners and admins always do
+  bot_enabled,                 // the assistant may open queries of this type and report on them
+  sort_order, archived,
+  open,                        // its queries not done
+  created_at, updated_at
+}
+```
+
+A type's **form** is its custom properties: `POST /properties` with `entity: "query"` and `scope_id` the type's ID ([Custom properties](#custom-properties-v2)). Required fields must be filled in when a query is opened, by the team or the assistant.
+
+**Visibility.** A role a type doesn't list never sees its queries: they are left out of lists and answer `404 QUERY_NOT_FOUND`, exactly like queries that don't exist. Sensitive fields need `queries.write`.
+
+**Query:**
+
+```text
+{
+  id,                          // qry_…
+  reference, number,           // Q-1001, 1001: the bot's own sequence
+  type_id, type_name,
+  subject,                     // up to 200 characters
+  status, status_label, status_category,
+  customer_id?, customer_name?,
+  conversation_id?, ticket_id?,
+  assignee_user_id?, assignee_name?,
+  source,                      // dashboard | assistant
+  properties, masked_properties?,
+  closed_at?,                  // set while its status is done
+  created_at, updated_at
+}
+```
+
+#### `GET /query-types`
+
+`queries.read`. Query: `archived=true` to include archived types. **200** `{data: [QueryType]}`, the types the role may see.
+
+#### `GET /query-types/presets`
+
+`queries.read`. Query: `business_type`. **200** `{data: [{key, name, description, statuses, default_status, fields: [{key, label, type, options, required, sensitive}], business_types}]}`.
+
+#### `POST /query-types`
+
+`queries.manage`. Body: `{key, name, description?, statuses?, default_status?, visible_roles?, bot_enabled?, sort_order?}`; statuses default to New, In progress, Waiting on customer, Resolved and Rejected. A bot has up to 30 types. **201** the type. **Errors:** `400 INVALID_REQUEST`, `409 QUERY_TYPE_EXISTS`.
+
+#### `PATCH /query-types/{id}`
+
+`queries.manage`. Any of the fields above but `key`, and `archived`. A status queries are in can't be removed (`400`); a status moved to another category moves its queries with it. An archived type takes no new queries. **200** the type. **Errors:** `400 INVALID_REQUEST`, `404 QUERY_TYPE_NOT_FOUND`.
+
+#### `DELETE /query-types/{id}`
+
+`queries.manage`. Deletes a type that has no queries, and its form. **204**. **Errors:** `404 QUERY_TYPE_NOT_FOUND`, `409 QUERY_TYPE_IN_USE` (archive it instead).
+
+#### `GET /queries`
+
+`queries.read`. Query: `type`, `status`, `category` (`open`, `pending`, `done`, or `active` for not done), `customer`, `conversation`, `assignee` (a user ID, `me` or `none`), `q` (a reference such as `Q-1042`, or text in the subject or the customer's name), `property[key]=value` (with `type`), `limit`, `cursor`. **200** `{data: [Query], next_cursor?}`, most recently changed first.
+
+#### `POST /queries`
+
+`queries.write`. Body: `{type_id, subject?, status?, customer_id?, conversation_id?, ticket_id?, assignee_user_id?, properties?, note?}`. A conversation brings its customer. The assignee must be a member with `queries.write` who may see the type. **201** the query. **Errors:** `400 INVALID_REQUEST`, `404 QUERY_TYPE_NOT_FOUND`.
+
+#### `GET /queries/{id}`
+
+`queries.read`. **200** the query. **Errors:** `404 QUERY_NOT_FOUND`.
+
+#### `PATCH /queries/{id}`
+
+`queries.write`. Any of `subject`, `status`, `customer_id` and `ticket_id` (`""` clears), `assignee_user_id` (`""` unassigns), `properties` (merged; a required field can't be cleared), `note` (added to the history). The type and the conversation can't change. **200** the query. **Errors:** `400 INVALID_REQUEST`, `404 QUERY_NOT_FOUND`.
+
+#### `DELETE /queries/{id}`
+
+`queries.delete`. **204**. **Errors:** `404 QUERY_NOT_FOUND`.
+
+#### `GET /queries/{id}/events`
+
+`queries.read`. **200** `{data: [{id, kind, from?, to?, note?, actor_type, actor_id?, actor_name?, created_at}]}`, oldest first. `kind` is `created`, `status`, `assigned`, `fields` (`to` lists the keys changed) or `note`; `actor_type` is `member`, `assistant` or `key`.
 
 ### Channels (v2)
 
@@ -1138,6 +1488,13 @@ When the server has a Shopify app configured, `GET /tools` lists two built-in to
 
 - `shopify_order_status {order_number, email}`: an order's payment and fulfillment status, items, total and tracking. It answers only when the email matches the order's, so a customer can't read someone else's order by guessing its number.
 - `shopify_product_search {query}`: up to five active products, with price, whether they are in stock, and their link.
+
+Every bot also has `truplexy_product_search {query}`, which searches the bot's own [product catalog](#products-v2): up to five active products with price, currency, stock, link, a short description and their non-sensitive properties. It is always available; with an empty catalog it says nothing matches. No API tool can take its name.
+
+Every bot also has two query tools, available once a [query type](#queries-v2) has `bot_enabled`:
+
+- `truplexy_open_query {type, subject, fields}`: opens a query of a type the assistant handles, for the customer of the conversation it is answering, and gives the customer its reference. Missing or invalid fields are answered with what to ask for. Up to three per conversation an hour.
+- `truplexy_query_status {reference?}`: the latest five queries, or the one named, **of the conversation's customer only** (of the conversation itself when it has no customer): status, subject and non-sensitive fields. Whose queries it reads comes from the conversation the reply is for, never from the model, so a customer can't read another's by guessing a reference; one that isn't theirs answers like one that doesn't exist. Outside a stored conversation (such as a playground run without one) both tools refuse.
 
 Turn them on in the bot's `tools` like any tool, and test them with `POST /tools/{name}/test`. Their calls are recorded like API tools'. When Shopify asks the API to forget a customer, their order lookups are deleted from the recorded calls.
 
@@ -2243,7 +2600,7 @@ Image input adds `attachments: {enabled, max_bytes, max_per_message, content_typ
 
 #### `PUT /customer` (v2)
 
-Finds or creates the [customer](#customers-v2) your platform knows, so their conversations and tickets are linked to them. Send `{contacts, name?, metadata?}` with at least one contact, for example `{"contacts": [{"type": "discord", "value": "80351110224678912"}, {"type": "email", "value": "ann@example.com"}]}` (rules as for `POST /customers`). The bot's customer who has any of the contacts is found, gets the contacts they lack added, has the `name` and `metadata` you send updated, and is marked seen; if there is none, one is created. Contacts they already have keep their primary flags. **201** a new customer, **200** an existing one, as the customer object. Pass its `id` as `customer_id` to `POST /conversations`.
+Finds or creates the [customer](#customers-v2) your platform knows, so their conversations and tickets are linked to them. Send `{contacts, name?, metadata?, properties?, avatar_url?}` with at least one contact, for example `{"contacts": [{"type": "discord", "value": "80351110224678912"}, {"type": "email", "value": "ann@example.com"}]}` (rules as for `POST /customers`). The bot's customer who has any of the contacts is found, gets the contacts they lack added, has the `name` and `metadata` you send updated, and is marked seen; if there is none, one is created. Contacts they already have keep their primary flags. `properties` are merged like `PATCH /customers/{id}`, without requiring the required ones. `avatar_url` is an https link to their picture on your platform, copied once per link; it never replaces a picture the team uploaded, and a link that can't be fetched is skipped without failing the request. **201** a new customer, **200** an existing one, as the customer object, without sensitive property values. Pass its `id` as `customer_id` to `POST /conversations`.
 
 **Errors:** `400 INVALID_REQUEST`; `409 CUSTOMER_CONFLICT`: the contacts belong to different customers, so nothing is changed (edit or delete one of the customers in the dashboard); `409 CUSTOMER_EXISTS`: a contact was taken by another customer while the request ran, so retry.
 
@@ -2355,7 +2712,11 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Accepting an invitation | `POST /invites/preview`, then `POST /invites/accept` |
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
 | Performance | `GET /stats/performance` (`scope=bot` or `business`); read `recording` first |
-| Customers | `GET /customers` (search with `q`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, and `GET /tickets?customer=` for all of their tickets |
+| Queries | `GET /queries` (filters, `assignee=me`), `GET`/`PATCH`/`DELETE /queries/{id}`, `GET /queries/{id}/events`, `POST /queries`, `GET /query-types`, `GET /properties?entity=query&scope_id=` for a type's form, `GET /members` for the assignee picker, live `query.created`/`query.updated` |
+| Settings: query types | `GET /query-types?archived=true`, `GET /query-types/presets`, `POST`/`PATCH`/`DELETE /query-types…`, `POST /properties` with `entity: "query"` and `scope_id` |
+| Products | `GET /products` (search with `q`, `status`, `property[key]=`), `POST`/`PATCH`/`DELETE /products…`, `GET /properties?entity=product` for the property fields; imports with `POST /products/imports` (then `PUT` and `…/process` for a file), `GET /products/imports/{id}` to review, `…/commit` to save |
+| Settings: properties | `GET /properties?entity=`, `GET /properties/presets` with the business's type, `POST`/`PATCH`/`DELETE /properties…` |
+| Customers | `GET /customers` (search with `q`, filter with `property[key]=`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, `PUT`/`DELETE /customers/{id}/avatar`, `GET /properties?entity=customer` for the property fields, and `GET /tickets?customer=` for all of their tickets |
 | Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
@@ -2406,14 +2767,14 @@ Every error has its HTTP status and this body:
 | 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. |
 | 404 | `NOT_FOUND` | No such route. |
 | 404 | `ATTACHMENT_NOT_FOUND` | Image input. The attachment doesn't exist, was already sent, belongs to another conversation or bot, or expired after an hour. Register it again. |
-| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
+| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND`, `PROPERTY_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `IMPORT_NOT_FOUND`, `QUERY_NOT_FOUND`, `QUERY_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |
-| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS` | Already exists. |
+| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS`, `PROPERTY_EXISTS`, `PRODUCT_EXISTS`, `QUERY_TYPE_EXISTS` | Already exists. |
 | 409 | `LAST_OWNER`, `OWN_ACCESS`, `LAST_PLATFORM_ADMIN`, `SOLE_OWNER` | The change would leave a business without an owner or the platform without an admin, or change your own account's access. |
 | 409 | `EMAIL_TAKEN` | Another account has this email address. |
-| 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE` | State conflicts. |
+| 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE`, `IMPORT_STATE`, `QUERY_TYPE_IN_USE` | State conflicts. |
 | 409 | `ATTACHMENT_NOT_UPLOADED` | Image input. The message names an attachment whose file hasn't reached R2. Finish the `PUT`, then send again. |
 | 403 | `EMAIL_NOT_VERIFIED` | Accepting an invitation needs a confirmed email address (`AUTH_REQUIRE_VERIFIED_EMAIL`); the invitation is not used up. Confirm the address, then open the link again. |
 | 409 | `CHECKOUT_IN_PROGRESS` | Billing. Another request is setting up the business's checkout; wait `Retry-After` seconds. |
