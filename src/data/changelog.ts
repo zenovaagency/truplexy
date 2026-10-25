@@ -30,7 +30,7 @@ export const CHANGELOG: ChangeEntry[] = [
     tag: 'SDK',
     items: [
       'PUT /customer takes avatar_url, a link to the person’s picture on your platform, which Truplexy copies, and properties, the values of your custom properties.',
-      'The server package’s CustomerInput and Customer types include them from its next release.',
+      'The server package’s CustomerInput and Customer types include them. Released as 0.4.7 of the web, React, Vue and server packages.',
     ],
   },
   {
