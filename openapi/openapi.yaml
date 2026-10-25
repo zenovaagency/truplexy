@@ -117,7 +117,7 @@ paths:
                   minItems: 1
                   maxItems: 20
                   uniqueItems: true
-                  description: Required with tools_enabled and not allowed without it. Names from GET /tools; each must be available.
+                  description: Required with tools_enabled and not allowed without it. Names from GET /tools; a reply leaves out any that is unavailable or doesn't exist and answers with the rest.
                   items:
                     type: string
                     pattern: '^[a-z][a-z0-9_]{0,63}$'
@@ -2179,7 +2179,7 @@ paths:
         - MemberToken: []
       responses:
         '200':
-          description: The webhook and its last delivery.
+          description: The webhook and its last delivery. A bot without one gets an empty webhook with configured false.
           content:
             application/json:
               schema:
@@ -6325,6 +6325,7 @@ components:
           type: array
           maxItems: 20
           uniqueItems: true
+          description: Names from GET /tools. Replies leave out any that is unavailable or no longer exists.
           items:
             type: string
             pattern: '^[a-z][a-z0-9_]{0,63}$'
@@ -6763,8 +6764,11 @@ components:
           description: True while a person has the conversation, so the assistant doesn't reply.
     Webhook:
       type: object
-      required: [url, enabled, secret_hint, events, created_at, updated_at]
+      required: [configured, url, enabled, secret_hint, events, created_at, updated_at]
       properties:
+        configured:
+          type: boolean
+          description: False when the bot has no webhook yet; GET /webhook then answers an empty one, and the other fields are empty.
         url:
           type: string
         enabled:

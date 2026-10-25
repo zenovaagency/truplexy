@@ -1,9 +1,9 @@
-import { Bot } from 'lucide-react';
+import { AlertTriangle, Bot } from 'lucide-react';
 import { useTools } from '@/lib/api/endpoints/bot';
 import { cn } from '@/lib/cn';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { isShopifyTool } from '@/lib/shopify';
-import { Badge, Card, Checkbox, ErrorState, SkeletonRows, Switch } from '@/components/ui';
+import { Badge, Button, Callout, Card, Checkbox, ErrorState, SkeletonRows, Switch } from '@/components/ui';
 import { useBotDraft } from '@/features/llm/draft';
 
 /** Which tools this bot may call. Part of the bot's draft, saved with the save bar. */
@@ -19,6 +19,11 @@ export function BotToolsCard() {
     else next.delete(name);
     patchBot({ tools: [...next] });
   };
+
+  // Replies leave out a chosen tool that is unavailable or no longer in the library.
+  const library = tools.data?.data ?? [];
+  const deleted = [...selected].filter((name) => !library.some((t) => t.name === name));
+  const skipped = new Set([...library.filter((t) => selected.has(t.name) && !t.available).map((t) => t.name), ...(tools.data ? deleted : [])]);
 
   return (
     <Card
@@ -37,16 +42,32 @@ export function BotToolsCard() {
           label="Allow tool calls"
           description="Off means the assistant answers without calling any tool."
         />
+        {b.toolsEnabled && skipped.size > 0 && (
+          <Callout
+            tone="warn"
+            icon={<AlertTriangle />}
+            title={`${skipped.size} chosen ${skipped.size === 1 ? 'tool is' : 'tools are'} skipped in replies`}
+            action={
+              canWrite && (
+                <Button size="xs" variant="ghost" onClick={() => patchBot({ tools: [...selected].filter((n) => !skipped.has(n)) })}>
+                  Remove {skipped.size === 1 ? 'it' : 'them'}
+                </Button>
+              )
+            }
+          >
+            {skipped.size === 1 ? "It's" : "They're"} unavailable or deleted, so {bot.name} answers without {skipped.size === 1 ? 'it' : 'them'}.
+          </Callout>
+        )}
         {b.toolsEnabled &&
           (tools.isPending ? (
             <SkeletonRows rows={2} />
           ) : tools.isError ? (
             <ErrorState compact error={tools.error} />
-          ) : !tools.data.data.length ? (
+          ) : !library.length && !deleted.length ? (
             <p className="text-[0.8125rem] text-ink-faint">No tools yet. Add one to the library below.</p>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {tools.data.data.map((t) => (
+              {library.map((t) => (
                 <li key={t.name} className={cn('rounded-[12px] border border-line p-3', !t.available && 'opacity-60')}>
                   <Checkbox
                     checked={selected.has(t.name)}
@@ -58,8 +79,27 @@ export function BotToolsCard() {
                           {t.name}
                           {t.built_in && <Badge tone="accent" className="px-1.5 py-0 font-sans text-[0.65rem]">{isShopifyTool(t) ? 'Built-in · Shopify' : 'Built-in'}</Badge>}
                           {!t.read_only && <Badge tone="warn" className="px-1.5 py-0 font-sans text-[0.65rem]">Changes data</Badge>}
+                          {skipped.has(t.name) && <Badge tone="danger" className="px-1.5 py-0 font-sans text-[0.65rem]">Skipped</Badge>}
                         </span>
                         <span className="line-clamp-1 text-xs text-ink-faint">{t.available ? t.description : t.unavailable_reason}</span>
+                      </span>
+                    }
+                  />
+                </li>
+              ))}
+              {deleted.map((name) => (
+                <li key={name} className="rounded-[12px] border border-dashed border-line p-3 opacity-60">
+                  <Checkbox
+                    checked
+                    disabled={!canWrite}
+                    onChange={(e) => toggle(name, e.target.checked)}
+                    label={
+                      <span className="grid">
+                        <span className="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
+                          {name}
+                          <Badge tone="danger" className="px-1.5 py-0 font-sans text-[0.65rem]">Deleted</Badge>
+                        </span>
+                        <span className="line-clamp-1 text-xs text-ink-faint">No longer in the library. Untick to remove it.</span>
                       </span>
                     }
                   />
