@@ -80,8 +80,8 @@ export function ChannelBadge({ name, icon, muted, className }: { name: string; i
 export function ChannelStatusBadge({ channel: c }: { channel: Pick<Channel, 'enabled' | 'disabled_by_platform'> & Partial<Pick<Channel, 'connection'>> }) {
   if (c.disabled_by_platform)
     return (
-      <Tip content="Turned off by Truplexy. Its keys don't work, and only Truplexy can turn it back on.">
-        <Badge tone="danger" dot>Disabled by Truplexy</Badge>
+      <Tip content="Turned off by the platform. Its keys don't work, and only Truplexy can turn it back on.">
+        <Badge tone="danger" dot>Turned off by the platform</Badge>
       </Tip>
     );
   if (!c.enabled) return <Badge tone="neutral" dot>Off</Badge>;

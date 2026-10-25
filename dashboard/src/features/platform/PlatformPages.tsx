@@ -1669,7 +1669,18 @@ export function PlatformTools() {
 export function PlatformChannels() {
   const tenants = usePlatformTenants();
   const types = usePlatformChannelTypes();
-  const [f, setF] = useState<PlatformChannelQuery>({});
+  // The filters live in the URL, so Channel types can link here with ?type=<id>.
+  const [params, setParams] = useSearchParams();
+  const f: PlatformChannelQuery = useMemo(() => {
+    const status = params.get('status');
+    return {
+      tenant: params.get('tenant') || undefined,
+      type: params.get('type') || undefined,
+      status: status === 'active' || status === 'disabled' ? status : undefined,
+    };
+  }, [params]);
+  const setF = (next: PlatformChannelQuery) =>
+    setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)) as Record<string, string>, { replace: true });
   const q = usePlatformChannels(f);
   const toggle = useTogglePlatformChannel();
   const confirm = useConfirm();
@@ -1679,7 +1690,7 @@ export function PlatformChannels() {
     disabled
       ? confirm({
           title: `Turn off “${c.name}”?`,
-          description: `${c.tenant_name}'s chat API keys for this channel stop working at once, and the business can't turn it back on. It's recorded in their activity log.`,
+          description: `${c.tenant_name}'s chat API keys for this channel stop working at once, and the business can't turn it back on: their dashboard shows it as turned off by the platform. It's recorded in their activity log.`,
           confirmLabel: 'Turn off channel',
           tone: 'danger',
           onConfirm: () => toggle.mutateAsync({ id: c.id, disabled: true }).then(() => notifySuccess('Channel turned off')),
@@ -2475,7 +2486,19 @@ export function PlatformChannelTypes() {
                 hideBelowLg: true,
                 cell: (t) => <span className="text-ink-muted">{t.auto_close_hours === null || t.auto_close_hours === undefined ? 'Business setting' : formatAutoClose(t.auto_close_hours)}</span>,
               },
-              { key: 'channels', header: 'Channels', align: 'right', cell: (t) => <span className="tabular-nums">{formatNumber(t.channels)}</span> },
+              {
+                key: 'channels',
+                header: 'Channels',
+                align: 'right',
+                cell: (t) =>
+                  t.channels ? (
+                    <Link to={`/platform/channels?type=${encodeURIComponent(t.id)}`} onClick={(e) => e.stopPropagation()} className="tabular-nums text-accent hover:underline">
+                      {formatNumber(t.channels)}
+                    </Link>
+                  ) : (
+                    <span className="tabular-nums text-ink-muted">0</span>
+                  ),
+              },
               { key: 'order', header: 'Order', align: 'right', hideBelowLg: true, cell: (t) => <span className="tabular-nums text-ink-muted">{t.sort_order}</span> },
             ]}
           />
@@ -2508,7 +2531,11 @@ function ChannelTypeSheet({ type, onClose }: { type: PlatformChannelType | 'new'
       open={Boolean(type)}
       onOpenChange={(o) => !o && onClose()}
       title={existing ? existing.label : 'New channel type'}
-      description={existing ? `${pluralize(existing.channels, 'channel')} use it. Types aren't deleted; hide one instead.` : 'Businesses can add channels of it once it is active.'}
+      description={
+        existing
+          ? `${pluralize(existing.channels, 'channel')} use it; a new label or auto-close time shows in them at once. Types aren't deleted; hide one instead.`
+          : 'Businesses can add channels of it once it is active.'
+      }
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -2546,9 +2573,9 @@ function ChannelTypeSheet({ type, onClose }: { type: PlatformChannelType | 'new'
             label="Status"
             hint={
               t.status === 'hidden'
-                ? 'Not offered for new channels; existing ones keep working.'
+                ? 'Businesses no longer see it, except bots that already have a channel of it. Those channels keep working.'
                 : t.status === 'upcoming'
-                  ? 'Shown to businesses as "Upcoming". They can\'t add it yet.'
+                  ? 'Businesses see it as "Upcoming" and can\'t add it yet. Channels already of it keep working.'
                   : 'Offered to every business.'
             }
           >

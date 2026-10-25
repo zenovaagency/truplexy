@@ -815,7 +815,7 @@ route('POST', '/channels', 'channels.write', (c) => {
   const ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, description: '', external_id: '', connection: null, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now } as MockChannel;
   applyChannel(c, ch, b);
   c.db.channels.push(ch);
-  audit(c, 'channel.created', ch.id, { name: ch.name, type: ch.type });
+  audit(c, 'channel.create', ch.id, { name: ch.name, type: ch.type });
   return created(channelOut(c.db, ch));
 });
 
@@ -848,14 +848,14 @@ route('POST', '/channels/connect', 'channels.write', (c) => {
     ch = channelOf(c, b.channel_id);
     if (ch.type !== type.id) throw invalid('channel_id is a channel of another type.');
     Object.assign(ch, { connection, updated_at: now });
-    audit(c, 'channel.updated', ch.id, { name: ch.name, connected: connection.account_name });
+    audit(c, 'channel.update', ch.id, { name: ch.name, connected: connection.account_name });
   } else {
     const taken = new Set(botChannels(c).map((x) => x.name.toLowerCase()));
     let name = type.label;
     for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${type.label} ${n}`;
     ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: type.id, name, description: '', external_id: account, connection, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
     c.db.channels.push(ch);
-    audit(c, 'channel.created', ch.id, { name: ch.name, type: ch.type, connected: connection.account_name });
+    audit(c, 'channel.create', ch.id, { name: ch.name, type: ch.type, connected: connection.account_name });
   }
   back.searchParams.set('connected', ch.id);
   return { authorize_url: back.toString() };
@@ -865,11 +865,9 @@ route('GET', '/channels/:id', 'channels.read', (c) => channelOut(c.db, channelOf
 
 route('PATCH', '/channels/:id', 'channels.write', (c) => {
   const ch = channelOf(c, c.params.id);
-  const wasEnabled = ch.enabled;
   applyChannel(c, ch, c.body ?? {}, ch);
   ch.updated_at = nowIso();
-  const action = ch.enabled === wasEnabled ? 'channel.updated' : ch.enabled ? 'channel.enabled' : 'channel.disabled';
-  audit(c, action, ch.id, { name: ch.name });
+  audit(c, 'channel.update', ch.id, { name: ch.name });
   return channelOut(c.db, ch);
 });
 
@@ -881,7 +879,7 @@ route('DELETE', '/channels/:id', 'channels.write', (c) => {
   const label = c.db.channelTypes.find((t) => t.id === ch.type)?.label;
   for (const t of c.db.tickets) if (t.channel_id === ch.id) Object.assign(t, { channel_name: ch.name, channel_type: ch.type });
   c.db.channels = c.db.channels.filter((x) => x !== ch);
-  audit(c, 'channel.deleted', ch.id, { name: ch.name, type: label ?? ch.type });
+  audit(c, 'channel.delete', ch.id, { name: ch.name, type: label ?? ch.type });
   return noContent();
 });
 
@@ -2961,8 +2959,9 @@ route('GET', '/platform/channel-types', 'platform', ({ db }) => ({
   data: [...db.channelTypes].sort((a, b) => a.sort_order - b.sort_order).map((t) => channelTypeOut(db, t)),
 }));
 
-route('POST', '/platform/channel-types', 'platform', ({ db, body }) => {
-  const b = body ?? {};
+route('POST', '/platform/channel-types', 'platform', (c) => {
+  const { db } = c;
+  const b = c.body ?? {};
   if (typeof b.id !== 'string' || !CHANNEL_TYPE_ID_RE.test(b.id)) throw invalid('id must be 2–32 lowercase letters, digits, - or _, starting with a letter.');
   if (b.label === undefined) throw invalid('label is required.');
   if (db.channelTypes.some((t) => t.id === b.id)) throw err(409, 'CHANNEL_TYPE_EXISTS', `Channel type ${b.id} exists.`);
@@ -2970,21 +2969,28 @@ route('POST', '/platform/channel-types', 'platform', ({ db, body }) => {
   const t = { id: b.id, label: '', description: '', icon: '', status: 'active', connect: null, sort_order: 0, auto_close_hours: null, created_at: now, updated_at: now } as MockDb['channelTypes'][number];
   applyChannelType(t, b);
   db.channelTypes.push(t);
+  audit(c, 'channel_type.create', t.id, { name: t.label }, '_platform');
   return created(channelTypeOut(db, t));
 });
 
-route('PATCH', '/platform/channel-types/:id', 'platform', ({ db, params, body }) => {
+route('PATCH', '/platform/channel-types/:id', 'platform', (c) => {
+  const { db, params, body } = c;
   const t = db.channelTypes.find((x) => x.id === params.id);
   if (!t) throw notFound('CHANNEL_TYPE_NOT_FOUND', 'Channel type');
   if (body?.id !== undefined && body.id !== t.id) throw invalid("id can't change.");
   applyChannelType(t, body ?? {});
   t.updated_at = nowIso();
+  audit(c, 'channel_type.update', t.id, { name: t.label }, '_platform');
   return channelTypeOut(db, t);
 });
 
 route('GET', '/platform/channels', 'platform', ({ db, query }) => {
   const status = query.get('status');
   if (status && !['active', 'disabled'].includes(status)) throw invalid('status must be active or disabled.');
+  const tenant = query.get('tenant');
+  if (tenant && !db.tenants.some((t) => t.id === tenant)) throw invalid('tenant must be a business ID.');
+  const type = query.get('type');
+  if (type && !CHANNEL_TYPE_ID_RE.test(type)) throw invalid('type must be a channel type id.');
   return {
     data: db.channels
       .filter((x) => !db.tenants.find((t) => t.id === x.tenant_id)?.deleted_at)
@@ -2998,12 +3004,12 @@ route('GET', '/platform/channels', 'platform', ({ db, query }) => {
 });
 
 route('PATCH', '/platform/channels/:id', 'platform', (c) => {
+  if (typeof c.body?.disabled !== 'boolean') throw invalid('disabled must be true or false.');
   const ch = c.db.channels.find((x) => x.id === c.params.id);
   if (!ch) throw notFound('CHANNEL_NOT_FOUND', 'Channel');
-  if (typeof c.body?.disabled !== 'boolean') throw invalid('disabled must be true or false.');
   ch.disabled_by_platform = c.body.disabled;
   ch.updated_at = nowIso();
-  audit({ ...c, tenant: c.db.tenants.find((x) => x.id === ch.tenant_id)! }, ch.disabled_by_platform ? 'channel.disabled' : 'channel.enabled', ch.id, { name: ch.name, by: 'platform' });
+  audit(c, ch.disabled_by_platform ? 'channel.platform_disabled' : 'channel.platform_enabled', ch.id, { name: ch.name }, ch.tenant_id);
   return { ...channelOut(c.db, ch), tenant_name: c.db.tenants.find((t) => t.id === ch.tenant_id)?.name ?? ch.tenant_id };
 });
 
