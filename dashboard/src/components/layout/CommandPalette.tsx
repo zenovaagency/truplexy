@@ -21,6 +21,7 @@ import { ScopeContext, scopeLink } from '@/lib/session/scope-context';
 import { useTheme } from '@/lib/theme';
 import { BUSINESS_NAV, PLATFORM_NAV } from '@/app/nav';
 import { usePerformanceNav } from '@/lib/performance';
+import { useFeatureNav } from '@/lib/features';
 import { Kbd } from '@/components/ui';
 
 interface Entry {
@@ -61,10 +62,13 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   };
   const allowed = (p?: Permission) => !p || (ctx?.can(p) ?? false);
   const served = usePerformanceNav();
+  const featured = useFeatureNav();
 
   const pages: Entry[] = ctx
     ? [
-        ...BUSINESS_NAV.flatMap((s) => s.items).filter(served).map((i) => ({
+        ...BUSINESS_NAV.flatMap((s) => s.items)
+          .filter((i) => served(i) && featured(i))
+          .map((i) => ({
           id: i.id,
           label: i.label,
           icon: <i.icon />,

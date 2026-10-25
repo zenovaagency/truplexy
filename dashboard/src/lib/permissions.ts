@@ -18,14 +18,14 @@ export const ROLE_LABEL: Record<Role, string> = {
 export const ROLE_DESCRIPTION: Record<Role, string> = {
   owner: 'Everything, including managing other owners and asking to delete the business.',
   admin: 'Team, integrations, channels, API keys, bots, business details, extra tokens and the activity log.',
-  editor: 'Bot configuration, knowledge, tools, custom properties, and read access to integrations.',
+  editor: 'Bot configuration, knowledge, tools, products, custom properties, and read access to integrations.',
   agent: 'Works tickets and customers, and uses the playground.',
   viewer: 'Read-only access to tickets, knowledge, tools and usage.',
 };
 
-const VIEWER: Permission[] = ['bot.read', 'knowledge.read', 'tools.read', 'tickets.read', 'usage.read', 'members.read', 'channels.read', 'customers.read', 'properties.read'];
+const VIEWER: Permission[] = ['bot.read', 'knowledge.read', 'tools.read', 'tickets.read', 'usage.read', 'members.read', 'channels.read', 'customers.read', 'properties.read', 'products.read'];
 const AGENT: Permission[] = [...VIEWER, 'playground.run', 'tickets.write', 'customers.write'];
-const EDITOR: Permission[] = [...AGENT, 'bot.write', 'knowledge.write', 'tools.write', 'tickets.delete', 'integrations.read', 'properties.write'];
+const EDITOR: Permission[] = [...AGENT, 'bot.write', 'knowledge.write', 'tools.write', 'tickets.delete', 'integrations.read', 'properties.write', 'products.write'];
 const ADMIN: Permission[] = [...EDITOR, 'integrations.write', 'channels.write', 'bots.create', 'members.write', 'business.write', 'billing.write', 'audit.read'];
 const OWNER: Permission[] = [...ADMIN, 'owners.manage', 'business.delete'];
 

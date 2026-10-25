@@ -65,6 +65,16 @@ Businesses define typed fields (text, number, date, single and multiple choice, 
 - **Customers** show their picture (`avatar_url`; agents and up can upload or remove one), their properties in the detail sheet and form, up to three property columns (remembered per browser), and a filter over choice and yes/no properties. The open customer is in the address (`/customers/cus_…`), so it can be linked to from tickets.
 - The chat API's `PUT /customer` takes `avatar_url` and `properties` too, but the SDK (`sdk/`), `sdk/CHAT_API.md` and the public docs' `CUSTOMER_RULES` (`src/features/integrations/snippets/chat-api.ts`) don't mention them yet: an API without them refuses unknown fields. Add them there once the API serves them.
 
+## Products
+
+**Products** (`src/features/products/`) is the bot's catalog: search, a status and property filter, an add/edit sheet with the product's properties, and imports. It shows in the menu once `GET /products` answers (`src/lib/features.ts`).
+
+- **Import** reads a file (CSV, JSON, PDF, Word, Markdown, text, HTML) or a web page into drafts (`ImportDialog.tsx`); files go straight to storage like knowledge uploads (`putObject` in `src/lib/upload.ts`). Nothing is saved until someone reviews the drafts on `/products/imports/:id` (`ImportReviewPage.tsx`), unticks or fixes rows, and saves; only the indexes and the fields changed are sent, so big imports stay small.
+- Files read by their columns (CSV, JSON) and pages with product data cost nothing; the rest are read with AI, billed as a reply, which the dialog says before it starts.
+- Product pictures are links to other sites, shown with `referrerPolicy="no-referrer"` and a placeholder when they don't load.
+- Settings → Properties gets a Products tab once the catalog is served.
+- Demo mode imports a CSV as the API would (`src/lib/api/mock/products.ts`); other files and pages give a small sample shop. A link with `fail` in it shows a page that couldn't be read, and one with `ai` a page read with AI.
+
 ## Deploying
 
 The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.truplexy.com`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.

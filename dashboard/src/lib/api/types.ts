@@ -30,6 +30,8 @@ export type Permission =
   | 'customers.write'
   | 'properties.read'
   | 'properties.write'
+  | 'products.read'
+  | 'products.write'
   | 'bots.create'
   | 'members.write'
   | 'business.write'
@@ -726,7 +728,7 @@ export interface CustomerInput {
 /* ------------------------------------------------------------------ */
 
 /** The kinds of record that have custom properties. */
-export type PropertyEntity = 'customer';
+export type PropertyEntity = 'customer' | 'product';
 
 export type PropertyType = 'text' | 'long_text' | 'number' | 'boolean' | 'date' | 'select' | 'multi_select' | 'email' | 'phone' | 'url';
 
@@ -785,6 +787,115 @@ export interface PropertyPreset {
 
 /** A record's values by property key, as stored: strings, numbers, booleans, or a list for multi_select. */
 export type PropertyValues = Record<string, unknown>;
+
+/* ------------------------------------------------------------------ */
+/* Products                                                            */
+/* ------------------------------------------------------------------ */
+
+export type ProductStatus = 'active' | 'draft' | 'archived';
+
+export interface Product {
+  id: string;
+  tenant_id: string;
+  bot_id: string;
+  name: string;
+  /** "" for none; unique among the bot's products when set. */
+  sku: string;
+  description: string;
+  /** A decimal string such as "19.90"; null when unknown. */
+  price: string | null;
+  /** ISO 4217, or "". */
+  currency: string;
+  /** null when stock isn't tracked. */
+  stock: number | null;
+  url: string;
+  image_url: string;
+  status: ProductStatus;
+  source: 'manual' | 'csv' | 'document' | 'web';
+  properties: PropertyValues;
+  masked_properties?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields of POST and PATCH /products; price and stock clear with null. */
+export interface ProductInput {
+  name?: string;
+  sku?: string;
+  description?: string;
+  price?: string | null;
+  currency?: string;
+  stock?: number | null;
+  url?: string;
+  image_url?: string;
+  status?: ProductStatus;
+  properties?: PropertyValues;
+}
+
+export interface ProductList {
+  data: Product[];
+  next_cursor?: string;
+}
+
+/** A product an import read, before review. */
+export interface ProductDraft {
+  name: string;
+  sku: string;
+  description: string;
+  price: string | null;
+  currency: string;
+  stock: number | null;
+  url: string;
+  image_url: string;
+  properties: PropertyValues;
+  /** What was left out or needs a look. */
+  problems: string[];
+  /** The catalog already has this SKU. */
+  exists: boolean;
+}
+
+export type ImportStatus = 'uploading' | 'processing' | 'ready' | 'failed' | 'committed';
+
+export interface ProductImport {
+  id: string;
+  source: 'file' | 'url';
+  /** The file's name or the page's link. */
+  name: string;
+  status: ImportStatus;
+  /** csv/json: by columns; json_ld: the page's structured data; ai: read by a model. */
+  method?: 'csv' | 'json' | 'json_ld' | 'ai';
+  items?: ProductDraft[];
+  item_count: number;
+  truncated: boolean;
+  error?: string;
+  created: number;
+  updated: number;
+  skipped: number;
+  committed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductImportUpload {
+  import: ProductImport;
+  url: string;
+  method: 'PUT';
+  headers: Record<string, string>;
+  expires_at: string;
+}
+
+export interface ImportCommit {
+  /** Drafts to save, by their place in items; none saves all. */
+  indexes?: number[];
+  /** Changes to picked drafts, by index; properties replace the draft's. */
+  edits?: Record<string, ProductInput>;
+  on_duplicate?: 'skip' | 'update';
+}
+
+export interface ImportCommitResult {
+  import: ProductImport;
+  errors: { index: number; message: string }[];
+}
 
 export interface CustomerList {
   data: Customer[];
