@@ -15,6 +15,9 @@ const customer = await chat.upsertCustomer({
     { type: 'email', value: 'ann@example.com', primary: true, label: 'work' },
   ],
   metadata: { plan: 'pro' },
+  // Optional: the bot's custom properties, and the person's picture on your platform.
+  properties: { loyalty_tier: 'gold' },
+  avatar_url: 'https://cdn.example.com/avatars/42.png',
 });
 const conversation = await chat.createConversation({ customer_id: customer.id });
 const result = await chat.sendMessage(conversation.id, 'Where is my order?');
@@ -92,6 +95,8 @@ A picture error happens before anything is stored or paid for, so there is nothi
 - Supply 1–20 contacts. Each is `{type, value, label?, primary?}`. `type` is 2–32 lowercase letters, digits, hyphens or underscores, starting with a letter. Values are 1–254 characters; labels up to 60.
 - Email contacts are lowercased. Phone contacts lose spaces, dashes, dots and parentheses and must be 5–20 digits with an optional leading `+`. Other values preserve case. Use strings for platform IDs.
 - Names allow 120 characters; the API collapses whitespace. Metadata is a JSON object up to 4 KB. Omitted name/metadata keep their existing value; supplied metadata replaces the object.
+- `properties` sets the bot's custom properties (defined in the dashboard under Settings → Properties) by key. They are merged: keys you send replace their value, `null` clears one, others stay. An unknown key or a value of the wrong type is `INVALID_REQUEST`. Required properties aren't enforced here. Sensitive properties are never returned to a chat key; their keys appear in `masked_properties`.
+- `avatar_url` is an https link to the person's picture on your platform (PNG, JPEG or WebP, up to 512 KB). Truplexy copies it once per link, so an expiring CDN link is fine. A picture someone on the team uploaded is never replaced, and a link that can't be fetched leaves the picture as it was without failing the request. The response's `avatar_url` is Truplexy's copy.
 - The API finds a customer matching any supplied contact and adds missing contacts. Existing primary flags remain unchanged. At most one contact per type is primary; the first is primary when none is marked.
 - Contacts are unique within a bot. `CUSTOMER_CONFLICT` means the supplied contacts identify different customers; nothing changes. Resolve that conflict in the dashboard. `CUSTOMER_EXISTS` means another request claimed the contact; the client and language helpers retry once, then throw.
 - Store the returned `cus_…` ID on **new** conversations. Their tickets inherit the customer. Existing conversations cannot be relinked through this API. Identifying a customer does not authenticate them or authorize access to their other conversations.

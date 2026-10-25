@@ -20,6 +20,8 @@ export const CUSTOMER_RULES = [
   'Emails are lowercased. Phone numbers lose spaces, dashes, dots and parentheses and must contain 5–20 digits, optionally beginning with +. Other values keep their case.',
   'Each contact belongs to one customer within one bot. Mark at most one primary contact per type; otherwise the first becomes primary. Existing primary flags survive an upsert.',
   'An upsert finds any matching contact, adds missing contacts, updates supplied name and metadata, and marks the customer seen. Omit optional fields to preserve them.',
+  'Send properties to set the bot’s custom properties by key: keys sent replace their value, null clears one, and unknown keys are refused. Sensitive properties are never returned to a chat key.',
+  'Send avatar_url, an https link to the person’s picture on your platform, to give them a picture. It is copied once per link, never replaces a picture your team uploaded, and a link that fails leaves the picture unchanged.',
   'CUSTOMER_CONFLICT means the contacts belong to different customers: nothing is changed. Resolve it in Customers. CUSTOMER_EXISTS is a race: the SDK and helpers retry once.',
   'Pass the returned id as customer_id when starting a conversation. Tickets inherit that customer and the conversation’s channel. Existing conversations are not relinked.',
 ] as const;
