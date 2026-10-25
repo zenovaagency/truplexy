@@ -1,5 +1,5 @@
 === Truplexy Chat ===
-Contributors: truplexy
+Contributors: tanvirhossen
 Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
 Tested up to: 6.8
