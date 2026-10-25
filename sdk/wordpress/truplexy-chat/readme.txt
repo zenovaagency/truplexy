@@ -97,3 +97,8 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 
 = 0.1.0 =
 * First release.
+
+== Upgrade Notice ==
+
+= 1.0.0 =
+First WordPress.org release. The chat widget is now bundled with the plugin, and the settings page checks that your chat key works.
