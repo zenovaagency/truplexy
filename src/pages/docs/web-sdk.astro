@@ -16,12 +16,11 @@ const serverTabs: Tab[] = [
     label: 'WordPress',
     files: [],
     html: `<ol>
-<li>In the dashboard, open <strong>Integrations → Add a channel → WordPress</strong> and copy the plugin file.</li>
-<li>Save it as <code>wp-content/plugins/truplexy-chat/truplexy-chat.php</code> and activate it under Plugins.</li>
-<li>Add <code>define('TRUPLEXY_CHAT_KEY', 'tpx_…');</code> to <code>wp-config.php</code>.</li>
-<li>Style the chat under <strong>Settings → Truplexy Chat</strong>.</li>
+<li>Download <a href="/downloads/truplexy-chat.zip">truplexy-chat.zip</a>. In WordPress, open <strong>Plugins → Add New → Upload Plugin</strong>, choose the zip and activate it.</li>
+<li>Paste your chat key (dashboard: <strong>Integrations → WordPress</strong>) on the <strong>Settings → Truplexy Chat</strong> page that opens, then save. It says <em>Connected</em> when the key works.</li>
+<li>Style the chat under <strong>Integrations → Chat widget</strong> in the Truplexy dashboard.</li>
 </ol>
-<p>The plugin is the route <em>and</em> the widget: it adds <code>/wp-json/truplexy/v1/chat</code> and the chat button to every page, so you can skip step 3. It works for WooCommerce stores too.</p>`,
+<p>The plugin is the route <em>and</em> the widget: it adds <code>/wp-json/truplexy/v1/chat</code> and the chat button to every page. It works for WooCommerce stores too. To keep the key out of the database, define <code>TRUPLEXY_CHAT_KEY</code> in <code>wp-config.php</code> instead.</p>`,
   },
   {
     id: 'other',

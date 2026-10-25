@@ -454,7 +454,12 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
                 </p>
               )}
               <p className="text-xs text-ink-faint">
-                Set it as <code className="font-mono">TRUPLEXY_CHAT_KEY</code> on your server. Manage keys under{' '}
+                {i.id === 'wordpress' ? (
+                  'Paste it on the plugin’s settings page in WordPress (Settings → Truplexy Chat).'
+                ) : (
+                  <>Set it as <code className="font-mono">TRUPLEXY_CHAT_KEY</code> on your server.</>
+                )}{' '}
+                Manage keys under{' '}
                 <Link to={href('api-keys')} className="text-accent hover:underline">API keys</Link>.
               </p>
             </Step>
