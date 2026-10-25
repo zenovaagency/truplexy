@@ -4,13 +4,25 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Queries (2026-10-25)
+
+A business defines **query types** — payment issues, order problems, deliveries, appointments — each with its own form (custom properties of entity `query`, scoped to the type), its own statuses and who may see it. Queries of a type are opened by the team or by the assistant in a conversation, and the assistant can tell a customer how *their own* queries stand, never anyone else's. It adds routes, four permissions (`queries.read` for every role, `queries.write` for agents and up, `queries.delete` and `queries.manage` for editors and up), two built-in tools, two live events and error codes; nothing existing changed. Apply migration `0044_queries.sql` first.
+
+**What a dashboard does:**
+
+1. A **Queries** page: [`GET /queries`](#get-queries-v2) with filters by type, status, category, customer, assignee, reference or text, and `property[key]=` with a type. Open one with `GET /queries/{id}` and its history with `GET /queries/{id}/events`; change status, fields and assignee, and add notes, with `PATCH /queries/{id}`.
+2. A **query types** settings page: `GET /query-types?archived=true`, add from `GET /query-types/presets?business_type=…` (create the type, then its fields with `POST /properties` and `scope_id` the type's ID), edit statuses, visible roles and whether the assistant handles it.
+3. Show a customer's queries with `GET /queries?customer=cus_…`, and a conversation's with `?conversation=`.
+4. Reload on the live events `query.created` and `query.updated` (bot topic only; they carry the query's ID and state, never its fields).
+5. Let the business turn on `truplexy_open_query` and `truplexy_query_status` in the bot's `tools` ([built-in tools](#built-in-tools-v2)).
 
 ## Custom properties (2026-10-25)
 
@@ -361,9 +373,9 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 
 | Permission | Viewer | Agent | Editor | Admin | Owner |
 | --- | :-: | :-: | :-: | :-: | :-: |
-| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read`, `customers.read`, `properties.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `playground.run`, `tickets.write`, `customers.write` | | ✓ | ✓ | ✓ | ✓ |
-| `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read`, `properties.write` | | | ✓ | ✓ | ✓ |
+| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read`, `customers.read`, `properties.read`, `queries.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `playground.run`, `tickets.write`, `customers.write`, `queries.write` | | ✓ | ✓ | ✓ | ✓ |
+| `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read`, `properties.write`, `queries.delete`, `queries.manage` | | | ✓ | ✓ | ✓ |
 | `integrations.write`, `channels.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
 | `owners.manage`, `business.delete` | | | | | ✓ |
 
@@ -422,6 +434,17 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/properties` | `properties.write` | Add a custom property (v2) |
 | `PATCH` | `/properties/{id}` | `properties.write` | Change a custom property (v2) |
 | `DELETE` | `/properties/{id}` | `properties.write` | Delete a custom property and its values (v2) |
+| `GET` | `/query-types` | `queries.read` | The query types the role may see (v2) |
+| `GET` | `/query-types/presets` | `queries.read` | Suggested query types (v2) |
+| `POST` | `/query-types` | `queries.manage` | Add a query type (v2) |
+| `PATCH` | `/query-types/{id}` | `queries.manage` | Change or archive a query type (v2) |
+| `DELETE` | `/query-types/{id}` | `queries.manage` | Delete a query type without queries (v2) |
+| `GET` | `/queries` | `queries.read` | List queries (v2) |
+| `POST` | `/queries` | `queries.write` | Open a query (v2) |
+| `GET` | `/queries/{id}` | `queries.read` | A query (v2) |
+| `PATCH` | `/queries/{id}` | `queries.write` | Change a query, or add a note (v2) |
+| `DELETE` | `/queries/{id}` | `queries.delete` | Delete a query (v2) |
+| `GET` | `/queries/{id}/events` | `queries.read` | A query's history (v2) |
 | `GET` | `/workspace` | `bot.read` | The bot's configuration and versions |
 | `PUT` | `/workspace` | `bot.write` | Save the bot's configuration |
 | `GET` | `/models` | `bot.read` | Models the bot may use (v2) |
@@ -810,14 +833,14 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 
 ### Custom properties (v2)
 
-Scope headers; these act on the bot. A business defines typed **properties** for one kind of record, its **entity** (`customer` for now), and each record keeps its values in `properties`, an object keyed by the property's `key`. Properties belong to one bot.
+Scope headers; these act on the bot. A business defines typed **properties** for one kind of record, its **entity** (`customer`, or `query` for a query type's form with `scope_id` the type), and each record keeps its values in `properties`, an object keyed by the property's `key`. Properties belong to one bot.
 
 **Property:**
 
 ```text
 {
   id,                          // prp_…
-  entity,                      // customer
+  entity,                      // customer or query
   scope_id?,                   // for entities whose properties are per type; absent otherwise
   key,                         // 1–40 lowercase letters, digits or _, starting with a letter; never changes
   label,                       // 1–60 characters
@@ -877,6 +900,94 @@ A record's properties are at most 16 KB. Changing a property's options never blo
 #### `DELETE /properties/{id}`
 
 `properties.write`. Deletes the property and, in the same transaction, its value from every record, so a property added later with the same key starts empty. **204**. **Errors:** `404 PROPERTY_NOT_FOUND`.
+
+### Queries (v2)
+
+Scope headers; these act on the bot. A **query** is a structured request a customer makes, of one of the bot's **query types**.
+
+**Query type:**
+
+```text
+{
+  id,                          // qtp_…
+  key,                         // 1–40 lowercase letters, digits or _; never changes
+  name, description,           // 1–60 and up to 300 characters
+  statuses: [{ key, label, category }],   // 2–12; category open | pending | done; at least one open and one done
+  default_status,              // where new queries start; not a done status
+  visible_roles: [],           // editor, agent, viewer; [] lets every role with queries.read see it. Owners and admins always do
+  bot_enabled,                 // the assistant may open queries of this type and report on them
+  sort_order, archived,
+  open,                        // its queries not done
+  created_at, updated_at
+}
+```
+
+A type's **form** is its custom properties: `POST /properties` with `entity: "query"` and `scope_id` the type's ID ([Custom properties](#custom-properties-v2)). Required fields must be filled in when a query is opened, by the team or the assistant.
+
+**Visibility.** A role a type doesn't list never sees its queries: they are left out of lists and answer `404 QUERY_NOT_FOUND`, exactly like queries that don't exist. Sensitive fields need `queries.write`.
+
+**Query:**
+
+```text
+{
+  id,                          // qry_…
+  reference, number,           // Q-1001, 1001: the bot's own sequence
+  type_id, type_name,
+  subject,                     // up to 200 characters
+  status, status_label, status_category,
+  customer_id?, customer_name?,
+  conversation_id?, ticket_id?,
+  assignee_user_id?, assignee_name?,
+  source,                      // dashboard | assistant
+  properties, masked_properties?,
+  closed_at?,                  // set while its status is done
+  created_at, updated_at
+}
+```
+
+#### `GET /query-types`
+
+`queries.read`. Query: `archived=true` to include archived types. **200** `{data: [QueryType]}`, the types the role may see.
+
+#### `GET /query-types/presets`
+
+`queries.read`. Query: `business_type`. **200** `{data: [{key, name, description, statuses, default_status, fields: [{key, label, type, options, required, sensitive}], business_types}]}`.
+
+#### `POST /query-types`
+
+`queries.manage`. Body: `{key, name, description?, statuses?, default_status?, visible_roles?, bot_enabled?, sort_order?}`; statuses default to New, In progress, Waiting on customer, Resolved and Rejected. A bot has up to 30 types. **201** the type. **Errors:** `400 INVALID_REQUEST`, `409 QUERY_TYPE_EXISTS`.
+
+#### `PATCH /query-types/{id}`
+
+`queries.manage`. Any of the fields above but `key`, and `archived`. A status queries are in can't be removed (`400`); a status moved to another category moves its queries with it. An archived type takes no new queries. **200** the type. **Errors:** `400 INVALID_REQUEST`, `404 QUERY_TYPE_NOT_FOUND`.
+
+#### `DELETE /query-types/{id}`
+
+`queries.manage`. Deletes a type that has no queries, and its form. **204**. **Errors:** `404 QUERY_TYPE_NOT_FOUND`, `409 QUERY_TYPE_IN_USE` (archive it instead).
+
+#### `GET /queries`
+
+`queries.read`. Query: `type`, `status`, `category` (`open`, `pending`, `done`, or `active` for not done), `customer`, `conversation`, `assignee` (a user ID, `me` or `none`), `q` (a reference such as `Q-1042`, or text in the subject or the customer's name), `property[key]=value` (with `type`), `limit`, `cursor`. **200** `{data: [Query], next_cursor?}`, most recently changed first.
+
+#### `POST /queries`
+
+`queries.write`. Body: `{type_id, subject?, status?, customer_id?, conversation_id?, ticket_id?, assignee_user_id?, properties?, note?}`. A conversation brings its customer. The assignee must be a member with `queries.write` who may see the type. **201** the query. **Errors:** `400 INVALID_REQUEST`, `404 QUERY_TYPE_NOT_FOUND`.
+
+#### `GET /queries/{id}`
+
+`queries.read`. **200** the query. **Errors:** `404 QUERY_NOT_FOUND`.
+
+#### `PATCH /queries/{id}`
+
+`queries.write`. Any of `subject`, `status`, `customer_id` and `ticket_id` (`""` clears), `assignee_user_id` (`""` unassigns), `properties` (merged; a required field can't be cleared), `note` (added to the history). The type and the conversation can't change. **200** the query. **Errors:** `400 INVALID_REQUEST`, `404 QUERY_NOT_FOUND`.
+
+#### `DELETE /queries/{id}`
+
+`queries.delete`. **204**. **Errors:** `404 QUERY_NOT_FOUND`.
+
+#### `GET /queries/{id}/events`
+
+`queries.read`. **200** `{data: [{id, kind, from?, to?, note?, actor_type, actor_id?, actor_name?, created_at}]}`, oldest first. `kind` is `created`, `status`, `assigned`, `fields` (`to` lists the keys changed) or `note`; `actor_type` is `member`, `assistant` or `key`.
 
 ### Channels (v2)
 
@@ -1224,6 +1335,11 @@ When the server has a Shopify app configured, `GET /tools` lists two built-in to
 
 - `shopify_order_status {order_number, email}`: an order's payment and fulfillment status, items, total and tracking. It answers only when the email matches the order's, so a customer can't read someone else's order by guessing its number.
 - `shopify_product_search {query}`: up to five active products, with price, whether they are in stock, and their link.
+
+Every bot also has two query tools, available once a [query type](#queries-v2) has `bot_enabled`:
+
+- `truplexy_open_query {type, subject, fields}`: opens a query of a type the assistant handles, for the customer of the conversation it is answering, and gives the customer its reference. Missing or invalid fields are answered with what to ask for. Up to three per conversation an hour.
+- `truplexy_query_status {reference?}`: the latest five queries, or the one named, **of the conversation's customer only** (of the conversation itself when it has no customer): status, subject and non-sensitive fields. Whose queries it reads comes from the conversation the reply is for, never from the model, so a customer can't read another's by guessing a reference; one that isn't theirs answers like one that doesn't exist. Outside a stored conversation (such as a playground run without one) both tools refuse.
 
 Turn them on in the bot's `tools` like any tool, and test them with `POST /tools/{name}/test`. Their calls are recorded like API tools'. When Shopify asks the API to forget a customer, their order lookups are deleted from the recorded calls.
 
@@ -2441,6 +2557,8 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Accepting an invitation | `POST /invites/preview`, then `POST /invites/accept` |
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
 | Performance | `GET /stats/performance` (`scope=bot` or `business`); read `recording` first |
+| Queries | `GET /queries` (filters, `assignee=me`), `GET`/`PATCH`/`DELETE /queries/{id}`, `GET /queries/{id}/events`, `POST /queries`, `GET /query-types`, `GET /properties?entity=query&scope_id=` for a type's form, `GET /members` for the assignee picker, live `query.created`/`query.updated` |
+| Settings: query types | `GET /query-types?archived=true`, `GET /query-types/presets`, `POST`/`PATCH`/`DELETE /query-types…`, `POST /properties` with `entity: "query"` and `scope_id` |
 | Settings: properties | `GET /properties?entity=`, `GET /properties/presets` with the business's type, `POST`/`PATCH`/`DELETE /properties…` |
 | Customers | `GET /customers` (search with `q`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, and `GET /tickets?customer=` for all of their tickets |
 | Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
@@ -2493,14 +2611,14 @@ Every error has its HTTP status and this body:
 | 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. |
 | 404 | `NOT_FOUND` | No such route. |
 | 404 | `ATTACHMENT_NOT_FOUND` | Image input. The attachment doesn't exist, was already sent, belongs to another conversation or bot, or expired after an hour. Register it again. |
-| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND`, `PROPERTY_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
+| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND`, `PROPERTY_NOT_FOUND`, `QUERY_NOT_FOUND`, `QUERY_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |
-| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS`, `PROPERTY_EXISTS` | Already exists. |
+| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS`, `PROPERTY_EXISTS`, `QUERY_TYPE_EXISTS` | Already exists. |
 | 409 | `LAST_OWNER`, `OWN_ACCESS`, `LAST_PLATFORM_ADMIN`, `SOLE_OWNER` | The change would leave a business without an owner or the platform without an admin, or change your own account's access. |
 | 409 | `EMAIL_TAKEN` | Another account has this email address. |
-| 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE` | State conflicts. |
+| 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE`, `QUERY_TYPE_IN_USE` | State conflicts. |
 | 409 | `ATTACHMENT_NOT_UPLOADED` | Image input. The message names an attachment whose file hasn't reached R2. Finish the `PUT`, then send again. |
 | 403 | `EMAIL_NOT_VERIFIED` | Accepting an invitation needs a confirmed email address (`AUTH_REQUIRE_VERIFIED_EMAIL`); the invitation is not used up. Confirm the address, then open the link again. |
 | 409 | `CHECKOUT_IN_PROGRESS` | Billing. Another request is setting up the business's checkout; wait `Retry-After` seconds. |

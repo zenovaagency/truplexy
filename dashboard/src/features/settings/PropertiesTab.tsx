@@ -43,11 +43,46 @@ const ENTITIES: PropertyEntity[] = ['customer'];
 
 /** Settings → Properties: the typed fields a business adds to its bot's records. */
 export function PropertiesTab() {
-  const { can, bot } = useScopeCtx();
-  const writable = can('properties.write');
+  const { bot } = useScopeCtx();
   const [params, setParams] = useSearchParams();
   const entity = (ENTITIES as string[]).includes(params.get('entity') ?? '') ? (params.get('entity') as PropertyEntity) : ENTITIES[0]!;
-  const list = useProperties(entity);
+  const probe = useProperties(entity);
+
+  if (probe.isError && isRouteMissing(probe.error)) {
+    return (
+      <Callout tone="neutral" title="Custom properties aren't available on this server yet">
+        Once the API adds them, you can define your own fields for {bot.name}'s records here.
+      </Callout>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      {ENTITIES.length > 1 && (
+        <Segmented
+          label="Record"
+          value={entity}
+          onChange={(v) => setParams((p) => (p.set('entity', v), p), { replace: true })}
+          options={ENTITIES.map((e) => ({ value: e, label: ENTITY_LABEL[e].many }))}
+        />
+      )}
+      <PropertiesEditor entity={entity} />
+      <p className="text-xs text-ink-faint">
+        A property's key and type can't change once it exists, because records store their values under them. Sensitive values are hidden from people who can't edit the record and are never given to the
+        assistant.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * One entity's properties: list, add, edit, reorder, delete. `scopeId` narrows it to one query type's form; suggestions
+ * are offered for whole entities only.
+ */
+export function PropertiesEditor({ entity, scopeId, title, description }: { entity: PropertyEntity; scopeId?: string; title?: string; description?: string }) {
+  const { can } = useScopeCtx();
+  const writable = can('properties.write');
+  const list = useProperties(entity, { scopeId });
   const del = useDeleteProperty();
   const reorder = useReorderProperties();
   const confirm = useConfirm();
@@ -149,34 +184,20 @@ export function PropertiesTab() {
     },
   ];
 
-  if (list.isError && isRouteMissing(list.error)) {
-    return (
-      <Callout tone="neutral" title="Custom properties aren't available on this server yet">
-        Once the API adds them, you can define your own fields for {bot.name}'s records here.
-      </Callout>
-    );
-  }
-
   return (
-    <div className="grid gap-4">
-      {ENTITIES.length > 1 && (
-        <Segmented
-          label="Record"
-          value={entity}
-          onChange={(v) => setParams((p) => (p.set('entity', v), p), { replace: true })}
-          options={ENTITIES.map((e) => ({ value: e, label: ENTITY_LABEL[e].many }))}
-        />
-      )}
+    <>
       <Card
         flush
-        title={`${noun.many}: custom properties`}
-        description={`Fields your team fills in on each ${noun.one}, on top of the built-in ones. ${defs.length} of ${MAX_PROPERTIES}.`}
+        title={title ?? `${noun.many}: custom properties`}
+        description={`${description ?? `Fields your team fills in on each ${noun.one}, on top of the built-in ones.`} ${defs.length} of ${MAX_PROPERTIES}.`}
         actions={
           writable && (
             <>
-              <Button size="sm" leading={<Sparkles />} onClick={() => setPresets(true)} disabled={full}>
-                Suggested
-              </Button>
+              {!scopeId && (
+                <Button size="sm" leading={<Sparkles />} onClick={() => setPresets(true)} disabled={full}>
+                  Suggested
+                </Button>
+              )}
               <Button size="sm" variant="accent" leading={<Plus />} onClick={() => setEdit('new')} disabled={full}>
                 Add property
               </Button>
@@ -202,9 +223,11 @@ export function PropertiesTab() {
                 action={
                   writable && (
                     <>
-                      <Button size="sm" leading={<Sparkles />} onClick={() => setPresets(true)}>
-                        See suggestions
-                      </Button>
+                      {!scopeId && (
+                        <Button size="sm" leading={<Sparkles />} onClick={() => setPresets(true)}>
+                          See suggestions
+                        </Button>
+                      )}
                       <Button size="sm" variant="accent" leading={<Plus />} onClick={() => setEdit('new')}>
                         Add property
                       </Button>
@@ -216,13 +239,9 @@ export function PropertiesTab() {
           />
         )}
       </Card>
-      <p className="text-xs text-ink-faint">
-        A property's key and type can't change once it exists, because records store their values under them. Sensitive values are hidden from people who can't edit the record and are never given to the
-        assistant.
-      </p>
-      {edit && <PropertyDialog entity={entity} editing={edit === 'new' ? undefined : edit} existing={defs} onClose={() => setEdit(null)} />}
+      {edit && <PropertyDialog entity={entity} scopeId={scopeId} editing={edit === 'new' ? undefined : edit} existing={defs} onClose={() => setEdit(null)} />}
       {presets && <PresetsDialog entity={entity} existing={defs} onClose={() => setPresets(false)} />}
-    </div>
+    </>
   );
 }
 
@@ -235,7 +254,7 @@ interface OptionRow extends PropertyOption {
   fresh: boolean;
 }
 
-function PropertyDialog({ entity, editing, existing, onClose }: { entity: PropertyEntity; editing?: PropertyDefinition; existing: PropertyDefinition[]; onClose: () => void }) {
+function PropertyDialog({ entity, scopeId, editing, existing, onClose }: { entity: PropertyEntity; scopeId?: string; editing?: PropertyDefinition; existing: PropertyDefinition[]; onClose: () => void }) {
   const create = useCreateProperty();
   const update = useUpdateProperty();
   const [label, setLabel] = useState(editing?.label ?? '');
@@ -266,7 +285,7 @@ function PropertyDialog({ entity, editing, existing, onClose }: { entity: Proper
     if (!valid) return;
     const common: PropertyInput = { label: label.trim(), description: description.trim(), required, sensitive, ...(hasOptions(type) ? { options: finalOptions } : {}) };
     if (editing) await update.mutateAsync({ id: editing.id, patch: common });
-    else await create.mutateAsync({ ...common, entity, key: effectiveKey, type });
+    else await create.mutateAsync({ ...common, entity, key: effectiveKey, type, ...(scopeId && { scope_id: scopeId }) });
     onClose();
   };
 

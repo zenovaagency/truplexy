@@ -29,6 +29,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { TicketStatusBadge } from '@/components/domain/badges';
+import { CustomerQueries } from '@/features/queries/CustomerQueries';
 
 export default function CustomersPage() {
   const { can, bot, href } = useScopeCtx();
@@ -303,6 +304,7 @@ function CustomerDetailSheet({
               <p className="text-[0.8125rem] text-ink-faint">No tickets yet.</p>
             )}
           </section>
+          <CustomerQueries customerId={c.id} />
         </div>
       )}
     </Sheet>

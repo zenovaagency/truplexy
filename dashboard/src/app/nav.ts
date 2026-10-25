@@ -21,8 +21,10 @@ import {
   Wrench,
   BarChart3,
   Gauge,
+  ClipboardList,
 } from 'lucide-react';
 import type { Permission } from '@/lib/api/types';
+import type { Feature } from '@/lib/features';
 
 /**
  * Page chunks, shared by the router (to render) and the sidebar (to
@@ -32,6 +34,7 @@ export const pages = {
   overview: () => import('@/features/overview/OverviewPage'),
   tickets: () => import('@/features/tickets/TicketsPage'),
   customers: () => import('@/features/customers/CustomersPage'),
+  queries: () => import('@/features/queries/QueriesPage'),
   knowledge: () => import('@/features/knowledge/KnowledgePage'),
   draft: () => import('@/features/llm/draft'),
   usage: () => import('@/features/usage/UsagePage'),
@@ -59,6 +62,8 @@ export interface NavItem {
   keywords?: string[];
   /** The Performance page: hidden once this server has answered 404 for its endpoint (business or platform). */
   needs?: 'business' | 'platform';
+  /** Shown once the API serves this feature (lib/features.ts). */
+  feature?: Feature;
 }
 
 export interface NavSection {
@@ -75,6 +80,7 @@ export const BUSINESS_NAV: NavSection[] = [
       { id: 'performance', label: 'Performance', path: 'performance', icon: Gauge, permission: 'usage.read', key: 'f', prefetch: pages.performance, needs: 'business', keywords: ['latency', 'speed', 'errors', 'requests', 'slow', 'retrieval', 'p95', 'stats'] },
       { id: 'tickets', label: 'Tickets', path: 'tickets', icon: Inbox, permission: 'tickets.read', key: 't', prefetch: pages.tickets, keywords: ['inbox', 'support', 'conversations', 'handoffs'] },
       { id: 'customers', label: 'Customers', path: 'customers', icon: UserRound, permission: 'customers.read', key: 'c', prefetch: pages.customers, keywords: ['people', 'contacts', 'visitors', 'email', 'users'] },
+      { id: 'queries', label: 'Queries', path: 'queries', icon: ClipboardList, permission: 'queries.read', key: 'q', prefetch: pages.queries, feature: 'queries', keywords: ['requests', 'payments', 'orders', 'delivery', 'refunds', 'cases', 'forms'] },
       { id: 'knowledge', label: 'Knowledge base', path: 'knowledge', icon: BookOpen, permission: 'knowledge.read', key: 'k', prefetch: pages.knowledge, keywords: ['documents', 'articles', 'upload', 'rag'] },
     ],
   },
@@ -97,7 +103,7 @@ export const BUSINESS_NAV: NavSection[] = [
     items: [
       { id: 'team', label: 'Team', path: 'team', icon: Users, permission: 'members.read', key: 'm', prefetch: pages.team, keywords: ['members', 'invite', 'roles'] },
       { id: 'logs', label: 'Logs', path: 'logs', icon: ScrollText, permission: 'audit.read', key: 'h', prefetch: pages.logs, keywords: ['audit', 'activity', 'history'] },
-      { id: 'settings', label: 'Settings', path: 'settings', icon: Settings, permission: 'members.read', key: 's', prefetch: pages.settings, keywords: ['business', 'plan', 'bots', 'backup', 'properties', 'custom fields'] },
+      { id: 'settings', label: 'Settings', path: 'settings', icon: Settings, permission: 'members.read', key: 's', prefetch: pages.settings, keywords: ['business', 'plan', 'bots', 'backup', 'properties', 'custom fields', 'query types'] },
     ],
   },
 ];

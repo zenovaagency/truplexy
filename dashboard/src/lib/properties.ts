@@ -21,6 +21,7 @@ export const PROPERTY_TYPE_LABEL = Object.fromEntries(PROPERTY_TYPES.map((t) => 
 
 export const ENTITY_LABEL: Record<PropertyEntity, { one: string; many: string }> = {
   customer: { one: 'customer', many: 'Customers' },
+  query: { one: 'query of this type', many: 'Queries' },
 };
 
 export const hasOptions = (t: PropertyType) => t === 'select' || t === 'multi_select';

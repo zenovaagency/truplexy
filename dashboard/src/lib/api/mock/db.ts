@@ -27,6 +27,7 @@ import type {
   WorkspaceVersion,
 } from '@/lib/api/types';
 import type { MockProperty } from './properties';
+import type { MockQuery, MockQueryType } from './queries';
 
 /** The mock API's whole state. Kept in localStorage so a reload keeps your edits. */
 export interface MockUser {
@@ -117,6 +118,7 @@ export type MockChannel = Omit<Channel, 'type_label' | 'active' | 'open_tickets'
 };
 /** Counts are worked out on the way out. */
 export type { MockProperty } from './properties';
+export type { MockQuery, MockQueryType } from './queries';
 
 export type MockCustomer = Omit<Customer, 'conversations' | 'tickets' | 'open_tickets'>;
 export type MockChannelType = Omit<PlatformChannelType, 'channels' | 'auto_close_hours'> & { auto_close_hours?: number | null };
@@ -167,9 +169,11 @@ export interface MockDb {
   channels: MockChannel[];
   customers: MockCustomer[];
   properties: MockProperty[];
+  queryTypes: MockQueryType[];
+  queries: MockQuery[];
 }
 
-export const DB_VERSION = 13;
+export const DB_VERSION = 14;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {
