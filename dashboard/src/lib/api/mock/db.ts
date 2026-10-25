@@ -165,7 +165,7 @@ export interface MockDb {
   customers: MockCustomer[];
 }
 
-export const DB_VERSION = 11;
+export const DB_VERSION = 12;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

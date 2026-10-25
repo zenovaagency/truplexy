@@ -4,6 +4,7 @@ import { useBots, useCreateApiKey } from '@/lib/api/endpoints/business';
 import { useChannels } from '@/lib/api/endpoints/channels';
 import type { ApiKey } from '@/lib/api/types';
 import { useScopeCtx } from '@/lib/session/scope-context';
+import { isShopifyChannel } from '@/lib/shopify';
 import { Button, Dialog, Field, Input, SecretOnce, Select } from '@/components/ui';
 
 /** Name + bot + channel → the key, shown once. Used by API keys and the integration guides. */
@@ -69,7 +70,7 @@ export function IssueKeyForm({
           onChange={(e) => setChannel(e.target.value)}
           placeholder="No channel"
           // Connected channels run on Truplexy's own app and take no key.
-          options={(channels.data ?? []).filter((c) => !c.connection).map((c) => ({ value: c.id, label: c.active ? `${c.name} · ${c.type_label}` : `${c.name} (off)`, disabled: !c.active }))}
+          options={(channels.data ?? []).filter((c) => !isShopifyChannel(c)).map((c) => ({ value: c.id, label: c.active ? `${c.name} · ${c.type_label}` : `${c.name} (off)`, disabled: !c.active }))}
         />
       </Field>
       <Button type="submit" size={compact ? 'sm' : 'sm'} variant="accent" loading={create.isPending} disabled={!name.trim()} leading={<KeyRound />}>

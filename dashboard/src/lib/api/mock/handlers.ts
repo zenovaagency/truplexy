@@ -26,6 +26,7 @@ import type {
   TicketMessage,
   TicketReply,
   TicketStatus,
+  Tool,
   ToolRun,
   UsageDay,
   UsageSummary,
@@ -754,26 +755,11 @@ function channelOf(c: Ctx, id: unknown, botId = c.botId) {
 
 const offeredType = (db: MockDb, id: unknown) => db.channelTypes.find((t) => t.id === id && t.status === 'active');
 
-/** The account a demo Connect "signs in" to, by type; `account` is the shop or Zendesk subdomain typed in. */
-const DEMO_ACCOUNT: Record<string, (account: string) => string> = {
-  whatsapp: () => 'Your business · +1 415 555 0188',
-  messenger: () => 'Your Facebook Page',
-  instagram: () => '@yourbusiness',
-  discord: () => 'Your community server',
-  shopify: (a) => `${a}.myshopify.com`,
-  hubspot: () => 'HubSpot portal 24419870',
-  zendesk: (a) => `${a}.zendesk.com`,
-  slack: () => 'Your workspace · #support',
-  teams: () => 'Support team · General',
-};
-
 /** Validates POST and PATCH /channels fields; `ch` is the channel being changed. */
 function applyChannel(c: Ctx, ch: Partial<MockChannel>, b: any, existing?: MockChannel) {
   if (b.type !== undefined && (!existing || b.type !== existing.type)) {
     const type = offeredType(c.db, b.type);
     if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `Channel type ${b.type} isn't offered.`);
-    if (type.connect) throw err(400, 'CHANNEL_TYPE_NEEDS_CONNECT', `${type.label} channels are added with POST /channels/connect.`);
-    if (existing?.connection) throw invalid("A connected channel's type can't change.");
     ch.type = b.type;
   }
   if (b.name !== undefined) {
@@ -797,7 +783,7 @@ route('GET', '/channel-types', 'channels.read', (c) => {
     data: c.db.channelTypes
       .filter((t) => t.status === 'active' || t.status === 'upcoming' || used.has(t.id))
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map((t) => ({ id: t.id, label: t.label, description: t.description, icon: t.icon, offered: t.status === 'active', upcoming: t.status === 'upcoming', connect: t.connect ?? null })),
+      .map((t) => ({ id: t.id, label: t.label, description: t.description, icon: t.icon, offered: t.status === 'active', upcoming: t.status === 'upcoming' })),
   };
 });
 
@@ -812,7 +798,7 @@ route('POST', '/channels', 'channels.write', (c) => {
   if (b.type === undefined) throw invalid('type is required.');
   if (b.name === undefined) throw invalid('name is required.');
   const now = nowIso();
-  const ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, description: '', external_id: '', connection: null, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now } as MockChannel;
+  const ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, description: '', external_id: '', enabled: true, disabled_by_platform: false, created_at: now, updated_at: now } as MockChannel;
   applyChannel(c, ch, b);
   c.db.channels.push(ch);
   audit(c, 'channel.create', ch.id, { name: ch.name, type: ch.type });
@@ -820,45 +806,77 @@ route('POST', '/channels', 'channels.write', (c) => {
 });
 
 /**
- * Starts the platform's sign-in. The real API returns the platform's consent
- * URL and finishes on its own callback; the demo skips the platform and
- * returns straight to `return_to` with the channel already connected.
+ * The store a connect names, as the API accepts it: your-store,
+ * your-store.myshopify.com or https://admin.shopify.com/store/your-store.
+ */
+function shopifyStore(v: unknown) {
+  const raw = (str(v, 'account', 1, 200) ?? '').trim().toLowerCase();
+  const admin = /^https:\/\/admin\.shopify\.com\/store\/([a-z0-9][a-z0-9-]*)\/?$/.exec(raw);
+  const handle = admin ? admin[1]! : raw.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.myshopify\.com$/, '');
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(handle)) throw invalid("Set account to your store's address, such as your-store.myshopify.com.");
+  return handle;
+}
+
+/** Demo stores that come back from "Shopify" with each connect_error, to try the flow by hand. */
+const DEMO_CONNECT_ERRORS: Record<string, string> = {
+  denied: 'denied',
+  expired: 'expired',
+  invalid: 'invalid',
+  elsewhere: 'store_connected_elsewhere',
+  'scopes-missing': 'scopes_missing',
+  failed: 'failed',
+};
+
+/**
+ * Starts Shopify's install. The real API answers Shopify's install page and
+ * finishes on its own callback; the demo skips Shopify and answers the
+ * return_to page with the store already connected (or with the demo error).
  */
 route('POST', '/channels/connect', 'channels.write', (c) => {
   const b = c.body ?? {};
+  if (b.type === undefined) throw invalid('type is required.');
+  if (b.type !== 'shopify') {
+    if (c.db.channelTypes.some((t) => t.id === b.type)) throw err(400, 'CHANNEL_CONNECT_UNSUPPORTED', `${b.type} channels are added with POST /channels.`);
+    throw invalid('type must be shopify.');
+  }
   const type = offeredType(c.db, b.type);
-  if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `Channel type ${b.type} isn't offered.`);
-  if (!type.connect) throw invalid(`${type.label} channels aren't added with Connect.`);
+  if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', "Shopify isn't offered for this bot.");
+  if (b.account === undefined) throw invalid('account is required.');
+  const handle = shopifyStore(b.account);
   let back: URL;
   try {
     back = new URL(str(b.return_to, 'return_to', 1, 2000)!);
   } catch {
-    throw invalid('return_to must be a dashboard URL.');
+    throw invalid('return_to must be a dashboard page.');
   }
-  if (back.origin !== window.location.origin) throw invalid('return_to must be a dashboard URL.');
-  let account = '';
-  if (type.id === 'shopify' || type.id === 'zendesk') {
-    account = (str(b.account, 'account', 1, 100) ?? '').trim().toLowerCase().replace(/\.(myshopify|zendesk)\.com$/, '');
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(account)) throw invalid(type.id === 'shopify' ? 'account must be the store’s myshopify.com name.' : 'account must be the Zendesk subdomain.');
+  if (back.origin !== window.location.origin) throw invalid('return_to must be a dashboard page.');
+  const shop = `${handle}.myshopify.com`;
+  audit(c, 'channel.connect_started', shop, { name: shop, type: 'shopify' });
+
+  back.searchParams.set('type', 'shopify');
+  const demoError = DEMO_CONNECT_ERRORS[handle];
+  const elsewhere = c.db.channels.some((x) => x.type === 'shopify' && x.external_id === shop && x.tenant_id !== c.tenant.id);
+  if (demoError || elsewhere) {
+    back.searchParams.set('connect_error', demoError ?? 'store_connected_elsewhere');
+    return { url: back.toString() };
   }
+
   const now = nowIso();
-  const connection = { status: 'connected' as const, account_name: DEMO_ACCOUNT[type.id]?.(account) ?? type.label, connected_at: now };
-  let ch: MockChannel;
-  if (b.channel_id !== undefined) {
-    ch = channelOf(c, b.channel_id);
-    if (ch.type !== type.id) throw invalid('channel_id is a channel of another type.');
-    Object.assign(ch, { connection, updated_at: now });
-    audit(c, 'channel.update', ch.id, { name: ch.name, connected: connection.account_name });
-  } else {
+  // Connecting a store the bot already has turns its channel back on.
+  let ch = botChannels(c).find((x) => x.type === 'shopify' && x.external_id === shop);
+  if (ch) Object.assign(ch, { enabled: true, updated_at: now });
+  else {
+    const store = handle.split('-').map((w) => w[0]!.toUpperCase() + w.slice(1)).join(' ');
     const taken = new Set(botChannels(c).map((x) => x.name.toLowerCase()));
-    let name = type.label;
-    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${type.label} ${n}`;
-    ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: type.id, name, description: '', external_id: account, connection, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
+    let name = store;
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${store} ${n}`;
+    ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: 'shopify', name, description: '', external_id: shop, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
     c.db.channels.push(ch);
-    audit(c, 'channel.create', ch.id, { name: ch.name, type: ch.type, connected: connection.account_name });
   }
-  back.searchParams.set('connected', ch.id);
-  return { authorize_url: back.toString() };
+  audit(c, 'channel.connect', ch.id, { name: ch.name, type: 'shopify', shop });
+  back.searchParams.set('connected', 'shopify');
+  back.searchParams.set('channel_id', ch.id);
+  return { url: back.toString() };
 });
 
 route('GET', '/channels/:id', 'channels.read', (c) => channelOut(c.db, channelOf(c, c.params.id)));
@@ -873,7 +891,7 @@ route('PATCH', '/channels/:id', 'channels.write', (c) => {
 
 route('DELETE', '/channels/:id', 'channels.write', (c) => {
   const ch = channelOf(c, c.params.id);
-  const keys = ch.connection ? 0 : c.db.apiKeys.filter((k) => k.channel_id === ch.id && k.status === 'active').length;
+  const keys = c.db.apiKeys.filter((k) => k.channel_id === ch.id && k.status === 'active').length;
   if (keys) throw err(409, 'CHANNEL_IN_USE', `${keys} active chat API key${keys === 1 ? ' is' : 's are'} bound to this channel. Revoke them first.`);
   // Its tickets keep its name and type.
   const label = c.db.channelTypes.find((t) => t.id === ch.type)?.label;
@@ -1348,9 +1366,62 @@ const toolOut = (t: MockDb['tools'][number]) => {
 };
 const tenantTools = (c: Ctx) => c.db.tools.filter((t) => t.tenant_id === c.tenant.id);
 
+/** The Shopify tools: listed for every bot, available while it has an active Shopify channel. */
+const BUILT_IN_TOOLS: Pick<Tool, 'name' | 'description' | 'parameters'>[] = [
+  {
+    name: 'shopify_order_status',
+    description: "Look up a Shopify order's payment and fulfillment status, items, total and tracking. Needs the order number and the email the order was placed with.",
+    parameters: {
+      type: 'object',
+      properties: { order_number: { type: 'string', description: 'The order number, e.g. 1001 or #1001' }, email: { type: 'string', description: 'The email the order was placed with' } },
+      required: ['order_number', 'email'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'shopify_product_search',
+    description: "Search the store's active products: up to five, with price, stock and link.",
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'What the customer is looking for' } }, required: ['query'], additionalProperties: false },
+  },
+];
+
+function builtInTools(c: Ctx): Tool[] {
+  const store = botChannels(c).some((x) => x.type === 'shopify' && x.enabled && !x.disabled_by_platform);
+  return BUILT_IN_TOOLS.map((t) => ({
+    ...t,
+    read_only: true,
+    built_in: true,
+    available: store,
+    unavailable_reason: store ? undefined : 'Connect a Shopify store to this bot.',
+    api: { method: 'GET', url: '', created_at: '', updated_at: '' },
+  }));
+}
+
+function runBuiltIn(name: string, args: Record<string, unknown>): ToolRun {
+  const started = 140 + Math.round(Math.random() * 300);
+  if (name === 'shopify_order_status') {
+    const n = String(args.order_number ?? '').replace(/^#/, '');
+    // The demo store has one order: #1001, placed by maya.fernandez@example.com.
+    const output =
+      n === '1001' && String(args.email ?? '').trim().toLowerCase() === 'maya.fernandez@example.com'
+        ? JSON.stringify({ order: '#1001', financial_status: 'paid', fulfillment_status: 'fulfilled', total: '84.00 USD', items: [{ name: '12" cast iron skillet', quantity: 1 }], tracking: [{ company: 'UPS', number: '1Z999AA10123456784' }] }, null, 2)
+        : 'No order matches that order number and email.';
+    return { name, arguments: args, status: 'ok', output, latency_ms: started };
+  }
+  const q = String(args.query ?? '').toLowerCase();
+  const products = [
+    { title: '12" cast iron skillet', price: '84.00 USD', in_stock: true, url: 'https://demo-store.myshopify.com/products/skillet-12' },
+    { title: 'Enamel dutch oven', price: '129.00 USD', in_stock: false, url: 'https://demo-store.myshopify.com/products/dutch-oven' },
+  ].filter((p) => !q || p.title.toLowerCase().split(/\W+/).some((w) => w && q.includes(w)));
+  return { name, arguments: args, status: 'ok', output: JSON.stringify({ products }, null, 2), latency_ms: started };
+}
+
+const isBuiltIn = (name: unknown) => BUILT_IN_TOOLS.some((t) => t.name === name);
+
 function toolInput(c: Ctx, b: any) {
   const name = str(b.name, 'name', 1, 64)!;
   if (!/^[a-z][a-z0-9_]{0,63}$/.test(name)) throw err(400, 'INVALID_TOOL', 'name must match ^[a-z][a-z0-9_]{0,63}$.');
+  if (name.startsWith('shopify_')) throw err(400, 'INVALID_TOOL', 'Names starting with shopify_ are kept for built-in tools.');
   const description = str(b.description, 'description', 1, 1000)!;
   if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(b.method)) throw err(400, 'INVALID_TOOL', 'method must be GET, POST, PUT, PATCH or DELETE.');
   const url = str(b.url, 'url', 1, 2000)!;
@@ -1368,7 +1439,7 @@ function toolInput(c: Ctx, b: any) {
 }
 
 route('GET', '/tools', 'tools.read', (c) => ({
-  data: tenantTools(c).sort((a, b) => a.name.localeCompare(b.name)).map(toolOut),
+  data: [...builtInTools(c), ...tenantTools(c).sort((a, b) => a.name.localeCompare(b.name)).map(toolOut)],
   database_configured: true,
 }));
 
@@ -1387,9 +1458,10 @@ function findTool(c: Ctx) {
   return t;
 }
 
-route('GET', '/tools/:name', 'tools.read', (c) => toolOut(findTool(c)));
+route('GET', '/tools/:name', 'tools.read', (c) => builtInTools(c).find((t) => t.name === c.params.name) ?? toolOut(findTool(c)));
 
 route('PUT', '/tools/:name', 'tools.write', (c) => {
+  if (isBuiltIn(c.params.name)) throw err(400, 'INVALID_TOOL', "Built-in tools can't be changed.");
   const t = findTool(c);
   const i = toolInput(c, c.body);
   if (i.name !== t.name && tenantTools(c).some((x) => x.name === i.name)) throw err(409, 'TOOL_EXISTS', `A tool named ${i.name} exists.`);
@@ -1399,6 +1471,7 @@ route('PUT', '/tools/:name', 'tools.write', (c) => {
 });
 
 route('DELETE', '/tools/:name', 'tools.write', (c) => {
+  if (isBuiltIn(c.params.name)) throw err(400, 'INVALID_TOOL', "Built-in tools can't be deleted.");
   const t = findTool(c);
   c.db.tools = c.db.tools.filter((x) => x !== t);
   return noContent();
@@ -1420,6 +1493,11 @@ function runTool(t: MockDb['tools'][number], args: Record<string, unknown>): Too
 }
 
 route('POST', '/tools/:name/test', 'tools.write', (c) => {
+  const built = builtInTools(c).find((t) => t.name === c.params.name);
+  if (built) {
+    if (!built.available) throw err(400, 'TOOL_UNAVAILABLE', built.unavailable_reason!);
+    return runBuiltIn(built.name, c.body?.arguments ?? {});
+  }
   const t = findTool(c);
   if (t.disabled) throw err(400, 'TOOL_UNAVAILABLE', 'This tool was turned off by a platform admin.');
   return runTool(t, c.body?.arguments ?? {});

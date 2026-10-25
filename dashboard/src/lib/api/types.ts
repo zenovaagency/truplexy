@@ -247,19 +247,6 @@ export interface ChannelType {
   offered: boolean;
   /** True for a type the platform marked upcoming: show it as "Upcoming" and don't offer it. Absent on older APIs. */
   upcoming?: boolean;
-  /** 'oauth': channels of the type are added with POST /channels/connect (the platform's own sign-in), not POST /channels. */
-  connect: ChannelConnectMethod;
-}
-
-export type ChannelConnectMethod = 'oauth' | null;
-
-/** A channel's link to the platform, for channels added with POST /channels/connect. */
-export interface ChannelConnection {
-  /** needs_reauth: the platform revoked or expired access; reconnect to resume. */
-  status: 'connected' | 'needs_reauth' | 'error';
-  /** The account it's connected to, e.g. a Page, workspace, store or phone number. */
-  account_name: string;
-  connected_at: string;
 }
 
 /** A place the bot talks to customers, such as a Discord server or a website's chat widget. */
@@ -271,10 +258,8 @@ export interface Channel {
   type_label: string;
   name: string;
   description: string;
-  /** The platform's own ID, e.g. a Discord server ID. */
+  /** The platform's own ID, e.g. a Discord server ID. A Shopify channel's is the store, your-store.myshopify.com. */
   external_id: string;
-  /** Set for a channel added with Connect; null for one the business runs itself with a chat key. */
-  connection: ChannelConnection | null;
   /** The business's switch. */
   enabled: boolean;
   /** A platform admin's switch; the business can't undo it. */
@@ -522,6 +507,8 @@ export interface Tool {
   read_only: boolean;
   available: boolean;
   unavailable_reason?: string;
+  /** A built-in tool, such as shopify_order_status: it can't be changed or deleted, and its api fields are empty. */
+  built_in?: boolean;
   api: { method: HttpMethod; url: string; created_at: string; updated_at: string };
 }
 
@@ -1363,8 +1350,6 @@ export interface PlatformChannelType {
    * An upcoming type is listed to businesses as "Upcoming" and can't be added yet.
    */
   status: 'active' | 'hidden' | 'upcoming';
-  /** Set by the API for platforms it has an app for; read-only here. */
-  connect: ChannelConnectMethod;
   sort_order: number;
   /** Inactivity time for channels of the type; null leaves it to each business. 0 = never. */
   auto_close_hours: number | null;

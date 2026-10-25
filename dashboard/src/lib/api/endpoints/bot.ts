@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { api, hasCode } from '@/lib/api/client';
 import type {
   BotConfig,
   RealtimeInfo,
@@ -11,6 +11,7 @@ import type {
   Workspace,
 } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
+import { withShopifyTools } from '@/lib/shopify';
 import { useScope } from '@/lib/session/scope-context';
 
 /* Bot configuration ---------------------------------------------------- */
@@ -40,13 +41,47 @@ export function useSaveWorkspace() {
   });
 }
 
-/* Tools (business-wide) ------------------------------------------------ */
+/**
+ * Turns on both Shopify tools for the bot and saves it: adds their names to
+ * `tools` and sets `toolsEnabled`. The change only adds, so when a teammate
+ * saved first it is applied once more on their version instead of asking.
+ */
+export function useEnableShopifyTools() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  const save = useSaveWorkspace();
+  return useMutation({
+    mutationFn: async () => {
+      const attempt = async (fresh: boolean) => {
+        const ws = fresh
+          ? await qc.fetchQuery({ queryKey: qk.bot(scope, 'workspace'), queryFn: ({ signal }) => api<Workspace>('/workspace', { scope, signal }), staleTime: 0 })
+          : await qc.ensureQueryData({ queryKey: qk.bot(scope, 'workspace'), queryFn: ({ signal }) => api<Workspace>('/workspace', { scope, signal }) });
+        const tools = withShopifyTools(ws.bot.tools);
+        if (!tools) throw new Error('This bot already uses 20 tools. Turn one off under Tools first.');
+        return save.mutateAsync({ name: ws.name, bot: { ...ws.bot, toolsEnabled: true, tools }, revision: ws.revision });
+      };
+      try {
+        return await attempt(false);
+      } catch (e) {
+        if (!hasCode(e, 'WORKSPACE_CONFLICT')) throw e;
+        return attempt(true);
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') }),
+    // useSaveWorkspace already toasts success and errors.
+    meta: { silent: true },
+  });
+}
 
-export function useTools() {
+/* Tools ------------------------------------------------------------------ */
+
+/** The business's tools, with this bot's availability: built-in tools depend on the bot's channels. */
+export function useTools(enabled = true) {
   const scope = useScope();
   return useQuery({
-    queryKey: qk.tenant(scope, 'tools'),
+    queryKey: qk.bot(scope, 'tools'),
     queryFn: ({ signal }) => api<{ data: Tool[]; database_configured: boolean }>('/tools', { scope, signal }),
+    enabled,
   });
 }
 
@@ -58,7 +93,7 @@ export function useSaveTool() {
       original
         ? api<Tool>(`/tools/${encodeURIComponent(original)}`, { method: 'PUT', body: input, scope })
         : api<Tool>('/tools', { method: 'POST', body: input, scope }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tenant(scope, 'tools') }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') }),
     meta: { success: 'Tool saved' },
   });
 }
@@ -68,7 +103,7 @@ export function useDeleteTool() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => api<void>(`/tools/${encodeURIComponent(name)}`, { method: 'DELETE', scope }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tenant(scope, 'tools') }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') }),
     meta: { success: 'Tool deleted' },
   });
 }

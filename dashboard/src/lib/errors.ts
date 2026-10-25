@@ -67,6 +67,8 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   CHANNEL_TYPE_NOT_FOUND: { title: 'Channel type not found' },
   CHANNEL_TYPE_NOT_ALLOWED: { title: "That channel type isn't offered", hint: "It's upcoming or no longer offered. Pick another type, or keep the channel's current one." },
   CHANNEL_EXISTS: { title: 'This bot already has a channel with that name' },
+  CHANNEL_CONNECT_UNSUPPORTED: { title: "Couldn't start connecting", hint: 'Try again, or contact support if it keeps happening.' },
+  CHANNEL_CONNECT_UNAVAILABLE: { title: "Shopify connections aren't set up on this server yet" },
   CHANNEL_TYPE_EXISTS: { title: 'A channel type with that ID exists' },
   CHANNEL_IN_USE: { title: 'Active API keys use this channel', hint: 'Revoke them first, then delete the channel.' },
   CHANNEL_DISABLED: { title: 'This channel is turned off', hint: 'Turn it on, or contact Truplexy if it was turned off by the platform.' },
