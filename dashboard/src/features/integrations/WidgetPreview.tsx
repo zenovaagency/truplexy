@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChannelWidgetSettings } from '@/lib/api/types';
+import type { WidgetSettings } from '@/lib/api/types';
 
 /** The widget the storefront loads, vendored so the dashboard needs no package for a preview. */
 const SCRIPT = `${import.meta.env.BASE_URL}vendor/truplexy.min.js`;
@@ -27,13 +27,13 @@ function loadWidget(): Promise<void> {
 }
 
 /** Settings in the element's attribute names. Empty values are left out, so the window's own wording shows. */
-export function widgetAttributes(s: ChannelWidgetSettings): Record<string, string> {
+export function widgetAttributes(s: WidgetSettings, pictureUrl = ''): Record<string, string> {
   const out: Record<string, string> = { accent: s.accent, theme: s.theme, position: s.position, details: s.details };
   if (s.heading) out.heading = s.heading;
   if (s.subtitle) out.subtitle = s.subtitle;
   if (s.greeting) out.greeting = s.greeting;
   if (s.placeholder) out.placeholder = s.placeholder;
-  if (s.avatar_url) out.avatar = s.avatar_url;
+  if (pictureUrl) out.avatar = pictureUrl;
   if (s.show_sources) out['show-sources'] = '';
   return out;
 }
@@ -43,16 +43,17 @@ export function widgetAttributes(s: ChannelWidgetSettings): Record<string, strin
  * server), open on a stand-in page. The wrapper's transform makes the widget's fixed position
  * relative to it, so the side the window sits on shows.
  */
-export function WidgetPreview({ settings }: { settings: ChannelWidgetSettings }) {
+export function WidgetPreview({ settings, pictureUrl, fallbackPicture }: { settings: WidgetSettings; pictureUrl?: string; fallbackPicture?: string }) {
   const host = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState<'loading' | 'ready' | 'failed'>(() => (typeof customElements !== 'undefined' && customElements.get(TAG) ? 'ready' : 'loading'));
   // The element is rebuilt after a pause, not on every key press.
-  const [shown, setShown] = useState(settings);
+  const picture = pictureUrl || fallbackPicture || '';
+  const [shown, setShown] = useState({ settings, picture });
 
   useEffect(() => {
-    const t = setTimeout(() => setShown(settings), 250);
+    const t = setTimeout(() => setShown({ settings, picture }), 250);
     return () => clearTimeout(t);
-  }, [settings]);
+  }, [settings, picture]);
 
   useEffect(() => {
     let live = true;
@@ -69,7 +70,7 @@ export function WidgetPreview({ settings }: { settings: ChannelWidgetSettings })
     const parent = host.current;
     if (ready !== 'ready' || !parent) return;
     const el = document.createElement(TAG);
-    for (const [name, value] of Object.entries(widgetAttributes(shown))) el.setAttribute(name, value);
+    for (const [name, value] of Object.entries(widgetAttributes(shown.settings, shown.picture))) el.setAttribute(name, value);
     el.setAttribute('demo', '');
     el.setAttribute('open', '');
     // Fits the frame; the real window is larger.

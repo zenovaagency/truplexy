@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONNECT_ERRORS, WIDGET_DEFAULTS, cleanWidget, connectErrorMessage, connectReturnTo, readConnectReturn, shopifyToolsUnavailable, storeFieldError, widgetErrors, widgetIsLive, withShopifyTools } from './shopify';
+import { CONNECT_ERRORS, connectErrorMessage, connectReturnTo, readConnectReturn, shopifyToolsUnavailable, storeFieldError, widgetIsLive, withShopifyTools } from './shopify';
 import type { Tool } from '@/lib/api/types';
 
 const q = (s: string) => new URLSearchParams(s);
@@ -69,24 +69,7 @@ describe('Shopify tools', () => {
   });
 });
 
-describe('the chat window settings', () => {
-  it('applies the API rules before asking', () => {
-    expect(widgetErrors(WIDGET_DEFAULTS)).toEqual({});
-    expect(widgetErrors({ ...WIDGET_DEFAULTS, accent: 'red' }).accent).toBeTruthy();
-    expect(widgetErrors({ ...WIDGET_DEFAULTS, accent: '#fff' }).accent).toBeTruthy();
-    expect(widgetErrors({ ...WIDGET_DEFAULTS, heading: 'é'.repeat(60) })).toEqual({});
-    expect(widgetErrors({ ...WIDGET_DEFAULTS, heading: 'é'.repeat(61) }).heading).toBeTruthy();
-    expect(widgetErrors({ ...WIDGET_DEFAULTS, greeting: 'x'.repeat(301) }).greeting).toBeTruthy();
-    for (const avatar of ['http://example.com/a.png', 'javascript:alert(1)', 'https://example.com/a b.png', 'https://example.com/a".png']) {
-      expect(widgetErrors({ ...WIDGET_DEFAULTS, avatar_url: avatar }).avatar_url, avatar).toBeTruthy();
-    }
-    expect(widgetErrors({ ...WIDGET_DEFAULTS, avatar_url: 'https://cdn.example.com/a.png?v=1' })).toEqual({});
-  });
-
-  it('cleans what the form leaves', () => {
-    expect(cleanWidget({ ...WIDGET_DEFAULTS, heading: '  Acme  ', accent: ' #AABBCC ' })).toMatchObject({ heading: 'Acme', accent: '#aabbcc' });
-  });
-
+describe('widgetIsLive', () => {
   it('is live once a page has loaded the window', () => {
     expect(widgetIsLive(undefined)).toBe(false);
     expect(widgetIsLive({ last_seen_at: '' })).toBe(false);

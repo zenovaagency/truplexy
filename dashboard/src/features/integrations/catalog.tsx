@@ -157,7 +157,7 @@ export const INTEGRATIONS: Integration[] = [
     steps: [
       'Save the plugin below as wp-content/plugins/truplexy-chat/truplexy-chat.php and activate it under Plugins.',
       "Add define('TRUPLEXY_CHAT_KEY', 'tpx_…'); to wp-config.php. The key never reaches the page.",
-      'Style the chat under Settings → Truplexy Chat, and add an order-lookup tool under Tools that calls the WooCommerce REST API.',
+      'Set how the chat looks under Integrations → Chat widget, and add an order-lookup tool under Tools that calls the WooCommerce REST API.',
     ],
   },
   {
@@ -173,7 +173,7 @@ export const INTEGRATIONS: Integration[] = [
     steps: [
       'Save the plugin below as wp-content/plugins/truplexy-chat/truplexy-chat.php and activate it under Plugins.',
       "Add define('TRUPLEXY_CHAT_KEY', 'tpx_…'); to wp-config.php. The key never reaches the page.",
-      'Style the chat under Settings → Truplexy Chat: heading, greeting, colour and position.',
+      'Set how the chat looks under Integrations → Chat widget: title, greeting, colour, picture and position.',
     ],
   },
   {

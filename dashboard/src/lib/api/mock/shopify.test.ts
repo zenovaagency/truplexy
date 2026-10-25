@@ -81,33 +81,45 @@ describe('built-in tools', () => {
   });
 });
 
+describe('the chat widget', () => {
+  it('starts on the defaults, and keeps what is saved', () => {
+    const fresh = call('GET', '/widget');
+    expect(fresh.settings).toEqual(fresh.defaults);
+    expect(fresh.picture_url).toBe('');
+    const saved = call('PUT', '/widget', { settings: { ...fresh.defaults, heading: 'Help', accent: '#AA3366', position: 'left' } });
+    expect(saved.settings).toMatchObject({ heading: 'Help', accent: '#aa3366', position: 'left' });
+    expect(call('GET', '/widget').settings.heading).toBe('Help');
+  });
+
+  it('refuses what the API refuses', () => {
+    const { defaults } = call('GET', '/widget');
+    for (const settings of [{ ...defaults, accent: 'red' }, { ...defaults, theme: 'neon' }, { ...defaults, position: 'top' }, { ...defaults, font: 'x' }, { ...defaults, avatar_url: 'https://x.test/a.png' }]) {
+      expect(fails(() => call('PUT', '/widget', { settings })).code).toBe('INVALID_REQUEST');
+    }
+    expect(fails(() => call('PUT', '/widget', {})).code).toBe('INVALID_REQUEST');
+  });
+
+  it('keeps a picture apart from the settings, and takes it away', () => {
+    expect(fails(() => call('PUT', '/widget/picture', {})).code).toBe('INVALID_REQUEST');
+    expect(call('DELETE', '/widget/picture').picture_url).toBeNull();
+  });
+});
+
 describe('the chat window of a Shopify channel', () => {
   const store = () => {
     connect('demo-store');
     return shopify()[0].id as string;
   };
 
-  it('starts on the defaults, and keeps what is saved', () => {
+  it('is on by default, can be hidden, and is seen a little later', () => {
     const id = store();
     const fresh = call('GET', `/channels/${id}/widget`);
     expect(fresh).toMatchObject({ channel_id: id, enabled: true, shop: 'demo-store.myshopify.com', last_seen_at: '' });
-    expect(fresh.settings).toEqual(fresh.defaults);
+    expect(fresh.settings).toBeUndefined();
     expect(fresh.activation_url).toContain('demo-store.myshopify.com/admin/themes/current/editor');
-
-    const saved = call('PUT', `/channels/${id}/widget`, { enabled: false, settings: { ...fresh.defaults, heading: 'Help', accent: '#AA3366', position: 'left' } });
-    expect(saved).toMatchObject({ enabled: false, settings: { heading: 'Help', accent: '#aa3366', position: 'left' } });
-    expect(call('GET', `/channels/${id}/widget`).settings.heading).toBe('Help');
-    // Leaving enabled out keeps the switch.
-    expect(call('PUT', `/channels/${id}/widget`, { settings: saved.settings }).enabled).toBe(false);
-  });
-
-  it('refuses what the API refuses', () => {
-    const id = store();
-    const { defaults } = call('GET', `/channels/${id}/widget`);
-    for (const settings of [{ ...defaults, accent: 'red' }, { ...defaults, theme: 'neon' }, { ...defaults, position: 'top' }, { ...defaults, avatar_url: 'http://x.test/a.png' }, { ...defaults, font: 'x' }]) {
-      expect(fails(() => call('PUT', `/channels/${id}/widget`, { settings })).code).toBe('INVALID_REQUEST');
-    }
-    expect(fails(() => call('PUT', `/channels/${id}/widget`, {})).code).toBe('INVALID_REQUEST');
+    expect(call('PUT', `/channels/${id}/widget`, { enabled: false }).enabled).toBe(false);
+    expect(call('GET', `/channels/${id}/widget`).enabled).toBe(false);
+    expect(fails(() => call('PUT', `/channels/${id}/widget`, { settings: {} })).code).toBe('INVALID_REQUEST');
   });
 
   it("is only for a Shopify store's channel", () => {

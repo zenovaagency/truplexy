@@ -292,10 +292,11 @@ export type ChannelInput = Pick<Channel, 'type' | 'name' | 'description' | 'exte
 };
 
 /**
- * How a Shopify store's chat window looks on its storefront. An empty text, colour or
- * picture leaves the choice to the window: the business's name and logo, and its own wording.
+ * How the bot's chat window looks, one setting for every place it is shown (a website's embed, the WordPress
+ * and WooCommerce plugin, a Shopify store). An empty text leaves the choice to the window: the business's name
+ * and its own wording.
  */
-export interface ChannelWidgetSettings {
+export interface WidgetSettings {
   /** Up to 60 characters. */
   heading: string;
   /** Up to 100. */
@@ -306,8 +307,6 @@ export interface ChannelWidgetSettings {
   placeholder: string;
   /** #rrggbb. */
   accent: string;
-  /** An https link, up to 500 characters. */
-  avatar_url: string;
   theme: 'light' | 'dark' | 'auto';
   position: 'right' | 'left';
   /** Link the pages an answer came from. */
@@ -316,14 +315,20 @@ export interface ChannelWidgetSettings {
   details: 'ask' | 'off';
 }
 
-/** GET and PUT /channels/{id}/widget (v2). */
+/** GET and PUT /widget (v2). */
+export interface Widget {
+  settings: WidgetSettings;
+  /** What an empty setting shows. */
+  defaults: WidgetSettings;
+  /** The header picture the business uploaded, already a square; empty uses the business logo, then the bot's picture. */
+  picture_url: string;
+}
+
+/** GET and PUT /channels/{id}/widget (v2): whether a Shopify store shows the chat window, and whether it has loaded yet. */
 export interface ChannelWidget {
   channel_id: string;
-  /** Whether the window is shown; the channel's own switch still turns the whole channel off. */
+  /** Whether the window is shown on the store; the channel's own switch still turns the whole channel off. */
   enabled: boolean;
-  settings: ChannelWidgetSettings;
-  /** What an empty setting shows. */
-  defaults: ChannelWidgetSettings;
   /** When a page of the store first and last loaded the window; empty until one has. */
   first_seen_at: string;
   last_seen_at: string;

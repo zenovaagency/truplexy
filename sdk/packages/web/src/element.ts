@@ -4,7 +4,7 @@ import { WORDMARK_ON_DARK, WORDMARK_ON_LIGHT } from './brand';
 import { DEFAULT_LABELS, type Labels } from './labels';
 import { renderMarkdown } from './markdown';
 import { STYLES } from './styles';
-import type { ChatMessage, ChatState } from './types';
+import type { ChatMessage, ChatState, WidgetLook } from './types';
 
 export const TAG = 'truplexy-chat';
 
@@ -157,9 +157,52 @@ export class TruplexyChatElement extends Base {
   private label<K extends keyof Labels>(key: K): string {
     // `heading`, not `title`: a title attribute would show as a tooltip over the whole widget.
     const attr = key === 'title' ? this.getAttribute('heading') : key === 'subtitle' || key === 'greeting' || key === 'placeholder' ? this.getAttribute(key) : null;
-    // Without your own title, the header shows the business's name from Truplexy.
+    // The business's own wording from the dashboard comes after yours: an attribute, then the labels property.
+    const look = this.look();
+    const set = key === 'title' ? look.heading : key === 'subtitle' || key === 'greeting' || key === 'placeholder' ? look[key as 'subtitle' | 'greeting' | 'placeholder'] : undefined;
+    // Without a title anywhere, the header shows the business's name from Truplexy.
     const profile = key === 'title' ? this.profileTitle() : undefined;
-    return attr ?? this._labels[key] ?? profile ?? DEFAULT_LABELS[key];
+    return attr ?? this._labels[key] ?? set ?? profile ?? DEFAULT_LABELS[key];
+  }
+
+  /**
+   * How the business set the window to look in the dashboard: the profile's `widget`, else the last one this
+   * browser saw, so a page that loads again looks right from the first paint.
+   */
+  private look(): WidgetLook {
+    return this._client?.getState().profile?.widget ?? this.cachedLook ?? {};
+  }
+
+  private cachedLook?: WidgetLook;
+  private pendingTimer?: ReturnType<typeof setTimeout>;
+
+  private lookKey() {
+    return `truplexy:look:${this.getAttribute('endpoint') || ''}`;
+  }
+
+  private readCachedLook(): WidgetLook | undefined {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(this.lookKey()) || 'null');
+      return saved && typeof saved === 'object' ? (saved as WidgetLook) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private saveLook(look: WidgetLook | undefined) {
+    try {
+      if (look) sessionStorage.setItem(this.lookKey(), JSON.stringify(look));
+    } catch {
+      // Storage is blocked: the next page waits for the profile instead.
+    }
+  }
+
+  /** The launcher stays hidden until the look is known (or a moment has passed), so it doesn't change colour or side as the page loads. */
+  private holdLauncher() {
+    clearTimeout(this.pendingTimer);
+    if (this.hasAttribute('demo') || this.cachedLook) return this.toggleAttribute('data-tx-pending', false);
+    this.toggleAttribute('data-tx-pending', true);
+    this.pendingTimer = setTimeout(() => this.toggleAttribute('data-tx-pending', false), 1200);
   }
 
   private shownProfile: ChatState['profile'] = null;
@@ -169,18 +212,20 @@ export class TruplexyChatElement extends Base {
     return p?.business?.name?.trim() || p?.bot?.name?.trim() || undefined;
   }
 
-  /** The header picture: the `avatar` attribute, else the business logo, else the bot's picture. */
+  /** The header picture: the `avatar` attribute, else the one uploaded in the dashboard, else the business logo, else the bot's picture. */
   private avatarUrl(): string | undefined {
     const p = this._client?.getState().profile;
-    return this.getAttribute('avatar') || p?.business?.logo_url || p?.bot?.avatar_url || undefined;
+    return this.getAttribute('avatar') || this.look().picture_url || p?.business?.logo_url || p?.bot?.avatar_url || undefined;
   }
 
   private connect(): TruplexyClient {
     if (this._client) return this._client;
     const demo = this.hasAttribute('demo');
     const endpoint = this.getAttribute('endpoint') || undefined;
-    // details="off" skips the name and email form.
-    const details = this.getAttribute('details') === 'off' ? ('off' as const) : ('ask' as const);
+    // details="off" skips the name and email form; without the attribute, the dashboard's choice applies.
+    this.cachedLook = demo ? undefined : this.readCachedLook();
+    this.holdLauncher();
+    const details = this.detailsMode();
     const client = new TruplexyClient(
       demo
         ? { transport: demoTransport(), store: false, details }
@@ -194,7 +239,12 @@ export class TruplexyChatElement extends Base {
         // The profile arrives after the first render: redraw the header with it.
         if (s.profile !== this.shownProfile) {
           this.shownProfile = s.profile;
+          if (s.profile?.widget) this.saveLook(s.profile.widget);
+          this.cachedLook = undefined;
+          this._client?.setDetails(this.detailsMode());
+          this.toggleAttribute('data-tx-pending', false);
           this.renderChrome();
+          if (this._client) this.render(this._client.getState());
         }
         this.render(s);
       }),
@@ -208,7 +258,13 @@ export class TruplexyChatElement extends Base {
     return client;
   }
 
+  private detailsMode(): 'ask' | 'off' {
+    const attr = this.getAttribute('details');
+    return (attr ?? this.look().details) === 'off' ? 'off' : 'ask';
+  }
+
   private teardown() {
+    clearTimeout(this.pendingTimer);
     this.unsubscribe.forEach((u) => u());
     this.unsubscribe = [];
     this._client?.destroy();
@@ -425,9 +481,13 @@ export class TruplexyChatElement extends Base {
     };
     $.brand.replaceChildren(before, ...(after.length ? [logo('light', WORDMARK_ON_LIGHT), logo('dark', WORDMARK_ON_DARK), after.join('Truplexy')] : []));
     $.launcher.setAttribute('aria-label', this.label(this.isOpen ? 'close' : 'open'));
-    const accent = this.getAttribute('accent');
+    const look = this.look();
+    const accent = this.getAttribute('accent') || look.accent;
     if (accent) this.style.setProperty('--truplexy-accent', accent);
     else this.style.removeProperty('--truplexy-accent');
+    // The styles read these two, which are the attribute's value, else the dashboard's, else the default.
+    this.dataset.txTheme = this.getAttribute('theme') || look.theme || 'light';
+    this.dataset.txPosition = this.getAttribute('position') || look.position || 'right';
   }
 
   private render(state: ChatState) {
@@ -497,7 +557,7 @@ export class TruplexyChatElement extends Base {
     node.classList.toggle('pending', Boolean(m.pending));
     node.querySelector('.failed')?.remove();
     node.querySelector('.sources')?.remove();
-    const sources = this.hasAttribute('show-sources') ? (m.sources ?? []).filter((s) => s.url && /^https?:\/\//.test(s.url)) : [];
+    const sources = this.hasAttribute('show-sources') || this.look().show_sources ? (m.sources ?? []).filter((s) => s.url && /^https?:\/\//.test(s.url)) : [];
     if (sources.length) {
       const list = document.createElement('ul');
       list.className = 'sources';

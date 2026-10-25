@@ -4,7 +4,7 @@ Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: MIT
 
 AI customer support that keeps one conversation going, with handoff to your team. Your chat key stays on your server.
@@ -21,7 +21,7 @@ The browser only talks to your own site (`/wp-json/truplexy/v1/chat`). The plugi
 2. Add the key to `wp-config.php`, above "That's all, stop editing!":
    `define('TRUPLEXY_CHAT_KEY', 'tpx_...');`
 3. Upload the `truplexy-chat` folder to `/wp-content/plugins/` and activate it under Plugins.
-4. Open Settings → Truplexy Chat to set the heading, greeting, colour and position.
+4. In the Truplexy dashboard, open Integrations → Chat widget to set the title, greeting, colour, picture and position. They apply to this site and to every other place the chat is shown.
 
 == Frequently Asked Questions ==
 
@@ -65,6 +65,9 @@ The widget stores its signed session and details in the browser. reset() retains
 Visitors can send 20 messages a minute by default. Change it with `add_filter('truplexy_chat_rate_limit', fn () => 40);`, or return 0 for no limit.
 
 == Changelog ==
+
+= 0.3.0 =
+* How the chat looks (title, greeting, colour, picture, side of the page, theme) is now set once in the Truplexy dashboard under Integrations → Chat widget and shared with every other place the chat is shown. The settings page no longer has those fields; saved values are ignored.
 
 = 0.2.0 =
 * Settings: "Keep website chat tickets open" stops the tickets the chat opens from closing on their own after your business's auto-close time.

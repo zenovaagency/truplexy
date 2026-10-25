@@ -43,10 +43,32 @@ export interface AttachmentConfig {
   content_types?: string[];
 }
 
+/**
+ * How the business set the chat window to look in the Truplexy dashboard (Integrations, Chat widget). The window
+ * applies it beneath its own attributes: an attribute you set on the element always wins. Texts the business left
+ * empty are left out.
+ */
+export interface WidgetLook {
+  heading?: string;
+  subtitle?: string;
+  greeting?: string;
+  placeholder?: string;
+  /** #rrggbb. */
+  accent?: string;
+  theme?: 'light' | 'dark' | 'auto';
+  position?: 'right' | 'left';
+  show_sources?: boolean;
+  details?: 'ask' | 'off';
+  /** The header picture the business uploaded, already cut to a square. */
+  picture_url?: string;
+}
+
 /** The business and bot behind the chat key, as your server route's `profile` action returns it. Any field can be missing. */
 export interface ChatProfile {
   business?: { name?: string; logo_url?: string };
   bot?: { id?: string; name?: string; avatar_url?: string };
+  /** The chat window's look from the dashboard. Your route has to pass it on from the API's profile. */
+  widget?: WidgetLook;
   /** Image input (planned). Your route has to pass it on from the API's profile for a picture button to be possible. */
   attachments?: AttachmentConfig;
 }

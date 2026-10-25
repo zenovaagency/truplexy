@@ -1699,18 +1699,18 @@ paths:
       - $ref: '#/components/parameters/ChannelID'
     get:
       operationId: getChannelWidget
-      summary: How a Shopify store's chat window looks on its storefront (v2)
+      summary: Whether a Shopify store shows the chat window, and when it was last seen (v2)
       description: >-
-        Needs channels.read. A channel that never saved settings returns the defaults. first_seen_at and last_seen_at
-        are when the store's pages last loaded the window, empty until one has. activation_url opens the store's theme
-        editor with the Truplexy chat app embed turned on. 409 WIDGET_NOT_SUPPORTED for a channel that isn't a
+        Needs channels.read. first_seen_at and last_seen_at are when the store's pages first and last loaded the window,
+        empty until one has. activation_url opens the store's theme editor with the Truplexy chat app embed turned on.
+        How the window looks is the bot's chat widget (GET /widget). 409 WIDGET_NOT_SUPPORTED for a channel that isn't a
         Shopify store's; 503 SHOPIFY_NOT_CONFIGURED when the server has no Shopify app.
       security:
         - AdminKey: []
         - MemberToken: []
       responses:
         '200':
-          description: The chat window.
+          description: The store's chat window state.
           content:
             application/json:
               schema:
@@ -1719,11 +1719,58 @@ paths:
           $ref: '#/components/responses/Error'
     put:
       operationId: saveChannelWidget
-      summary: Save the chat window's settings (v2)
+      summary: Show or hide the chat window on a Shopify store (v2)
       description: >-
-        Needs channels.write. Replaces all settings; leave a text, colour or picture empty to use the window's own.
-        enabled, when sent, shows or hides the window on the storefront; the channel's own switch still turns the whole
-        channel off. The storefront sees the change within 30 seconds.
+        Needs channels.write. Send only enabled. The channel's own switch still turns the whole channel off. The
+        storefront sees the change within 30 seconds.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: The state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelWidget'
+        default:
+          $ref: '#/components/responses/Error'
+  /widget:
+    get:
+      operationId: getWidget
+      summary: The bot's chat widget setting, one for every place the chat is shown (v2)
+      description: >-
+        Needs bot.read. A bot that never saved one returns the defaults. Sites receive it as the widget object of
+        GET /profile.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The chat widget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: saveWidget
+      summary: Save the chat widget setting (v2)
+      description: >-
+        Needs bot.write. Replaces all settings; leave a text empty to use the window's own wording. The header picture
+        is kept (see PUT /widget/picture). The last write wins.
       security:
         - AdminKey: []
         - MemberToken: []
@@ -1736,17 +1783,84 @@ paths:
               additionalProperties: false
               required: [settings]
               properties:
-                enabled:
-                  type: boolean
                 settings:
-                  $ref: '#/components/schemas/ChannelWidgetSettings'
+                  $ref: '#/components/schemas/WidgetSettings'
       responses:
         '200':
-          description: The saved chat window.
+          description: The saved chat widget.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChannelWidget'
+                $ref: '#/components/schemas/Widget'
+        default:
+          $ref: '#/components/responses/Error'
+  /widget/picture:
+    put:
+      operationId: setWidgetPicture
+      summary: The chat window's header picture (v2)
+      description: >-
+        Needs bot.write. PNG, JPEG or WebP as multipart file or the raw body, up to AVATAR_MAX_BYTES (512 KiB by default).
+        The API turns it upright, cuts the largest centred square, shrinks it to at most 256x256 and strips metadata;
+        transparency keeps it a PNG, any other picture becomes a JPEG. 400 INVALID_IMAGE, 413 IMAGE_TOO_LARGE,
+        415 UNSUPPORTED_IMAGE_TYPE, 404 BOT_NOT_FOUND, 503 NOT_CONFIGURED.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: The picture's public URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [picture_url]
+                properties:
+                  picture_url:
+                    type: string
+                    format: uri
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: removeWidgetPicture
+      summary: Remove the chat window's header picture (v2)
+      description: Needs bot.write. The window goes back to the business logo.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: Removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [picture_url]
+                properties:
+                  picture_url:
+                    type: 'null'
         default:
           $ref: '#/components/responses/Error'
   /workspace:
@@ -4379,6 +4493,35 @@ paths:
                     allOf:
                       - $ref: '#/components/schemas/AttachmentConfig'
                     description: Image input. Absent when the server has it off. A widget shows an attach button only when enabled is true; the reason is not revealed to customers.
+                  widget:
+                    type: object
+                    description: How the business set the chat window to look in the dashboard (GET /widget). Texts left empty are left out so the window keeps its own wording. A widget applies it beneath anything its host page sets; a server route has to pass it on.
+                    required: [accent, theme, position, show_sources, details]
+                    properties:
+                      accent:
+                        type: string
+                      theme:
+                        type: string
+                        enum: [light, dark, auto]
+                      position:
+                        type: string
+                        enum: [right, left]
+                      show_sources:
+                        type: boolean
+                      details:
+                        type: string
+                        enum: [ask, 'off']
+                      heading:
+                        type: string
+                      subtitle:
+                        type: string
+                      greeting:
+                        type: string
+                      placeholder:
+                        type: string
+                      picture_url:
+                        type: string
+                        format: uri
         default:
           $ref: '#/components/responses/Error'
   /customer:
@@ -7448,7 +7591,7 @@ components:
           description: The business types the preset suits; empty suits every business.
           items:
             type: string
-    ChannelWidgetSettings:
+    WidgetSettings:
       type: object
       additionalProperties: false
       properties:
@@ -7470,10 +7613,6 @@ components:
           type: string
           pattern: '^#[0-9a-fA-F]{6}$'
           default: '#2338e6'
-        avatar_url:
-          type: string
-          maxLength: 500
-          description: An https link to the header picture; empty uses the business logo.
         theme:
           type: string
           enum: [light, dark, auto]
@@ -7490,18 +7629,25 @@ components:
           enum: [ask, 'off']
           default: ask
           description: ask shows a name and email form before the first message.
+    Widget:
+      type: object
+      required: [settings, defaults, picture_url]
+      properties:
+        settings:
+          $ref: '#/components/schemas/WidgetSettings'
+        defaults:
+          $ref: '#/components/schemas/WidgetSettings'
+        picture_url:
+          type: string
+          description: The uploaded header picture, already a square; empty uses the business logo, then the bot's picture.
     ChannelWidget:
       type: object
-      required: [channel_id, enabled, settings, first_seen_at, last_seen_at, defaults, shop, activation_url]
+      required: [channel_id, enabled, first_seen_at, last_seen_at, shop, activation_url]
       properties:
         channel_id:
           type: string
         enabled:
           type: boolean
-        settings:
-          $ref: '#/components/schemas/ChannelWidgetSettings'
-        defaults:
-          $ref: '#/components/schemas/ChannelWidgetSettings'
         first_seen_at:
           type: string
         last_seen_at:

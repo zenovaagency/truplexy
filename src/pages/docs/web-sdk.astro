@@ -352,7 +352,7 @@ const result = await chat.sendMessage(conversation.id, "Hello");`} />
                 <tr><td><code>message</code></td><td><code>PUT /customer</code> and <code>POST /conversations</code> when there’s no valid session, then <code>POST /conversations/:id/ticket</code> for that new conversation, then <code>POST /conversations/:id/messages</code></td><td><code>{'{session, message, reply, status, sources, ticket?}'}</code></td></tr>
                 <tr><td><code>history</code></td><td><code>GET /conversations/:id</code></td><td><code>{'{session, conversation}'}</code>, or <code>{'{session: null}'}</code></td></tr>
                 <tr><td><code>handoff</code></td><td><code>POST /conversations/:id/handoff</code></td><td><code>{'{session, conversation}'}</code></td></tr>
-                <tr><td><code>profile</code></td><td><code>GET /profile</code></td><td><code>{'{business: {name, logo_url}, bot: {id, name, avatar_url}}'}</code></td></tr>
+                <tr><td><code>profile</code></td><td><code>GET /profile</code></td><td><code>{'{business: {name, logo_url}, bot: {id, name, avatar_url}, widget?: {…}}'}</code></td></tr>
                 <tr><td><code>live</code></td><td><code>POST /realtime/token</code></td><td><code>{'{url, publishable_key, conversation_topic}'}</code>, or <code>{'{}'}</code></td></tr>
               </tbody>
             </table>
@@ -361,7 +361,7 @@ const result = await chat.sendMessage(conversation.id, "Hello");`} />
           <ul>
             <li>Trim <code>text</code>; refuse it when empty, over 4000 characters, or starting with <code>[Context only</code>.</li>
             <li>With <code>customer: {'{name, email}'}</code>, refuse a missing name, one over 120 characters, or an invalid email. For a new conversation, resolve trusted identity first or convert the form to <code>{'{name, contacts: [{type: "email", value}]}'}</code>. Call <code>PUT /customer</code> and start the conversation with its <code>customer_id</code>. Retry <code>CUSTOMER_EXISTS</code> once; other linking failures stop creation. Background context and automatic ticket creation remain best effort. Pass on only the ticket’s <code>id, subject, status</code>.</li>
-            <li>In <code>profile</code>, pass on only the names and pictures. The widget shows them in its header and falls back to its defaults if the call fails.</li>
+            <li>In <code>profile</code>, pass on only the names, the pictures and the <code>widget</code> object, field by field. The widget shows them and falls back to its defaults if the call fails. <code>widget</code> is how you set the look once in the Truplexy dashboard (Integrations → Chat widget) for every site: any attribute you set on the element still wins over it.</li>
             <li>Never pass on <code>bot_topic</code>: it carries every customer’s messages. <code>conversation_topic</code> is safe for the browser.</li>
             <li>In <code>history</code> and <code>handoff</code>, drop user messages starting with <code>[Context only</code>, and pass on only <code>id, role, content, author, agent, created_at</code>.</li>
             <li>Errors are <code>{'{error: {code, message, request_id}}'}</code> with a message you write. Never forward the API’s own message.</li>

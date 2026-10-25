@@ -45,6 +45,14 @@ export interface Profile {
   bot: { id: string; name: string; avatar_url?: string };
   /** Image input (planned). Absent from an API that predates it: treat that as off. */
   attachments?: AttachmentConfig;
+  /** How the business set the chat window to look in the dashboard. Absent from an API that predates it. */
+  widget?: WidgetLook;
+}
+/** The chat window's look (dashboard: Integrations, Chat widget). Texts the business left empty are absent. */
+export interface WidgetLook {
+  heading?: string; subtitle?: string; greeting?: string; placeholder?: string;
+  accent?: string; theme?: 'light' | 'dark' | 'auto'; position?: 'right' | 'left';
+  show_sources?: boolean; details?: 'ask' | 'off'; picture_url?: string;
 }
 export interface Message {
   id: string; role: 'user' | 'assistant'; content: string;

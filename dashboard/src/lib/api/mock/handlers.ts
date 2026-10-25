@@ -10,7 +10,8 @@ import type {
   BusinessTypeId,
   Channel,
   ChannelWidget,
-  ChannelWidgetSettings,
+  Widget,
+  WidgetSettings,
   CheckoutPlan,
   Customer,
   LedgerEntry,
@@ -42,7 +43,7 @@ import { buildPerformance, performanceMode } from './performance';
 import { PRESETS, PROPERTY_ENTITIES, PropertyError, applyValues, changeDefinition, matchesFilters, newDefinition, visibleValues, type MockProperty } from './properties';
 import { readCsv, sampleDrafts, type MockImport, type MockProduct } from './products';
 import { isLink, parsePrice } from '@/lib/products';
-import { WIDGET_DEFAULTS, widgetErrors } from '@/lib/shopify';
+import { WIDGET_DEFAULTS, widgetErrors } from '@/lib/widget';
 import { QUERY_PRESETS, type MockQuery, type MockQueryType } from './queries';
 import type { CustomerQuery, QueryType } from '@/lib/api/types';
 
@@ -904,18 +905,17 @@ route('PATCH', '/channels/:id', 'channels.write', (c) => {
   return channelOut(c.db, ch);
 });
 
-/* A Shopify store's chat window. The demo has no storefront, so a saved window is "seen" a few seconds later. */
+/* A Shopify store's chat window: shown or hidden. The demo has no storefront, so a store "sees" it a few seconds after the window is first read. */
 const WIDGET_SEEN_AFTER_MS = 8_000;
 
-function widgetOut(c: Ctx, ch: MockChannel): ChannelWidget {
-  if (ch.type !== 'shopify') throw err(409, 'WIDGET_NOT_SUPPORTED', 'Only Shopify channels have a chat window to set up here.');
-  const saved = c.db.channelWidgets?.[ch.id];
-  const seen = saved && Date.now() - saved.saved_at >= WIDGET_SEEN_AFTER_MS ? new Date(saved.saved_at + WIDGET_SEEN_AFTER_MS).toISOString() : '';
+function channelWidgetOut(c: Ctx, ch: MockChannel): ChannelWidget {
+  if (ch.type !== 'shopify') throw err(409, 'WIDGET_NOT_SUPPORTED', 'Only Shopify channels have a store to show the chat window on.');
+  c.db.channelWidgets ??= {};
+  const saved = (c.db.channelWidgets[ch.id] ??= { enabled: true, saved_at: Date.now() });
+  const seen = Date.now() - saved.saved_at >= WIDGET_SEEN_AFTER_MS ? new Date(saved.saved_at + WIDGET_SEEN_AFTER_MS).toISOString() : '';
   return {
     channel_id: ch.id,
-    enabled: saved?.enabled ?? true,
-    settings: saved?.settings ?? { ...WIDGET_DEFAULTS },
-    defaults: { ...WIDGET_DEFAULTS },
+    enabled: saved.enabled,
     first_seen_at: seen,
     last_seen_at: seen,
     shop: ch.external_id,
@@ -923,29 +923,63 @@ function widgetOut(c: Ctx, ch: MockChannel): ChannelWidget {
   };
 }
 
-route('GET', '/channels/:id/widget', 'channels.read', (c) => widgetOut(c, channelOf(c, c.params.id)));
+route('GET', '/channels/:id/widget', 'channels.read', (c) => channelWidgetOut(c, channelOf(c, c.params.id)));
 
 route('PUT', '/channels/:id/widget', 'channels.write', (c) => {
   const ch = channelOf(c, c.params.id);
-  widgetOut(c, ch);
+  channelWidgetOut(c, ch);
   const b = c.body ?? {};
-  const s = b.settings;
+  if (typeof b.enabled !== 'boolean' || Object.keys(b).some((k) => k !== 'enabled')) throw invalid('Send {"enabled": true}.');
+  c.db.channelWidgets![ch.id]!.enabled = b.enabled;
+  audit(c, 'channel.widget_update', ch.id, { name: ch.name });
+  return channelWidgetOut(c, ch);
+});
+
+/* The bot's chat widget: one look for every place the chat is shown. */
+const widgetKey = (c: Ctx) => `${c.tenant.id}/${c.botId}`;
+
+function widgetOut(c: Ctx): Widget {
+  const saved = c.db.botWidgets?.[widgetKey(c)];
+  return { settings: { ...(saved?.settings ?? WIDGET_DEFAULTS) }, defaults: { ...WIDGET_DEFAULTS }, picture_url: saved?.picture_url ?? '' };
+}
+
+function saveWidget(c: Ctx, change: Partial<{ settings: WidgetSettings; picture_url: string }>) {
+  c.db.botWidgets ??= {};
+  const key = widgetKey(c);
+  const current = c.db.botWidgets[key] ?? { settings: { ...WIDGET_DEFAULTS }, picture_url: '' };
+  c.db.botWidgets[key] = { settings: change.settings ?? current.settings, picture_url: change.picture_url ?? current.picture_url };
+}
+
+route('GET', '/widget', 'bot.read', (c) => widgetOut(c));
+
+route('PUT', '/widget', 'bot.write', (c) => {
+  const s = (c.body ?? {}).settings;
   if (!s || typeof s !== 'object' || Array.isArray(s)) throw invalid('Send settings as an object.');
-  if (b.enabled !== undefined && typeof b.enabled !== 'boolean') throw invalid('enabled must be true or false.');
-  const known = Object.keys(WIDGET_DEFAULTS);
-  const unknown = Object.keys(s).find((k) => !known.includes(k));
+  const unknown = Object.keys(s).find((k) => !Object.keys(WIDGET_DEFAULTS).includes(k));
   if (unknown) throw invalid(`Unknown setting ${unknown}.`);
-  const next: ChannelWidgetSettings = { ...WIDGET_DEFAULTS, ...s };
-  for (const k of ['heading', 'subtitle', 'greeting', 'placeholder', 'accent', 'avatar_url'] as const) if (typeof next[k] !== 'string') throw invalid(`${k} must be text.`);
+  const next: WidgetSettings = { ...WIDGET_DEFAULTS, ...s };
+  for (const k of ['heading', 'subtitle', 'greeting', 'placeholder', 'accent'] as const) if (typeof next[k] !== 'string') throw invalid(`${k} must be text.`);
   if (!['light', 'dark', 'auto'].includes(next.theme)) throw invalid('Set theme to light, dark or auto.');
   if (!['right', 'left'].includes(next.position)) throw invalid('Set position to right or left.');
   if (!['ask', 'off'].includes(next.details)) throw invalid('Set details to ask or off.');
   const problem = Object.values(widgetErrors(next))[0];
   if (problem) throw invalid(problem);
-  c.db.channelWidgets ??= {};
-  c.db.channelWidgets[ch.id] = { enabled: b.enabled ?? c.db.channelWidgets[ch.id]?.enabled ?? true, settings: { ...next, accent: next.accent.trim().toLowerCase() }, saved_at: Date.now() };
-  audit(c, 'channel.widget_update', ch.id, { name: ch.name });
-  return widgetOut(c, ch);
+  saveWidget(c, { settings: { ...next, accent: next.accent.trim().toLowerCase() } });
+  audit(c, 'bot.widget_update', c.botId);
+  return widgetOut(c);
+});
+
+route('PUT', '/widget/picture', 'bot.write', (c) => {
+  const url = pictureOf(c);
+  saveWidget(c, { picture_url: url });
+  audit(c, 'bot.widget_picture_updated', c.botId);
+  return { picture_url: url };
+});
+
+route('DELETE', '/widget/picture', 'bot.write', (c) => {
+  saveWidget(c, { picture_url: '' });
+  audit(c, 'bot.widget_picture_removed', c.botId);
+  return { picture_url: null };
 });
 
 route('DELETE', '/channels/:id', 'channels.write', (c) => {

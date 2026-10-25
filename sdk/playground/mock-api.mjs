@@ -118,7 +118,7 @@ export function mockApi(base, { latency = 150, replyLatency = 900, autoAgent = t
       return json(200, conv.ticket);
     }
     if (path === '/profile') {
-      return json(200, { business: { name: 'Acme Shop', logo_url: LOGO }, bot: { id: 'support', name: 'Shop assistant' }, ...(images && { attachments: { enabled: images === true, ...(images === true && IMAGE_LIMITS) } }) });
+      return json(200, { business: { name: 'Acme Shop', logo_url: LOGO }, bot: { id: 'support', name: 'Shop assistant' }, widget: { accent: '#0f766e', theme: 'light', position: 'right', show_sources: false, details: 'ask', greeting: 'Welcome to Acme! Ask me anything.' }, ...(images && { attachments: { enabled: images === true, ...(images === true && IMAGE_LIMITS) } }) });
     }
     if (path === '/realtime/token') return json(503, { error: { code: 'REALTIME_NOT_CONFIGURED', message: 'off' } });
 

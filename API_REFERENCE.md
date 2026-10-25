@@ -73,16 +73,18 @@ A business can connect its Shopify store to a bot. Connecting runs Shopify's app
 
 `503 CHANNEL_CONNECT_UNAVAILABLE` means this server has no Shopify app configured: show the type as unavailable. If someone installs the app from inside Shopify, Shopify sends them to `{DASHBOARD_URL}/integrations/guides?shopify_shop=<store>`; prefill the store field from `shopify_shop` and ask them to press **Connect**.
 
-### The storefront chat window (2026-10-25)
+## Chat widget (2026-10-26)
 
-A connected store also shows the bot's chat window on its storefront. Right after the install, the dashboard should let the business set how it looks, then send them to turn it on in their theme. It adds two routes and an error code; nothing existing changed.
+How the chat window looks is **one setting of the bot**, shared by every place the widget is shown: a website's embed, the WordPress and WooCommerce plugin, a Shopify store. The business sets it once in the dashboard and each site picks it up through `GET /profile`; nothing is pasted into a site to change it. It adds the routes below, a `widget` object in the profile and error codes; nothing existing changed except that the Shopify channel route no longer carries appearance settings (it was added the day before).
 
-1. When the browser lands on `return_to` with `connected=shopify&channel_id=chn_…`, open a **Customize chat** step for that channel. [`GET /channels/{id}/widget`](#get-channelsidwidget-v2) returns the settings (the defaults for a new store) and `defaults`, to show as placeholders.
-2. Let the business edit the heading, subtitle, greeting, message box hint, accent colour, header picture, light/dark theme, side of the page, whether answers link their sources, and whether visitors give a name and email first. Save with [`PUT /channels/{id}/widget`](#put-channelsidwidget-v2).
-3. After saving, send them to `activation_url` in a new tab. It opens the store's theme editor with the **Truplexy chat** app embed switched on; they press **Save** there.
-4. Poll `GET /channels/{id}/widget` while the step is open: `last_seen_at` becomes non-empty once a page of the store has loaded the window. Show it as live.
+**What a dashboard does:** a **Chat widget** sub-tab under Integrations.
 
-Offer **Customize chat** on a connected Shopify channel at any time. A store that connected before this shipped has to be connected again once, so Shopify mounts the chat's proxy on it. The window itself talks to the API through Shopify's app proxy (`/apps/truplexy/chat` on the store's own domain), which signs each request; no key reaches the browser, and the dashboard doesn't call that route.
+1. [`GET /widget`](#get-widget-v2) returns `settings` (the defaults for a bot that never saved), `defaults`, to show as placeholders, and `picture_url`.
+2. Let the business edit the title, subtitle, greeting, message box hint, colour, light/dark theme, side of the page, whether answers link their sources, and whether visitors give a name and email first. Save with [`PUT /widget`](#put-widget-v2).
+3. The header picture is uploaded separately with [`PUT /widget/picture`](#put-widgetpicture-v2). Let the person move and zoom it in a round frame first and send the square that shows; the API also cuts it to a square and shrinks it, so any picture ends up right.
+4. List where it shows. For each connected Shopify store, [`GET /channels/{id}/widget`](#get-channelsidwidget-v2) says whether the window is shown, and when a page of the store last loaded it (`last_seen_at`, empty until one has). Link `activation_url` to turn the Truplexy chat on in the store's theme editor, and show or hide it with `PUT /channels/{id}/widget {enabled}`.
+
+**How a site gets it.** `GET /profile` (chat key) returns the setting as `widget`. The widget applies it under anything the host page sets itself: an attribute such as `accent` wins, then a translated `labels` string, then the dashboard's value, then the default. A server route has to pass `widget` on from the API's profile (`@truplexy/server`, the PHP, Python and Go snippets and the WordPress plugin do); a route that was written earlier keeps the widget's old look until it does. A Shopify store's window talks to the API through Shopify's app proxy (`/apps/truplexy/chat` on the store's own domain), which signs each request; no key reaches the browser, and the dashboard doesn't call that route. A store that connected before the proxy existed has to connect again once.
 
 ## Performance stats (2026-10-19)
 
@@ -460,8 +462,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
 | `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store (v2) |
-| `GET` | `/channels/{id}/widget` | `channels.read` | How a Shopify store's chat window looks on its storefront (v2) |
-| `PUT` | `/channels/{id}/widget` | `channels.write` | Save the chat window's settings (v2) |
+| `GET` | `/channels/{id}/widget` | `channels.read` | Whether a Shopify store shows the chat window, and when it was last seen (v2) |
+| `PUT` | `/channels/{id}/widget` | `channels.write` | Show or hide the chat window on a Shopify store (v2) |
 | `GET` | `/customers` | `customers.read` | List and search the bot's customers (v2) |
 | `POST` | `/customers` | `customers.write` | Add a customer (v2) |
 | `GET` | `/customers/{id}` | `customers.read` | A customer with their latest conversations and tickets (v2) |
@@ -817,6 +819,9 @@ Users, businesses and bots can have a picture. Responses carry its public URL, a
 | `PUT` / `DELETE` | `/me/avatar` | account | The signed-in person's own picture |
 | `PUT` / `DELETE` | `/tenant/logo` | `business.write` | The business's logo |
 | `PUT` / `DELETE` | `/bots/{id}/avatar` | `bot.write` | A bot's picture, in the requesting business |
+| `GET` | `/widget` | `bot.read` | The bot's chat widget setting (v2) |
+| `PUT` | `/widget` | `bot.write` | Save the chat widget setting (v2) |
+| `PUT` / `DELETE` | `/widget/picture` | `bot.write` | The chat window's header picture (v2) |
 
 `PUT` takes a PNG, JPEG or WebP image of 16-4096 pixels per side, up to `AVATAR_MAX_BYTES` (512 KiB unless configured), as `multipart/form-data` with the file in a field named `file`, or as the raw body with an `image/png`, `image/jpeg` or `image/webp` content type. The file type is read from the bytes. **200** `{avatar_url}` or `{logo_url}`, the new public URL. `DELETE` removes the file and answers **200** with the field `null`.
 
@@ -1279,15 +1284,13 @@ When the app is uninstalled from the store, the store's channels are turned off 
 
 #### `GET /channels/{id}/widget` (v2)
 
-`channels.read`. How a Shopify store's chat window looks on its storefront. A channel that never saved settings returns the defaults.
+`channels.read`. Whether a Shopify store shows the bot's chat window, and whether a page of the store has loaded it yet. How the window looks is the bot's [chat widget](#get-widget-v2).
 
-**200** `{channel_id, enabled, settings, defaults, first_seen_at, last_seen_at, shop, activation_url}`:
+**200** `{channel_id, enabled, first_seen_at, last_seen_at, shop, activation_url}`:
 
 | Field | Meaning |
 | --- | --- |
-| `enabled` | Whether the window is shown. The channel's own `enabled` still turns the whole channel off. |
-| `settings` | The choices below. |
-| `defaults` | What an empty setting shows. |
+| `enabled` | Whether the window is shown on the store. The channel's own `enabled` still turns the whole channel off. |
 | `first_seen_at`, `last_seen_at` | When a page of the store first and last loaded the window; empty strings until one has. `last_seen_at` is updated at most once an hour. |
 | `shop` | The store's `myshopify.com` domain. |
 | `activation_url` | The store's theme editor with the Truplexy chat app embed switched on, for the owner to save. |
@@ -1299,7 +1302,13 @@ When the app is uninstalled from the store, the store's channels are turned off 
 
 #### `PUT /channels/{id}/widget` (v2)
 
-`channels.write`. Replaces the settings. Send `{enabled?, settings}`; leaving `enabled` out keeps it. Unknown fields are refused. The storefront sees the change within 30 seconds. The activity log records `channel.widget_update`.
+`channels.write`. Shows or hides the window on the store: send `{enabled}` and nothing else. **200** the state, as `GET` returns it. The activity log records `channel.widget_update`. Errors as for `GET`, plus `400 INVALID_REQUEST`.
+
+#### `GET /widget` (v2)
+
+`bot.read`. The caller's bot's chat widget setting, one for every place the chat is shown. A bot that never saved one returns the defaults.
+
+**200** `{settings, defaults, picture_url}`. `picture_url` is empty when there is no uploaded picture: the window then uses the business logo, then the bot's picture.
 
 | `settings` field | Rules |
 | --- | --- |
@@ -1308,19 +1317,26 @@ When the app is uninstalled from the store, the store's channels are turned off 
 | `greeting` | Up to 300 characters, Markdown. Empty uses the window's own. |
 | `placeholder` | Up to 80 characters. Empty uses "Write a message…". |
 | `accent` | `#rrggbb`. Empty is `#2338e6`. |
-| `avatar_url` | An `https` link of up to 500 characters. Empty uses the business logo. |
 | `theme` | `light` (default), `dark` or `auto`. |
 | `position` | `right` (default) or `left`. |
 | `show_sources` | Link the pages answers came from. Default `false`. |
 | `details` | `ask` (default): a name and email form before the first message. `off` skips it. |
 
-**200** the saved window, as `GET` returns it.
+#### `PUT /widget` (v2)
 
-**Errors:**
-- `400 INVALID_REQUEST`: a setting breaks its rule.
-- `404 CHANNEL_NOT_FOUND`
-- `409 WIDGET_NOT_SUPPORTED`
-- `503 SHOPIFY_NOT_CONFIGURED`
+`bot.write`. Replaces the settings: send `{settings}`. Unknown fields are refused; the picture is changed with its own routes and is kept. The last write wins. **200** the saved setting, as `GET` returns it. The activity log records `bot.widget_update`.
+
+**Errors:** `400 INVALID_REQUEST` (a setting breaks its rule), `404 BOT_NOT_FOUND`.
+
+#### `PUT /widget/picture` (v2)
+
+`bot.write`. The chat window's header picture. Send a PNG, JPEG or WebP as multipart (field `file`) or as the raw body, up to the profile-image size limit (`AVATAR_MAX_BYTES`, 512 KiB by default). The API turns it upright, cuts the largest centred square, shrinks it to at most 256×256 and strips metadata; a picture with transparency stays a PNG, any other becomes a JPEG. **200** `{picture_url}`. A new picture gets a new URL, and the old one is deleted. The activity log records `bot.widget_picture_updated`.
+
+#### `DELETE /widget/picture` (v2)
+
+`bot.write`. Removes the picture; the window goes back to the business logo. **200** `{picture_url: null}`. Logged as `bot.widget_picture_removed`.
+
+**Errors for both:** `400 INVALID_IMAGE`, `413 IMAGE_TOO_LARGE`, `415 UNSUPPORTED_IMAGE_TYPE`, `404 BOT_NOT_FOUND`, `503 NOT_CONFIGURED` (no public bucket, as for profile images).
 
 ### Bot configuration (workspace)
 
@@ -2648,11 +2664,14 @@ How the key's business and bot present themselves, for a widget's header. **200*
 ```text
 {
   business: { name, logo_url? },
-  bot:      { id, name, avatar_url? }
+  bot:      { id, name, avatar_url? },
+  widget:   { accent, theme, position, show_sources, details, heading?, subtitle?, greeting?, placeholder?, picture_url? }
 }
 ```
 
 `bot.name` is the name saved in the bot's configuration, which customers see. `logo_url` and `avatar_url` are left out when there is no picture ([profile images](#profile-images-v2)). Nothing about the plan, team or account is returned.
+
+`widget` is the bot's [chat widget setting](#get-widget-v2), for the widget to apply. Texts the business left empty are left out, so the window keeps its own wording; `picture_url` is the uploaded header picture. A widget applies it beneath anything the host page sets itself, and a server route has to pass it on: forward the `widget` object field by field, as the SDK's route does.
 
 Image input adds `attachments: {enabled, max_bytes, max_per_message, content_types}`, with the values `GET /playground/attachments/config` gives, so a widget knows whether to offer an attach button. It is absent before the feature exists, and `enabled: false` hides the button. The reason (plan or model) isn't revealed to customers. Unlike other chat endpoints it may be cached: `Cache-Control: private, max-age=60`.
 

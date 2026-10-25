@@ -69,6 +69,7 @@ const businessRoutes: RouteObject[] = [
       children: [
         { index: true, ...lazyRoute(pages.integrations, (m) => m.ChannelsTab) },
         { path: 'guides', ...lazyRoute(pages.integrations, (m) => m.CatalogTab) },
+        { path: 'widget', ...lazyRoute(pages.integrations, (m) => m.WidgetTab) },
         { path: 'webhook', ...lazyRoute(pages.integrations, (m) => m.WebhookTab) },
         missing,
       ],

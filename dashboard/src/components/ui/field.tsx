@@ -1,5 +1,5 @@
 import { useId, type ComponentProps, type ReactElement, type ReactNode, cloneElement, isValidElement } from 'react';
-import { Switch as RSwitch } from 'radix-ui';
+import { Slider as RSlider, Switch as RSwitch } from 'radix-ui';
 import { cn } from '@/lib/cn';
 
 /**
@@ -149,5 +149,46 @@ export function Checkbox({ label, className, ...rest }: ComponentProps<'input'> 
       <input type="checkbox" id={rest.id ?? id} className="checkbox" {...rest} />
       {label}
     </label>
+  );
+}
+
+/** A single-value slider (Radix): drag, or use the arrow keys. */
+export function Slider({
+  value,
+  onValueChange,
+  min,
+  max,
+  step = 1,
+  disabled,
+  label,
+  className,
+}: {
+  value: number;
+  onValueChange: (v: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+  disabled?: boolean;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <RSlider.Root
+      value={[value]}
+      onValueChange={([v]) => onValueChange(v ?? min)}
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      className={cn('relative flex h-5 w-full touch-none select-none items-center disabled:opacity-50', className)}
+    >
+      <RSlider.Track className="relative h-1.5 grow rounded-full bg-line-strong">
+        <RSlider.Range className="absolute h-full rounded-full bg-btn" />
+      </RSlider.Track>
+      <RSlider.Thumb
+        aria-label={label}
+        className="block size-[18px] rounded-full border border-line-strong bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/50 [@media(pointer:coarse)]:size-6"
+      />
+    </RSlider.Root>
   );
 }
