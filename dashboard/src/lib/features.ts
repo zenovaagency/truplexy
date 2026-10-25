@@ -10,7 +10,7 @@ import { ScopeContext } from '@/lib/session/scope-context';
  * read; until the answer is "on", its menu entries and tabs stay hidden, so a server without the feature (404), or
  * with its migration not yet applied (a database error), looks exactly as it did before.
  */
-export type Feature = 'properties' | 'products';
+export type Feature = 'properties' | 'products' | 'queries';
 
 interface Probe {
   path: string;
@@ -22,6 +22,7 @@ interface Probe {
 const PROBES: Record<Feature, Probe> = {
   properties: { path: '/properties', query: { entity: 'customer' }, permission: 'properties.read' },
   products: { path: '/products', query: { limit: 1 }, permission: 'products.read' },
+  queries: { path: '/query-types', permission: 'queries.read' },
 };
 
 export type FeatureState = 'pending' | 'on' | 'off';
@@ -49,6 +50,7 @@ export function useFeature(feature: Feature): FeatureState {
 export function useFeatureNav() {
   const properties = useFeature('properties');
   const products = useFeature('products');
-  const states: Record<Feature, FeatureState> = { properties, products };
+  const queries = useFeature('queries');
+  const states: Record<Feature, FeatureState> = { properties, products, queries };
   return (item: { feature?: Feature }) => !item.feature || states[item.feature] === 'on';
 }

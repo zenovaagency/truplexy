@@ -1246,6 +1246,305 @@ paths:
           description: Deleted.
         default:
           $ref: '#/components/responses/Error'
+  /query-types:
+    get:
+      operationId: listQueryTypes
+      summary: The query types the role may see (v2)
+      description: Needs queries.read.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: archived
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: The types.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueryType'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createQueryType
+      summary: Add a query type (v2)
+      description: Needs queries.manage. Up to 30 per bot. 409 QUERY_TYPE_EXISTS.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryTypeInput'
+                - type: object
+                  required: [key, name]
+      responses:
+        '201':
+          description: The new type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryType'
+        default:
+          $ref: '#/components/responses/Error'
+  /query-types/presets:
+    get:
+      operationId: listQueryTypePresets
+      summary: Suggested query types (v2)
+      description: Needs queries.read. Create the type, then its fields with POST /properties (entity query, scope_id the type).
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: business_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The presets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        default:
+          $ref: '#/components/responses/Error'
+  /query-types/{id}:
+    parameters:
+      - $ref: '#/components/parameters/QueryTypeID'
+    patch:
+      operationId: updateQueryType
+      summary: Change or archive a query type (v2)
+      description: Needs queries.manage. key can't change; a status queries are in can't be removed. 404 QUERY_TYPE_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryTypeInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryType'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteQueryType
+      summary: Delete a query type without queries (v2)
+      description: Needs queries.manage. 409 QUERY_TYPE_IN_USE when it has queries; archive it instead.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /queries:
+    get:
+      operationId: listQueries
+      summary: The bot's queries (v2)
+      description: Needs queries.read. Only types the role may see; most recently changed first.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [open, pending, done, active]
+        - name: customer
+          in: query
+          schema:
+            type: string
+        - name: conversation
+          in: query
+          schema:
+            type: string
+        - name: assignee
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: property
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of queries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Query'
+                  next_cursor:
+                    type: string
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createQuery
+      summary: Open a query (v2)
+      description: Needs queries.write. Required fields of the type's form must be filled in.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryInput'
+                - type: object
+                  required: [type_id]
+      responses:
+        '201':
+          description: The new query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Query'
+        default:
+          $ref: '#/components/responses/Error'
+  /queries/{id}:
+    parameters:
+      - $ref: '#/components/parameters/QueryID'
+    get:
+      operationId: getQuery
+      summary: A query (v2)
+      description: Needs queries.read. 404 QUERY_NOT_FOUND, also for a type the role may not see.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Query'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateQuery
+      summary: Change a query, or add a note (v2)
+      description: Needs queries.write. The type and the conversation can't change.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QueryInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Query'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteQuery
+      summary: Delete a query (v2)
+      description: Needs queries.delete.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /queries/{id}/events:
+    parameters:
+      - $ref: '#/components/parameters/QueryID'
+    get:
+      operationId: listQueryEvents
+      summary: A query's history (v2)
+      description: Needs queries.read. Oldest first.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The history.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueryEvent'
+        default:
+          $ref: '#/components/responses/Error'
   /channels:
     get:
       operationId: listChannels
@@ -4959,6 +5258,20 @@ components:
       scheme: bearer
       description: ADMIN_API_KEY, a service credential with every permission in every business. It acts for the default bot, or for the bot named by the X-Truplexy-Tenant and X-Truplexy-Bot headers (404 BOT_NOT_FOUND if it doesn't exist). Missing configuration returns 503 ADMIN_NOT_CONFIGURED; D1 failures return 502 DATABASE_ERROR, and R2, Vectorize, or Workers AI failures 502 STORAGE_ERROR.
   parameters:
+    QueryID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^qry_[0-9a-f]{32}$'
+    QueryTypeID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^qtp_[0-9a-f]{32}$'
     ProductID:
       name: id
       in: path
@@ -6571,9 +6884,200 @@ components:
         expires_at:
           type: string
           format: date-time
+    QueryStatus:
+      type: object
+      required: [key, label, category]
+      properties:
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        label:
+          type: string
+          maxLength: 40
+        category:
+          type: string
+          enum: [open, pending, done]
+    QueryType:
+      type: object
+      required: [id, key, name, description, statuses, default_status, visible_roles, bot_enabled, sort_order, archived, open, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^qtp_[0-9a-f]{32}$'
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        statuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryStatus'
+        default_status:
+          type: string
+        visible_roles:
+          type: array
+          description: Empty lets every role with queries.read see the type; owners and admins always do.
+          items:
+            type: string
+            enum: [editor, agent, viewer]
+        bot_enabled:
+          type: boolean
+        sort_order:
+          type: integer
+        archived:
+          type: boolean
+        open:
+          type: integer
+          description: Its queries not done.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    QueryTypeInput:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        name:
+          type: string
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 300
+        statuses:
+          type: array
+          minItems: 2
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/QueryStatus'
+        default_status:
+          type: string
+        visible_roles:
+          type: array
+          items:
+            type: string
+            enum: [editor, agent, viewer]
+        bot_enabled:
+          type: boolean
+        sort_order:
+          type: integer
+        archived:
+          type: boolean
+    Query:
+      type: object
+      required: [id, reference, number, type_id, type_name, subject, status, status_label, status_category, source, properties, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^qry_[0-9a-f]{32}$'
+        reference:
+          type: string
+          example: Q-1001
+        number:
+          type: integer
+        type_id:
+          type: string
+        type_name:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+        status_label:
+          type: string
+        status_category:
+          type: string
+          enum: [open, pending, done]
+        customer_id:
+          type: string
+        customer_name:
+          type: string
+        conversation_id:
+          type: string
+        ticket_id:
+          type: string
+        assignee_user_id:
+          type: string
+        assignee_name:
+          type: string
+        source:
+          type: string
+          enum: [dashboard, assistant]
+        properties:
+          type: object
+          additionalProperties: true
+        masked_properties:
+          type: array
+          items:
+            type: string
+        closed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    QueryInput:
+      type: object
+      additionalProperties: false
+      properties:
+        type_id:
+          type: string
+        subject:
+          type: string
+          maxLength: 200
+        status:
+          type: string
+        customer_id:
+          type: string
+        conversation_id:
+          type: string
+        ticket_id:
+          type: string
+        assignee_user_id:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+        note:
+          type: string
+          maxLength: 4000
+    QueryEvent:
+      type: object
+      required: [id, kind, actor_type, created_at]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [created, status, assigned, fields, note]
+        from:
+          type: string
+        to:
+          type: string
+        note:
+          type: string
+        actor_type:
+          type: string
+          enum: [member, assistant, key]
+        actor_id:
+          type: string
+        actor_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     PropertyEntity:
       type: string
-      enum: [customer, product]
+      enum: [customer, product, query]
       description: The kind of record a property belongs to.
     PropertyType:
       type: string

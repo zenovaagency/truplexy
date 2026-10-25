@@ -13,6 +13,7 @@ import {
   LogOut,
   Lock,
   Plus,
+  ClipboardList,
   SlidersHorizontal,
   Trash2,
   Undo2,
@@ -62,10 +63,12 @@ import {
 } from '@/components/ui';
 
 export { PropertiesTab } from './PropertiesTab';
+export { QueryTypesTab } from './QueryTypesTab';
 
 export default function SettingsLayout() {
   const { href, businessName, can } = useScopeCtx();
   const properties = useFeature('properties');
+  const queries = useFeature('queries');
   return (
     <Page>
       <PageHeader title="Settings" description={`Business details, plan, billing, bots, properties and backups for ${businessName}.`} />
@@ -76,6 +79,7 @@ export default function SettingsLayout() {
           { to: href('settings/billing'), label: 'Billing', icon: <Wallet />, hidden: !can('usage.read') },
           { to: href('settings/bots'), label: 'Bots', icon: <Bot /> },
           { to: href('settings/properties'), label: 'Properties', icon: <SlidersHorizontal />, hidden: properties !== 'on' },
+          { to: href('settings/query-types'), label: 'Query types', icon: <ClipboardList />, hidden: queries !== 'on' },
           { to: href('settings/backup'), label: 'Backup', icon: <DatabaseBackup /> },
           { to: href('settings/danger'), label: 'Danger zone', icon: <AlertTriangle /> },
         ]}

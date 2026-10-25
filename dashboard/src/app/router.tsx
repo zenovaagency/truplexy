@@ -39,6 +39,7 @@ const businessRoutes: RouteObject[] = [
     { path: 'products/imports/:importId', ...lazyRoute(pages.products, (m) => m.ImportReviewPage) },
     { path: 'products/:productId?', ...lazyRoute(pages.products, (m) => m.default) },
   ]),
+  gated('queries.read', [{ path: 'queries/:queryId?', ...lazyRoute(pages.queries, (m) => m.default) }]),
   gated('customers.read', [{ path: 'customers/:customerId?', ...lazyRoute(pages.customers, (m) => m.default) }]),
   gated('knowledge.read', [
     {
@@ -96,6 +97,7 @@ const businessRoutes: RouteObject[] = [
         gated('usage.read', [{ path: 'billing', ...lazyRoute(pages.settings, (m) => m.BillingTab) }]),
         { path: 'bots', ...lazyRoute(pages.settings, (m) => m.BotsTab) },
         gated('properties.read', [{ path: 'properties', ...lazyRoute(pages.settings, (m) => m.PropertiesTab) }]),
+        gated('queries.read', [{ path: 'query-types', ...lazyRoute(pages.settings, (m) => m.QueryTypesTab) }]),
         { path: 'backup', ...lazyRoute(pages.settings, (m) => m.BackupTab) },
         { path: 'danger', ...lazyRoute(pages.settings, (m) => m.DangerTab) },
         missing,

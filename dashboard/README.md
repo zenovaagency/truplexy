@@ -75,6 +75,15 @@ Businesses define typed fields (text, number, date, single and multiple choice, 
 - Settings → Properties gets a Products tab once the catalog is served.
 - Demo mode imports a CSV as the API would (`src/lib/api/mock/products.ts`); other files and pages give a small sample shop. A link with `fail` in it shows a page that couldn't be read, and one with `ai` a page read with AI.
 
+## Queries
+
+**Queries** (`src/features/queries/`) are structured requests — payments, orders, deliveries — of the query types a business sets up under **Settings → Query types** (`QueryTypesTab.tsx`): each type has its statuses, the roles that see it, whether the assistant handles it, and its form, which is the shared properties editor (`PropertiesEditor` in `PropertiesTab.tsx`) scoped to the type.
+
+- The page lists queries with status, type, assignee and text filters (all in the address), and opens one at `/queries/:id`: status changes save at once, fields and subject on **Save changes**, notes go into the history. Sensitive fields arrive masked for viewers.
+- `/queries?new=1&customer=…&conversation=…&ticket=…` opens a new query already linked; a ticket's sidebar links there, and a customer's details list their queries (`CustomerQueries.tsx`).
+- Everything shows once `GET /query-types` answers (`src/lib/features.ts`); a role a type doesn't list never sees its queries, because the API leaves them out.
+- Demo mode has two types on Acme's support bot (payment issues are limited to editors, so preview as an agent to see them disappear) and a few queries.
+
 ## Deploying
 
 The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.truplexy.com`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.

@@ -8,7 +8,9 @@ import { KEY_RE, MAX_PROPERTIES, RESERVED_KEYS } from '@/lib/properties';
 export class PropertyError extends Error {}
 const bad = (message: string) => new PropertyError(message);
 
-export const PROPERTY_ENTITIES: PropertyEntity[] = ['customer', 'product'];
+export const PROPERTY_ENTITIES: PropertyEntity[] = ['customer', 'product', 'query'];
+/** Entities whose properties belong to one of their types (scope_id). */
+export const SCOPED_ENTITIES: PropertyEntity[] = ['query'];
 const TYPES: PropertyType[] = ['text', 'long_text', 'number', 'boolean', 'date', 'select', 'multi_select', 'email', 'phone', 'url'];
 const withOptions = (t: PropertyType) => t === 'select' || t === 'multi_select';
 
@@ -37,15 +39,18 @@ function cleanOptions(type: PropertyType, raw: unknown): PropertyOption[] {
 /** Checks a POST body against the entity's existing properties. */
 export function newDefinition(b: any, existing: MockProperty[]): Omit<MockProperty, 'id' | 'tenant_id' | 'bot_id' | 'created_at' | 'updated_at'> {
   if (!PROPERTY_ENTITIES.includes(b.entity)) throw bad(`Set entity to one of ${PROPERTY_ENTITIES.join(', ')}.`);
-  if (b.scope_id) throw bad(`Leave scope_id out: ${b.entity} properties belong to every ${b.entity}.`);
+  const scoped = SCOPED_ENTITIES.includes(b.entity);
+  if (scoped && !b.scope_id) throw bad(`Set scope_id to the ID of the ${b.entity} type the property belongs to.`);
+  if (!scoped && b.scope_id) throw bad(`Leave scope_id out: ${b.entity} properties belong to every ${b.entity}.`);
   const key = String(b.key ?? '').trim();
   if (!KEY_RE.test(key)) throw bad('Set key to 1–40 lowercase letters, digits or underscores, starting with a letter, such as loyalty_tier.');
   if (RESERVED_KEYS.has(key)) throw bad(`${key} is a built-in field; pick another key.`);
   if (!TYPES.includes(b.type)) throw bad(`Set type to one of ${TYPES.join(', ')}.`);
-  const same = existing.filter((d) => d.entity === b.entity);
+  const same = existing.filter((d) => d.entity === b.entity && (d.scope_id ?? '') === (b.scope_id ?? ''));
   if (same.length >= MAX_PROPERTIES) throw bad(`A ${b.entity} can have up to ${MAX_PROPERTIES} properties; delete one first.`);
   const d = {
     entity: b.entity as PropertyEntity,
+    ...(scoped && { scope_id: String(b.scope_id) }),
     key,
     type: b.type as PropertyType,
     label: '',

@@ -58,6 +58,7 @@ import {
 } from '@/components/ui';
 import { PRIORITIES, PRIORITY, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 import { AssigneePicker, TicketFlags } from './shared';
+import { OpenQueryLink } from '@/features/queries/CustomerQueries';
 
 type Item = { kind: 'message'; at: string; m: TicketMessage } | { kind: 'note' | 'reply'; at: string; r: TicketReply };
 
@@ -622,6 +623,7 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
     <div className="grid gap-6">
       {t.conversation_id && (t.summary || t.escalated) && <SummarySection ticket={t} />}
       {t.customer_id && <CustomerSection id={t.customer_id} />}
+      <OpenQueryLink customerId={t.customer_id} conversationId={t.conversation_id} ticketId={t.id} />
       <section className="grid gap-3">
         <label className="grid gap-1.5">
           <span className="mono text-ink-faint">Status</span>

@@ -65,6 +65,7 @@ const splitFilter = (f: string) => {
   const i = f.indexOf('=');
   return i > 0 ? { [f.slice(0, i)]: f.slice(i + 1) } : {};
 };
+import { CustomerQueries } from '@/features/queries/CustomerQueries';
 
 export default function CustomersPage() {
   const { can, bot, href } = useScopeCtx();
@@ -441,6 +442,7 @@ function CustomerDetailSheet({
               <p className="text-[0.8125rem] text-ink-faint">No tickets yet.</p>
             )}
           </section>
+          <CustomerQueries customerId={c.id} />
         </div>
       )}
     </Sheet>

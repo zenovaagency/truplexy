@@ -32,6 +32,10 @@ export type Permission =
   | 'properties.write'
   | 'products.read'
   | 'products.write'
+  | 'queries.read'
+  | 'queries.write'
+  | 'queries.delete'
+  | 'queries.manage'
   | 'bots.create'
   | 'members.write'
   | 'business.write'
@@ -728,7 +732,7 @@ export interface CustomerInput {
 /* ------------------------------------------------------------------ */
 
 /** The kinds of record that have custom properties. */
-export type PropertyEntity = 'customer' | 'product';
+export type PropertyEntity = 'customer' | 'product' | 'query';
 
 export type PropertyType = 'text' | 'long_text' | 'number' | 'boolean' | 'date' | 'select' | 'multi_select' | 'email' | 'phone' | 'url';
 
@@ -895,6 +899,117 @@ export interface ImportCommit {
 export interface ImportCommitResult {
   import: ProductImport;
   errors: { index: number; message: string }[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Queries                                                             */
+/* ------------------------------------------------------------------ */
+
+export type QueryCategory = 'open' | 'pending' | 'done';
+
+export interface QueryStatus {
+  key: string;
+  label: string;
+  category: QueryCategory;
+}
+
+export type LimitableRole = 'editor' | 'agent' | 'viewer';
+
+export interface QueryType {
+  id: string;
+  /** Never changes. */
+  key: string;
+  name: string;
+  description: string;
+  statuses: QueryStatus[];
+  default_status: string;
+  /** Empty: every role with queries.read. Owners and admins always see every type. */
+  visible_roles: LimitableRole[];
+  /** The assistant may open queries of this type and report on them. */
+  bot_enabled: boolean;
+  sort_order: number;
+  archived: boolean;
+  /** Its queries not done. */
+  open: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueryTypeInput {
+  key?: string;
+  name?: string;
+  description?: string;
+  statuses?: QueryStatus[];
+  default_status?: string;
+  visible_roles?: LimitableRole[];
+  bot_enabled?: boolean;
+  sort_order?: number;
+  archived?: boolean;
+}
+
+export interface QueryTypePreset {
+  key: string;
+  name: string;
+  description: string;
+  statuses: QueryStatus[];
+  default_status: string;
+  fields: { key: string; label: string; type: PropertyType; options: PropertyOption[]; required: boolean; sensitive: boolean }[];
+  business_types: string[];
+}
+
+export interface CustomerQuery {
+  id: string;
+  /** Q-1001 */
+  reference: string;
+  number: number;
+  type_id: string;
+  type_name: string;
+  subject: string;
+  status: string;
+  status_label: string;
+  status_category: QueryCategory;
+  customer_id?: string;
+  customer_name?: string;
+  conversation_id?: string;
+  ticket_id?: string;
+  assignee_user_id?: string;
+  assignee_name?: string;
+  source: 'dashboard' | 'assistant';
+  properties: PropertyValues;
+  masked_properties?: string[];
+  closed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields of POST and PATCH /queries. type_id and conversation_id only on POST; "" clears customer, ticket and assignee. */
+export interface QueryInput {
+  type_id?: string;
+  subject?: string;
+  status?: string;
+  customer_id?: string;
+  conversation_id?: string;
+  ticket_id?: string;
+  assignee_user_id?: string;
+  properties?: PropertyValues;
+  note?: string;
+}
+
+export interface QueryList {
+  data: CustomerQuery[];
+  next_cursor?: string;
+}
+
+export interface QueryEvent {
+  id: string;
+  kind: 'created' | 'status' | 'assigned' | 'fields' | 'note';
+  from?: string;
+  to?: string;
+  note?: string;
+  actor_type: 'member' | 'assistant' | 'key';
+  actor_id?: string;
+  actor_name?: string;
+  created_at: string;
 }
 
 export interface CustomerList {
