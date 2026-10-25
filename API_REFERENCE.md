@@ -945,7 +945,7 @@ Scope headers; these act on the bot. Customer chat uses the saved configuration 
 | `ragEnabled` | Answer from the knowledge base. |
 | `topK` | Platform-managed; 1–20 when sent. |
 | `toolsEnabled` | Let the model call `tools`. Needs a model with `supports_tools`. |
-| `tools` | Up to 20 unique tool names from `GET /tools`. |
+| `tools` | Up to 20 unique tool names from `GET /tools`. A reply leaves out any that is unavailable (`available: false`, such as a Shopify tool with no store connected) or no longer exists, and answers with the rest; show those in the picker with a way to remove them. |
 | `webSearch` | `{enabled, mode, maxResults, depth, topic, timeRange, includeDomains, excludeDomains}`; see [Web search](../README.md#web-search). Needs `ragEnabled`. `mode` is `fallback` (default: only when the knowledge base has no confident answer, or when the model finds no answer in passages that matched; the reply is then written again with the web results, and both calls are billed) or `always`; `maxResults` 1–8 (3); `depth` `basic` or `advanced`; `topic` `general` or `news`; `timeRange` `day`, `week`, `month`, `year` or `""`; the domain lists hold up to 50 hostnames such as `docs.example.com`, without `https://` or a path, and a domain covers its subdomains. Missing fields get their defaults. |
 | `routing` | Platform-managed and ignored: the platform's `ROUTING_MODE` routes every bot. Every message is classified by built-in rules (`classifier` `jev` is still accepted from older saves and means rules) and answered from the platform catalog's tiers: `fast` for small talk, unclear messages and requests for a person; `balanced` for answers from the knowledge base, follow-ups and tool use; `advanced` for multi-part or comparison questions. Shape when sent: `{mode, classifier, allowedTiers, providerAllowlist, modelPools, fixedModel, maxRequestCostUsd, maxAttempts}`, validated as before. |
 | `knowledge` | Optional source rules for the chat API's saved bots (omit to keep the earlier behavior; the playground ignores it; needs `ragEnabled`): `{policy, ragMode, maxSubqueries, verify}`; a business sets only `policy`. `policy` is `strict_kb` (default once `knowledge` is set: answer only from the knowledge base and tools), `kb_plus_general` (also answer plainly general questions from the model's own knowledge, labelled as general) or `kb_general_external` (also use the bot's web search for general or current questions). Questions about the business, or about a customer's own order or account, never leave the knowledge base and tools, whatever the policy. The server's `KNOWLEDGE_POLICY_MAX` caps the policy. `ragMode` (platform-managed; `KNOWLEDGE_RAG_MODE`, default `auto`) is `auto`, `simple`, `standard` or `complex`; a message with two or more independent questions is retrieved question by question so each finds evidence. `maxSubqueries` 0–5 (0 means 3). `verify` (platform-managed; `KNOWLEDGE_VERIFY`, default `enforce`) is `off`, `shadow` or `enforce`: it checks each answered reply for prices, percentages, durations, links, emails or phone numbers that appear in no passage, tool result or customer message, and for actions reported as done that no successful tool call confirms. `shadow` only records; `enforce` regenerates once, replaces what it cannot fix with a no-answer, and says which questions found no evidence. |
@@ -1374,6 +1374,7 @@ Scope headers; these act on the bot. Each bot has one webhook, which tells its i
 
 ```text
 {
+  configured,                 // false: the bot has no webhook yet (only from GET)
   url, enabled,
   secret?,                    // whsec_…, only when just created or replaced: show it once
   secret_hint,                // whsec_…abcd
@@ -1385,7 +1386,7 @@ Scope headers; these act on the bot. Each bot has one webhook, which tells its i
 
 #### `GET /webhook`
 
-`integrations.read`. **200** the webhook, without its secret. **Errors:** `404 WEBHOOK_NOT_FOUND`: there is none yet (show an empty form).
+`integrations.read`. **200** the webhook, without its secret. A bot without one gets `{configured: false, url: "", enabled: false, secret_hint: "", events, created_at: "", updated_at: ""}`: show the empty form. (Before 2026-10-25 this answered `404 WEBHOOK_NOT_FOUND`; keep treating that as the empty form too.)
 
 #### `PUT /webhook`
 
@@ -2386,7 +2387,7 @@ Every error has its HTTP status and this body:
 | --- | --- | --- |
 | 400 | `INVALID_REQUEST` | Fix the body, path or query; `message` says what. |
 | 400 | `SCOPE_REQUIRED`, `INVALID_SCOPE` | Send both scope headers, with valid IDs. |
-| 400 | `INVALID_TOOL`, `UNKNOWN_TOOL`, `TOOL_UNAVAILABLE` | Fix the tool definition, or the bot's tool selection. |
+| 400 | `INVALID_TOOL`, `TOOL_UNAVAILABLE` | Fix the tool definition. `TOOL_UNAVAILABLE` comes only from `POST /tools/{name}/test`; replies skip unavailable tools. |
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /prompt-templates` and fill required variables. `MODEL_NOT_ALLOWED` now only means the platform's default model can't call tools while tools are on: ask a platform admin. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
@@ -2430,7 +2431,6 @@ Every error has its HTTP status and this body:
 | 504 | `LLM_TIMEOUT`, `TIMEOUT` | The operation took too long; retry. |
 
 **Model errors** come from the endpoints that generate replies (`POST /playground/run`, `POST /conversations/{id}/messages`):
-- `UNKNOWN_TOOL`, `TOOL_UNAVAILABLE`
 - `REQUEST_CANCELLED`
 - `LLM_RATE_LIMITED`, `PLAN_LIMIT_REACHED`
 - `LLM_PROVIDER_ERROR`, `LLM_NOT_CONFIGURED`, `LLM_TIMEOUT`

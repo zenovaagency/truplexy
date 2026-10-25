@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { AlertTriangle, CheckCircle2, Lock, MoreHorizontal, Pencil, Play, Plus, Trash2, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Lock, MinusCircle, MoreHorizontal, Pencil, Play, Plus, Trash2, Wrench, XCircle } from 'lucide-react';
 import { hasCode } from '@/lib/api/client';
 import { useDeleteTool, useSaveTool, useTestTool, useTools } from '@/lib/api/endpoints/bot';
 import type { HttpMethod, JsonSchema, Tool, ToolRun } from '@/lib/api/types';
@@ -37,6 +37,7 @@ import {
   useConfirm,
   type Column,
 } from '@/components/ui';
+import { useBotDraft } from '@/features/llm/draft';
 import { BotToolsCard } from './BotToolsCard';
 import { MAX_PARAMS, ParamsForm, newRow, rowsToSchema, schemaToRows, validateRows, type ParamRow } from './ParamsEditor';
 
@@ -87,12 +88,17 @@ export default function ToolsPage() {
   const tools = useTools();
   const del = useDeleteTool();
   const confirm = useConfirm();
+  const { draft, patchBot, canWrite: canEditBot } = useBotDraft();
   const [editing, setEditing] = useState<Tool | 'new' | null>(null);
   const [testing, setTesting] = useState<Tool | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const writable = can('tools.write');
   // Read from the list so the view stays current after an edit.
   const viewed = tools.data?.data.find((t) => t.name === viewing) ?? null;
+
+  // Taking a tool off this bot is a draft change, saved with the save bar.
+  const chosen = draft.bot.tools ?? [];
+  const unchoose = (t: Tool | null) => (canEditBot && t && chosen.includes(t.name) ? () => patchBot({ tools: chosen.filter((n) => n !== t.name) }) : undefined);
 
   const remove = (t: Tool) =>
     confirm({
@@ -115,6 +121,11 @@ export default function ToolsPage() {
           <MenuItem onSelect={() => setTesting(t)} disabled={!t.available}>
             <Play /> Run a test
           </MenuItem>
+          {unchoose(t) && (
+            <MenuItem onSelect={unchoose(t)}>
+              <MinusCircle /> Remove from {bot.name}
+            </MenuItem>
+          )}
           {!t.built_in && (
             <>
               <MenuItem onSelect={() => setEditing(t)}>
@@ -264,6 +275,8 @@ export default function ToolsPage() {
         onEdit={(t) => (setViewing(null), setEditing(t))}
         onTest={(t) => (setViewing(null), setTesting(t))}
         onDelete={(t) => (setViewing(null), void remove(t))}
+        onUnchoose={unchoose(viewed)}
+        botName={bot.name}
       />
       <ToolEditor tool={editing} onClose={() => setEditing(null)} />
       <ToolTester tool={testing} onClose={() => setTesting(null)} />
@@ -282,6 +295,8 @@ function ToolViewer({
   onEdit,
   onTest,
   onDelete,
+  onUnchoose,
+  botName,
 }: {
   tool: Tool | null;
   writable: boolean;
@@ -289,6 +304,9 @@ function ToolViewer({
   onEdit: (t: Tool) => void;
   onTest: (t: Tool) => void;
   onDelete: (t: Tool) => void;
+  /** Takes the tool off the bot, when the bot has it chosen. */
+  onUnchoose?: () => void;
+  botName: string;
 }) {
   const props = Object.entries(tool?.parameters.properties ?? {});
   return (
@@ -327,8 +345,19 @@ function ToolViewer({
             {!tool.available && <Badge tone="danger">Unavailable</Badge>}
           </div>
           {!tool.available && tool.unavailable_reason && (
-            <Callout tone="danger" icon={<AlertTriangle />} title="Bots can't call this tool right now">
-              <UnavailableReason tool={tool} />
+            <Callout
+              tone="danger"
+              icon={<AlertTriangle />}
+              title="Bots can't call this tool right now"
+              action={
+                onUnchoose && (
+                  <Button size="xs" variant="ghost" leading={<MinusCircle />} onClick={onUnchoose}>
+                    Remove from {botName}
+                  </Button>
+                )
+              }
+            >
+              <UnavailableReason tool={tool} />{onUnchoose && ` Replies skip it until then.`}
             </Callout>
           )}
 

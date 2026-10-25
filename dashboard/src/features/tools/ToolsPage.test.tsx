@@ -46,13 +46,13 @@ afterEach(async () => {
 
 const tick = (ms = 20) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
-async function render(tools: Tool[]) {
+async function render(tools: Tool[], botTools: string[] = []) {
   configureApi({
     getToken: async () => null,
     transport: async (req) => {
       const path = new URL(req.url).pathname.replace(/^\/v3/, '');
       if (path === '/tools') return json(200, { data: tools, database_configured: true });
-      if (path === '/workspace') return json(200, { name: 'Aria', modelSelection: 'platform', bot: { name: 'Aria', toolsEnabled: false, tools: [] }, revision: 1, history: [], defaults: { name: 'Aria', bot: { name: 'Aria' } } });
+      if (path === '/workspace') return json(200, { name: 'Aria', modelSelection: 'platform', bot: { name: 'Aria', toolsEnabled: botTools.length > 0, tools: botTools }, revision: 1, history: [], defaults: { name: 'Aria', bot: { name: 'Aria' } } });
       return json(404, { error: { code: 'NOT_FOUND', message: 'No.' } });
     },
   });
@@ -141,5 +141,35 @@ describe('the API tool form', () => {
     });
     expect(page()).toContain('Names starting with shopify_ are kept for the built-in Shopify tools.');
     expect(button('Create tool')!.disabled).toBe(true);
+  });
+});
+
+const picked = (name: string) =>
+  [...container.querySelectorAll('li')].find((li) => li.textContent?.includes(name))?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked;
+
+describe('tools a reply skips', () => {
+  it('are flagged in the picker and removed together', async () => {
+    await render([builtIn('shopify_order_status', false), apiTool], ['shopify_order_status', 'reset_hwid', 'lookup_order']);
+    expect(page()).toContain('2 chosen tools are skipped in replies');
+    expect(page()).toContain('reset_hwid');
+    expect(page()).toContain('Deleted');
+    await act(async () => button('Remove them')!.click());
+    await tick();
+    expect(page()).not.toContain('skipped in replies');
+    expect(page()).not.toContain('reset_hwid');
+    expect(picked('shopify_order_status')).toBe(false);
+    expect(picked('lookup_order')).toBe(true);
+  });
+
+  it('can be taken off the bot from the library', async () => {
+    await render([builtIn('shopify_order_status', false), apiTool], ['shopify_order_status']);
+    await openMenu(rowOf('shopify_order_status').querySelector<HTMLElement>('button[aria-label="Actions for shopify_order_status"]')!);
+    const item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent?.includes('Remove from Aria'))!;
+    await act(async () => item.click());
+    await tick();
+    expect(picked('shopify_order_status')).toBe(false);
+    // A tool the bot hasn't chosen offers no remove.
+    await openMenu(rowOf('lookup_order').querySelector<HTMLElement>('button[aria-label="Actions for lookup_order"]')!);
+    expect(document.body.textContent).not.toContain('Remove from Aria');
   });
 });
