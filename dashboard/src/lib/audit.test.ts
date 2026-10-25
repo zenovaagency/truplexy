@@ -31,3 +31,21 @@ describe('channel activity', () => {
     expect(describeAudit(event('channel.created')).verb).toBe('added channel');
   });
 });
+
+describe('Shopify store activity', () => {
+  it('names the connect actions', () => {
+    expect(describeAudit(event('channel.connect_started', { name: 'acme.myshopify.com' }))).toEqual({ verb: 'started connecting a Shopify store', target: '', extra: ' (acme.myshopify.com)' });
+    expect(describeAudit(event('channel.connect', { name: 'Acme' }))).toEqual({ verb: 'connected a Shopify store', target: '', extra: ' (Acme)' });
+    expect(auditCategory('channel.connect')).toBe('channels');
+  });
+
+  it('says why a store was disconnected', () => {
+    expect(describeAudit(event('channel.disconnect', { name: 'Acme', reason: 'app/uninstalled' }))).toEqual({
+      verb: 'Shopify store disconnected',
+      target: '',
+      extra: ' (Acme: the app was uninstalled in Shopify)',
+    });
+    expect(describeAudit(event('channel.disconnect', { reason: 'shop/redact' })).extra).toBe(" (Shopify asked to erase the store's data)");
+    expect(describeAudit(event('channel.disconnect', null)).extra).toBe('');
+  });
+});

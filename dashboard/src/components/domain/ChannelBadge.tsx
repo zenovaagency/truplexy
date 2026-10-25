@@ -77,7 +77,7 @@ export function ChannelBadge({ name, icon, muted, className }: { name: string; i
   );
 }
 
-export function ChannelStatusBadge({ channel: c }: { channel: Pick<Channel, 'enabled' | 'disabled_by_platform'> & Partial<Pick<Channel, 'connection'>> }) {
+export function ChannelStatusBadge({ channel: c }: { channel: Pick<Channel, 'enabled' | 'disabled_by_platform'> }) {
   if (c.disabled_by_platform)
     return (
       <Tip content="Turned off by the platform. Its keys don't work, and only Truplexy can turn it back on.">
@@ -85,11 +85,5 @@ export function ChannelStatusBadge({ channel: c }: { channel: Pick<Channel, 'ena
       </Tip>
     );
   if (!c.enabled) return <Badge tone="neutral" dot>Off</Badge>;
-  if (c.connection && c.connection.status !== 'connected')
-    return (
-      <Tip content="The platform stopped Truplexy's access, so messages there get no answer. Reconnect to resume.">
-        <Badge tone="warn" dot>Reconnect needed</Badge>
-      </Tip>
-    );
   return <Badge tone="live" dot>Active</Badge>;
 }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type { Channel, ChannelInput, ChannelType } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
+import { connectReturnTo } from '@/lib/shopify';
 import { useScope } from '@/lib/session/scope-context';
 
 /* The bot's channels. Scope headers are required; these act on the bot. */
@@ -50,27 +51,25 @@ export function useCreateChannel() {
 }
 
 export interface ConnectInput {
-  type: string;
-  /** Shopify: the store's myshopify.com name. Zendesk: the subdomain. */
-  account?: string;
-  /** Reconnects this channel instead of adding one. */
-  channel_id?: string;
+  type: 'shopify';
+  /** The store as typed: your-store, your-store.myshopify.com or its admin URL. The API normalizes it. */
+  account: string;
 }
 
 /**
- * Sends the person to the platform to sign in and approve. The API finishes
- * the connection on its own callback, then returns to the current page with
- * ?connected=<channel id>, or ?connect_error=<code>&type=<type>.
+ * Sends the browser, in this tab, to Shopify's install page. Shopify sends it
+ * back to the API, which adds the channel and returns to this page with
+ * ?connected=shopify&channel_id=…&type=shopify, or ?connect_error=<code>&type=shopify.
+ * The url works once, within 10 minutes, so it's asked for on every click.
  */
 export function useConnectChannel() {
   const scope = useScope();
   return useMutation({
-    mutationFn: (body: ConnectInput) => {
-      const back = new URL(window.location.href);
-      for (const k of ['connected', 'connect_error', 'type', 'guide']) back.searchParams.delete(k);
-      return api<{ authorize_url: string }>('/channels/connect', { method: 'POST', body: { ...body, return_to: back.toString() }, scope });
-    },
-    onSuccess: ({ authorize_url }) => window.location.assign(authorize_url),
+    mutationFn: (body: ConnectInput) =>
+      api<{ url: string }>('/channels/connect', { method: 'POST', body: { ...body, return_to: connectReturnTo(window.location.href) }, scope }),
+    onSuccess: ({ url }) => window.location.assign(url),
+    // The connect control shows these next to the store field.
+    meta: { silentCodes: ['INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNSUPPORTED', 'CHANNEL_CONNECT_UNAVAILABLE'] },
   });
 }
 

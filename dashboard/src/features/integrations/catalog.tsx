@@ -26,10 +26,10 @@ export interface Integration {
   channelType?: string;
   /**
    * Platforms with an app marketplace: Truplexy's own app connects them with the
-   * platform's sign-in (POST /channels/connect). No guide, code or chat key.
-   * `ask` is the one thing the platform needs to know first.
+   * platform's sign-in. No guide, code or chat key. Only Shopify connects today
+   * (POST /channels/connect); the others are shown as coming soon.
    */
-  connect?: { ask?: { label: string; placeholder: string; suffix?: string; hint: string } };
+  connect?: 'shopify' | 'soon';
   /** Words in a key name that mean this integration is set up, for integrations with no channel type. */
   match?: string[];
   /** Setup on the platform's side, in order. Guides only. */
@@ -66,7 +66,7 @@ export const INTEGRATIONS: Integration[] = [
     blurb: 'Answer customers on your WhatsApp Business number. Sign in with Meta and pick the number.',
     icon: '/brands/whatsapp.svg',
     color: 'var(--color-ink)',
-    connect: {},
+    connect: 'soon',
   },
   {
     id: 'telegram',
@@ -107,7 +107,7 @@ export const INTEGRATIONS: Integration[] = [
     blurb: 'Reply to messages sent to your Facebook Page. Sign in with Meta and pick the Page.',
     icon: '/brands/messenger.svg',
     color: 'var(--color-ink)',
-    connect: {},
+    connect: 'soon',
   },
   {
     id: 'instagram',
@@ -117,7 +117,7 @@ export const INTEGRATIONS: Integration[] = [
     blurb: 'Answer Instagram Direct messages to your professional account. Sign in with Meta.',
     icon: '/brands/instagram.svg',
     color: 'var(--color-ink)',
-    connect: {},
+    connect: 'soon',
   },
   {
     id: 'email',
@@ -139,10 +139,10 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'shopify',
     name: 'Shopify',
     group: 'business',
-    blurb: 'Install the Truplexy app: a chat on your storefront that can look up orders and returns.',
+    blurb: 'Install the Truplexy app on your store, so the assistant can check order status and search your products.',
     icon: '/brands/shopify.svg',
     color: 'var(--color-ink)',
-    connect: { ask: { label: 'Your store', placeholder: 'your-store', suffix: '.myshopify.com', hint: 'Shopify asks you to approve the Truplexy app on this store.' } },
+    connect: 'shopify',
   },
   {
     id: 'woocommerce',
@@ -184,7 +184,7 @@ export const INTEGRATIONS: Integration[] = [
     blurb: 'Answer HubSpot conversations inbox threads automatically.',
     icon: '/brands/hubspot.svg',
     color: 'var(--color-ink)',
-    connect: {},
+    connect: 'soon',
   },
   {
     id: 'zendesk',
@@ -194,7 +194,7 @@ export const INTEGRATIONS: Integration[] = [
     blurb: 'Suggest or send first replies on new Zendesk tickets.',
     icon: '/brands/zendesk.svg',
     color: 'var(--color-ink)',
-    connect: { ask: { label: 'Your Zendesk', placeholder: 'yourcompany', suffix: '.zendesk.com', hint: 'Sign in as a Zendesk admin to approve the Truplexy app.' } },
+    connect: 'soon',
   },
   {
     id: 'slack',
@@ -205,7 +205,7 @@ export const INTEGRATIONS: Integration[] = [
     icon: '/brands/slack.svg',
     color: 'var(--color-ink)',
     teamSide: true,
-    connect: {},
+    connect: 'soon',
   },
   {
     id: 'teams',
@@ -216,7 +216,7 @@ export const INTEGRATIONS: Integration[] = [
     icon: '/brands/microsoft-teams.svg',
     color: 'var(--color-ink)',
     teamSide: true,
-    connect: {},
+    connect: 'soon',
   },
   {
     id: 'api',

@@ -1,5 +1,5 @@
 import { ChatApiReference, CustomerGuide } from './ChatApiGuide';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
@@ -25,13 +25,14 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useApiKeys } from '@/lib/api/endpoints/business';
-import { useChannelIcon, useChannels, useChannelTypes, useConnectChannel, useCreateChannel, useDeleteChannel, useUpdateChannel } from '@/lib/api/endpoints/channels';
-import { useDeleteWebhook, useRotateWebhookSecret, useSaveWebhook, useTestWebhook, useWebhook } from '@/lib/api/endpoints/bot';
+import { useChannelIcon, useChannels, useChannelTypes, useCreateChannel, useDeleteChannel, useUpdateChannel } from '@/lib/api/endpoints/channels';
+import { useDeleteWebhook, useRotateWebhookSecret, useSaveWebhook, useTestWebhook, useTools, useWebhook } from '@/lib/api/endpoints/bot';
 import type { Channel, ChannelInput, Webhook, WebhookDelivery } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatDateTime, formatNumber, formatRelative, pluralize } from '@/lib/format';
 import { notifySuccess } from '@/lib/notify';
 import { useScopeCtx } from '@/lib/session/scope-context';
+import { isShopifyChannel, shopifyToolsUnavailable } from '@/lib/shopify';
 import {
   Badge,
   Button,
@@ -40,7 +41,6 @@ import {
   CodeBlock,
   DataTable,
   DescList,
-  Dialog,
   EmptyState,
   ErrorState,
   Field,
@@ -64,9 +64,13 @@ import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseFi
 import { IssueKeyForm } from '@/features/api-keys/IssueKey';
 import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type Integration, type IntegrationGroup } from './catalog';
 import { useCopy } from '@/hooks';
+import { ConnectReturnBanner, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
 import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
 import { WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
+
+/** Turning a Shopify channel on can't undo an uninstall in Shopify: the store's access is gone until it's connected again. */
+const SHOPIFY_SWITCH_NOTE = "Turning it back on doesn't restore the store's tools after an uninstall in Shopify; Reconnect does.";
 
 export default function IntegrationsPage() {
   const { href, bot } = useScopeCtx();
@@ -115,12 +119,21 @@ export function CatalogTab() {
    * If the catalog can't be read, show everything rather than an empty page.
    */
   const available = useMemo(
-    () => (types.data ? INTEGRATIONS.filter((i) => !i.channelType || types.data.some((t) => t.id === i.channelType)) : INTEGRATIONS),
+    () =>
+      types.data
+        ? INTEGRATIONS.filter((i) => !i.channelType || types.data.some((t) => t.id === i.channelType))
+        : // Shopify can only be connected when the API lists the type, so it waits for the catalog.
+          INTEGRATIONS.filter((i) => i.connect !== 'shopify'),
     [types.data],
   );
   // Connect integrations have no guide, even from an old ?guide= link.
   const open = available.find((i) => i.id === params.get('guide') && !i.connect);
-  const [failed, clearFailed] = useConnectReturn();
+  const back = useConnectReturn();
+  // An install started inside Shopify lands here with ?shopify_shop=<store>: prefill it, and the person presses Connect.
+  const [shop] = useState(() => params.get('shopify_shop') ?? undefined);
+  useEffect(() => {
+    if (params.has('shopify_shop')) setParams((p) => (p.delete('shopify_shop'), p), { replace: true });
+  }, [params, setParams]);
 
   /** Its active channels when it has a channel type; otherwise keys named after it. */
   const connected = (i: Integration): unknown[] => (i.channelType ? channelsFor(i, channels.data ?? []) : keysFor(i, keys.data ?? [], scope.bot));
@@ -167,7 +180,8 @@ export function CatalogTab() {
         </div>
       </div>
 
-      {failed && <ConnectError failed={failed} onDismiss={clearFailed} />}
+      {back.failed && <ConnectReturnBanner code={back.failed} onDismiss={back.dismissFailed} />}
+      {back.connected && <ShopifyToolsPrompt onDismiss={back.dismissConnected} />}
 
       {types.isPending ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -197,7 +211,17 @@ export function CatalogTab() {
                       </div>
                     </div>
                   );
-                if (i.connect) return <ConnectCard key={i.id} i={i} channels={(channels.data ?? []).filter((c) => c.type === i.channelType)} />;
+                if (i.connect === 'soon')
+                  return (
+                    <div key={i.id} className={cn(CARD, 'opacity-80')} aria-disabled="true">
+                      <CardHead i={i} />
+                      <div className="mt-auto flex items-center justify-between pt-3">
+                        <Badge tone="accent" dot>Coming soon</Badge>
+                        <span className="text-xs text-ink-faint">One-click connect is on its way</span>
+                      </div>
+                    </div>
+                  );
+                if (i.connect === 'shopify') return <ShopifyCard key={i.id} i={i} channels={(channels.data ?? []).filter(isShopifyChannel)} prefill={shop} />;
                 const n = connected(i).length;
                 const card = (
                   <>
@@ -252,182 +276,49 @@ function CardHead({ i }: { i: Integration }) {
   );
 }
 
-/** A platform with an app marketplace: one Connect button, no guide or code. */
-function ConnectCard({ i, channels }: { i: Integration; channels: Channel[] }) {
-  const { href } = useScopeCtx();
-  const stale = channels.find((c) => c.connection && c.connection.status !== 'connected');
-  const first = channels[0];
+/** Shopify: one Connect button, no guide or code. */
+function ShopifyCard({ i, channels, prefill }: { i: Integration; channels: Channel[]; prefill?: string }) {
+  const { href, can } = useScopeCtx();
+  const tools = useTools(can('tools.read'));
+  const active = channels.filter((c) => c.active);
+  // Off by the business's switch or by an uninstall in Shopify: the API can't tell which, so offer Reconnect.
+  const stale = active.length ? (shopifyToolsUnavailable(tools.data?.data) ? active[0] : undefined) : channels.find((c) => !c.disabled_by_platform);
   return (
     <div className={CARD}>
       <CardHead i={i} />
       <div className="mt-auto flex items-center justify-between gap-3 pt-3">
         {stale ? (
           <>
-            <Badge tone="warn" dot>Reconnect needed</Badge>
-            <ConnectButton i={i} channelId={stale.id} size="xs" variant="soft">
+            <Badge tone="warn" dot className="min-w-0">
+              <span className="truncate">{active.length ? 'Reconnect your store' : 'Disconnected'}</span>
+            </Badge>
+            <ShopifyConnectButton account={stale.external_id} size="xs" variant="soft">
               Reconnect
-            </ConnectButton>
+            </ShopifyConnectButton>
           </>
-        ) : first ? (
+        ) : active.length ? (
           <>
             <Badge tone="live" dot className="min-w-0">
-              <span className="truncate">
-                {channels.length > 1 ? `Connected · ${channels.length} accounts` : first.connection ? `Connected · ${first.connection.account_name}` : 'Connected'}
-              </span>
+              <span className="truncate">{active.length > 1 ? `Connected · ${active.length} stores` : `Connected · ${active[0]!.external_id}`}</span>
             </Badge>
-            <Link to={href('integrations')} className="shrink-0 text-[0.8125rem] font-semibold text-accent hover:underline">
-              Manage →
-            </Link>
+            {prefill ? (
+              <ShopifyConnectButton size="xs" variant="soft" prefill={prefill} />
+            ) : (
+              <Link to={href('integrations')} className="shrink-0 text-[0.8125rem] font-semibold text-accent hover:underline">
+                Manage →
+              </Link>
+            )}
           </>
+        ) : channels.length ? (
+          <span className="text-xs text-ink-faint">Turned off by the platform</span>
         ) : (
           <>
             <span className="text-xs text-ink-faint">Not connected</span>
-            <ConnectButton i={i} size="xs" />
+            <ShopifyConnectButton size="xs" prefill={prefill} />
           </>
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * Sends the person to the platform's own sign-in to approve Truplexy's app.
- * Shopify and Zendesk first need to know which store or account.
- */
-function ConnectButton({
-  i,
-  channelId,
-  size = 'sm',
-  variant = 'accent',
-  children,
-}: {
-  i: Integration;
-  /** Reconnects this channel instead of adding one. */
-  channelId?: string;
-  size?: 'xs' | 'sm';
-  variant?: 'accent' | 'soft';
-  children?: React.ReactNode;
-}) {
-  const { can } = useScopeCtx();
-  const connect = useConnectChannel();
-  const [asking, setAsking] = useState(false);
-  const [account, setAccount] = useState('');
-  const ask = i.connect?.ask;
-  // Stays busy after success: the browser is on its way to the platform.
-  const busy = connect.isPending || connect.isSuccess;
-  const go = () => {
-    if (i.channelType) connect.mutate({ type: i.channelType, channel_id: channelId, account: ask ? account.trim() : undefined });
-  };
-
-  if (!can('channels.write'))
-    return (
-      <span className="flex items-center gap-1.5 text-xs text-ink-faint">
-        <Lock className="size-3" /> Ask an admin to connect
-      </span>
-    );
-  return (
-    <>
-      <Button size={size} variant={variant} leading={<Link2 />} loading={busy && !asking} onClick={() => (ask ? setAsking(true) : go())}>
-        {children ?? 'Connect'}
-      </Button>
-      {ask && (
-        <Dialog
-          open={asking}
-          onOpenChange={setAsking}
-          size="sm"
-          title={`Connect ${i.name}`}
-          description={ask.hint}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setAsking(false)}>
-                Cancel
-              </Button>
-              <Button variant="accent" leading={<Link2 />} loading={busy} disabled={!account.trim()} onClick={go}>
-                Continue to {i.name}
-              </Button>
-            </>
-          }
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (account.trim()) go();
-            }}
-          >
-            <Field label={ask.label}>
-              <div className="flex items-center gap-2">
-                <Input autoFocus value={account} onChange={(e) => setAccount(e.target.value.slice(0, 100))} placeholder={ask.placeholder} className="flex-1" />
-                {ask.suffix && <span className="shrink-0 font-mono text-[0.8125rem] text-ink-muted">{ask.suffix}</span>}
-              </div>
-            </Field>
-          </form>
-        </Dialog>
-      )}
-    </>
-  );
-}
-
-/** Why the platform sent the person back without connecting, by the API's connect_error code. */
-const CONNECT_ERRORS: Record<string, string> = {
-  ACCESS_DENIED: 'The sign-in was cancelled, or not every permission Truplexy asks for was approved. Connect again and approve them all.',
-  NO_ACCOUNT: 'No account was picked, such as a WhatsApp number, Facebook Page or Slack channel. Connect again and pick one.',
-  ACCOUNT_IN_USE: 'That account is already connected to another Truplexy bot. Disconnect it there first.',
-  STATE_EXPIRED: 'The sign-in took too long. Connect again.',
-  PLAN_LIMIT_REACHED: "Your plan doesn't include this channel. Upgrade under Settings → Plan.",
-};
-
-/**
- * After the platform's sign-in, the API returns here with ?connected=<channel>
- * or ?connect_error=<code>&type=<type>. Says so once and tidies the URL.
- */
-function useConnectReturn() {
-  const [params, setParams] = useSearchParams();
-  const channels = useChannels();
-  const connected = params.get('connected');
-  const code = params.get('connect_error');
-  const type = params.get('type') ?? '';
-  const [failed, setFailed] = useState<{ code: string; type: string } | null>(null);
-  const told = useRef('');
-
-  useEffect(() => {
-    if (!connected || !channels.data || told.current === connected) return;
-    told.current = connected;
-    const c = channels.data.find((x) => x.id === connected);
-    notifySuccess(c ? `${c.type_label} connected${c.connection ? ` · ${c.connection.account_name}` : ''}` : 'Connected');
-    setParams((p) => (p.delete('connected'), p), { replace: true });
-  }, [connected, channels.data, setParams]);
-
-  useEffect(() => {
-    if (!code) return;
-    setFailed({ code, type });
-    setParams((p) => (p.delete('connect_error'), p.delete('type'), p), { replace: true });
-  }, [code, type, setParams]);
-
-  return [failed, () => setFailed(null)] as const;
-}
-
-function ConnectError({ failed, onDismiss }: { failed: { code: string; type: string }; onDismiss: () => void }) {
-  const i = INTEGRATIONS.find((x) => x.connect && x.channelType === failed.type);
-  return (
-    <Callout
-      tone="danger"
-      icon={<AlertTriangle />}
-      title={`${i?.name ?? 'The platform'} wasn't connected`}
-      action={
-        <span className="flex items-center gap-2">
-          {i && (
-            <ConnectButton i={i} size="xs" variant="soft">
-              Try again
-            </ConnectButton>
-          )}
-          <Button size="xs" variant="quiet" onClick={onDismiss}>
-            Dismiss
-          </Button>
-        </span>
-      }
-    >
-      {CONNECT_ERRORS[failed.code] ?? `Something went wrong on the way back (${failed.code}). Connect again, or contact support if it keeps happening.`}
-    </Callout>
   );
 }
 
@@ -789,7 +680,10 @@ export function ChannelsTab() {
   const confirm = useConfirm();
   const writable = can('channels.write');
   const [edit, setEdit] = useState<Channel | 'new' | { type: string } | null>(null);
-  const [failed, clearFailed] = useConnectReturn();
+  const back = useConnectReturn();
+  const tools = useTools(can('tools.read'));
+  // The store's channel is active, but its tools aren't: the app was uninstalled in Shopify.
+  const lostAccess = (c: Channel) => isShopifyChannel(c) && c.active && shopifyToolsUnavailable(tools.data?.data);
   // A guide's "Add another" link arrives as ?add=<type>.
   const [params, setParams] = useSearchParams();
   const add = params.get('add');
@@ -801,11 +695,11 @@ export function ChannelsTab() {
 
   const onDelete = (c: Channel) =>
     confirm(
-      c.connection
+      isShopifyChannel(c)
         ? {
-            title: `Disconnect “${c.name}”?`,
-            description: `Truplexy's app is removed from ${c.connection.account_name} and stops answering there. Its conversations and tickets keep the channel's name and type.`,
-            confirmLabel: 'Disconnect',
+            title: `Delete “${c.name}”?`,
+            description: `This also uninstalls the Truplexy app from ${c.external_id || 'the store'} (unless another of your bots uses the store), and ${bot.name} stops looking up its orders and products. Existing tickets keep the channel's name.`,
+            confirmLabel: 'Delete and uninstall',
             tone: 'danger',
             onConfirm: () => del.mutateAsync(c.id),
           }
@@ -823,7 +717,13 @@ export function ChannelsTab() {
   const toggle = (c: Channel, enabled: boolean) =>
     update.mutate(
       { id: c.id, patch: { enabled } },
-      { onSuccess: () => notifySuccess(enabled ? `${c.name} is on` : c.connection ? `${c.name} is off. Messages there get no answer.` : `${c.name} is off. Its keys stop working.`) },
+      {
+        onSuccess: () =>
+          notifySuccess(
+            enabled ? `${c.name} is on` : isShopifyChannel(c) ? `${c.name} is off. Its order and product lookups stop.` : `${c.name} is off. Its keys stop working.`,
+            enabled && isShopifyChannel(c) ? SHOPIFY_SWITCH_NOTE : undefined,
+          ),
+      },
     );
 
   const columns: Column<Channel>[] = [
@@ -834,15 +734,13 @@ export function ChannelsTab() {
         <span className="flex items-center gap-3">
           <ChannelTypeIcon icon={iconOf(c.type)} size={32} />
           <span className="grid min-w-0">
-            <span className="truncate font-semibold text-ink">{c.name}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate font-semibold text-ink">{c.name}</span>
+              {isShopifyChannel(c) && <Badge tone="outline" className="shrink-0 px-1.5 py-0 text-[0.65rem]">Shopify</Badge>}
+            </span>
             <span className="truncate text-xs text-ink-faint">
               {c.type_label}
-              {c.connection ? (
-                <>
-                  {' · '}
-                  {c.connection.account_name}
-                </>
-              ) : c.external_id && (
+              {c.external_id && (
                 <>
                   {' · '}
                   <span className="font-mono">{c.external_id}</span>
@@ -853,7 +751,18 @@ export function ChannelsTab() {
         </span>
       ),
     },
-    { key: 'status', header: 'Status', cell: (c) => <ChannelStatusBadge channel={c} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (c) =>
+        lostAccess(c) ? (
+          <Tip content="Shopify no longer gives Truplexy access to this store, so order and product lookups don't work. Reconnect to restore them.">
+            <Badge tone="warn" dot>Reconnect your store</Badge>
+          </Tip>
+        ) : (
+          <ChannelStatusBadge channel={c} />
+        ),
+    },
     {
       key: 'tickets',
       header: 'Tickets',
@@ -870,8 +779,8 @@ export function ChannelsTab() {
       align: 'right',
       hideBelowLg: true,
       cell: (c) =>
-        c.connection ? (
-          <Tip content="Connected with Truplexy's app: no key needed">
+        isShopifyChannel(c) ? (
+          <Tip content="Connected with Truplexy's Shopify app: no key needed">
             <span className="text-ink-faint">—</span>
           </Tip>
         ) : (
@@ -885,7 +794,6 @@ export function ChannelsTab() {
       hideOnCard: !writable,
       cell: (c) => {
         if (!writable) return null;
-        const reconnect = c.connection && c.connection.status !== 'connected' ? INTEGRATIONS.find((i) => i.connect && i.channelType === c.type) : undefined;
         // Platforms you run yourself keep their steps, so a 2nd or 3rd bot or server can follow them too.
         const guide = INTEGRATIONS.find((i) => i.channelType === c.type && !i.connect);
         return (
@@ -899,11 +807,12 @@ export function ChannelsTab() {
                 </Button>
               </Tip>
             )}
-            {reconnect && (
+            {/* After an uninstall in Shopify the channel is just off; only Reconnect brings its tools back, so it's always offered. */}
+            {isShopifyChannel(c) && c.external_id && !c.disabled_by_platform && (
               <span className="mr-1">
-                <ConnectButton i={reconnect} channelId={c.id} size="xs" variant="soft">
+                <ShopifyConnectButton account={c.external_id} size="xs" variant={lostAccess(c) || !c.enabled ? 'accent' : 'soft'}>
                   Reconnect
-                </ConnectButton>
+                </ShopifyConnectButton>
               </span>
             )}
             {/* The business's switch can't undo the platform's, so don't offer it. */}
@@ -914,7 +823,17 @@ export function ChannelsTab() {
                 </span>
               </Tip>
             ) : (
-              <Tip content={c.enabled ? (c.connection ? 'Turn off: it stops answering' : 'Turn off: its keys stop working') : 'Turn on'}>
+              <Tip
+                content={
+                  isShopifyChannel(c)
+                    ? c.enabled
+                      ? 'Turn off: its order and product lookups stop'
+                      : `Turn on. ${SHOPIFY_SWITCH_NOTE}`
+                    : c.enabled
+                      ? 'Turn off: its keys stop working'
+                      : 'Turn on'
+                }
+              >
                 <span className="mr-1 inline-flex">
                   <Switch checked={c.active} disabled={update.isPending} onCheckedChange={(v) => toggle(c, v)} />
                 </span>
@@ -925,8 +844,8 @@ export function ChannelsTab() {
                 <Pencil />
               </Button>
             </Tip>
-            <Tip content={c.connection ? 'Disconnect' : 'Delete'}>
-              <Button size="xs" icon variant="quiet" className="hover:text-danger" onClick={() => void onDelete(c)} aria-label={`${c.connection ? 'Disconnect' : 'Delete'} ${c.name}`}>
+            <Tip content="Delete">
+              <Button size="xs" icon variant="quiet" className="hover:text-danger" onClick={() => void onDelete(c)} aria-label={`Delete ${c.name}`}>
                 <Trash2 />
               </Button>
             </Tip>
@@ -938,7 +857,8 @@ export function ChannelsTab() {
 
   return (
     <div className="grid gap-5">
-      {failed && <ConnectError failed={failed} onDismiss={clearFailed} />}
+      {back.failed && <ConnectReturnBanner code={back.failed} onDismiss={back.dismissFailed} />}
+      {back.connected && <ShopifyToolsPrompt onDismiss={back.dismissConnected} />}
       <Card
         flush
         title={`Channels of ${bot.name}`}
@@ -965,11 +885,12 @@ export function ChannelsTab() {
             columns={columns}
             rows={q.data}
             getKey={(c) => c.id}
+            selectedKey={back.connected?.channelId ?? undefined}
             empty={
               <EmptyState
                 icon={<Radio />}
                 title="No channels yet"
-                description="Connect WhatsApp, Slack, Shopify and other platforms in one click, or add a channel for each place you run yourself and issue its API key."
+                description="Connect your Shopify store in one click, or add a channel for each place you run yourself and issue its API key."
                 action={
                   <Button asChild variant={writable ? 'accent' : 'soft'} leading={<Plus />}>
                     <Link to={href('integrations/guides')}>Add your first channel</Link>
@@ -986,7 +907,7 @@ export function ChannelsTab() {
         )}
       </Card>
       <Callout tone="neutral" icon={<KeyRound />} title="Bind a key to each channel you run">
-        Connected platforms need no key. For a channel your own server runs, issue a chat API key with the channel picked, and every conversation it starts is marked with that channel. Turning the
+        Connected Shopify stores need no key. For a channel your own server runs, issue a chat API key with the channel picked, and every conversation it starts is marked with that channel. Turning the
         channel off stops its keys until you turn it back on.{' '}
         <Link to={href('integrations/guides')} className="font-semibold text-accent hover:underline">
           Setup guides →
@@ -1025,13 +946,13 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
   const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setC((x) => ({ ...x, [k]: v }));
 
   const { href } = useScopeCtx();
-  const connected = Boolean(existing?.connection);
+  const connected = Boolean(existing && isShopifyChannel(existing));
   // Offered types, upcoming ones (listed but not pickable), and the channel's own
-  // type even when it's upcoming or hidden now: it may keep it. Platforms with an
-  // app are added with Connect, never by hand.
+  // type even when it's upcoming or hidden now: it may keep it. Shopify stores are
+  // added with Connect, never by hand.
   const own = types.data?.find((t) => t.id === existing?.type);
   const options = (types.data ?? [])
-    .filter((t) => ((t.offered || t.upcoming) && !t.connect) || t.id === existing?.type)
+    .filter((t) => ((t.offered || t.upcoming) && !isShopifyChannel({ type: t.id })) || t.id === existing?.type)
     .map((t) =>
       t.offered
         ? { value: t.id, label: t.label }
@@ -1084,14 +1005,14 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
           label="Type"
           hint={
             connected ? (
-              `Connected to ${existing?.connection?.account_name}.`
+              `Connected to ${existing?.external_id || 'a Shopify store'}.`
             ) : existing ? (
               own && !own.offered && c.type === own.id ? (
                 `${own.upcoming ? `${own.label} isn't available for new channels yet` : `Truplexy no longer offers new ${own.label} channels`}. This one keeps working, and you can still change it as long as its type stays.`
               ) : undefined
             ) : (
               <>
-                WhatsApp, Messenger, Instagram, Slack, Teams, Shopify, HubSpot and Zendesk are added with Connect under{' '}
+                Shopify stores are added with Connect under{' '}
                 <Link to={href('integrations/guides')} onClick={onClose} className="text-accent hover:underline">
                   Add a channel
                 </Link>
@@ -1123,8 +1044,8 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
               ? "Turned off by the platform. Your switch has no effect until Truplexy turns it back on."
               : connected
               ? c.enabled
-                ? 'The assistant answers there.'
-                : "Messages there get no answer until it's back on."
+                ? "The assistant can look up the store's orders and products."
+                : `Order and product lookups are off until it's back on. ${SHOPIFY_SWITCH_NOTE}`
               : c.enabled
                 ? 'Keys bound to it work.'
                 : "Keys bound to it are refused until it's back on."

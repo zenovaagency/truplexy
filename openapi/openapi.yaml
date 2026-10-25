@@ -780,6 +780,51 @@ paths:
                 $ref: '#/components/schemas/Channel'
         default:
           $ref: '#/components/responses/Error'
+  /channels/connect:
+    post:
+      operationId: connectChannel
+      summary: Start connecting a channel through its platform, such as a Shopify store (v2)
+      description: >-
+        Needs channels.write. Answers the platform page to send the browser to. After the owner approves, the API's
+        callback adds the channel and sends the browser to return_to with connected=shopify&channel_id=… or
+        connect_error=denied|expired|invalid|store_connected_elsewhere|scopes_missing|failed, plus type=shopify.
+        400 CHANNEL_CONNECT_UNSUPPORTED for a type added with POST /channels; 400 CHANNEL_TYPE_NOT_ALLOWED for a type
+        that isn't offered; 503 CHANNEL_CONNECT_UNAVAILABLE when the server has no app for the platform.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, account, return_to]
+              properties:
+                type:
+                  type: string
+                  enum: [shopify]
+                account:
+                  type: string
+                  description: The store, as your-store, your-store.myshopify.com or https://admin.shopify.com/store/your-store.
+                return_to:
+                  type: string
+                  format: uri
+                  description: The dashboard page to come back to, on DASHBOARD_URL or a CORS_ALLOWED_ORIGINS origin.
+      responses:
+        '200':
+          description: The platform's install page. It works once, within 10 minutes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url:
+                    type: string
+                    format: uri
+        default:
+          $ref: '#/components/responses/Error'
   /channels/{id}:
     parameters:
       - $ref: '#/components/parameters/ChannelID'
@@ -4743,6 +4788,9 @@ components:
         unavailable_reason:
           type: string
           description: Present only when available is false.
+        built_in:
+          type: boolean
+          description: True for a built-in tool, such as shopify_order_status (v2); its api fields are empty.
         api:
           type: object
           description: How the tool calls its endpoint.

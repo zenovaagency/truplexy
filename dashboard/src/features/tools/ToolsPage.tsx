@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { AlertTriangle, CheckCircle2, Lock, MoreHorizontal, Pencil, Play, Plus, Trash2, Wrench, XCircle } from 'lucide-react';
 import { hasCode } from '@/lib/api/client';
 import { useDeleteTool, useSaveTool, useTestTool, useTools } from '@/lib/api/endpoints/bot';
@@ -6,6 +7,7 @@ import type { HttpMethod, JsonSchema, Tool, ToolRun } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatDateTime, formatMs, formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
+import { isShopifyTool } from '@/lib/shopify';
 import {
   Badge,
   Button,
@@ -55,6 +57,29 @@ function AccessBadge({ tool }: { tool: Tool }) {
   return tool.read_only ? <Badge tone="outline">Read only</Badge> : <Badge tone="warn">Changes data</Badge>;
 }
 
+/** Built-in tools come with the server, not the business's API: no endpoint, edit or delete. */
+export function BuiltInBadge({ tool }: { tool: Tool }) {
+  return tool.built_in ? <Badge tone="accent">{isShopifyTool(tool) ? 'Built-in · Shopify' : 'Built-in'}</Badge> : null;
+}
+
+/** Why a tool can't be called, with the way to fix it for the Shopify tools. */
+export function UnavailableReason({ tool }: { tool: Tool }) {
+  const { href } = useScopeCtx();
+  return (
+    <>
+      {tool.unavailable_reason || tool.description}
+      {isShopifyTool(tool) && (
+        <>
+          {' '}
+          <Link to={href('integrations/guides')} className="font-semibold text-accent hover:underline" onClick={(e) => e.stopPropagation()}>
+            Connect a Shopify store
+          </Link>
+        </>
+      )}
+    </>
+  );
+}
+
 const paramCount = (t: Tool) => Object.keys(t.parameters.properties ?? {}).length;
 
 export default function ToolsPage() {
@@ -90,13 +115,17 @@ export default function ToolsPage() {
           <MenuItem onSelect={() => setTesting(t)} disabled={!t.available}>
             <Play /> Run a test
           </MenuItem>
-          <MenuItem onSelect={() => setEditing(t)}>
-            <Pencil /> Edit
-          </MenuItem>
-          <MenuSeparator />
-          <MenuItem danger onSelect={() => void remove(t)}>
-            <Trash2 /> Delete
-          </MenuItem>
+          {!t.built_in && (
+            <>
+              <MenuItem onSelect={() => setEditing(t)}>
+                <Pencil /> Edit
+              </MenuItem>
+              <MenuSeparator />
+              <MenuItem danger onSelect={() => void remove(t)}>
+                <Trash2 /> Delete
+              </MenuItem>
+            </>
+          )}
         </MenuContent>
       </Menu>
     );
@@ -113,9 +142,10 @@ export default function ToolsPage() {
           <span className="grid min-w-0 gap-0.5">
             <span className="flex flex-wrap items-center gap-1.5">
               <span className="font-mono text-[0.8125rem] font-bold text-ink">{t.name}</span>
+              <BuiltInBadge tool={t} />
               {!t.available && <Badge tone="danger">Unavailable</Badge>}
             </span>
-            <span className="line-clamp-1 max-w-[52ch] text-xs text-ink-faint">{t.available ? t.description : t.unavailable_reason || t.description}</span>
+            <span className="line-clamp-1 max-w-[52ch] text-xs text-ink-faint">{t.available ? t.description : <UnavailableReason tool={t} />}</span>
           </span>
         </div>
       ),
@@ -124,12 +154,15 @@ export default function ToolsPage() {
       key: 'endpoint',
       header: 'Endpoint',
       hideBelowLg: true,
-      cell: (t) => (
-        <span className="flex min-w-0 max-w-[280px] items-center gap-1.5" title={t.api.url}>
-          <MethodTag m={t.api.method} />
-          <span className="truncate font-mono text-xs text-ink-faint">{t.api.url}</span>
-        </span>
-      ),
+      cell: (t) =>
+        t.built_in ? (
+          <span className="text-xs text-ink-faint">Built in</span>
+        ) : (
+          <span className="flex min-w-0 max-w-[280px] items-center gap-1.5" title={t.api.url}>
+            <MethodTag m={t.api.method} />
+            <span className="truncate font-mono text-xs text-ink-faint">{t.api.url}</span>
+          </span>
+        ),
     },
     { key: 'access', header: 'Access', cell: (t) => <AccessBadge tool={t} /> },
     {
@@ -141,11 +174,14 @@ export default function ToolsPage() {
     {
       key: 'updated',
       header: 'Updated',
-      cell: (t) => (
-        <time dateTime={t.api.updated_at} title={formatDateTime(t.api.updated_at)} className="whitespace-nowrap text-xs text-ink-faint">
-          {formatRelative(t.api.updated_at)}
-        </time>
-      ),
+      cell: (t) =>
+        t.built_in || !t.api.updated_at ? (
+          <span className="text-xs text-ink-faint">—</span>
+        ) : (
+          <time dateTime={t.api.updated_at} title={formatDateTime(t.api.updated_at)} className="whitespace-nowrap text-xs text-ink-faint">
+            {formatRelative(t.api.updated_at)}
+          </time>
+        ),
     },
     ...(writable ? [{ key: 'actions', header: <span className="sr-only">Actions</span>, align: 'right' as const, cell: actions }] : []),
   ];
@@ -196,14 +232,17 @@ export default function ToolsPage() {
                 <div className="grid min-w-0 flex-1 gap-1.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-mono text-[0.8125rem] font-bold text-ink">{t.name}</span>
+                    <BuiltInBadge tool={t} />
                     <AccessBadge tool={t} />
                     {!t.available && <Badge tone="danger">Unavailable</Badge>}
                   </div>
-                  <p className="flex min-w-0 items-center gap-1.5 text-xs text-ink-faint">
-                    <MethodTag m={t.api.method} />
-                    <span className="truncate font-mono">{t.api.url}</span>
-                  </p>
-                  <p className="line-clamp-2 text-xs text-ink-muted">{t.description}</p>
+                  {!t.built_in && (
+                    <p className="flex min-w-0 items-center gap-1.5 text-xs text-ink-faint">
+                      <MethodTag m={t.api.method} />
+                      <span className="truncate font-mono">{t.api.url}</span>
+                    </p>
+                  )}
+                  <p className="line-clamp-2 text-xs text-ink-muted">{t.available ? t.description : <UnavailableReason tool={t} />}</p>
                 </div>
                 {actions(t)}
               </div>
@@ -257,10 +296,15 @@ function ToolViewer({
       open={Boolean(tool)}
       onOpenChange={(o) => !o && onClose()}
       title={tool ? <span className="font-mono">{tool.name}</span> : 'Tool'}
-      description={tool && `Updated ${formatRelative(tool.api.updated_at)}`}
+      description={tool && (tool.built_in ? "Built in: it can't be changed or deleted." : `Updated ${formatRelative(tool.api.updated_at)}`)}
       footer={
         writable &&
-        tool && (
+        tool &&
+        (tool.built_in ? (
+          <Button variant="accent" leading={<Play />} disabled={!tool.available} onClick={() => onTest(tool)}>
+            Run a test
+          </Button>
+        ) : (
           <>
             <Button variant="danger-ghost" leading={<Trash2 />} className="mr-auto" onClick={() => onDelete(tool)}>
               Delete
@@ -272,18 +316,19 @@ function ToolViewer({
               Edit
             </Button>
           </>
-        )
+        ))
       }
     >
       {tool && (
         <div className="grid gap-6">
           <div className="flex flex-wrap items-center gap-1.5">
+            <BuiltInBadge tool={tool} />
             <AccessBadge tool={tool} />
             {!tool.available && <Badge tone="danger">Unavailable</Badge>}
           </div>
           {!tool.available && tool.unavailable_reason && (
             <Callout tone="danger" icon={<AlertTriangle />} title="Bots can't call this tool right now">
-              {tool.unavailable_reason}
+              <UnavailableReason tool={tool} />
             </Callout>
           )}
 
@@ -292,7 +337,7 @@ function ToolViewer({
             <p className="whitespace-pre-wrap text-[0.8125rem] text-ink-muted">{tool.description}</p>
           </section>
 
-          <section className="grid gap-3">
+          {!tool.built_in && <section className="grid gap-3">
             <h3 className="text-[0.8125rem] font-bold text-ink">Endpoint</h3>
             <CopyField value={tool.api.url} />
             <DescList
@@ -303,7 +348,7 @@ function ToolViewer({
                 { label: 'Updated', value: formatDateTime(tool.api.updated_at) },
               ]}
             />
-          </section>
+          </section>}
 
           <section className="grid gap-2">
             <h3 className="text-[0.8125rem] font-bold text-ink">Parameters</h3>
@@ -423,7 +468,9 @@ function ToolEditor({ tool, onClose }: { tool: Tool | 'new' | null; onClose: () 
     setMode('form');
   };
 
-  const nameOk = /^[a-z][a-z0-9_]{0,63}$/.test(name);
+  // Built-in tools own the shopify_ names; the API refuses them with INVALID_TOOL too.
+  const reserved = name.startsWith('shopify_');
+  const nameOk = /^[a-z][a-z0-9_]{0,63}$/.test(name) && !reserved;
   const urlOk = /^https:\/\/[^\s]+$/.test(url) && url.length <= 2000;
   const placeholders = [...new Set([...url.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((m) => m[1]!))];
   // Each {placeholder} needs a required string or integer parameter of the same name.
@@ -481,7 +528,7 @@ function ToolEditor({ tool, onClose }: { tool: Tool | 'new' | null; onClose: () 
     >
       <div className="grid gap-5">
         {error && <Callout tone="danger" icon={<AlertTriangle />} title="The tool wasn't saved">{error}</Callout>}
-        <Field label="Name" hint="Lowercase letters, digits and underscores, starting with a letter. The model sees this name." error={name && !nameOk ? 'Use a-z, 0-9 and _ only, starting with a letter.' : undefined}>
+        <Field label="Name" hint="Lowercase letters, digits and underscores, starting with a letter. The model sees this name." error={reserved ? 'Names starting with shopify_ are kept for the built-in Shopify tools. Pick another name.' : name && !nameOk ? 'Use a-z, 0-9 and _ only, starting with a letter.' : undefined}>
           <Input value={name} onChange={(e) => setName(e.target.value.toLowerCase().slice(0, 64))} placeholder="lookup_order" className="font-mono" />
         </Field>
         <Field label="When should the assistant use it?" hint="Describe what it does and when to call it. This is the model's only guide." aside={`${description.length}/1000`}>
@@ -584,7 +631,7 @@ function ToolTester({ tool, onClose }: { tool: Tool | null; onClose: () => void 
       open={Boolean(tool)}
       onOpenChange={(o) => !o && onClose()}
       title={tool ? `Test ${tool.name}` : 'Test'}
-      description="This calls your endpoint for real and records the run."
+      description={tool?.built_in ? 'This calls the connected store for real and records the run.' : 'This calls your endpoint for real and records the run.'}
       footer={
         <Button variant="accent" leading={<Play />} loading={test.isPending} onClick={run}>
           Run test
@@ -597,6 +644,11 @@ function ToolTester({ tool, onClose }: { tool: Tool | null; onClose: () => void 
             <Callout tone="warn" icon={<AlertTriangle />} title="This tool changes data">
               A test makes the same change a real call would.
             </Callout>
+          )}
+          {tool.built_in && tool.name === 'shopify_order_status' && (
+            <p className="text-[0.8125rem] text-ink-muted">
+              Enter both the order number and the email the order was placed with. The tool refuses to answer if the email doesn't match the order's.
+            </p>
           )}
           {props.length ? (
             props.map(([k, s]) => (

@@ -604,21 +604,21 @@ function deletionHistory(dana: Person, owen: Person, ops: Person): Pick<MockDb, 
 function channelTypes(): MockDb['channelTypes'] {
   return (
     [
-      ['website', 'Website', "A chat widget on the business's own site or app.", null],
-      ['whatsapp', 'WhatsApp', 'A WhatsApp Business number, connected with Meta.', 'oauth'],
-      ['messenger', 'Messenger', 'A Facebook Page inbox, connected with Meta.', 'oauth'],
-      ['instagram', 'Instagram', 'An Instagram professional account’s Direct messages, connected with Meta.', 'oauth'],
-      ['telegram', 'Telegram', 'A Telegram bot in private chats and groups.', null],
-      ['discord', 'Discord', 'A support bot in a Discord server, in channels or DMs.', null],
-      ['email', 'Email', 'A support address, through an inbound mail webhook.', null],
-      ['shopify', 'Shopify', 'The Truplexy app on a Shopify store.', 'oauth'],
-      ['hubspot', 'HubSpot', 'A HubSpot conversations inbox.', 'oauth'],
-      ['zendesk', 'Zendesk', 'New tickets in a Zendesk account.', 'oauth'],
-      ['slack', 'Slack', 'The Truplexy app in a Slack workspace, for escalations.', 'oauth'],
-      ['teams', 'Microsoft Teams', 'The Truplexy app in a Teams team, for escalations.', 'oauth'],
-      ['custom', 'Custom', 'Anything else built on the chat API.', null],
+      ['website', 'Website', "A chat widget on the business's own site or app."],
+      ['whatsapp', 'WhatsApp', 'A WhatsApp Business number, connected with Meta.'],
+      ['messenger', 'Messenger', 'A Facebook Page inbox, connected with Meta.'],
+      ['instagram', 'Instagram', 'An Instagram professional account’s Direct messages, connected with Meta.'],
+      ['telegram', 'Telegram', 'A Telegram bot in private chats and groups.'],
+      ['discord', 'Discord', 'A support bot in a Discord server, in channels or DMs.'],
+      ['email', 'Email', 'A support address, through an inbound mail webhook.'],
+      ['shopify', 'Shopify', 'The Truplexy app on a Shopify store: order status and product search.'],
+      ['hubspot', 'HubSpot', 'A HubSpot conversations inbox.'],
+      ['zendesk', 'Zendesk', 'New tickets in a Zendesk account.'],
+      ['slack', 'Slack', 'The Truplexy app in a Slack workspace, for escalations.'],
+      ['teams', 'Microsoft Teams', 'The Truplexy app in a Teams team, for escalations.'],
+      ['custom', 'Custom', 'Anything else built on the chat API.'],
     ] as const
-  ).map(([id, label, description, connect], i) => ({ id, label, description, icon: id, status: 'active', connect, sort_order: (i + 1) * 10, created_at: ago(120 * DAY), updated_at: ago(120 * DAY) }));
+  ).map(([id, label, description], i) => ({ id, label, description, icon: id, status: 'active', sort_order: (i + 1) * 10, created_at: ago(120 * DAY), updated_at: ago(120 * DAY) }));
 }
 
 /**
@@ -636,7 +636,6 @@ function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversatio
     name,
     description: '',
     external_id: '',
-    connection: null,
     enabled: true,
     disabled_by_platform: false,
     created_at: ago(days * DAY),
@@ -647,8 +646,7 @@ function seedChannels(apiKeys: MockDb['apiKeys'], conversations: MockConversatio
   const telegram = ch('acme', 'telegram', 'Acme Telegram', 60, { external_id: '@acmestore_bot' });
   const whatsapp = ch('acme', 'whatsapp', 'WhatsApp support line', 70, {
     external_id: '+1 415 555 0134',
-    description: 'Meta asked for the connection to be renewed.',
-    connection: { status: 'needs_reauth', account_name: 'Acme Store · +1 415 555 0134', connected_at: ago(70 * DAY) },
+    description: 'The support number, run on our own server.',
   });
   const nwDiscord = ch('northwind', 'discord', 'Northwind community', 30, {
     external_id: '1187340912665214976',

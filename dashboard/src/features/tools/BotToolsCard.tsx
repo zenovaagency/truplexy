@@ -2,6 +2,7 @@ import { Bot } from 'lucide-react';
 import { useTools } from '@/lib/api/endpoints/bot';
 import { cn } from '@/lib/cn';
 import { useScopeCtx } from '@/lib/session/scope-context';
+import { isShopifyTool } from '@/lib/shopify';
 import { Badge, Card, Checkbox, ErrorState, SkeletonRows, Switch } from '@/components/ui';
 import { useBotDraft } from '@/features/llm/draft';
 
@@ -55,6 +56,7 @@ export function BotToolsCard() {
                       <span className="grid">
                         <span className="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
                           {t.name}
+                          {t.built_in && <Badge tone="accent" className="px-1.5 py-0 font-sans text-[0.65rem]">{isShopifyTool(t) ? 'Built-in · Shopify' : 'Built-in'}</Badge>}
                           {!t.read_only && <Badge tone="warn" className="px-1.5 py-0 font-sans text-[0.65rem]">Changes data</Badge>}
                         </span>
                         <span className="line-clamp-1 text-xs text-ink-faint">{t.available ? t.description : t.unavailable_reason}</span>

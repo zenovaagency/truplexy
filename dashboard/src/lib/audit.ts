@@ -47,6 +47,9 @@ const VERB: Record<string, string> = {
   'channel.delete': 'deleted channel',
   'channel.platform_disabled': 'turned off channel',
   'channel.platform_enabled': 'turned back on channel',
+  'channel.connect_started': 'started connecting a Shopify store',
+  'channel.connect': 'connected a Shopify store',
+  'channel.disconnect': 'Shopify store disconnected',
   'channel_type.create': 'added channel type',
   'channel_type.update': 'changed channel type',
   // Events recorded before the API settled on the names above.
@@ -82,13 +85,18 @@ const VERB: Record<string, string> = {
 /** "changed the role of", plus the target when the sentence needs one. */
 export function describeAudit(e: AuditEvent, nameOf?: (userId: string) => string | undefined) {
   const verb = VERB[e.action] ?? humanize(e.action).toLowerCase();
-  const selfContained = /business$|left the business|joined the business|accepted an invitation|the webhook|secret$|the plan|plan limits|the balance|extra tokens|details$|deletion request$/.test(verb);
+  const selfContained = /business$|left the business|joined the business|accepted an invitation|the webhook|secret$|the plan|plan limits|the balance|extra tokens|details$|deletion request$|shopify store|store disconnected$/i.test(verb);
   const d = e.details ?? {};
   let extra = '';
   if (e.action === 'member.role_changed' && d.from && d.to) extra = ` from ${d.from} to ${d.to}`;
   if (e.action === 'invite.created' && d.role) extra = ` as ${d.role}`;
   if (e.action === 'plan.changed' && d.to) extra = ` to ${d.to}`;
   if (e.action.startsWith('channel.platform_')) extra = ' as a platform admin';
+  if (e.action === 'channel.connect_started' || e.action === 'channel.connect' || e.action === 'channel.disconnect') {
+    const why = d.reason === 'app/uninstalled' ? 'the app was uninstalled in Shopify' : d.reason === 'shop/redact' ? "Shopify asked to erase the store's data" : '';
+    const parts = [typeof d.name === 'string' && d.name, e.action === 'channel.disconnect' && why].filter(Boolean);
+    if (parts.length) extra = ` (${parts.join(': ')})`;
+  }
   if ((e.action === 'billing.credit' || e.action === 'billing.debit') && typeof d.amount === 'number') extra = ` by ${formatCurrency(Math.abs(d.amount))}`;
   const label = (typeof d.email === 'string' && d.email) || (typeof d.name === 'string' && d.name) || nameOf?.(e.target) || e.target;
   return { verb, target: selfContained ? '' : label, extra };
