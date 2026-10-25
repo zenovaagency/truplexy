@@ -21,10 +21,23 @@ export const DEFAULT_API_BASE = 'https://api.truplexy.com/v3';
 
 export interface ContactInput { type: string; value: string; label?: string; primary?: boolean }
 export interface Contact extends ContactInput { primary: boolean }
-export interface CustomerInput { contacts: ContactInput[]; name?: string; metadata?: Record<string, unknown> }
+export interface CustomerInput {
+  contacts: ContactInput[]; name?: string; metadata?: Record<string, unknown>;
+  /** Values of the bot's custom properties by key, merged into the customer's; null clears one. */
+  properties?: Record<string, unknown>;
+  /** An https link to the person's picture on your platform, copied once per link; "" removes a copied picture. */
+  avatar_url?: string;
+}
 export interface Customer {
   id: string; tenant_id: string; bot_id: string; name: string; contacts: Contact[];
-  metadata: Record<string, unknown>; first_seen_at: string; last_seen_at: string;
+  metadata: Record<string, unknown>;
+  /** Custom property values by key; sensitive ones are never returned to a chat key. */
+  properties?: Record<string, unknown>;
+  /** Keys of sensitive values left out. */
+  masked_properties?: string[];
+  /** Absent when the customer has no picture. */
+  avatar_url?: string; avatar_source?: 'upload' | 'url';
+  first_seen_at: string; last_seen_at: string;
   conversations: number; tickets: number; open_tickets: number; created_at: string; updated_at: string;
 }
 export interface Profile {

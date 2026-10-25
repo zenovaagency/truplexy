@@ -14,6 +14,26 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-10-25',
+    title: 'Products, queries and custom properties',
+    tag: 'Dashboard',
+    items: [
+      'Define your own fields for customers, products and queries under Settings → Properties: text, numbers, dates, choices, links and more. Mark one sensitive to hide it from read-only teammates and from the assistant.',
+      'Products: keep a catalog with prices and stock, or import it from a CSV file, a document or a page of your shop, and review everything before it is saved. Turn on product search under Tools so the assistant can answer from it.',
+      'Queries: set up the requests you handle, such as payment issues or deliveries, each with its own form and statuses. The assistant can open them in a conversation and tell customers how theirs stand, and only theirs.',
+      'Customers have pictures, uploaded by your team or copied from their chat platform.',
+    ],
+  },
+  {
+    date: '2026-10-25',
+    title: 'Customer pictures and properties through the chat API',
+    tag: 'SDK',
+    items: [
+      'PUT /customer takes avatar_url, a link to the person’s picture on your platform, which Truplexy copies, and properties, the values of your custom properties.',
+      'The server package’s CustomerInput and Customer types include them from its next release.',
+    ],
+  },
+  {
     date: '2026-10-12',
     title: 'Web search sources and tickets that stay open',
     tag: 'SDK',
