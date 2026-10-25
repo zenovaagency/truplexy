@@ -4,13 +4,26 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Shopify stores (2026-10-25)
+
+A business can connect its Shopify store to a bot. Connecting runs Shopify's app install (OAuth), adds a `shopify` channel to the bot, and gives the bot two read-only [built-in tools](#built-in-tools-v2): order status and product search. It adds a route, error codes and a `built_in` field on tools; nothing existing changed.
+
+**What a dashboard does:**
+
+1. Show **Connect** for the `shopify` channel type (`GET /channel-types`) with a field for the store's address. People may type `your-store`, `your-store.myshopify.com` or paste `https://admin.shopify.com/store/your-store`; the API accepts all three.
+2. Call [`POST /channels/connect`](#post-channelsconnect-v2) with `{type: "shopify", account, return_to}`, where `return_to` is the dashboard page to come back to. Send the browser to the `url` it answers: `window.location.assign(url)`.
+3. The store's owner approves the install on Shopify, and the API sends them back to `return_to` with `?connected=shopify&channel_id=chn_…`, or `?connect_error=<code>&type=shopify`. Read those query parameters, show the result, and reload `GET /channels` and `GET /tools`.
+4. Let the business turn on `shopify_order_status` and `shopify_product_search` in the bot's `tools`, like any tool. Neither is turned on automatically.
+
+`503 CHANNEL_CONNECT_UNAVAILABLE` means this server has no Shopify app configured: show the type as unavailable. If someone installs the app from inside Shopify, Shopify sends them to `{DASHBOARD_URL}/integrations/guides?shopify_shop=<store>`; prefill the store field from `shopify_shop` and ask them to press **Connect**.
 
 ## Performance stats (2026-10-19)
 
@@ -387,6 +400,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/channels/{id}` | `channels.read` | A channel (v2) |
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
+| `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store (v2) |
 | `GET` | `/customers` | `customers.read` | List and search the bot's customers (v2) |
 | `POST` | `/customers` | `customers.write` | Add a customer (v2) |
 | `GET` | `/customers/{id}` | `customers.read` | A customer with their latest conversations and tickets (v2) |
@@ -862,6 +876,44 @@ Adding, changing and deleting a channel are recorded in the business's activity 
 - `404 CHANNEL_NOT_FOUND`
 - `409 CHANNEL_IN_USE`: active chat API keys are bound to it. Revoke them first.
 
+Deleting a `shopify` channel also removes the store's access token and, unless another of the business's bots holds the store, uninstalls the app from the store.
+
+#### `POST /channels/connect` (v2)
+
+`channels.write`. Starts connecting a channel through its platform's own sign-in. Only `shopify` is connected this way; other types are added with `POST /channels`.
+
+| Field | Rules |
+| --- | --- |
+| `type` | Required. `shopify`. |
+| `account` | Required. The store: `your-store`, `your-store.myshopify.com`, or its admin URL `https://admin.shopify.com/store/your-store`. |
+| `return_to` | Required. The dashboard page to come back to, on an origin in `DASHBOARD_URL` or `CORS_ALLOWED_ORIGINS`. Its own query is kept. |
+
+**200** `{url}`: Shopify's install page for the store. Send the browser there. The connect expires after 10 minutes and works once.
+
+After the owner approves, Shopify sends the browser to the API's callback (`GET /channels/connect/shopify/callback`, not called by the dashboard), which adds the bot's `shopify` channel, named after the store, with `external_id` set to `your-store.myshopify.com`. Connecting a store the bot already has turns its channel back on rather than adding another. The browser then lands on `return_to` with:
+
+- `connected=shopify&channel_id=chn_…&type=shopify` on success, or
+- `connect_error=<code>&type=shopify`, with these codes:
+
+| `connect_error` | Meaning |
+| --- | --- |
+| `denied` | The owner didn't approve the install. |
+| `expired` | More than 10 minutes passed, or the link was already used. Start again. |
+| `invalid` | The redirect wasn't Shopify's, or named another store. Start again. |
+| `store_connected_elsewhere` | Another business has connected this store. |
+| `scopes_missing` | The owner approved fewer permissions than the tools need. |
+| `failed` | Shopify or the API failed; try again. |
+
+An unknown or expired connect lands on `{DASHBOARD_URL}/integrations/guides` with `connect_error=invalid`.
+
+When the app is uninstalled from the store, the store's channels are turned off (`enabled: false`), and the bot's Shopify tools become unavailable until it is connected again. The activity log records `channel.connect_started`, `channel.connect` and `channel.disconnect`.
+
+**Errors:**
+- `400 INVALID_REQUEST`: a field is missing, the store address isn't a myshopify.com store, or `return_to` isn't a dashboard page.
+- `400 CHANNEL_CONNECT_UNSUPPORTED`: the type isn't connected through its platform; use `POST /channels`.
+- `400 CHANNEL_TYPE_NOT_ALLOWED`: a platform admin marked the type upcoming or hid it.
+- `503 CHANNEL_CONNECT_UNAVAILABLE`: the server has no Shopify app configured.
+
 ### Bot configuration (workspace)
 
 Scope headers; these act on the bot. Customer chat uses the saved configuration from the next message, with no separate publish step.
@@ -1075,9 +1127,19 @@ Scope headers. Tools belong to the business and are shared by its bots; each bot
   read_only,                  // false when calling it changes data (label it)
   available,
   unavailable_reason?,        // when available is false; also when a platform admin turned it off
+  built_in?,                  // true for a built-in tool (v2); its api fields are empty
   api: {method, url, created_at, updated_at}
 }
 ```
+
+#### Built-in tools (v2)
+
+When the server has a Shopify app configured, `GET /tools` lists two built-in tools before the business's API tools, with `built_in: true` and `read_only: true`. They can't be changed, deleted or replaced, and API tools can't be named `shopify_…` (`400 INVALID_TOOL`). They stay `available: false` ("Connect a Shopify store to this bot.") until the bot has an active `shopify` channel; see [`POST /channels/connect`](#post-channelsconnect-v2).
+
+- `shopify_order_status {order_number, email}`: an order's payment and fulfillment status, items, total and tracking. It answers only when the email matches the order's, so a customer can't read someone else's order by guessing its number.
+- `shopify_product_search {query}`: up to five active products, with price, whether they are in stock, and their link.
+
+Turn them on in the bot's `tools` like any tool, and test them with `POST /tools/{name}/test`. Their calls are recorded like API tools'. When Shopify asks the API to forget a customer, their order lookups are deleted from the recorded calls.
 
 #### `GET /tools`
 
@@ -2328,6 +2390,7 @@ Every error has its HTTP status and this body:
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /prompt-templates` and fill required variables. `MODEL_NOT_ALLOWED` now only means the platform's default model can't call tools while tools are on: ask a platform admin. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |
+| 400 | `CHANNEL_CONNECT_UNSUPPORTED` | Add channels of this type with `POST /channels`. |
 | 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. For image input it means no active model can read pictures: hide the attach control. |
 | 400 | `UNSUPPORTED_IMAGE_TYPE` | Image input. The file isn't a JPEG, PNG or WebP picture. Ask for another file. |
 | 400 | `INVALID_IMAGE` | Image input. The file can't be read, is under 8 px or over 16,384 px on a side, or is too big to open safely. Ask for another file; `message` says why. |
@@ -2357,6 +2420,7 @@ Every error has its HTTP status and this body:
 | 413 | `BODY_TOO_LARGE` | The body is too large. |
 | 413 | `IMAGE_TOO_LARGE` | Image input. The picture is over 20 MB, or can't be shrunk under 1 MiB without ruining it. Ask for a smaller or simpler picture. |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Send `Content-Type: application/json`. |
+| 503 | `CHANNEL_CONNECT_UNAVAILABLE` | The server has no app configured for the channel's platform; show it as unavailable. |
 | 429 | `RATE_LIMITED` | Too many requests too fast; wait `Retry-After` seconds. See "Rate limits". |
 | 429 | `PLAN_LIMIT_REACHED` | The month's AI replies are used up, or its tokens are and the balance is empty. |
 | 429 | `LLM_RATE_LIMITED` | The model provider is busy; retry shortly. |
