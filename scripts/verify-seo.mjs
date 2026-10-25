@@ -232,7 +232,9 @@ for (const { route, file } of built) {
   }
   const ids = new Set(graph.map((n) => n['@id']).filter(Boolean));
   const types = graph.map((n) => n['@type']);
-  for (const t of ['Organization', 'WebSite', 'SoftwareApplication', 'WebPage']) {
+  // A noindex page has no canonical URL, so Base.astro gives it no WebPage.
+  const indexable = !/noindex/i.test(metaRobots(html));
+  for (const t of ['Organization', 'WebSite', 'SoftwareApplication', ...(indexable ? ['WebPage'] : [])]) {
     if (!types.includes(t)) fail(`${route}: JSON-LD has no ${t}`);
   }
   for (const t of types) if (FORBIDDEN_TYPES.has(t)) fail(`${route}: JSON-LD contains ${t}, which the site has no real data for`);
