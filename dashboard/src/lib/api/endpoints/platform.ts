@@ -419,8 +419,9 @@ export function useSavePlatformChannelType() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.platform('channel-types') });
-      // Businesses' offered types follow the catalog.
-      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'bot' && q.queryKey[3] === 'channel-types' });
+      qc.invalidateQueries({ queryKey: qk.platform('channels') });
+      // Businesses' offered types follow the catalog, and their channels show the type's label and auto-close time.
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'bot' && (q.queryKey[3] === 'channel-types' || q.queryKey[3] === 'channels') });
     },
     meta: { success: 'Channel type saved' },
   });

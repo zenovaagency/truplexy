@@ -745,7 +745,13 @@ function GuideChannel({ integration: i, channels, value, onChange }: { integrati
     );
   }
   if (types.isPending) return <Skeleton className="h-9 rounded-[10px]" />;
-  if (!type) return <p className="text-[0.8125rem] text-ink-muted">Truplexy doesn't offer {i.name} channels right now. You can still issue a key without one.</p>;
+  if (!type)
+    return (
+      <p className="text-[0.8125rem] text-ink-muted">
+        {types.data?.some((t) => t.id === i.channelType && t.upcoming) ? `${i.name} channels aren't available yet.` : `Truplexy doesn't offer ${i.name} channels right now.`} You can still issue a key
+        without one.
+      </p>
+    );
   if (!can('channels.write'))
     return (
       <p className="flex items-center gap-2 text-[0.8125rem] text-ink-muted">
@@ -900,11 +906,20 @@ export function ChannelsTab() {
                 </ConnectButton>
               </span>
             )}
-            <Tip content={c.disabled_by_platform ? 'Turned off by Truplexy' : c.enabled ? (c.connection ? 'Turn off: it stops answering' : 'Turn off: its keys stop working') : 'Turn on'}>
-              <span className="mr-1 inline-flex">
-                <Switch checked={c.active} disabled={c.disabled_by_platform || update.isPending} onCheckedChange={(v) => toggle(c, v)} />
-              </span>
-            </Tip>
+            {/* The business's switch can't undo the platform's, so don't offer it. */}
+            {c.disabled_by_platform ? (
+              <Tip content="Turned off by the platform. Only Truplexy can turn it back on.">
+                <span className="mr-1 inline-grid size-7 place-items-center text-ink-faint" aria-label="Turned off by the platform">
+                  <Lock className="size-3.5" />
+                </span>
+              </Tip>
+            ) : (
+              <Tip content={c.enabled ? (c.connection ? 'Turn off: it stops answering' : 'Turn off: its keys stop working') : 'Turn on'}>
+                <span className="mr-1 inline-flex">
+                  <Switch checked={c.active} disabled={update.isPending} onCheckedChange={(v) => toggle(c, v)} />
+                </span>
+              </Tip>
+            )}
             <Tip content="Edit">
               <Button size="xs" icon variant="quiet" onClick={() => setEdit(c)} aria-label={`Edit ${c.name}`}>
                 <Pencil />
@@ -1011,11 +1026,19 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
 
   const { href } = useScopeCtx();
   const connected = Boolean(existing?.connection);
-  // Offered types, plus the channel's own type when it is hidden now. Platforms
-  // with an app are added with Connect, never by hand.
+  // Offered types, upcoming ones (listed but not pickable), and the channel's own
+  // type even when it's upcoming or hidden now: it may keep it. Platforms with an
+  // app are added with Connect, never by hand.
+  const own = types.data?.find((t) => t.id === existing?.type);
   const options = (types.data ?? [])
-    .filter((t) => (t.offered && !t.connect) || t.id === existing?.type)
-    .map((t) => ({ value: t.id, label: t.offered ? t.label : `${t.label} (no longer offered)` }));
+    .filter((t) => ((t.offered || t.upcoming) && !t.connect) || t.id === existing?.type)
+    .map((t) =>
+      t.offered
+        ? { value: t.id, label: t.label }
+        : t.id === existing?.type
+          ? { value: t.id, label: `${t.label} (${t.upcoming ? 'upcoming' : 'no longer offered'})` }
+          : { value: t.id, label: `${t.label} · Upcoming`, disabled: true },
+    );
   const valid = Boolean(c.type && c.name.trim());
   const saving = create.isPending || update.isPending;
 
@@ -1053,8 +1076,8 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
         }}
       >
         {existing?.disabled_by_platform && (
-          <Callout tone="danger" icon={<AlertTriangle />} title="Turned off by Truplexy">
-            Its keys don't work, and only Truplexy can turn it back on. Contact support if you think this is a mistake.
+          <Callout tone="danger" icon={<AlertTriangle />} title="Turned off by the platform">
+            {connected ? 'The assistant stops answering there' : "Its keys don't work"}, and only Truplexy can turn it back on. Contact support if you think this is a mistake.
           </Callout>
         )}
         <Field
@@ -1062,7 +1085,11 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
           hint={
             connected ? (
               `Connected to ${existing?.connection?.account_name}.`
-            ) : existing ? undefined : (
+            ) : existing ? (
+              own && !own.offered && c.type === own.id ? (
+                `${own.upcoming ? `${own.label} isn't available for new channels yet` : `Truplexy no longer offers new ${own.label} channels`}. This one keeps working, and you can still change it as long as its type stays.`
+              ) : undefined
+            ) : (
               <>
                 WhatsApp, Messenger, Instagram, Slack, Teams, Shopify, HubSpot and Zendesk are added with Connect under{' '}
                 <Link to={href('integrations/guides')} onClick={onClose} className="text-accent hover:underline">
@@ -1087,11 +1114,14 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
           </Field>
         )}
         <Switch
-          checked={c.enabled}
+          checked={c.enabled && !existing?.disabled_by_platform}
           onCheckedChange={(v) => set('enabled', v)}
+          disabled={existing?.disabled_by_platform}
           label="On"
           description={
-            connected
+            existing?.disabled_by_platform
+              ? "Turned off by the platform. Your switch has no effect until Truplexy turns it back on."
+              : connected
               ? c.enabled
                 ? 'The assistant answers there.'
                 : "Messages there get no answer until it's back on."

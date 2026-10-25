@@ -455,8 +455,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/platform/channel-types` | platform | Add a channel type (v2) |
 | `PATCH` | `/platform/channel-types/{id}` | platform | Change or hide a channel type (v2) |
 | `GET` | `/platform/channels` | platform | Channels across businesses (v2) |
+| `PATCH` | `/platform/channels/{id}` | platform | Turn a business's channel off or back on (v2) |
 | `GET` | `/platform/customers` | platform | Customers across businesses (v2) |
-| `PATCH` | `/platform/channels/{id}` | platform | Turn a business's channel off or on (v2) |
 | `POST` | `/conversations` | chat key | Start a conversation |
 | `GET` | `/conversations/{id}` | chat key | A conversation with its latest messages |
 | `POST` | `/conversations/{id}/messages` | chat key | Send a customer message, get the reply |
@@ -769,6 +769,15 @@ Channels tell the team where each ticket came from:
 - **Dashboard tickets.** `POST /tickets` and `PATCH /tickets/{id}` set `channel_id` directly.
 - **Turning a channel off.** A channel switched off by its business (`enabled: false`) or by a platform admin (`disabled_by_platform`) stops the chat API keys bound to it, with `403 CHANNEL_DISABLED`, until it is back on. Its tickets keep their channel.
 
+Platform admins' changes show on the business's dashboard at once, since both read the same channels:
+- **A type marked upcoming** is listed by `GET /channel-types` with `offered: false, upcoming: true`. Show it as "Upcoming". Adding a channel of it, or moving a channel to it, answers `400 CHANNEL_TYPE_NOT_ALLOWED`.
+- **A hidden type** drops out of `GET /channel-types`, unless one of the bot's channels uses it (then `offered: false`).
+- In both cases, channels already of the type keep working and can still be changed, as long as `type` stays the same.
+- **A type's new label or `auto_close_hours`** shows in its channels' `type_label` and `effective_auto_close_hours`.
+- **A channel turned off by a platform admin** has `disabled_by_platform: true` and `active: false`, and its chat API keys answer `403 CHANNEL_DISABLED`. The business can't turn it back on (`enabled: true` leaves it off), so show it as "Turned off by the platform" rather than offering the switch.
+
+Adding, changing and deleting a channel are recorded in the business's activity log as `channel.create`, `channel.update` and `channel.delete`.
+
 **Channel:**
 
 ```text
@@ -823,7 +832,7 @@ Channels tell the team where each ticket came from:
 
 #### `PATCH /channels/{id}`
 
-`channels.write`. Any of the fields of `POST /channels`. Moving a channel to another `type` needs that type to be offered. `enabled: false` stops its chat API keys at once; it can't undo a platform admin's `disabled_by_platform`. **200** the channel.
+`channels.write`. Any of the fields of `POST /channels`. Moving a channel to another `type` needs that type to be offered; a channel can keep a type that is now upcoming or hidden. `enabled: false` stops its chat API keys at once; it can't undo a platform admin's `disabled_by_platform`. **200** the channel.
 
 **Errors:** as for `POST /channels`, and `404 CHANNEL_NOT_FOUND`.
 
@@ -2059,7 +2068,7 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 
 #### `GET /platform/channel-types` (v2)
 
-**200** `{data: [{id, label, description, icon, status, sort_order, auto_close_hours, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type. The catalog starts with `website`, `discord`, `slack`, `telegram`, `whatsapp`, `email` and `custom`.
+**200** `{data: [{id, label, description, icon, status, sort_order, auto_close_hours, channels, created_at, updated_at}]}`, by `sort_order`. `channels` counts businesses' channels of the type, leaving out deleted ones. The catalog starts with `website`, `discord`, `slack`, `telegram`, `whatsapp`, `email` and `custom`.
 
 #### `POST /platform/channel-types` (v2)
 
@@ -2073,15 +2082,15 @@ Any of the fields above. Retired templates' bots fall back to their business typ
 | `sort_order` | -10,000 to 10,000. |
 | `auto_close_hours` | 0 (never) to 2160, or `null` (the default) to leave it to each business. Open tickets from channels of the type close after this many hours without activity, unless a channel sets its own. In `PATCH`, `null` clears it and leaving it out keeps it. |
 
-**201** the type. **Errors:** `400 INVALID_REQUEST`, `409 CHANNEL_TYPE_EXISTS`.
+Recorded in the activity log under `_platform` as `channel_type.create`. **201** the type. **Errors:** `400 INVALID_REQUEST`, `409 CHANNEL_TYPE_EXISTS`.
 
 #### `PATCH /platform/channel-types/{id}` (v2)
 
-Any field of `POST` except `id`. Types aren't deleted; hide one instead. **200** the type. **Errors:** `400 INVALID_REQUEST`, `404 CHANNEL_TYPE_NOT_FOUND`.
+Any field of `POST` except `id`. Types aren't deleted; hide one instead. [Channels (v2)](#channels-v2) describes what businesses see. Recorded under `_platform` as `channel_type.update`. **200** the type. **Errors:** `400 INVALID_REQUEST`, `404 CHANNEL_TYPE_NOT_FOUND`.
 
 #### `GET /platform/channels` (v2)
 
-Every business's channels, newest first, up to 500.
+Every business's channels, newest first, up to 500. Deleted channels are left out.
 
 | Query | Rules |
 | --- | --- |
@@ -2089,7 +2098,15 @@ Every business's channels, newest first, up to 500.
 | `type` | A channel type `id`. |
 | `status` | `active`, or `disabled` (turned off by its business or a platform admin). |
 
-**200** `{data: [Channel + {tenant_name}]}`.
+**200** `{data: [Channel + {tenant_name}]}`. **Errors:** `400 INVALID_REQUEST`: `tenant` isn't a business ID, `type` isn't a channel type `id`, or `status` is something else.
+
+#### `PATCH /platform/channels/{id}` (v2)
+
+`{disabled: true | false}` for any business's channel. A disabled channel stays listed for its business with `disabled_by_platform: true` and `active: false`, its chat API keys answer `403 CHANNEL_DISABLED`, and the business can't turn it back on. `disabled: false` makes it active again, unless the business has it off too (`enabled: false`). Recorded in the business's activity log as `channel.platform_disabled` or `channel.platform_enabled`. **200** the channel.
+
+**Errors:**
+- `400 INVALID_REQUEST`: `disabled` is missing or not a boolean.
+- `404 CHANNEL_NOT_FOUND`: no channel has this ID, or it was deleted.
 
 #### `GET /platform/customers` (v2)
 
@@ -2103,10 +2120,6 @@ Read only, every business's customers, most recently seen first.
 | `limit`, `cursor` | 1–200 (default 50); `next_cursor` from the previous page. |
 
 **200** `{data: [Customer + {tenant_name}], next_cursor?}`.
-
-#### `PATCH /platform/channels/{id}` (v2)
-
-`{disabled: true | false}`. A disabled channel stays listed for its business, its chat API keys answer `403 CHANNEL_DISABLED`, and the business can't turn it back on. Recorded in the business's activity log. **200** the channel. **Errors:** `404 CHANNEL_NOT_FOUND`.
 
 ### Chat API (for integrations)
 

@@ -21,6 +21,7 @@ const PREFIX: [string, AuditCategory][] = [
   ['invite.', 'invites'],
   ['api_key.', 'keys'],
   ['channel.', 'channels'],
+  ['channel_type.', 'channels'],
   ['bot.', 'bots'],
   ['business.', 'business'],
   ['plan.', 'plan'],
@@ -41,6 +42,14 @@ const VERB: Record<string, string> = {
   'invite.accepted': 'accepted an invitation',
   'api_key.created': 'issued API key',
   'api_key.revoked': 'revoked API key',
+  'channel.create': 'added channel',
+  'channel.update': 'changed channel',
+  'channel.delete': 'deleted channel',
+  'channel.platform_disabled': 'turned off channel',
+  'channel.platform_enabled': 'turned back on channel',
+  'channel_type.create': 'added channel type',
+  'channel_type.update': 'changed channel type',
+  // Events recorded before the API settled on the names above.
   'channel.created': 'added channel',
   'channel.updated': 'changed channel',
   'channel.deleted': 'deleted channel',
@@ -79,6 +88,7 @@ export function describeAudit(e: AuditEvent, nameOf?: (userId: string) => string
   if (e.action === 'member.role_changed' && d.from && d.to) extra = ` from ${d.from} to ${d.to}`;
   if (e.action === 'invite.created' && d.role) extra = ` as ${d.role}`;
   if (e.action === 'plan.changed' && d.to) extra = ` to ${d.to}`;
+  if (e.action.startsWith('channel.platform_')) extra = ' as a platform admin';
   if ((e.action === 'billing.credit' || e.action === 'billing.debit') && typeof d.amount === 'number') extra = ` by ${formatCurrency(Math.abs(d.amount))}`;
   const label = (typeof d.email === 'string' && d.email) || (typeof d.name === 'string' && d.name) || nameOf?.(e.target) || e.target;
   return { verb, target: selfContained ? '' : label, extra };
