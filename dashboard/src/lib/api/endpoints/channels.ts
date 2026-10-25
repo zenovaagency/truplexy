@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Channel, ChannelInput, ChannelType } from '@/lib/api/types';
+import type { Channel, ChannelInput, ChannelType, ChannelWidget, ChannelWidgetSettings } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { connectReturnTo } from '@/lib/shopify';
 import { useScope } from '@/lib/session/scope-context';
@@ -70,6 +70,33 @@ export function useConnectChannel() {
     onSuccess: ({ url }) => window.location.assign(url),
     // The connect control shows these next to the store field.
     meta: { silentCodes: ['INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNSUPPORTED', 'CHANNEL_CONNECT_UNAVAILABLE'] },
+  });
+}
+
+/**
+ * A Shopify channel's chat window. `poll` refreshes it every few seconds, to notice the
+ * moment a page of the store first loads the window (last_seen_at).
+ */
+export function useChannelWidget(id: string | undefined, poll = false) {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.bot(scope, 'channel-widget', id),
+    queryFn: ({ signal }) => api<ChannelWidget>(`/channels/${id}/widget`, { scope, signal }),
+    enabled: Boolean(id),
+    staleTime: 0,
+    refetchInterval: poll ? 5_000 : false,
+  });
+}
+
+/** Saves the chat window's settings (and, when sent, whether it is shown). */
+export function useSaveChannelWidget(id: string | undefined) {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { enabled?: boolean; settings: ChannelWidgetSettings }) => api<ChannelWidget>(`/channels/${id}/widget`, { method: 'PUT', body, scope }),
+    onSuccess: (widget) => qc.setQueryData(qk.bot(scope, 'channel-widget', id), widget),
+    // The form shows these next to the fields.
+    meta: { silentCodes: ['INVALID_REQUEST'] },
   });
 }
 

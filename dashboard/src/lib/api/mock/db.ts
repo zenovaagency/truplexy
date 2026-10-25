@@ -4,6 +4,7 @@ import type {
   BillingAddon,
   BotConfig,
   Channel,
+  ChannelWidgetSettings,
   Customer,
   BusinessTypeId,
   DeletionRequest,
@@ -169,6 +170,8 @@ export interface MockDb {
   deletions: Omit<TenantDeletion, 'restorable'>[];
   channelTypes: MockChannelType[];
   channels: MockChannel[];
+  /** Shopify channels' chat windows, by channel ID. Absent until one is saved. */
+  channelWidgets?: Record<string, { enabled: boolean; settings: ChannelWidgetSettings; saved_at: number }>;
   customers: MockCustomer[];
   properties: MockProperty[];
   products: MockProduct[];

@@ -1,4 +1,4 @@
-import type { Channel, Tool } from '@/lib/api/types';
+import type { Channel, ChannelWidgetSettings, Tool } from '@/lib/api/types';
 
 /* Shopify stores (API_REFERENCE.md → "Shopify stores (2026-10-25)"). */
 
@@ -103,3 +103,48 @@ export function markShopifyUnavailable() {
   }
   listeners.forEach((fn) => fn());
 }
+
+/* The storefront chat window (API_REFERENCE.md → "The storefront chat window"). */
+
+/** What the window shows until the business changes it; GET /channels/{id}/widget returns the same as `defaults`. */
+export const WIDGET_DEFAULTS: ChannelWidgetSettings = {
+  heading: '',
+  subtitle: '',
+  greeting: '',
+  placeholder: '',
+  accent: '#2338e6',
+  avatar_url: '',
+  theme: 'light',
+  position: 'right',
+  show_sources: false,
+  details: 'ask',
+};
+
+/** The longest each text may be, in characters. */
+export const WIDGET_LIMITS = { heading: 60, subtitle: 100, greeting: 300, placeholder: 80, avatar_url: 500 } as const;
+
+/** The same rules the API applies, so a form can say what is wrong before it asks. */
+export function widgetErrors(s: ChannelWidgetSettings): Partial<Record<keyof ChannelWidgetSettings, string>> {
+  const out: Partial<Record<keyof ChannelWidgetSettings, string>> = {};
+  for (const [key, max] of Object.entries(WIDGET_LIMITS) as [keyof typeof WIDGET_LIMITS, number][]) {
+    if ([...s[key].trim()].length > max) out[key] = `Keep this to ${max} characters.`;
+  }
+  if (!/^#[0-9a-fA-F]{6}$/.test(s.accent.trim())) out.accent = 'Pick a colour, such as #2338e6.';
+  const avatar = s.avatar_url.trim();
+  if (avatar && !out.avatar_url && !/^https:\/\/[^\s"<>`\\]+$/.test(avatar)) out.avatar_url = 'Use an https link to a picture, or leave this empty.';
+  return out;
+}
+
+/** Whether the store's pages have loaded the chat window, from `last_seen_at`. */
+export const widgetIsLive = (w: { last_seen_at: string } | undefined) => Boolean(w?.last_seen_at);
+
+/** The settings as the API stores them: trimmed, as the form leaves them. */
+export const cleanWidget = (s: ChannelWidgetSettings): ChannelWidgetSettings => ({
+  ...s,
+  heading: s.heading.trim(),
+  subtitle: s.subtitle.trim(),
+  greeting: s.greeting.trim(),
+  placeholder: s.placeholder.trim(),
+  accent: s.accent.trim().toLowerCase(),
+  avatar_url: s.avatar_url.trim(),
+});

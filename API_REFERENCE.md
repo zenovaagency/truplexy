@@ -73,6 +73,17 @@ A business can connect its Shopify store to a bot. Connecting runs Shopify's app
 
 `503 CHANNEL_CONNECT_UNAVAILABLE` means this server has no Shopify app configured: show the type as unavailable. If someone installs the app from inside Shopify, Shopify sends them to `{DASHBOARD_URL}/integrations/guides?shopify_shop=<store>`; prefill the store field from `shopify_shop` and ask them to press **Connect**.
 
+### The storefront chat window (2026-10-25)
+
+A connected store also shows the bot's chat window on its storefront. Right after the install, the dashboard should let the business set how it looks, then send them to turn it on in their theme. It adds two routes and an error code; nothing existing changed.
+
+1. When the browser lands on `return_to` with `connected=shopify&channel_id=chn_…`, open a **Customize chat** step for that channel. [`GET /channels/{id}/widget`](#get-channelsidwidget-v2) returns the settings (the defaults for a new store) and `defaults`, to show as placeholders.
+2. Let the business edit the heading, subtitle, greeting, message box hint, accent colour, header picture, light/dark theme, side of the page, whether answers link their sources, and whether visitors give a name and email first. Save with [`PUT /channels/{id}/widget`](#put-channelsidwidget-v2).
+3. After saving, send them to `activation_url` in a new tab. It opens the store's theme editor with the **Truplexy chat** app embed switched on; they press **Save** there.
+4. Poll `GET /channels/{id}/widget` while the step is open: `last_seen_at` becomes non-empty once a page of the store has loaded the window. Show it as live.
+
+Offer **Customize chat** on a connected Shopify channel at any time. A store that connected before this shipped has to be connected again once, so Shopify mounts the chat's proxy on it. The window itself talks to the API through Shopify's app proxy (`/apps/truplexy/chat` on the store's own domain), which signs each request; no key reaches the browser, and the dashboard doesn't call that route.
+
 ## Performance stats (2026-10-19)
 
 Two new read-only endpoints report how the API itself performs. They add fields and routes only: nothing existing changed.
@@ -449,6 +460,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
 | `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store (v2) |
+| `GET` | `/channels/{id}/widget` | `channels.read` | How a Shopify store's chat window looks on its storefront (v2) |
+| `PUT` | `/channels/{id}/widget` | `channels.write` | Save the chat window's settings (v2) |
 | `GET` | `/customers` | `customers.read` | List and search the bot's customers (v2) |
 | `POST` | `/customers` | `customers.write` | Add a customer (v2) |
 | `GET` | `/customers/{id}` | `customers.read` | A customer with their latest conversations and tickets (v2) |
@@ -1263,6 +1276,51 @@ When the app is uninstalled from the store, the store's channels are turned off 
 - `400 CHANNEL_CONNECT_UNSUPPORTED`: the type isn't connected through its platform; use `POST /channels`.
 - `400 CHANNEL_TYPE_NOT_ALLOWED`: a platform admin marked the type upcoming or hid it.
 - `503 CHANNEL_CONNECT_UNAVAILABLE`: the server has no Shopify app configured.
+
+#### `GET /channels/{id}/widget` (v2)
+
+`channels.read`. How a Shopify store's chat window looks on its storefront. A channel that never saved settings returns the defaults.
+
+**200** `{channel_id, enabled, settings, defaults, first_seen_at, last_seen_at, shop, activation_url}`:
+
+| Field | Meaning |
+| --- | --- |
+| `enabled` | Whether the window is shown. The channel's own `enabled` still turns the whole channel off. |
+| `settings` | The choices below. |
+| `defaults` | What an empty setting shows. |
+| `first_seen_at`, `last_seen_at` | When a page of the store first and last loaded the window; empty strings until one has. `last_seen_at` is updated at most once an hour. |
+| `shop` | The store's `myshopify.com` domain. |
+| `activation_url` | The store's theme editor with the Truplexy chat app embed switched on, for the owner to save. |
+
+**Errors:**
+- `404 CHANNEL_NOT_FOUND`
+- `409 WIDGET_NOT_SUPPORTED`: the channel isn't a Shopify store's.
+- `503 SHOPIFY_NOT_CONFIGURED`: the server has no Shopify app configured.
+
+#### `PUT /channels/{id}/widget` (v2)
+
+`channels.write`. Replaces the settings. Send `{enabled?, settings}`; leaving `enabled` out keeps it. Unknown fields are refused. The storefront sees the change within 30 seconds. The activity log records `channel.widget_update`.
+
+| `settings` field | Rules |
+| --- | --- |
+| `heading` | Up to 60 characters. Empty uses the business name. |
+| `subtitle` | Up to 100 characters. Empty uses "Ask us anything…". |
+| `greeting` | Up to 300 characters, Markdown. Empty uses the window's own. |
+| `placeholder` | Up to 80 characters. Empty uses "Write a message…". |
+| `accent` | `#rrggbb`. Empty is `#2338e6`. |
+| `avatar_url` | An `https` link of up to 500 characters. Empty uses the business logo. |
+| `theme` | `light` (default), `dark` or `auto`. |
+| `position` | `right` (default) or `left`. |
+| `show_sources` | Link the pages answers came from. Default `false`. |
+| `details` | `ask` (default): a name and email form before the first message. `off` skips it. |
+
+**200** the saved window, as `GET` returns it.
+
+**Errors:**
+- `400 INVALID_REQUEST`: a setting breaks its rule.
+- `404 CHANNEL_NOT_FOUND`
+- `409 WIDGET_NOT_SUPPORTED`
+- `503 SHOPIFY_NOT_CONFIGURED`
 
 ### Bot configuration (workspace)
 

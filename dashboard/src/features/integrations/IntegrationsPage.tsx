@@ -65,7 +65,7 @@ import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseFi
 import { IssueKeyForm } from '@/features/api-keys/IssueKey';
 import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type Integration, type IntegrationGroup } from './catalog';
 import { useCopy } from '@/hooks';
-import { ConnectReturnBanner, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
+import { ConnectReturnBanner, ConnectedChatSetup, CustomizeChatButton, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
 import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
 import { WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
@@ -183,6 +183,7 @@ export function CatalogTab() {
 
       {back.failed && <ConnectReturnBanner code={back.failed} onDismiss={back.dismissFailed} />}
       {back.connected && <ShopifyToolsPrompt onDismiss={back.dismissConnected} />}
+      <ConnectedChatSetup back={back} />
 
       {types.isPending ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -302,13 +303,16 @@ function ShopifyCard({ i, channels, prefill }: { i: Integration; channels: Chann
             <Badge tone="live" dot className="min-w-0">
               <span className="truncate">{active.length > 1 ? `Connected · ${active.length} stores` : `Connected · ${active[0]!.external_id}`}</span>
             </Badge>
-            {prefill ? (
-              <ShopifyConnectButton size="xs" variant="soft" prefill={prefill} />
-            ) : (
-              <Link to={href('integrations')} className="shrink-0 text-[0.8125rem] font-semibold text-accent hover:underline">
-                Manage →
-              </Link>
-            )}
+            <span className="flex shrink-0 items-center gap-3">
+              <CustomizeChatButton channelId={active[0]!.id} />
+              {prefill ? (
+                <ShopifyConnectButton size="xs" variant="soft" prefill={prefill} />
+              ) : (
+                <Link to={href('integrations')} className="text-[0.8125rem] font-semibold text-accent hover:underline">
+                  Manage →
+                </Link>
+              )}
+            </span>
           </>
         ) : channels.length ? (
           <span className="text-xs text-ink-faint">Turned off by the platform</span>
@@ -808,6 +812,11 @@ export function ChannelsTab() {
                 </Button>
               </Tip>
             )}
+            {isShopifyChannel(c) && c.active && (
+              <span className="mr-1">
+                <CustomizeChatButton channelId={c.id} />
+              </span>
+            )}
             {/* After an uninstall in Shopify the channel is just off; only Reconnect brings its tools back, so it's always offered. */}
             {isShopifyChannel(c) && c.external_id && !c.disabled_by_platform && (
               <span className="mr-1">
@@ -860,6 +869,7 @@ export function ChannelsTab() {
     <div className="grid gap-5">
       {back.failed && <ConnectReturnBanner code={back.failed} onDismiss={back.dismissFailed} />}
       {back.connected && <ShopifyToolsPrompt onDismiss={back.dismissConnected} />}
+      <ConnectedChatSetup back={back} />
       <Card
         flush
         title={`Channels of ${bot.name}`}
