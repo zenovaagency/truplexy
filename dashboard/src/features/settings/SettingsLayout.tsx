@@ -13,6 +13,7 @@ import {
   LogOut,
   Lock,
   Plus,
+  SlidersHorizontal,
   Trash2,
   Undo2,
   Upload,
@@ -33,6 +34,7 @@ import { AUTO_CLOSE_MAX_HOURS, AutoCloseField } from '@/components/domain/AutoCl
 import { ImageUploader } from '@/components/domain/ImageUploader';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { SubscriptionCard } from './SubscriptionCard';
+import { useFeature } from '@/lib/features';
 import { useDebounce } from '@/hooks';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
@@ -59,17 +61,21 @@ import {
   useConfirm,
 } from '@/components/ui';
 
+export { PropertiesTab } from './PropertiesTab';
+
 export default function SettingsLayout() {
   const { href, businessName, can } = useScopeCtx();
+  const properties = useFeature('properties');
   return (
     <Page>
-      <PageHeader title="Settings" description={`Business details, plan, billing, bots and backups for ${businessName}.`} />
+      <PageHeader title="Settings" description={`Business details, plan, billing, bots, properties and backups for ${businessName}.`} />
       <SubNav
         items={[
           { to: href('settings/business'), label: 'Business', icon: <Building2 /> },
           { to: href('settings/plan'), label: 'Plan & usage', icon: <CreditCard /> },
           { to: href('settings/billing'), label: 'Billing', icon: <Wallet />, hidden: !can('usage.read') },
           { to: href('settings/bots'), label: 'Bots', icon: <Bot /> },
+          { to: href('settings/properties'), label: 'Properties', icon: <SlidersHorizontal />, hidden: properties !== 'on' },
           { to: href('settings/backup'), label: 'Backup', icon: <DatabaseBackup /> },
           { to: href('settings/danger'), label: 'Danger zone', icon: <AlertTriangle /> },
         ]}

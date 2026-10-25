@@ -37,6 +37,7 @@ import { emit, topicFor } from './bus';
 import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 import { buildPerformance, performanceMode } from './performance';
+import { PRESETS, PROPERTY_ENTITIES, PropertyError, changeDefinition, newDefinition, type MockProperty } from './properties';
 
 /* ------------------------------------------------------------------ */
 /* Plumbing                                                            */
@@ -1016,6 +1017,73 @@ route('DELETE', '/customers/:id', 'customers.write', (c) => {
   const cu = customerOf(c, c.params.id);
   // Their conversations and tickets keep the customer_id.
   c.db.customers = c.db.customers.filter((x) => x !== cu);
+  return noContent();
+});
+
+/* Custom properties -------------------------------------------------- */
+
+const botProperties = (c: Ctx) =>
+  (c.db.properties ??= []).filter((d) => d.tenant_id === c.tenant.id && d.bot_id === c.botId).sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
+
+/** A record's property definitions, for checking and showing its values. */
+export const definitionsOf = (c: Ctx, entity: MockProperty['entity']) => botProperties(c).filter((d) => d.entity === entity);
+
+const propertyOut = ({ tenant_id: _t, bot_id: _b, ...d }: MockProperty) => d;
+
+/** Runs a property check, turning its refusal into 400 INVALID_REQUEST. */
+export function checked<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (e) {
+    if (e instanceof PropertyError) throw invalid(e.message);
+    throw e;
+  }
+}
+
+function propertyOf(c: Ctx, id: unknown) {
+  const d = botProperties(c).find((x) => x.id === id);
+  if (!d) throw notFound('PROPERTY_NOT_FOUND', 'Property');
+  return d;
+}
+
+route('GET', '/properties', 'properties.read', (c) => {
+  const entity = c.query.get('entity') as MockProperty['entity'];
+  if (!PROPERTY_ENTITIES.includes(entity)) throw invalid(`Set entity to one of ${PROPERTY_ENTITIES.join(', ')}.`);
+  return { data: definitionsOf(c, entity).map(propertyOut) };
+});
+
+route('GET', '/properties/presets', 'properties.read', (c) => {
+  const entity = c.query.get('entity');
+  const type = c.query.get('business_type');
+  if (!PROPERTY_ENTITIES.includes(entity as MockProperty['entity'])) throw invalid(`Set entity to one of ${PROPERTY_ENTITIES.join(', ')}.`);
+  return { data: PRESETS.filter((p) => p.entity === entity && (!type || !p.business_types.length || p.business_types.includes(type))) };
+});
+
+route('POST', '/properties', 'properties.write', (c) => {
+  const b = c.body ?? {};
+  const def = checked(() => newDefinition(b, definitionsOf(c, b.entity)));
+  if (definitionsOf(c, def.entity).some((d) => d.key === def.key)) throw err(409, 'PROPERTY_EXISTS', 'Another property of this entity already has this key.');
+  const now = nowIso();
+  const d: MockProperty = { ...def, id: newId('prp'), tenant_id: c.tenant.id, bot_id: c.botId, created_at: now, updated_at: now };
+  c.db.properties.push(d);
+  return created(propertyOut(d));
+});
+
+route('PATCH', '/properties/:id', 'properties.write', (c) => {
+  const d = propertyOf(c, c.params.id);
+  const b = c.body ?? {};
+  if (!['entity', 'scope_id', 'key', 'label', 'description', 'type', 'options', 'required', 'sensitive', 'sort_order'].some((k) => b[k] !== undefined)) throw invalid('Send at least one field to change.');
+  const next = { ...d };
+  checked(() => changeDefinition(next, b));
+  Object.assign(d, next, { updated_at: nowIso() });
+  return propertyOut(d);
+});
+
+route('DELETE', '/properties/:id', 'properties.write', (c) => {
+  const d = propertyOf(c, c.params.id);
+  c.db.properties = c.db.properties.filter((x) => x !== d);
+  // Its values go with it, in every record of the bot.
+  for (const cu of botCustomers(c) as { properties?: Record<string, unknown> }[]) if (cu.properties) delete cu.properties[d.key];
   return noContent();
 });
 

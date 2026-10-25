@@ -732,6 +732,139 @@ paths:
           description: Deleted.
         default:
           $ref: '#/components/responses/Error'
+  /properties:
+    get:
+      operationId: listProperties
+      summary: The custom properties of one kind of record (v2)
+      description: Needs properties.read. In sort_order. 400 INVALID_REQUEST for an unknown entity.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: entity
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PropertyEntity'
+        - name: scope_id
+          in: query
+          schema:
+            type: string
+          description: For entities whose properties are per type, one type's.
+      responses:
+        '200':
+          description: The properties.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PropertyDefinition'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createProperty
+      summary: Add a custom property (v2)
+      description: Needs properties.write. An entity has up to 50 properties (400 INVALID_REQUEST beyond). 409 PROPERTY_EXISTS when the entity already has the key.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PropertyInput'
+                - type: object
+                  required: [entity, key, label, type]
+      responses:
+        '201':
+          description: The new property.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyDefinition'
+        default:
+          $ref: '#/components/responses/Error'
+  /properties/presets:
+    get:
+      operationId: listPropertyPresets
+      summary: Suggested properties for the business's type (v2)
+      description: Needs properties.read. Add one with POST /properties.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      parameters:
+        - name: entity
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PropertyEntity'
+        - name: business_type
+          in: query
+          schema:
+            type: string
+          description: The business's type; left out, every preset is listed.
+      responses:
+        '200':
+          description: The presets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PropertyPreset'
+        default:
+          $ref: '#/components/responses/Error'
+  /properties/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PropertyID'
+    patch:
+      operationId: updateProperty
+      summary: Change a custom property (v2)
+      description: Needs properties.write. entity, scope_id, key and type can't change. 404 PROPERTY_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PropertyInput'
+                - type: object
+                  minProperties: 1
+      responses:
+        '200':
+          description: The updated property.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyDefinition'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteProperty
+      summary: Delete a custom property and its values (v2)
+      description: Needs properties.write. Erases the property's value from every record in the same transaction. 404 PROPERTY_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
   /channels:
     get:
       operationId: listChannels
@@ -4445,6 +4578,13 @@ components:
       scheme: bearer
       description: ADMIN_API_KEY, a service credential with every permission in every business. It acts for the default bot, or for the bot named by the X-Truplexy-Tenant and X-Truplexy-Bot headers (404 BOT_NOT_FOUND if it doesn't exist). Missing configuration returns 503 ADMIN_NOT_CONFIGURED; D1 failures return 502 DATABASE_ERROR, and R2, Vectorize, or Workers AI failures 502 STORAGE_ERROR.
   parameters:
+    PropertyID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^prp_[0-9a-f]{32}$'
     CustomerID:
       name: id
       in: path
@@ -5829,6 +5969,123 @@ components:
           type: object
           additionalProperties: true
           description: Up to 4 KB.
+    PropertyEntity:
+      type: string
+      enum: [customer]
+      description: The kind of record a property belongs to.
+    PropertyType:
+      type: string
+      enum: [text, long_text, number, boolean, date, select, multi_select, email, phone, url]
+    PropertyOption:
+      type: object
+      required: [value, label]
+      properties:
+        value:
+          type: string
+          maxLength: 60
+          description: What records store; unique in the property, ignoring case.
+        label:
+          type: string
+          maxLength: 60
+    PropertyDefinition:
+      type: object
+      required: [id, entity, key, label, description, type, options, required, sensitive, sort_order, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          pattern: '^prp_[0-9a-f]{32}$'
+        entity:
+          $ref: '#/components/schemas/PropertyEntity'
+        scope_id:
+          type: string
+          description: For entities whose properties are per type; absent otherwise.
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        label:
+          type: string
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 300
+        type:
+          $ref: '#/components/schemas/PropertyType'
+        options:
+          type: array
+          description: select and multi_select only.
+          items:
+            $ref: '#/components/schemas/PropertyOption'
+        required:
+          type: boolean
+        sensitive:
+          type: boolean
+          description: Shown only to members who may edit the record; never given to the assistant or sent in webhooks.
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PropertyInput:
+      type: object
+      additionalProperties: false
+      properties:
+        entity:
+          $ref: '#/components/schemas/PropertyEntity'
+        scope_id:
+          type: string
+        key:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,39}$'
+        label:
+          type: string
+          minLength: 1
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 300
+        type:
+          $ref: '#/components/schemas/PropertyType'
+        options:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PropertyOption'
+        required:
+          type: boolean
+        sensitive:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
+          maximum: 10000
+    PropertyPreset:
+      type: object
+      required: [entity, key, label, description, type, options, sensitive, business_types]
+      properties:
+        entity:
+          $ref: '#/components/schemas/PropertyEntity'
+        key:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: '#/components/schemas/PropertyType'
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyOption'
+        sensitive:
+          type: boolean
+        business_types:
+          type: array
+          description: The business types the preset suits; empty suits every business.
+          items:
+            type: string
     Channel:
       type: object
       required: [id, tenant_id, bot_id, type, type_label, name, description, external_id, enabled, disabled_by_platform, active, open_tickets, tickets, api_keys, created_at, updated_at]

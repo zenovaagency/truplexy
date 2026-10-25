@@ -1,5 +1,5 @@
 import type { BillingAddon, BusinessType, LedgerEntry, Plan, TicketMessage, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
-import { DB_VERSION, hex, type MockChannel, type MockCustomer, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
+import { DB_VERSION, hex, type MockChannel, type MockCustomer, type MockProperty, type MockConversation, type MockDb, type MockDoc, type MockTicket, type MockTool } from './db';
 
 /* ------------------------------------------------------------------ */
 /* Deterministic randomness, so every seed tells the same story.        */
@@ -1108,5 +1108,18 @@ Hand over when: {{escalation_policy}}
     channelTypes: channelTypes(),
     channels,
     customers,
+    properties: seedProperties(),
   };
+}
+
+/** A few custom properties on Acme's support bot, so Settings → Properties has something to show. */
+function seedProperties(): MockProperty[] {
+  const r = rng(7731);
+  const at = ago(40 * DAY);
+  const base = { tenant_id: 'acme', bot_id: 'support', entity: 'customer' as const, description: '', options: [], required: false, sensitive: false, created_at: at, updated_at: at };
+  return [
+    { ...base, id: id('prp', r), key: 'loyalty_tier', label: 'Loyalty tier', type: 'select', sort_order: 0, options: [{ value: 'bronze', label: 'Bronze' }, { value: 'silver', label: 'Silver' }, { value: 'gold', label: 'Gold' }] },
+    { ...base, id: id('prp', r), key: 'vip', label: 'VIP', type: 'boolean', sort_order: 1, description: 'Gets priority from the team.' },
+    { ...base, id: id('prp', r), key: 'birthday', label: 'Birthday', type: 'date', sort_order: 2, sensitive: true },
+  ];
 }

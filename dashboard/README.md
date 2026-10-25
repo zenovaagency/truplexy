@@ -54,6 +54,15 @@ The API will let customers, and people testing in the playground, attach picture
 - Demo mode serves image input only when asked, so by default it answers like the API today. In the browser console: `localStorage.setItem('truplexy.mock.imageInput', 'on')` (or `plan`, `no_vision`, `on-expired` for links that are dead the first time), then reload. `localStorage.setItem('truplexy.mock.imageFail', 'invalid')` (also `not_found`, `not_uploaded`, `too_large`, `unsupported`) fails the next send once, and `localStorage.setItem('truplexy.mock.imageFlaky', '1')` cuts off the first `PUT` of each file. `VITE_MOCK_IMAGE_INPUT=on` sets the mode at build time.
 - Demo mode serves the Performance pages by default. To see each situation they handle, run `localStorage.setItem('truplexy.mock.performance', mode)` and reload: `off` (the routes answer 404, so the page drops out of the menu), `no_http` (request statistics are off), `sampled` (a 25% sample), `no_models` (model calls aren't stored), `old` (most reply time is "other"), `empty` (no activity), `noreplies` (requests but no replies) and `high` (a high error rate). `on` is the default.
 
+## Custom properties
+
+Businesses define typed fields (text, number, date, single and multiple choice, email, phone, link, yes/no) for a bot's records under **Settings → Properties** (`src/features/settings/PropertiesTab.tsx`, API reference "Custom properties"). Customers are the first records with them.
+
+- The tab, and every later screen that shows properties, keys off one cheap `GET /properties` per bot (`src/lib/features.ts`). Until it succeeds, nothing about properties shows, so an API without them, or with migration `0041` not applied, looks as it did before.
+- `src/components/domain/Properties.tsx` has the inputs (`PropertyFields`) and the read-only list (`PropertyList`) for any record; `src/lib/properties.ts` moves values between the API and the fields. Edits send only the values that changed, so a value the API would no longer accept (a removed option) isn't sent again.
+- Sensitive properties come back masked (`masked_properties`) to people who can't edit the record; they show as **Hidden**.
+- Demo mode serves properties, with three on Acme's support bot, and checks values with the API's rules (`src/lib/api/mock/properties.ts`).
+
 ## Deploying
 
 The repo deploys to Vercel as one project with two services (`../vercel.json`). This app is the `dashboard` service and is served on any host starting with `app.`, i.e. `https://app.truplexy.com`. Every other host, including `*.vercel.app` preview URLs, gets the marketing site, so a dashboard preview needs a branch domain that starts with `app.`.

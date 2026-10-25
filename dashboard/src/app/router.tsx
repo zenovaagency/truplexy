@@ -91,6 +91,7 @@ const businessRoutes: RouteObject[] = [
         { path: 'plan', ...lazyRoute(pages.settings, (m) => m.PlanTab) },
         gated('usage.read', [{ path: 'billing', ...lazyRoute(pages.settings, (m) => m.BillingTab) }]),
         { path: 'bots', ...lazyRoute(pages.settings, (m) => m.BotsTab) },
+        gated('properties.read', [{ path: 'properties', ...lazyRoute(pages.settings, (m) => m.PropertiesTab) }]),
         { path: 'backup', ...lazyRoute(pages.settings, (m) => m.BackupTab) },
         { path: 'danger', ...lazyRoute(pages.settings, (m) => m.DangerTab) },
         missing,

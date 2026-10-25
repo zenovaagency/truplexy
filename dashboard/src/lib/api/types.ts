@@ -28,6 +28,8 @@ export type Permission =
   | 'channels.write'
   | 'customers.read'
   | 'customers.write'
+  | 'properties.read'
+  | 'properties.write'
   | 'bots.create'
   | 'members.write'
   | 'business.write'
@@ -706,6 +708,71 @@ export interface CustomerInput {
   contacts?: { type: string; value: string; label?: string; primary?: boolean }[];
   metadata?: Record<string, unknown>;
 }
+
+/* ------------------------------------------------------------------ */
+/* Custom properties                                                   */
+/* ------------------------------------------------------------------ */
+
+/** The kinds of record that have custom properties. */
+export type PropertyEntity = 'customer';
+
+export type PropertyType = 'text' | 'long_text' | 'number' | 'boolean' | 'date' | 'select' | 'multi_select' | 'email' | 'phone' | 'url';
+
+export interface PropertyOption {
+  /** What records store; never changes meaning. */
+  value: string;
+  label: string;
+}
+
+export interface PropertyDefinition {
+  id: string;
+  entity: PropertyEntity;
+  /** For entities whose properties are per type; absent otherwise. */
+  scope_id?: string;
+  /** Never changes. */
+  key: string;
+  label: string;
+  description: string;
+  /** Never changes. */
+  type: PropertyType;
+  /** select and multi_select only. */
+  options: PropertyOption[];
+  required: boolean;
+  /** Shown only to members who may edit the record; never given to the assistant. */
+  sensitive: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields of POST and PATCH /properties. entity, scope_id, key and type are sent only on POST. */
+export interface PropertyInput {
+  entity?: PropertyEntity;
+  scope_id?: string;
+  key?: string;
+  label?: string;
+  description?: string;
+  type?: PropertyType;
+  options?: PropertyOption[];
+  required?: boolean;
+  sensitive?: boolean;
+  sort_order?: number;
+}
+
+export interface PropertyPreset {
+  entity: PropertyEntity;
+  key: string;
+  label: string;
+  description: string;
+  type: PropertyType;
+  options: PropertyOption[];
+  sensitive: boolean;
+  /** Empty suits every business. */
+  business_types: string[];
+}
+
+/** A record's values by property key, as stored: strings, numbers, booleans, or a list for multi_select. */
+export type PropertyValues = Record<string, unknown>;
 
 export interface CustomerList {
   data: Customer[];

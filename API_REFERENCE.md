@@ -4,13 +4,24 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Custom properties (2026-10-25)
+
+A business can define typed fields for its bot's records, the way it needs them: a customer's loyalty tier, a patient's date of birth, a tenant's move-in date. Customers are the first records with properties. It adds routes, two permissions (`properties.read` for every role, `properties.write` for editors and up) and error codes; nothing existing changed. Apply migration `0041_properties.sql` first.
+
+**What a dashboard does:**
+
+1. Add a **Properties** settings page that lists `GET /properties?entity=customer` and lets people with `properties.write` add, edit, reorder and delete them ([Custom properties](#custom-properties-v2)).
+2. Offer **suggested** properties from `GET /properties/presets?entity=customer&business_type=<the business's type>`; adding one is a `POST /properties` with the preset's fields.
+3. Lock a property's `key` and `type` once it exists. Warn before deleting one: its values are erased from every record.
+4. Hide the page when `GET /properties` answers `404` (a server without this feature).
 
 ## Shopify stores (2026-10-25)
 
@@ -350,9 +361,9 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 
 | Permission | Viewer | Agent | Editor | Admin | Owner |
 | --- | :-: | :-: | :-: | :-: | :-: |
-| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read`, `customers.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `bot.read`, `knowledge.read`, `tools.read`, `tickets.read`, `usage.read`, `members.read`, `channels.read`, `customers.read`, `properties.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `playground.run`, `tickets.write`, `customers.write` | | ✓ | ✓ | ✓ | ✓ |
-| `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read` | | | ✓ | ✓ | ✓ |
+| `bot.write`, `knowledge.write`, `tools.write`, `tickets.delete`, `integrations.read`, `properties.write` | | | ✓ | ✓ | ✓ |
 | `integrations.write`, `channels.write`, `bots.create`, `members.write`, `business.write`, `billing.write`, `audit.read` | | | | ✓ | ✓ |
 | `owners.manage`, `business.delete` | | | | | ✓ |
 
@@ -406,6 +417,11 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/customers/{id}` | `customers.read` | A customer with their latest conversations and tickets (v2) |
 | `PATCH` | `/customers/{id}` | `customers.write` | Change a customer (v2) |
 | `DELETE` | `/customers/{id}` | `customers.write` | Delete a customer (v2) |
+| `GET` | `/properties` | `properties.read` | The custom properties of one kind of record (v2) |
+| `GET` | `/properties/presets` | `properties.read` | Suggested properties for the business's type (v2) |
+| `POST` | `/properties` | `properties.write` | Add a custom property (v2) |
+| `PATCH` | `/properties/{id}` | `properties.write` | Change a custom property (v2) |
+| `DELETE` | `/properties/{id}` | `properties.write` | Delete a custom property and its values (v2) |
 | `GET` | `/workspace` | `bot.read` | The bot's configuration and versions |
 | `PUT` | `/workspace` | `bot.write` | Save the bot's configuration |
 | `GET` | `/models` | `bot.read` | Models the bot may use (v2) |
@@ -791,6 +807,76 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 #### `DELETE /customers/{id}`
 
 `customers.write`. Deletes the customer and their contacts. Their conversations and tickets keep their `customer_id`, and the contacts can be used again. **204**. **Errors:** `404 CUSTOMER_NOT_FOUND`.
+
+### Custom properties (v2)
+
+Scope headers; these act on the bot. A business defines typed **properties** for one kind of record, its **entity** (`customer` for now), and each record keeps its values in `properties`, an object keyed by the property's `key`. Properties belong to one bot.
+
+**Property:**
+
+```text
+{
+  id,                          // prp_…
+  entity,                      // customer
+  scope_id?,                   // for entities whose properties are per type; absent otherwise
+  key,                         // 1–40 lowercase letters, digits or _, starting with a letter; never changes
+  label,                       // 1–60 characters
+  description,                 // up to 300 characters
+  type,                        // text | long_text | number | boolean | date | select | multi_select | email | phone | url; never changes
+  options: [{ value, label }], // select and multi_select only: 1–100, values unique ignoring case
+  required,                    // a record must have a value when created, and can't clear it
+  sensitive,                   // see below
+  sort_order,                  // 0–10000; new properties go last
+  created_at, updated_at
+}
+```
+
+`key` can't be a field records already have (`id`, `name`, `email`, `phone`, `status`, `type`, `metadata`, `properties`, `contacts`, `sku`, `price`, `currency`, `stock`, `url`, `description`, `subject`, `number`, `source` and the like). An entity has up to 50 properties.
+
+**Values.** A record's `properties` is merged on each write: keys you send replace their value, `null` or `""` clears one, keys you leave out keep theirs. Unknown keys are refused. Values are checked and stored as:
+
+| Type | Send | Stored |
+| --- | --- | --- |
+| `text` | up to 500 characters | whitespace collapsed |
+| `long_text` | up to 5,000 characters | trimmed |
+| `number` | a number, or text such as `"1,200"` | a number up to 10^15 |
+| `boolean` | `true`/`false`, or `"yes"`, `"no"`, `"1"`, `"0"` | `true` or `false` |
+| `date` | `YYYY-MM-DD` (a timestamp keeps its date) | `YYYY-MM-DD` |
+| `select` | an option's value or label, any case | the option's value |
+| `multi_select` | a list, or comma-separated text, of up to 20 options | a list of values |
+| `email` | an address | lowercased |
+| `phone` | 5–20 digits, optionally `+`, with spaces or punctuation | digits only |
+| `url` | an `http` or `https` link, no user name | as sent |
+
+A record's properties are at most 16 KB. Changing a property's options never blocks editing a record that has an old value: only the values sent are checked.
+
+**Sensitive properties** (such as a date of birth) are returned only to members who may edit the record (for customers, `customers.write`). Others get the record without them, with their keys in `masked_properties`, and can't filter by them. They are never given to the assistant or sent in webhooks.
+
+**Filtering.** Listings of records with properties take `property[key]=value` (up to 5), matching the stored value exactly (`select` by value or label, `boolean` as `true`/`false`, `multi_select` when the list contains the option). An empty value finds records without one. `long_text` can't be filtered by.
+
+#### `GET /properties`
+
+`properties.read`. Query: `entity` (required), `scope_id`. **200** `{data: [Property]}` in `sort_order`.
+
+#### `GET /properties/presets`
+
+`properties.read`. Query: `entity` (required), `business_type` (optional; the business's type from `GET /tenant`). **200** `{data: [{entity, key, label, description, type, options, sensitive, business_types}]}`: properties businesses of that type often add. Add one with `POST /properties`.
+
+#### `POST /properties`
+
+`properties.write`. Body: `{entity, key, label, type, options?, description?, required?, sensitive?, sort_order?, scope_id?}`. **201** the property.
+
+**Errors:**
+- `400 INVALID_REQUEST`, also when the entity already has 50 properties.
+- `409 PROPERTY_EXISTS`: the entity already has a property with this key.
+
+#### `PATCH /properties/{id}`
+
+`properties.write`. Any of `label`, `description`, `options`, `required`, `sensitive`, `sort_order`, at least one. Sending a different `entity`, `scope_id`, `key` or `type` is refused. **200** the property. **Errors:** `400 INVALID_REQUEST`, `404 PROPERTY_NOT_FOUND`.
+
+#### `DELETE /properties/{id}`
+
+`properties.write`. Deletes the property and, in the same transaction, its value from every record, so a property added later with the same key starts empty. **204**. **Errors:** `404 PROPERTY_NOT_FOUND`.
 
 ### Channels (v2)
 
@@ -2355,6 +2441,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Accepting an invitation | `POST /invites/preview`, then `POST /invites/accept` |
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
 | Performance | `GET /stats/performance` (`scope=bot` or `business`); read `recording` first |
+| Settings: properties | `GET /properties?entity=`, `GET /properties/presets` with the business's type, `POST`/`PATCH`/`DELETE /properties…` |
 | Customers | `GET /customers` (search with `q`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, and `GET /tickets?customer=` for all of their tickets |
 | Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
@@ -2406,11 +2493,11 @@ Every error has its HTTP status and this body:
 | 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. |
 | 404 | `NOT_FOUND` | No such route. |
 | 404 | `ATTACHMENT_NOT_FOUND` | Image input. The attachment doesn't exist, was already sent, belongs to another conversation or bot, or expired after an hour. Register it again. |
-| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
+| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND`, `PROPERTY_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |
-| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS` | Already exists. |
+| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS`, `PROPERTY_EXISTS` | Already exists. |
 | 409 | `LAST_OWNER`, `OWN_ACCESS`, `LAST_PLATFORM_ADMIN`, `SOLE_OWNER` | The change would leave a business without an owner or the platform without an admin, or change your own account's access. |
 | 409 | `EMAIL_TAKEN` | Another account has this email address. |
 | 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE` | State conflicts. |
