@@ -713,6 +713,15 @@ function seedCustomers(conversations: MockConversation[], tickets: MockTicket[])
           ...(i % 4 === 1 ? [{ type: 'discord', value: String(80351110224678912n + BigInt(i) * 1117n), primary: true }] : []),
         ],
         metadata: i % 3 === 0 ? { plan: pick(r, ['free', 'pro', 'business']), signed_up_via: 'storefront' } : {},
+        // Values for the properties seedProperties gives Acme's support bot.
+        properties:
+          tenant === 'acme'
+            ? {
+                ...(i % 2 === 0 && { loyalty_tier: pick(r, ['bronze', 'silver', 'gold']) }),
+                ...(i % 4 === 0 && { vip: true }),
+                ...(i % 3 === 1 && { birthday: `19${70 + Math.floor(r() * 30)}-0${1 + Math.floor(r() * 9)}-1${Math.floor(r() * 9)}` }),
+              }
+            : {},
         first_seen_at: new Date(first).toISOString(),
         last_seen_at: new Date(seen).toISOString(),
         created_at: new Date(first).toISOString(),

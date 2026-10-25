@@ -692,6 +692,14 @@ export interface Customer {
   contacts: Contact[];
   /** A JSON object kept about them, up to 4 KB. */
   metadata: Record<string, unknown>;
+  /** The bot's custom property values by key. */
+  properties: PropertyValues;
+  /** Sensitive values left out because this person can't edit customers. */
+  masked_properties?: string[];
+  /** Their picture; absent for none. */
+  avatar_url?: string;
+  /** upload: the team uploaded it; url: copied from a link, such as their avatar on Discord. */
+  avatar_source?: 'upload' | 'url';
   first_seen_at: string;
   last_seen_at: string;
   conversations: number;
@@ -707,6 +715,10 @@ export interface CustomerInput {
   /** On PATCH this replaces the whole list; leave it out to keep the contacts. */
   contacts?: { type: string; value: string; label?: string; primary?: boolean }[];
   metadata?: Record<string, unknown>;
+  /** Merged into the customer's: keys sent replace their value, null clears one. */
+  properties?: PropertyValues;
+  /** An https link to copy their picture from; "" removes it. */
+  avatar_url?: string;
 }
 
 /* ------------------------------------------------------------------ */

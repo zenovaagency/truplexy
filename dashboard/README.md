@@ -62,6 +62,8 @@ Businesses define typed fields (text, number, date, single and multiple choice, 
 - `src/components/domain/Properties.tsx` has the inputs (`PropertyFields`) and the read-only list (`PropertyList`) for any record; `src/lib/properties.ts` moves values between the API and the fields. Edits send only the values that changed, so a value the API would no longer accept (a removed option) isn't sent again.
 - Sensitive properties come back masked (`masked_properties`) to people who can't edit the record; they show as **Hidden**.
 - Demo mode serves properties, with three on Acme's support bot, and checks values with the API's rules (`src/lib/api/mock/properties.ts`).
+- **Customers** show their picture (`avatar_url`; agents and up can upload or remove one), their properties in the detail sheet and form, up to three property columns (remembered per browser), and a filter over choice and yes/no properties. The open customer is in the address (`/customers/cus_…`), so it can be linked to from tickets.
+- The chat API's `PUT /customer` takes `avatar_url` and `properties` too, but the SDK (`sdk/`), `sdk/CHAT_API.md` and the public docs' `CUSTOMER_RULES` (`src/features/integrations/snippets/chat-api.ts`) don't mention them yet: an API without them refuses unknown fields. Add them there once the API serves them.
 
 ## Deploying
 

@@ -37,7 +37,7 @@ import { emit, topicFor } from './bus';
 import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 import { buildPerformance, performanceMode } from './performance';
-import { PRESETS, PROPERTY_ENTITIES, PropertyError, changeDefinition, newDefinition, type MockProperty } from './properties';
+import { PRESETS, PROPERTY_ENTITIES, PropertyError, applyValues, changeDefinition, matchesFilters, newDefinition, visibleValues, type MockProperty } from './properties';
 
 /* ------------------------------------------------------------------ */
 /* Plumbing                                                            */
@@ -904,6 +904,13 @@ route('DELETE', '/channels/:id', 'channels.write', (c) => {
 
 /* Customers ------------------------------------------------------------ */
 
+/** A customer as a member of the business sees it: sensitive values only for those who can edit customers. */
+function customerView(c: Ctx, cu: MockCustomer): Customer {
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('customers.write');
+  const { properties, masked_properties } = visibleValues(definitionsOf(c, 'customer'), cu.properties, sensitive);
+  return { ...customerOut(c.db, cu), properties, ...(masked_properties.length && { masked_properties }) };
+}
+
 function customerOut(db: MockDb, cu: MockCustomer): Customer {
   const tickets = db.tickets.filter((t) => t.customer_id === cu.id && t.tenant_id === cu.tenant_id);
   return {
@@ -963,6 +970,16 @@ function applyCustomer(c: Ctx, cu: Partial<MockCustomer>, b: any, existing?: Moc
     if (JSON.stringify(b.metadata).length > 4096) throw invalid('metadata is at most 4 KB.');
     cu.metadata = b.metadata;
   }
+  if (b.properties !== undefined || !existing) {
+    cu.properties = checked(() => applyValues(definitionsOf(c, 'customer'), existing?.properties ?? {}, b.properties, !existing));
+  }
+  if (b.avatar_url !== undefined) {
+    const link = String(b.avatar_url ?? '').trim();
+    if (link && !/^https:\/\/[^\s/@]+\//.test(link)) throw invalid('Set avatar_url to an https link to a PNG, JPEG or WebP picture, or to "" to remove the picture.');
+    // The API copies the picture; the demo shows the link itself.
+    cu.avatar_url = link || undefined;
+    cu.avatar_source = link ? 'url' : undefined;
+  }
   const next = { ...existing, ...cu };
   if (!next.name && !next.contacts?.length) throw invalid('A customer needs a name or at least one contact.');
   for (const k of next.contacts ?? []) {
@@ -974,30 +991,33 @@ function applyCustomer(c: Ctx, cu: Partial<MockCustomer>, b: any, existing?: Moc
 
 route('GET', '/customers', 'customers.read', (c) => {
   const s = (c.query.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  const defs = definitionsOf(c, 'customer');
+  const sensitive = permsFor(c.role, c.user.platform_admin).has('customers.write');
   const filtered = botCustomers(c)
     .filter((x) => !s || [x.name, ...x.contacts.map((k) => k.value)].some((f) => f.toLowerCase().startsWith(s) || f.toLowerCase().split(/\s+/).some((w) => w.startsWith(s))))
+    .filter((x) => checked(() => matchesFilters(defs, x.properties, c.query, sensitive)))
     .sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at));
   const limit = Math.min(200, Math.max(1, Number(c.query.get('limit') ?? 50)));
   const start = Number(c.query.get('cursor') ?? 0);
   return {
-    data: filtered.slice(start, start + limit).map((x) => customerOut(c.db, x)),
+    data: filtered.slice(start, start + limit).map((x) => customerView(c, x)),
     next_cursor: start + limit < filtered.length ? String(start + limit) : undefined,
   };
 });
 
 route('POST', '/customers', 'customers.write', (c) => {
   const now = nowIso();
-  const cu = { id: newId('cus'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', contacts: [], metadata: {}, first_seen_at: now, last_seen_at: now, created_at: now, updated_at: now } as MockCustomer;
+  const cu: MockCustomer = { id: newId('cus'), tenant_id: c.tenant.id, bot_id: c.botId, name: '', contacts: [], metadata: {}, properties: {}, first_seen_at: now, last_seen_at: now, created_at: now, updated_at: now };
   applyCustomer(c, cu, c.body ?? {});
   c.db.customers.push(cu);
-  return created(customerOut(c.db, cu));
+  return created(customerView(c, cu));
 });
 
 route('GET', '/customers/:id', 'customers.read', (c) => {
   const cu = customerOf(c, c.params.id);
   const latest = <T extends { updated_at: string }>(rows: T[]) => rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10);
   return {
-    ...customerOut(c.db, cu),
+    ...customerView(c, cu),
     recent_conversations: latest(c.db.conversations.filter((x) => x.customer_id === cu.id)).map((x) => ({ id: x.id, created_at: x.created_at, updated_at: x.updated_at })),
     recent_tickets: latest(botTickets(c).filter((t) => t.customer_id === cu.id)).map((t) => ({ id: t.id, subject: t.subject, status: t.status, created_at: t.created_at, updated_at: t.updated_at })),
   };
@@ -1006,11 +1026,24 @@ route('GET', '/customers/:id', 'customers.read', (c) => {
 route('PATCH', '/customers/:id', 'customers.write', (c) => {
   const cu = customerOf(c, c.params.id);
   const b = c.body ?? {};
-  if (!['name', 'contacts', 'metadata'].some((k) => b[k] !== undefined)) throw invalid('Send at least one field to change.');
+  if (!['name', 'contacts', 'metadata', 'properties', 'avatar_url'].some((k) => b[k] !== undefined)) throw invalid('Send at least one field to change.');
   const patch: Partial<MockCustomer> = {};
   applyCustomer(c, patch, b, cu);
   Object.assign(cu, patch, { updated_at: nowIso() });
-  return customerOut(c.db, cu);
+  return customerView(c, cu);
+});
+
+route('PUT', '/customers/:id/avatar', 'customers.write', (c) => {
+  const cu = customerOf(c, c.params.id);
+  Object.assign(cu, { avatar_url: pictureOf(c), avatar_source: 'upload' as const });
+  return { avatar_url: cu.avatar_url };
+});
+
+route('DELETE', '/customers/:id/avatar', 'customers.write', (c) => {
+  const cu = customerOf(c, c.params.id);
+  delete cu.avatar_url;
+  delete cu.avatar_source;
+  return { avatar_url: null };
 });
 
 route('DELETE', '/customers/:id', 'customers.write', (c) => {
@@ -1083,7 +1116,7 @@ route('DELETE', '/properties/:id', 'properties.write', (c) => {
   const d = propertyOf(c, c.params.id);
   c.db.properties = c.db.properties.filter((x) => x !== d);
   // Its values go with it, in every record of the bot.
-  for (const cu of botCustomers(c) as { properties?: Record<string, unknown> }[]) if (cu.properties) delete cu.properties[d.key];
+  for (const cu of botCustomers(c)) delete cu.properties?.[d.key];
   return noContent();
 });
 

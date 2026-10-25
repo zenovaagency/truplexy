@@ -4,13 +4,26 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Customer pictures and properties (2026-10-25)
+
+Customers now have a picture and the bot's [custom properties](#custom-properties-v2). It adds fields and two routes; nothing existing changed. Apply migrations `0041_properties.sql` and `0043_customer_profiles.sql` **before** deploying the API that reads them: every customer read uses the new columns.
+
+**What a dashboard does:**
+
+1. Show `avatar_url` wherever a customer appears, falling back to initials. `avatar_source` says whether the team uploaded it (`upload`) or it was copied from a link, such as the person's avatar on Discord (`url`).
+2. Let people with `customers.write` upload a picture with [`PUT /customers/{id}/avatar`](#put-customersidavatar-v2) and remove it with `DELETE`. An uploaded picture is kept when the chat API later sends a link.
+3. Show and edit `properties` with the bot's customer properties (`GET /properties?entity=customer`), sending only the values that changed. Keys in `masked_properties` are sensitive values the person may not see: show them as hidden.
+4. Filter the list with `property[key]=value`.
+
+**For integrations:** `PUT /customer` takes `avatar_url` (an https link to the person's picture on your platform) and `properties`. The picture is copied into Truplexy's storage, so the link may expire later; a link that can't be fetched leaves the picture as it was and never fails the request.
 
 ## Custom properties (2026-10-25)
 
@@ -417,6 +430,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/customers/{id}` | `customers.read` | A customer with their latest conversations and tickets (v2) |
 | `PATCH` | `/customers/{id}` | `customers.write` | Change a customer (v2) |
 | `DELETE` | `/customers/{id}` | `customers.write` | Delete a customer (v2) |
+| `PUT` | `/customers/{id}/avatar` | `customers.write` | Upload a customer's picture (v2) |
+| `DELETE` | `/customers/{id}/avatar` | `customers.write` | Remove a customer's picture (v2) |
 | `GET` | `/properties` | `properties.read` | The custom properties of one kind of record (v2) |
 | `GET` | `/properties/presets` | `properties.read` | Suggested properties for the business's type (v2) |
 | `POST` | `/properties` | `properties.write` | Add a custom property (v2) |
@@ -761,6 +776,10 @@ Scope headers; these act on the bot. A customer is a person the bot talks to, kn
   name,
   contacts: [{ type, value, label?, primary }],   // see below; in the order they were added
   metadata,                                // a JSON object you keep about them, up to 4 KB
+  properties,                              // the bot's custom property values by key (see Custom properties)
+  masked_properties?,                      // keys of sensitive values left out for a caller without customers.write
+  avatar_url?,                             // the customer's picture; absent for none
+  avatar_source?,                          // upload (by the team) or url (copied from a link)
   first_seen_at, last_seen_at,             // last_seen_at moves on PUT /customer and when a conversation is started for them
   conversations, tickets, open_tickets,    // counts
   created_at, updated_at
@@ -774,6 +793,8 @@ Fields of `POST` and `PATCH`:
 | `name` | Up to 120 characters; whitespace is collapsed. |
 | `contacts` | Up to 20 contacts (below). On `PATCH` the list replaces all of the customer's contacts; `[]` removes them. |
 | `metadata` | A JSON object of up to 4 KB. On `PATCH` it replaces the stored object. |
+| `properties` | Values of the bot's customer properties by key. Merged: keys sent replace their value, `null` clears one, keys left out keep theirs. Required properties must be set when adding a customer here (not through the chat API). See [Custom properties](#custom-properties-v2). |
+| `avatar_url` | An https link to a PNG, JPEG or WebP picture of up to 512 KB, which is copied as the customer's picture; `""` removes it. A link that can't be fetched leaves the picture as it was. |
 
 A customer needs a name or at least one contact. On `PATCH`, fields left out keep their value.
 
@@ -786,7 +807,7 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 
 #### `GET /customers`
 
-`customers.read`. Query: `q` (matches the start of the name or of any contact's value, up to 100 characters), `limit` (1–200, default 50), `cursor`. **200** `{data: [Customer], next_cursor?}`, most recently seen first. Pass `next_cursor` as `cursor` for the next page.
+`customers.read`. Query: `q` (matches the start of the name or of any contact's value, up to 100 characters), `property[key]=value` (up to 5; see [Filtering](#custom-properties-v2)), `limit` (1–200, default 50), `cursor`. **200** `{data: [Customer], next_cursor?}`, most recently seen first. Pass `next_cursor` as `cursor` for the next page.
 
 #### `POST /customers`
 
@@ -806,7 +827,15 @@ A customer needs a name or at least one contact. On `PATCH`, fields left out kee
 
 #### `DELETE /customers/{id}`
 
-`customers.write`. Deletes the customer and their contacts. Their conversations and tickets keep their `customer_id`, and the contacts can be used again. **204**. **Errors:** `404 CUSTOMER_NOT_FOUND`.
+`customers.write`. Deletes the customer, their contacts and their picture. Their conversations and tickets keep their `customer_id`, and the contacts can be used again. **204**. **Errors:** `404 CUSTOMER_NOT_FOUND`.
+
+#### `PUT /customers/{id}/avatar` (v2)
+
+`customers.write`. Upload the customer's picture like a [profile image](#profile-images-v2): multipart `file`, or the raw body, PNG, JPEG or WebP. **200** `{avatar_url}`. It is kept when the chat API later sends `avatar_url` for the customer. **Errors:** as for profile images, and `404 CUSTOMER_NOT_FOUND`.
+
+#### `DELETE /customers/{id}/avatar` (v2)
+
+`customers.write`. Removes the picture. **200** `{avatar_url: null}`. **Errors:** `404 CUSTOMER_NOT_FOUND`.
 
 ### Custom properties (v2)
 
@@ -2329,7 +2358,7 @@ Image input adds `attachments: {enabled, max_bytes, max_per_message, content_typ
 
 #### `PUT /customer` (v2)
 
-Finds or creates the [customer](#customers-v2) your platform knows, so their conversations and tickets are linked to them. Send `{contacts, name?, metadata?}` with at least one contact, for example `{"contacts": [{"type": "discord", "value": "80351110224678912"}, {"type": "email", "value": "ann@example.com"}]}` (rules as for `POST /customers`). The bot's customer who has any of the contacts is found, gets the contacts they lack added, has the `name` and `metadata` you send updated, and is marked seen; if there is none, one is created. Contacts they already have keep their primary flags. **201** a new customer, **200** an existing one, as the customer object. Pass its `id` as `customer_id` to `POST /conversations`.
+Finds or creates the [customer](#customers-v2) your platform knows, so their conversations and tickets are linked to them. Send `{contacts, name?, metadata?, properties?, avatar_url?}` with at least one contact, for example `{"contacts": [{"type": "discord", "value": "80351110224678912"}, {"type": "email", "value": "ann@example.com"}]}` (rules as for `POST /customers`). The bot's customer who has any of the contacts is found, gets the contacts they lack added, has the `name` and `metadata` you send updated, and is marked seen; if there is none, one is created. Contacts they already have keep their primary flags. `properties` are merged like `PATCH /customers/{id}`, without requiring the required ones. `avatar_url` is an https link to their picture on your platform, copied once per link; it never replaces a picture the team uploaded, and a link that can't be fetched is skipped without failing the request. **201** a new customer, **200** an existing one, as the customer object, without sensitive property values. Pass its `id` as `customer_id` to `POST /conversations`.
 
 **Errors:** `400 INVALID_REQUEST`; `409 CUSTOMER_CONFLICT`: the contacts belong to different customers, so nothing is changed (edit or delete one of the customers in the dashboard); `409 CUSTOMER_EXISTS`: a contact was taken by another customer while the request ran, so retry.
 
@@ -2442,7 +2471,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
 | Performance | `GET /stats/performance` (`scope=bot` or `business`); read `recording` first |
 | Settings: properties | `GET /properties?entity=`, `GET /properties/presets` with the business's type, `POST`/`PATCH`/`DELETE /properties…` |
-| Customers | `GET /customers` (search with `q`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, and `GET /tickets?customer=` for all of their tickets |
+| Customers | `GET /customers` (search with `q`, filter with `property[key]=`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, `PUT`/`DELETE /customers/{id}/avatar`, `GET /properties?entity=customer` for the property fields, and `GET /tickets?customer=` for all of their tickets |
 | Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
