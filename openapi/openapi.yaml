@@ -3592,10 +3592,18 @@ paths:
     post:
       operationId: buyTokenAddon
       summary: Buy extra tokens for this month from the balance (v2)
-      description: billing.write. millions must be a position on the plan's token_addon slider; the price is what GET /billing/token-addons/quote gives. 400 INVALID_REQUEST off the slider, 400 ADDON_NOT_AVAILABLE when the plan sells none or the business's tokens are unlimited, 402 INSUFFICIENT_BALANCE when the balance is below the price (nothing changes).
+      description: billing.write. With an Idempotency-Key (1-255 printable characters) a purchase happens once per key: a repeat after it finished gets the first response (Idempotent-Replayed - true), a repeat while it runs gets 409 REQUEST_IN_PROGRESS, and the same key for another amount gets 422 IDEMPOTENCY_KEY_REUSED; a failed purchase leaves the key free to retry. If the billing summary can't be read after a purchase, the response has addon and no billing. millions must be a position on the plan's token_addon slider; the price is what GET /billing/token-addons/quote gives. 400 INVALID_REQUEST off the slider, 400 ADDON_NOT_AVAILABLE when the plan sells none or the business's tokens are unlimited, 402 INSUFFICIENT_BALANCE when the balance is below the price (nothing changes).
       security:
         - AdminKey: []
         - MemberToken: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
       requestBody:
         required: true
         content:
@@ -3615,7 +3623,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [addon, billing]
+                required: [addon]
                 properties:
                   addon:
                     $ref: '#/components/schemas/TokenAddonPurchase'
@@ -4441,6 +4449,19 @@ components:
         type: string
         example: req_7eecc8be1e594f01a0ca18563223c9f0
   responses:
+    RateLimited:
+      description: Too many requests (RATE_LIMITED). Wait Retry-After seconds. Every response carries RateLimit-Limit, RateLimit-Remaining and RateLimit-Reset for the limit that applies to it. See "Rate limits" in API_REFERENCE.md.
+      headers:
+        Retry-After:
+          description: Seconds to wait before sending the request again.
+          schema:
+            type: integer
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     Error:
       description: JSON error; unknown routes return 404 and unsupported methods return 405.
       headers:
