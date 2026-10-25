@@ -123,9 +123,10 @@ export function useWebhook(enabled = true) {
   return useQuery({
     queryKey: qk.bot(scope, 'webhook'),
     // 404 WEBHOOK_NOT_FOUND means "none yet": an empty form, not an error.
+    // Resolved here, so the query succeeds with null instead of erroring and retrying.
     queryFn: ({ signal }) =>
       api<Webhook>('/webhook', { scope, signal }).catch((e) => {
-        if (e?.code === 'WEBHOOK_NOT_FOUND') return null;
+        if (hasCode(e, 'WEBHOOK_NOT_FOUND')) return null;
         throw e;
       }),
     enabled,
@@ -137,7 +138,10 @@ export function useSaveWebhook() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { url: string; enabled?: boolean }) => api<Webhook>('/webhook', { method: 'PUT', body, scope }),
+    // From the response rather than a refetch, which would drop the secret; the page shows it once itself.
     onSuccess: (w) => qc.setQueryData(qk.bot(scope, 'webhook'), { ...w, secret: undefined }),
+    // The form shows the URL rule the API names under the field.
+    meta: { silentCodes: ['INVALID_REQUEST'] },
   });
 }
 
@@ -145,9 +149,13 @@ export function useDeleteWebhook() {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<void>('/webhook', { method: 'DELETE', scope }),
+    // Already gone (404 WEBHOOK_NOT_FOUND) is what deleting asks for.
+    mutationFn: () =>
+      api<void>('/webhook', { method: 'DELETE', scope }).catch((e) => {
+        if (!hasCode(e, 'WEBHOOK_NOT_FOUND')) throw e;
+      }),
     onSuccess: () => qc.setQueryData(qk.bot(scope, 'webhook'), null),
-    meta: { success: 'Webhook removed' },
+    meta: { success: 'Webhook deleted' },
   });
 }
 

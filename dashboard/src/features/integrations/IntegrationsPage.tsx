@@ -31,6 +31,7 @@ import type { Channel, ChannelInput, Webhook, WebhookDelivery } from '@/lib/api/
 import { cn } from '@/lib/cn';
 import { formatDateTime, formatNumber, formatRelative, pluralize } from '@/lib/format';
 import { notifySuccess } from '@/lib/notify';
+import { hasCode, isApiError } from '@/lib/api/client';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { isShopifyChannel, shopifyToolsUnavailable } from '@/lib/shopify';
 import {
@@ -1115,6 +1116,10 @@ export function WebhookTab() {
   const writable = can('integrations.write');
   const w = q.data;
   const [url, setUrl] = useState('');
+  /** The new webhook's switch; a saved one's is changed in place. */
+  const [enabled, setEnabled] = useState(true);
+  /** The API's own words for a URL it refused. */
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<WebhookDelivery | null>(null);
 
@@ -1122,21 +1127,26 @@ export function WebhookTab() {
 
   const urlOk = /^https:\/\/[^\s#@]+$/.test(url) && url.length <= 2000;
 
-  const onSave = (patch?: Partial<Pick<Webhook, 'enabled'>>) =>
+  const onSave = (patch?: Partial<Pick<Webhook, 'enabled'>>) => {
+    setUrlError(null);
     save.mutate(
-      { url: patch ? w!.url : url, enabled: patch?.enabled ?? w?.enabled ?? true },
+      { url: patch ? w!.url : url, enabled: patch?.enabled ?? w?.enabled ?? enabled },
       {
         onSuccess: (r) => {
           if (r.secret) setSecret(r.secret);
           notifySuccess(patch ? (patch.enabled ? 'Deliveries resumed' : 'Deliveries paused') : w ? 'Webhook saved' : 'Webhook created');
         },
+        onError: (e) => {
+          if (hasCode(e, 'INVALID_REQUEST') && isApiError(e)) setUrlError(e.message);
+        },
       },
     );
+  };
 
   const onRotate = () =>
     confirm({
       title: 'Replace the signing secret?',
-      description: 'Deliveries are signed with the new secret right away. Update your server first, or it will reject them.',
+      description: 'The old secret stops working at once: deliveries are signed with the new one from now on. Update your server right after, or it will reject them.',
       confirmLabel: 'Replace secret',
       tone: 'danger',
       onConfirm: () => rotate.mutateAsync().then((r) => r.secret && setSecret(r.secret)),
@@ -1144,14 +1154,20 @@ export function WebhookTab() {
 
   const onDelete = () =>
     confirm({
-      title: 'Remove the webhook?',
-      description: "Your integration stops hearing about your team's replies and ticket changes.",
-      confirmLabel: 'Remove webhook',
+      title: 'Delete the webhook?',
+      description: "Your integration stops hearing about your team's replies and ticket changes. Saving a URL again creates a new secret.",
+      confirmLabel: 'Delete webhook',
       tone: 'danger',
-      onConfirm: () => del.mutateAsync().then(() => setSecret(null)),
+      onConfirm: () =>
+        del.mutateAsync().then(() => {
+          setSecret(null);
+          setLastTest(null);
+          setEnabled(true);
+          setUrlError(null);
+        }),
     });
 
-  const delivery = lastTest ?? w?.last_delivery;
+  const delivery = w ? (lastTest ?? w.last_delivery) : undefined;
 
   if (q.isPending)
     return (
@@ -1171,32 +1187,62 @@ export function WebhookTab() {
       <div className="grid content-start gap-5">
         <Card
           title={`Webhook for ${bot.name}`}
-          description="Truplexy posts signed events here when your team replies to a chat API conversation or its ticket changes. Your integration delivers them to the customer."
+          description="Truplexy calls this URL when your team replies to or updates a ticket from a chat API conversation (message.created, ticket.updated)."
           actions={w && <Badge tone={w.enabled ? 'live' : 'warn'} dot>{w.enabled ? 'Active' : 'Paused'}</Badge>}
         >
           <div className="grid gap-5">
-            {secret && <SecretOnce value={secret} title="Your signing secret" description="Shown once. Set it as TRUPLEXY_WEBHOOK_SECRET on your server to verify deliveries." />}
-            <form
-              className="flex flex-wrap items-end gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (urlOk) onSave();
-              }}
-            >
-              <Field label="Endpoint URL" className="min-w-[240px] flex-1" error={url && !urlOk ? 'Use an https:// URL with no user name, password or #fragment.' : undefined}>
-                <Input value={url} disabled={!writable} onChange={(e) => setUrl(e.target.value.trim())} placeholder="https://your-server.com/truplexy-webhook" className="font-mono text-xs" />
-              </Field>
-              {writable && (
-                <Button type="submit" variant="accent" loading={save.isPending} disabled={!urlOk || url === w?.url}>
-                  {w ? 'Save' : 'Create webhook'}
-                </Button>
-              )}
-            </form>
+            {secret && (
+              <SecretOnce
+                value={secret}
+                title="Your signing secret"
+                description="Save this now: it won't be shown again. Set it as TRUPLEXY_WEBHOOK_SECRET on your server to verify deliveries."
+              />
+            )}
+            {(w || writable) && (
+              <form
+                className="grid gap-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (urlOk) onSave();
+                }}
+              >
+                <div className="flex flex-wrap items-end gap-2">
+                  <Field
+                    label="Endpoint URL"
+                    className="min-w-[240px] flex-1"
+                    error={urlError ?? (url && !urlOk ? 'Use an https:// URL with no user name, password or #fragment.' : undefined)}
+                  >
+                    <Input
+                      value={url}
+                      disabled={!writable}
+                      onChange={(e) => (setUrl(e.target.value.trim()), setUrlError(null))}
+                      placeholder="https://your-server.com/truplexy-webhook"
+                      aria-label="Endpoint URL"
+                      className="font-mono text-xs"
+                    />
+                  </Field>
+                  {writable && (
+                    <Button type="submit" variant="accent" loading={save.isPending} disabled={!urlOk || url === w?.url}>
+                      {w ? 'Save' : 'Create webhook'}
+                    </Button>
+                  )}
+                </div>
+                {!w && (
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={setEnabled}
+                    label="Enabled"
+                    description={enabled ? 'Deliveries start as soon as it is saved.' : 'Saved paused: nothing is delivered until you turn it on.'}
+                  />
+                )}
+              </form>
+            )}
 
             {w && (
               <>
                 <DescList
                   items={[
+                    { label: 'Deliveries', value: w.enabled ? 'On' : 'Paused' },
                     { label: 'Events', value: <span className="flex flex-wrap gap-1.5">{w.events.map((e) => <Badge key={e} tone="outline" className="font-mono">{e}</Badge>)}</span> },
                     { label: 'Signing secret', value: <code className="font-mono text-xs">{w.secret_hint}</code> },
                     { label: 'Created', value: formatDateTime(w.created_at) },
@@ -1216,7 +1262,7 @@ export function WebhookTab() {
                       Replace secret
                     </Button>
                     <Button size="xs" variant="danger-ghost" leading={<Trash2 />} onClick={() => void onDelete()}>
-                      Remove
+                      Delete
                     </Button>
                   </div>
                 )}
