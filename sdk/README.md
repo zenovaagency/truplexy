@@ -61,7 +61,7 @@ npm install
 npm run build        # all packages (server, web, react, vue)
 npm test             # vitest: API client, customer linkage, sessions, widget, generated Node helper, plugin sync
 npm run typecheck
-npm run size         # fails if the CDN widget passes 21 KB gzipped
+npm run size         # fails if the CDN widget passes 22 KB gzipped
 npm run playground   # http://localhost:4300: the CDN widget + the real route against a mock API
 TRUPLEXY_CHAT_KEY=tpx_… npm run playground   # the same, against the real API
 ```

@@ -83,7 +83,10 @@ export interface Customer {
 export interface TicketRef {
   id: string;
   subject?: string;
+  /** `closed` once the team has closed it: the chat is then read-only. */
   status?: string;
+  /** When it was closed (ISO time), from your server or else when this browser first saw it. The chat is kept for a few days after. */
+  closedAt?: string;
 }
 
 export interface ChatState {
@@ -91,6 +94,8 @@ export interface ChatState {
   customer: Customer | null;
   /** The ticket opened for this conversation, kept with the session in the browser. */
   ticket: TicketRef | null;
+  /** The ticket was closed: show the conversation read-only and offer `reset()` to start a new one. `send()` does nothing. */
+  closed: boolean;
   /** The first message is waiting for the visitor's name and email: call `setCustomer()`, then `send()` again. */
   needsDetails: boolean;
   /** The business's name and logo and the bot's name and picture; null until loaded, or when the server can't provide them. */
@@ -123,6 +128,8 @@ export interface Transport {
 export interface WireConversation {
   status: string;
   escalated: boolean;
+  /** The conversation's current ticket. Routes that predate closed tickets leave it out. */
+  ticket?: { id: string; status?: string; closed_at?: string };
   messages: { id: string; role: 'user' | 'assistant'; content: string; author?: string; agent?: string; created_at: string }[];
 }
 

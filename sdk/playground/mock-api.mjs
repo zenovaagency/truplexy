@@ -164,6 +164,7 @@ export function mockApi(base, { latency = 150, replyLatency = 900, autoAgent = t
     if (action === 'ticket' && path.endsWith('/ticket/close')) {
       if (!conv.ticket) return json(404, { error: { code: 'TICKET_NOT_FOUND', message: 'No ticket.' } });
       if (conv.ticket.status === 'open') { const c = customers.get(conv.customer_id); if (c) c.open_tickets--; }
+      if (conv.ticket.status === 'open') conv.ticket.closed_at = now();
       conv.ticket.status = 'closed';
       conv.ticket.escalated = conv.escalated = false;
       conv.status = 'open';
@@ -181,6 +182,9 @@ export function mockApi(base, { latency = 150, replyLatency = 900, autoAgent = t
     if (action === 'messages') {
       const text = body.message;
       const ids = body.attachments;
+      if (body.if_ticket_closed !== undefined && body.if_ticket_closed !== 'reject') return invalid();
+      // Opt-in: a closed conversation is refused before anything is stored. Otherwise it is answered as before.
+      if (body.if_ticket_closed === 'reject' && conv.ticket?.status === 'closed') return json(409, { error: { code: 'TICKET_CLOSED', message: 'This conversation is closed. Start a new one.' } });
       if (ids !== undefined && !images) return invalid(); // an unknown field, as today
       if (typeof text !== 'string' || text.length > 4000 || (!text.length && ids === undefined)) return invalid();
       let sent = [];

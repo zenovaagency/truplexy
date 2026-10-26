@@ -205,7 +205,10 @@ function public_conversation(array $conv): array {
         if ($m['role'] === 'user' && str_starts_with($m['content'], '[Context only')) continue;
         $messages[] = array_intersect_key($m, array_flip(['id', 'role', 'content', 'author', 'agent', 'created_at']));
     }
-    return ['status' => $conv['status'], 'escalated' => $conv['escalated'], 'messages' => $messages];
+    $out = ['status' => $conv['status'], 'escalated' => $conv['escalated'], 'messages' => $messages];
+    // A closed ticket: the widget shows the chat read-only.
+    if (is_array($conv['ticket'] ?? null)) $out['ticket'] = array_intersect_key($conv['ticket'], array_flip(['id', 'status', 'closed_at']));
+    return $out;
 }
 
 /** API contacts from the visitor form, or null when absent. */
@@ -252,6 +255,7 @@ function fail(string $code, string $requestId = ''): never {
         'NOT_CONFIGURED' => [500, 'Chat is not set up correctly.'],
         'TENANT_SUSPENDED' => [503, 'Chat is turned off right now.'],
         'INVALID_REQUEST' => [400, 'Check your message, name and email.'],
+        'TICKET_CLOSED' => [409, 'This conversation is closed. Start a new one.'],
         'CHANNEL_DISABLED' => [503, 'Chat is turned off right now.'],
         'PLAN_LIMIT_REACHED' => [503, "The assistant can't reply right now. Please try again later."],
         'LLM_RATE_LIMITED' => [429, 'The assistant is busy. Please try again in a moment.'],
@@ -274,9 +278,11 @@ try {
             $text = trim((string) ($in['text'] ?? ''));
             if ($text === '' || mb_strlen($text) > 4000 || str_starts_with($text, '[Context only')) fail('INVALID_REQUEST');
             $ticket = null;
+            $existing = (bool) $conv;
             if (!$conv) [$conv, $ticket] = start_conversation($in['customer'] ?? null);
             try {
-                $r = api('POST', "/conversations/$conv/messages", ['message' => $text]);
+                // A closed ticket ends the chat: the widget starts a new one, never this one again.
+                $r = api('POST', "/conversations/$conv/messages", ['message' => $text] + ($existing ? ['if_ticket_closed' => 'reject'] : []));
             } catch (UpstreamError $e) {
                 if ($e->apiCode !== 'CONVERSATION_NOT_FOUND' || !verify_session($in['session'] ?? null)) throw $e;
                 [$conv, $ticket] = start_conversation($in['customer'] ?? null);

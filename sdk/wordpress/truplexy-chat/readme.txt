@@ -84,6 +84,7 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 = 1.0.0 =
 * First release on WordPress.org.
 * The widget script is bundled with the plugin instead of loaded from a CDN.
+* A conversation whose ticket the team closed is shown read-only for a few days, and the visitor starts a new chat instead of continuing it.
 * Settings are removed when the plugin is deleted.
 * After activation the plugin opens its settings page, reminds you on the Plugins screen until a key is set, and shows whether the key works.
 * Settings screen and rate limiter escape and sanitise their values.

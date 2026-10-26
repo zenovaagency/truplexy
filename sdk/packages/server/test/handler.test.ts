@@ -247,6 +247,30 @@ describe('createHandler', () => {
     expect(await (await handler(post({ action: 'history', session: 'forged' }))).json()).toEqual({ session: null });
   });
 
+  it('passes on only the id, status and close time of the ticket in history', async () => {
+    const api = fakeApi({
+      [`GET /conversations/${CONV}`]: () => [
+        200,
+        { id: CONV, status: 'open', escalated: false, messages: [], ticket: { id: 'tkt_1', subject: 'Chat with Ada', status: 'closed', priority: 'high', assignee: 'sam', closed_at: 't9' } },
+      ],
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch });
+    const data = await (await handler(post({ action: 'history', session: await signSession(CONV, KEY) }))).json();
+    expect(data.conversation.ticket).toEqual({ id: 'tkt_1', status: 'closed', closed_at: 't9' });
+  });
+
+  it('refuses a message to a closed ticket without starting a new conversation', async () => {
+    const api = fakeApi({
+      [`POST /conversations/${CONV}/messages`]: () => [409, { error: { code: 'TICKET_CLOSED', message: 'closed', request_id: 'req_2' } }],
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch });
+    const res = await handler(post({ action: 'message', text: 'one more thing', session: await signSession(CONV, KEY) }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.code).toBe('TICKET_CLOSED');
+    expect(api.calls).toHaveLength(1);
+    expect(api.calls[0].body).toEqual({ message: 'one more thing', if_ticket_closed: 'reject' });
+  });
+
   it('reads the profile with the chat key and passes on only names and pictures', async () => {
     const api = fakeApi({
       'GET /profile': () => [

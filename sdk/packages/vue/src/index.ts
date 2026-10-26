@@ -107,7 +107,7 @@ export const TruplexyPlugin = {
   },
 };
 
-const EMPTY: ChatState = { profile: null, customer: null, ticket: null, needsDetails: false, messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
+const EMPTY: ChatState = { profile: null, customer: null, ticket: null, closed: false, needsDetails: false, messages: [], sending: false, offerHandoff: false, handoff: false, escalated: false, unread: 0, error: null, ready: false };
 
 /**
  * The chat without any UI, for building your own.

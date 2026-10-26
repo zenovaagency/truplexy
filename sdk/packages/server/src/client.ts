@@ -63,6 +63,8 @@ export interface Message {
 export interface Conversation {
   id: string; status: 'open' | 'handoff'; escalated: boolean; channel_id?: string; customer_id?: string;
   created_at: string; updated_at: string; messages: Message[];
+  /** The current ticket: the open one, else the latest, which is closed. Only `getConversation` returns it; absent before the conversation has one. */
+  ticket?: Ticket;
 }
 export interface ConversationInput { channel_id?: string; customer_id?: string }
 export type ReplyStatus = 'answered' | 'clarification_required' | 'no_answer' | 'handoff_offered' | 'handoff' | 'escalated' | 'context';
@@ -83,6 +85,8 @@ export interface MessageInput {
   attachments?: string[];
   /** Makes the send happen once: a retry with the same key returns the first answer. Not for the pictures: each attachment is single-use. */
   idempotencyKey?: string;
+  /** `'reject'` refuses the message with `TICKET_CLOSED` (409) when the conversation's ticket is closed. By default it is answered like any other. */
+  ifTicketClosed?: 'reject';
   signal?: AbortSignal;
   onProgress?: (progress: UploadProgress & { image: number }) => void;
 }
@@ -98,6 +102,8 @@ export interface TicketInput {
 export interface Ticket {
   id: string; subject: string; status: 'open' | 'closed'; priority: NonNullable<TicketInput['priority']>;
   escalated: boolean; channel_id?: string; customer_id?: string; created_at: string;
+  /** When the ticket was closed; absent while it is open. */
+  closed_at?: string;
 }
 export interface ReplyInput { content: string; author?: string; external_id?: string; escalate?: boolean }
 export interface ReplyResult { message: Message; ticket_id: string; escalated: boolean }
@@ -210,7 +216,7 @@ export function createChatClient(options: ChatClientOptions = {}) {
       const attachments = [...(message.attachments ?? []), ...uploaded];
       return request<MessageResult>(
         'POST', conversation(id, '/messages'),
-        { message: message.text ?? '', ...(attachments.length && { attachments }) },
+        { message: message.text ?? '', ...(attachments.length && { attachments }), ...(message.ifTicketClosed && { if_ticket_closed: message.ifTicketClosed }) },
         { signal: message.signal, headers: message.idempotencyKey ? { 'Idempotency-Key': message.idempotencyKey } : undefined },
       );
     },

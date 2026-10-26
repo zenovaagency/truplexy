@@ -71,6 +71,7 @@ const PASSED_ON: Record<string, [number, string]> = {
   CUSTOMER_NOT_FOUND: [404, 'Your customer profile is unavailable. Please try again.'],
   REALTIME_NOT_CONFIGURED: [503, 'Live updates are unavailable.'],
   INVALID_REQUEST: [400, 'Check your message and customer details.'],
+  TICKET_CLOSED: [409, 'This conversation is closed. Start a new one.'],
   CHANNEL_DISABLED: [503, 'Chat is turned off right now.'],
   TENANT_SUSPENDED: [503, 'Chat is turned off right now.'],
   PLAN_LIMIT_REACHED: [503, "The assistant can't reply right now. Please try again later."],
@@ -163,7 +164,10 @@ export function createHandler(options: HandlerOptions = {}): Handler {
           if (!text || text.length > MAX_TEXT) throw new TruplexyError('INVALID_REQUEST', 400, `Messages must be 1–${MAX_TEXT} characters.`);
           if (text.startsWith(CONTEXT_PREFIX)) throw new TruplexyError('INVALID_REQUEST', 400, 'That message can’t be sent.');
           let id = conversationId ?? (await start());
-          const ask = () => api.sendMessage(id, text);
+          // A closed ticket ends the chat: the widget starts a new one, never this one again.
+          // (A conversation made just now has an open ticket, or none.)
+          let existing = Boolean(conversationId);
+          const ask = () => api.sendMessage(id, existing ? { text, ifTicketClosed: 'reject' } : text);
           let result;
           try {
             result = await ask();
@@ -171,6 +175,7 @@ export function createHandler(options: HandlerOptions = {}): Handler {
             // The conversation is gone (deleted, or a different key): start a new one.
             if (!(e instanceof TruplexyApiError && e.code === 'CONVERSATION_NOT_FOUND') || !conversationId) throw e;
             id = await start();
+            existing = false;
             result = await ask();
           }
           return json({ session: await session(id), message: result.message, reply: result.reply, status: result.status, sources: result.sources ?? [], ...(ticket && { ticket }) });
@@ -298,6 +303,7 @@ function publicConversation(conv: Conversation) {
   return {
     status: conv.status,
     escalated: conv.escalated,
+    ...(conv.ticket && { ticket: { id: conv.ticket.id, status: conv.ticket.status, ...(conv.ticket.closed_at && { closed_at: conv.ticket.closed_at }) } }),
     messages: (conv.messages ?? [])
       .filter((m) => !(m.role === 'user' && m.content.startsWith(CONTEXT_PREFIX)))
       .map(({ id, role, content, author, agent, created_at }) => ({ id, role, content, author, agent, created_at })),
