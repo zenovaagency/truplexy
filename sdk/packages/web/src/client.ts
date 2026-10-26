@@ -60,7 +60,9 @@ const toError = (e: unknown): ChatError =>
     ? { code: e.code, message: e.message, ...(e.requestId && { requestId: e.requestId }) }
     : { code: 'UNKNOWN', message: 'Something went wrong. Please try again.' };
 
-const assistantCount = (messages: ChatMessage[]) => messages.reduce((n, m) => n + (m.role === 'assistant' ? 1 : 0), 0);
+/** Replies from the assistant or the team; a notice is not one. */
+const isReply = (m: ChatMessage) => m.role === 'assistant' && !m.notice;
+const assistantCount = (messages: ChatMessage[]) => messages.reduce((n, m) => n + (isReply(m) ? 1 : 0), 0);
 
 /**
  * The headless chat: session, messages, sending, handoff and live team
@@ -322,6 +324,7 @@ export class TruplexyClient {
       .map((m) => {
         const msg: ChatMessage = { id: m.id, role: m.role, content: m.content, createdAt: m.created_at };
         if (m.author === 'agent') msg.agent = m.agent || 'Support';
+        else if (m.author === 'system') msg.notice = true;
         // History has no sources; keep the ones the reply came with.
         const sources = m.role === 'assistant' && local.find((l) => l.role === 'assistant' && l.sources && l.content === m.content)?.sources;
         if (sources) msg.sources = sources;
@@ -385,7 +388,7 @@ export class TruplexyClient {
     this.store.save({ session: this.session, messages: next.messages, seen: this.seen, customer: next.customer, ticket: next.ticket });
     for (const listener of this.listeners) listener(next);
     if (count > before && this.state.ready) {
-      this.emit('message', next.messages.filter((m) => m.role === 'assistant').slice(before - count));
+      this.emit('message', next.messages.filter(isReply).slice(before - count));
     }
   }
 

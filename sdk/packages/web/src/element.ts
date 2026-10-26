@@ -524,7 +524,7 @@ export class TruplexyChatElement extends Base {
     const next = new Map<string, HTMLElement>();
     let anchor: Element = $.greeting;
     for (const m of state.messages) {
-      const base = `${m.role}|${m.agent ?? ''}|${m.content}`;
+      const base = `${m.notice ? 'notice' : m.role}|${m.agent ?? ''}|${m.content}`;
       const n = (seen.get(base) ?? 0) + 1;
       seen.set(base, n);
       const key = `${base}|${n}`;
@@ -542,7 +542,8 @@ export class TruplexyChatElement extends Base {
     $.restart.hidden = state.messages.length === 0;
     $.actions.hidden = !state.offerHandoff || state.closed;
     $.handoff.disabled = state.sending;
-    const notice = state.closed ? '' : state.escalated ? this.label('escalated') : state.handoff ? this.label('handoffDone') : '';
+    // Taking over is announced in the transcript (a notice line), not here.
+    const notice = state.closed ? '' : state.handoff && !state.escalated ? this.label('handoffDone') : '';
     $.notice.textContent = notice;
     $.notice.hidden = !notice;
     $.send.disabled = !$.input.value.trim() || state.sending;
@@ -562,6 +563,13 @@ export class TruplexyChatElement extends Base {
 
   private createMessage(m: ChatMessage): HTMLElement {
     const node = document.createElement('div');
+    if (m.notice) {
+      node.setAttribute('part', 'message notice-line');
+      node.setAttribute('role', 'status');
+      node.className = 'msg notice-line';
+      node.textContent = m.content;
+      return node;
+    }
     node.setAttribute('part', `message ${m.role}`);
     node.className = `msg ${m.role}${m.agent ? ' agent' : ''}`;
     if (m.agent) {

@@ -315,6 +315,17 @@ function statusParam(q: URLSearchParams): TicketStatus | undefined {
   return s as TicketStatus;
 }
 
+/** The notice the real API adds to a conversation that changes hands: a line the customer and the team both see. */
+function addNotice(c: Ctx, t: MockTicket, kind: 'joined' | 'handed_back') {
+  const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
+  if (!conv) return;
+  const name = c.user.name;
+  const content = kind === 'joined' ? `${name} has joined and will reply here.` : `${name} has handed the conversation back to the assistant.`;
+  const now = nowIso();
+  conv.messages.push({ id: newId('msg'), role: 'assistant', content, author: 'system', agent: name, created_at: now });
+  conv.updated_at = now;
+}
+
 function applyStatus(t: MockTicket, next: TicketStatus) {
   if (!TICKET_STATUSES.includes(next)) throw invalid('status must be open or closed.');
   if (next === 'open' && t.status === 'closed') {
@@ -2261,6 +2272,7 @@ route('POST', '/tickets', 'tickets.write', (c) => {
   };
   if (conv) conv.status = 'open';
   c.db.tickets.push(t);
+  if (t.escalated) addNotice(c, t, 'joined');
   emitTicket(c, t, 'ticket.created');
   return created(ticketOut(c.db, t));
 });
@@ -2287,6 +2299,7 @@ route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
   const t = findTicket(c);
   const b = c.body ?? {};
   if (b.escalated !== undefined && b.status === 'closed') throw invalid("escalated can't be combined with closed.");
+  const wasEscalated = t.escalated;
   if (b.subject !== undefined) t.subject = str(b.subject, 'subject', 1, 200)!;
   if (b.priority !== undefined) {
     if (!['low', 'normal', 'high', 'urgent'].includes(b.priority)) throw invalid('Unknown priority.');
@@ -2319,6 +2332,9 @@ route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
     t.escalated = Boolean(b.escalated);
     t.escalated_at = t.escalated ? nowIso() : t.escalated_at;
   }
+  // Said once, when the conversation really changes hands (closing hands it back too).
+  if (!wasEscalated && t.escalated) addNotice(c, t, 'joined');
+  else if (wasEscalated && !t.escalated) addNotice(c, t, 'handed_back');
   t.updated_at = nowIso();
   emitTicket(c, t, 'ticket.updated');
   const { tenant_id: _t, bot_id: _b, ...out } = ticketOut(c.db, t) as any;
@@ -2338,6 +2354,11 @@ route('POST', '/tickets/:id/replies', 'tickets.write', (c) => {
   const kind = c.body.kind === 'note' ? 'note' : 'reply';
   const content = str(c.body.content, 'content', 1, 8000)!;
   const now = nowIso();
+  // A reply needs the conversation taken over first, so the person and the assistant don't answer side by side.
+  if (kind === 'reply' && t.conversation_id && t.status === 'open' && !t.escalated) {
+    throw err(409, 'TAKE_OVER_REQUIRED', "The assistant is still answering this conversation. Take it over (PATCH escalated: true) before replying; internal notes don't need it.");
+  }
+  const wasEscalated = t.escalated;
   const reply: TicketReply = { id: newId('rpl'), kind, author: c.user.name, content, created_at: now };
   if (kind === 'reply') {
     const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
@@ -2354,6 +2375,8 @@ route('POST', '/tickets/:id/replies', 'tickets.write', (c) => {
     t.handed_off = false;
   }
   if (c.body.status) applyStatus(t, c.body.status);
+  // Closing with a reply hands the conversation back after the reply.
+  if (wasEscalated && !t.escalated) addNotice(c, t, 'handed_back');
   t.updated_at = now;
   (c.db.replies[t.id] ??= []).push(reply);
   emitTicket(c, t, 'ticket.updated');
