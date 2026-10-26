@@ -47,7 +47,7 @@ describe('Integrations → Chat widget', () => {
     await mount();
     expect((field('Title') as HTMLInputElement).value).toBe('Acme help');
     expect(document.querySelector('[data-testid="preview"]')?.textContent).toBe('Acme help|#c2410c|https://img.test/h.png');
-    expect(text()).toContain('Everything is saved.');
+    expect(text()).toContain('All changes saved');
     expect(button('Save')?.disabled).toBe(true);
   });
 
@@ -57,11 +57,11 @@ describe('Integrations → Chat widget', () => {
     await type(field('Greeting'), 'Welcome in!');
     await type(document.querySelector('input[aria-label="Colour code"]'), '#AA3366');
     await click([...document.querySelectorAll('[role="radio"]')].find((r) => r.textContent === 'Left'));
-    expect(text()).toContain('You have unsaved changes.');
+    expect(text()).toContain('Unsaved changes');
     await click(button('Save'));
     const put = calls.find((c) => c.method === 'PUT' && c.path === '/widget');
     expect(put?.body).toEqual({ settings: { ...WIDGET_DEFAULTS, heading: 'Acme help', greeting: 'Welcome in!', accent: '#aa3366', position: 'left' } });
-    expect(text()).toContain('Everything is saved.');
+    expect(text()).toContain('All changes saved');
   });
 
   it('holds back what breaks a rule, and shows what the API refuses', async () => {
@@ -75,7 +75,7 @@ describe('Integrations → Chat widget', () => {
     await click(button('Save'));
     expect(text()).toContain("That couldn't be saved");
     expect(text()).toContain('Keep the heading short.');
-    expect(text()).toContain('You have unsaved changes.');
+    expect(text()).toContain('Unsaved changes');
   });
 
   it('resets the form to the defaults without saving', async () => {
@@ -84,7 +84,7 @@ describe('Integrations → Chat widget', () => {
     await click(button('Reset to defaults'));
     expect((field('Title') as HTMLInputElement).value).toBe('');
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
-    expect(text()).toContain('You have unsaved changes.');
+    expect(text()).toContain('Unsaved changes');
   });
 
   it('is read-only without bot.write', async () => {

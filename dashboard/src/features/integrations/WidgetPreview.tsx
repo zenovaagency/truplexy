@@ -75,7 +75,7 @@ export function WidgetPreview({ settings, pictureUrl, fallbackPicture }: { setti
     el.setAttribute('open', '');
     // Fits the frame; the real window is larger.
     el.style.setProperty('--truplexy-width', '300px');
-    el.style.setProperty('--truplexy-height', '320px');
+    el.style.setProperty('--truplexy-height', '330px');
     el.style.setProperty('--truplexy-offset-x', '12px');
     el.style.setProperty('--truplexy-offset-y', '12px');
     el.style.setProperty('--truplexy-z-index', '1');
@@ -85,11 +85,19 @@ export function WidgetPreview({ settings, pictureUrl, fallbackPicture }: { setti
 
   return (
     <div
-      className="relative h-[440px] overflow-hidden rounded-[14px] border border-line bg-surface-2"
+      className="relative h-[400px] overflow-hidden lg:h-[460px] rounded-[14px] border border-line bg-surface-2"
       style={{ transform: 'translateZ(0)' }}
       role="img"
       aria-label="Preview of your chat window on your store"
     >
+      <div className="pointer-events-none flex items-center gap-3 border-b border-line bg-surface px-3 py-2" aria-hidden>
+        <div className="flex gap-1.5">
+          <div className="size-2 rounded-full bg-line-strong" />
+          <div className="size-2 rounded-full bg-line-strong" />
+          <div className="size-2 rounded-full bg-line-strong" />
+        </div>
+        <div className="h-4 flex-1 rounded-full bg-surface-2" />
+      </div>
       <div className="pointer-events-none grid gap-3 p-4" aria-hidden>
         <div className="flex items-center justify-between">
           <div className="h-3 w-20 rounded-full bg-line-strong" />
