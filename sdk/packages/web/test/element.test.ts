@@ -99,6 +99,61 @@ describe('<truplexy-chat>', () => {
     }
   });
 
+  it('shows a closed conversation read-only and starts a new chat from the button', async () => {
+    const key = 'truplexy:closed-test';
+    const closedAt = new Date(Date.now() - 86_400_000).toISOString();
+    localStorage.setItem(key, JSON.stringify({ session: 'S1', seen: 0, customer: { name: 'Ada', email: 'ada@example.com' }, ticket: { id: 'tkt_1', status: 'open' }, messages: [] }));
+    const posted: string[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const { action } = JSON.parse(String(init.body));
+      posted.push(action);
+      const body =
+        action === 'history'
+          ? {
+              session: 'S1',
+              conversation: {
+                status: 'open',
+                escalated: false,
+                ticket: { id: 'tkt_1', status: 'closed', closed_at: closedAt },
+                messages: [
+                  { id: 'm1', role: 'user', content: 'Where is my order?', created_at: closedAt },
+                  { id: 'm2', role: 'assistant', content: 'It shipped yesterday.', created_at: closedAt },
+                ],
+              },
+            }
+          : {};
+      return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+    });
+    try {
+      const el = mount({ endpoint: '/api/truplexy', storageKey: key });
+      await tick(10);
+      const root = el.shadowRoot!;
+      const closed = root.querySelector('.closed') as HTMLElement;
+      const composer = root.querySelector('.composer') as HTMLFormElement;
+      expect(closed.hidden).toBe(false);
+      expect(composer.hidden).toBe(true);
+      expect(root.querySelector('.closed-text')!.textContent).toBe('This conversation has been closed.');
+      const bubbles = () => [...root.querySelectorAll('.msg:not(.greeting):not(.typing) .bubble')].map((b) => b.textContent);
+      expect(bubbles()).toEqual(['Where is my order?', 'It shipped yesterday.']);
+      // The chat stays in the browser for a few days, closed.
+      expect(JSON.parse(localStorage.getItem(key)!).ticket).toEqual({ id: 'tkt_1', status: 'closed', closedAt });
+
+      // Nothing can be sent, even by script.
+      await el.send('one more thing');
+      expect(posted).not.toContain('message');
+
+      (root.querySelector('.closed-new') as HTMLButtonElement).click();
+      expect(closed.hidden).toBe(true);
+      expect(composer.hidden).toBe(false);
+      expect(bubbles()).toEqual([]);
+      expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject({ session: null, messages: [], customer: { name: 'Ada' } });
+      el.remove();
+    } finally {
+      vi.unstubAllGlobals();
+      localStorage.removeItem(key);
+    }
+  });
+
   it('links to Truplexy under the message box, in any language', () => {
     const el = mount({ demo: true });
     const brand = el.shadowRoot!.querySelector<HTMLAnchorElement>('.brand')!;
