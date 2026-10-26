@@ -35,6 +35,7 @@ export const ATTRIBUTES = [
   'show-sources',
   'demo',
   'storage-key',
+  'closed-retention-days',
   'details',
 ] as const;
 
@@ -73,6 +74,9 @@ export class TruplexyChatElement extends Base {
     greeting: HTMLElement;
     typing: HTMLElement;
     notice: HTMLElement;
+    closed: HTMLElement;
+    closedText: HTMLElement;
+    closedNew: HTMLButtonElement;
     actions: HTMLElement;
     handoff: HTMLButtonElement;
     details: HTMLFormElement;
@@ -139,7 +143,7 @@ export class TruplexyChatElement extends Base {
 
   attributeChangedCallback(name: string, old: string | null, value: string | null) {
     if (!this.built || old === value) return;
-    if (name === 'endpoint' || name === 'demo' || name === 'storage-key' || name === 'details') {
+    if (name === 'endpoint' || name === 'demo' || name === 'storage-key' || name === 'details' || name === 'closed-retention-days') {
       if (this.isConnected) {
         this.teardown();
         this.connect();
@@ -229,7 +233,7 @@ export class TruplexyChatElement extends Base {
     const client = new TruplexyClient(
       demo
         ? { transport: demoTransport(), store: false, details }
-        : { endpoint, storageKey: this.getAttribute('storage-key') || undefined, details },
+        : { endpoint, storageKey: this.getAttribute('storage-key') || undefined, details, closedRetentionDays: this.retentionDays() },
     );
     this._client = client;
     this.nodes.clear();
@@ -256,6 +260,12 @@ export class TruplexyChatElement extends Base {
     this.render(client.getState());
     void client.start();
     return client;
+  }
+
+  /** How many days a closed conversation stays in the browser: the attribute, else the client's default (3). */
+  private retentionDays(): number | undefined {
+    const days = Number.parseFloat(this.getAttribute('closed-retention-days') ?? '');
+    return Number.isFinite(days) && days >= 0 ? days : undefined;
   }
 
   private detailsMode(): 'ask' | 'off' {
@@ -291,6 +301,10 @@ export class TruplexyChatElement extends Base {
   </div>
   <div class="msg assistant typing" hidden><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div></div>
   <p class="notice" role="status" hidden></p>
+  <div class="closed" part="closed" hidden>
+    <p class="closed-text" role="status"></p>
+    <button class="closed-new" part="closed-new" type="button"></button>
+  </div>
   <div class="actions" hidden><button class="handoff" part="handoff" type="button"></button></div>
   <form class="details" part="details" hidden novalidate>
     <p class="details-title"></p>
@@ -321,6 +335,9 @@ export class TruplexyChatElement extends Base {
       greeting: q('.greeting'),
       typing: q('.typing'),
       notice: q('.notice'),
+      closed: q('.closed'),
+      closedText: q('.closed-text'),
+      closedNew: q('.closed-new'),
       actions: q('.actions'),
       handoff: q('.handoff'),
       details: q('.details'),
@@ -345,6 +362,10 @@ export class TruplexyChatElement extends Base {
       this.$.launcher.focus();
     });
     this.$.restart.addEventListener('click', () => this.reset());
+    this.$.closedNew.addEventListener('click', () => {
+      this.reset();
+      this.$.input.focus({ preventScroll: true });
+    });
     this.$.handoff.addEventListener('click', () => void this._client?.handoff());
     this.$.panel.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.getAttribute('mode') !== 'inline') {
@@ -460,6 +481,8 @@ export class TruplexyChatElement extends Base {
     $.restart.setAttribute('aria-label', this.label('newConversation'));
     $.restart.title = this.label('newConversation');
     $.handoff.textContent = this.label('handoff');
+    $.closedText.textContent = this.label('closed');
+    $.closedNew.textContent = this.label('startNewChat');
     $.detailsTitle.textContent = this.label('detailsTitle');
     $.detailsHint.textContent = this.label('detailsHint');
     $.detailsName.placeholder = this.label('name');
@@ -517,16 +540,18 @@ export class TruplexyChatElement extends Base {
 
     $.typing.hidden = !state.sending || state.escalated;
     $.restart.hidden = state.messages.length === 0;
-    $.actions.hidden = !state.offerHandoff;
+    $.actions.hidden = !state.offerHandoff || state.closed;
     $.handoff.disabled = state.sending;
     // Taking over is announced in the transcript (a notice line), not here.
-    const notice = state.handoff && !state.escalated ? this.label('handoffDone') : '';
+    const notice = state.closed ? '' : state.handoff && !state.escalated ? this.label('handoffDone') : '';
     $.notice.textContent = notice;
     $.notice.hidden = !notice;
     $.send.disabled = !$.input.value.trim() || state.sending;
     // Name and email replace the message box until the visitor has given them.
-    $.details.hidden = !state.needsDetails;
-    $.form.hidden = state.needsDetails;
+    $.details.hidden = !state.needsDetails || state.closed;
+    // A closed conversation is read-only: the message box gives way to "Start a new chat".
+    $.closed.hidden = !state.closed;
+    $.form.hidden = state.needsDetails || state.closed;
     if (state.needsDetails && !this.askedDetails) requestAnimationFrame(() => $.detailsName.focus({ preventScroll: true }));
     this.askedDetails = state.needsDetails;
     $.badge.hidden = state.unread === 0 || this.isOpen;

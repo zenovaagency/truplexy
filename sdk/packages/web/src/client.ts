@@ -1,7 +1,7 @@
 import { listenRealtime } from './realtime';
 import { localStore, type Saved, type SessionStore } from './store';
 import { DEFAULT_ENDPOINT, fetchTransport, TruplexyRequestError, type FetchTransportOptions } from './transport';
-import type { ChatError, ChatMessage, ChatProfile, ChatState, Customer, ReplyStatus, Transport, WireConversation, WireLive, WireReply } from './types';
+import type { ChatError, ChatMessage, ChatProfile, ChatState, Customer, ReplyStatus, TicketRef, Transport, WireConversation, WireLive, WireReply } from './types';
 
 export interface ClientOptions extends FetchTransportOptions {
   /** Replaces the default fetch transport, e.g. to call your server another way. */
@@ -14,9 +14,13 @@ export interface ClientOptions extends FetchTransportOptions {
   live?: boolean;
   /** `ask` (default) wants the visitor's name and email before the first message; `off` skips it. */
   details?: 'ask' | 'off';
+  /** How many days a conversation whose ticket was closed stays in the browser, read-only. Default 3. */
+  closedRetentionDays?: number;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DAY = 86_400_000;
+const CLOSED_RETENTION_DAYS = 3;
 
 /** The cleaned-up details, or null when the name or email isn't usable (name up to 120 characters). */
 export function checkCustomer(name: string, email: string): Customer | null {
@@ -39,6 +43,7 @@ const initialState = (): ChatState => ({
   profile: null,
   customer: null,
   ticket: null,
+  closed: false,
   needsDetails: false,
   messages: [],
   sending: false,
@@ -78,6 +83,7 @@ export class TruplexyClient {
   private readonly store: SessionStore;
   private readonly live: boolean;
   private askDetails: boolean;
+  private readonly retention: number;
   private session: string | null = null;
   private seen = 0;
   private open = false;
@@ -97,6 +103,8 @@ export class TruplexyClient {
     this.store = options.store === false ? localStoreInMemory() : (options.store ?? localStore(key));
     this.live = options.live !== false;
     this.askDetails = options.details !== 'off';
+    const days = options.closedRetentionDays;
+    this.retention = (typeof days === 'number' && days >= 0 && Number.isFinite(days) ? days : CLOSED_RETENTION_DAYS) * DAY;
   }
 
   getState(): ChatState {
@@ -118,10 +126,12 @@ export class TruplexyClient {
   /** Loads the saved conversation, syncs it and starts listening. Safe to call more than once. */
   start(): Promise<void> {
     this.started ??= (async () => {
-      const saved = this.store.load();
+      let saved = this.store.load();
+      // A closed conversation is kept for a few days, then forgotten (the visitor stays known).
+      if (this.pastRetention(saved.ticket)) saved = { session: null, messages: [], seen: 0, customer: saved.customer, ticket: null };
       this.session = saved.session;
       this.seen = saved.seen;
-      this.update({ messages: saved.messages.filter((m) => !m.pending), customer: saved.customer ?? null, ticket: saved.ticket ?? null });
+      this.update({ messages: saved.messages.filter((m) => !m.pending), customer: saved.customer ?? null, ticket: saved.ticket ?? null, closed: saved.ticket?.status === 'closed' });
       if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
       void this.loadProfile();
       if (this.session) {
@@ -151,7 +161,8 @@ export class TruplexyClient {
   /** Sends a visitor message. Resolves when the reply (if any) is in. */
   async send(text: string): Promise<void> {
     const content = text.trim().slice(0, 4000);
-    if (!content || this.state.sending) return;
+    // A closed conversation can't be continued: reset() starts a new one.
+    if (!content || this.state.sending || this.state.closed) return;
     // A new conversation needs to know who is writing. Hold the message until the visitor says.
     if (this.askDetails && !this.state.customer && !this.session) {
       this.update({ needsDetails: true });
@@ -178,7 +189,7 @@ export class TruplexyClient {
   /** Sends a failed message again. */
   async retry(id: string): Promise<void> {
     const failed = this.state.messages.find((m) => m.id === id && m.error);
-    if (!failed || this.state.sending) return;
+    if (!failed || this.state.sending || this.state.closed) return;
     const local = { ...failed, pending: true, error: undefined };
     this.update({ messages: [...this.state.messages.filter((m) => m.id !== id), local], error: null });
     await this.deliver(local);
@@ -186,7 +197,7 @@ export class TruplexyClient {
 
   /** Flags the conversation for the team (the "Talk to a person" button). */
   async handoff(): Promise<void> {
-    if (!this.session) return;
+    if (!this.session || this.state.closed) return;
     this.update({ offerHandoff: false, sending: true });
     try {
       const r = await this.transport.request<{ session: string; conversation: WireConversation }>('handoff', { session: this.session });
@@ -215,7 +226,7 @@ export class TruplexyClient {
           this.session = null;
           this.seen = 0;
           this.disconnectLive();
-          this.update({ ticket: null, messages: this.state.messages.filter((m) => m.pending || m.error), escalated: false, handoff: false, offerHandoff: false });
+          this.update({ ticket: null, closed: false, messages: this.state.messages.filter((m) => m.pending || m.error), escalated: false, handoff: false, offerHandoff: false });
         } else {
           this.session = r.session;
           this.apply(r.conversation);
@@ -234,6 +245,7 @@ export class TruplexyClient {
   setOpen(open: boolean): void {
     if (this.open === open) return;
     this.open = open;
+    if (this.pastRetention(this.state.ticket)) this.reset();
     this.update({});
     if (open && !this.liveConnected) void this.sync();
     this.schedule();
@@ -292,6 +304,11 @@ export class TruplexyClient {
       if (!hadSession) this.connectLive();
     } catch (e) {
       const error = toError(e);
+      if (error.code === 'TICKET_CLOSED') {
+        // The team closed it since the visitor last looked: show it read-only, and don't keep the message.
+        this.closeConversation({ messages: this.state.messages.filter((m) => m.id !== local.id), sending: false });
+        return;
+      }
       this.update({ messages: this.state.messages.map((m) => (m.id === local.id ? { ...m, pending: undefined, error } : m)), sending: false });
       this.emit('error', error);
     } finally {
@@ -315,13 +332,49 @@ export class TruplexyClient {
       });
     const ids = new Set(server.map((m) => m.id));
     const inFlight = local.filter((m) => (m.pending || m.error) && !ids.has(m.id));
-    const handoff = conv.status === 'handoff';
+    // A route that predates closed tickets sends none: then nothing changes.
+    const t = conv.ticket;
+    const closed = t ? t.status === 'closed' : this.state.closed;
+    let ticket = this.state.ticket;
+    if (t) {
+      const { closedAt: before, ...same } = ticket?.id === t.id ? ticket : ({} as Partial<TicketRef>);
+      ticket = { ...same, id: t.id, ...(t.status && { status: t.status }), ...(closed && { closedAt: t.closed_at ?? before ?? new Date().toISOString() }) };
+    }
+    // Closed longer ago than the browser keeps it (the visitor came back late): forget it.
+    if (closed && this.pastRetention(ticket)) return this.reset();
+    const wasClosed = this.state.closed;
+    const handoff = !closed && conv.status === 'handoff';
+    const escalated = !closed && conv.escalated;
     this.update({
       messages: [...server, ...inFlight],
-      escalated: conv.escalated,
+      escalated,
       handoff,
-      offerHandoff: this.state.offerHandoff && !conv.escalated && !handoff,
+      offerHandoff: this.state.offerHandoff && !escalated && !handoff && !closed,
+      closed,
+      ticket,
     });
+    // Nothing more can arrive, unless the team reopens it: then the next look picks it up again.
+    if (closed) this.pauseLive();
+    else if (wasClosed) this.connectLive();
+  }
+
+  /** The ticket is closed: keep what is shown, read-only, and ask the server for when it closed. */
+  private closeConversation(patch: Partial<ChatState>) {
+    const ticket = this.state.ticket && { ...this.state.ticket, status: 'closed', closedAt: this.state.ticket.closedAt ?? new Date().toISOString() };
+    this.pauseLive();
+    this.update({ ...patch, closed: true, ticket, escalated: false, handoff: false, offerHandoff: false, needsDetails: false });
+    void this.sync();
+  }
+
+  /** Whether the ticket closed longer ago than a closed conversation is kept. */
+  private pastRetention(ticket: TicketRef | null | undefined): boolean {
+    const at = ticket?.status === 'closed' && ticket.closedAt ? Date.parse(ticket.closedAt) : NaN;
+    return Number.isFinite(at) && Date.now() - at > this.retention;
+  }
+
+  private pauseLive() {
+    this.disconnectLive();
+    clearTimeout(this.timers.poll);
   }
 
   private update(patch: Partial<ChatState>) {
@@ -362,7 +415,7 @@ export class TruplexyClient {
   }
 
   private connectLive() {
-    if (!this.live || !this.session || this.stopLive || this.destroyed) return this.schedule();
+    if (!this.live || !this.session || this.stopLive || this.destroyed || this.state.closed) return this.schedule();
     if (this.transport.listen) {
       this.stopLive = this.transport.listen(() => this.sync());
       this.liveConnected = true;
@@ -416,7 +469,7 @@ export class TruplexyClient {
   /** Polls for team replies: often while open, rarely while closed, slowly as a backstop to realtime. */
   private schedule() {
     clearTimeout(this.timers.poll);
-    if (!this.live || !this.session || this.destroyed) return;
+    if (!this.live || !this.session || this.destroyed || this.state.closed) return;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     const ms = this.liveConnected ? 120_000 : this.open ? 10_000 : 60_000;
     this.timers.poll = setTimeout(() => void this.sync().then(() => this.schedule()), ms);

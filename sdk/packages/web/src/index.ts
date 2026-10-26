@@ -118,5 +118,6 @@ export interface TruplexyChatAttributes {
   'show-sources'?: boolean | '';
   demo?: boolean | '';
   'storage-key'?: string;
+  'closed-retention-days'?: number | string;
   details?: 'ask' | 'off';
 }

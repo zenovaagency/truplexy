@@ -202,7 +202,10 @@ def public(conv: dict) -> dict:
         for m in conv["messages"]
         if not (m["role"] == "user" and m["content"].startswith("[Context only"))
     ]
-    return {"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
+    out = {"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
+    if conv.get("ticket"):  # a closed ticket: the widget shows the chat read-only
+        out["ticket"] = {k: conv["ticket"][k] for k in ("id", "status", "closed_at") if k in conv["ticket"]}
+    return out
 
 
 EMAIL = re.compile(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+")
@@ -259,6 +262,7 @@ ERRORS = {
     "NOT_CONFIGURED": (500, "Chat is not set up correctly."),
     "TENANT_SUSPENDED": (503, "Chat is turned off right now."),
     "INVALID_REQUEST": (400, "Check your message, name and email."),
+    "TICKET_CLOSED": (409, "This conversation is closed. Start a new one."),
     "CHANNEL_DISABLED": (503, "Chat is turned off right now."),
     "PLAN_LIMIT_REACHED": (503, "The assistant can't reply right now. Please try again later."),
     "LLM_RATE_LIMITED": (429, "The assistant is busy. Please try again in a moment."),
@@ -288,10 +292,12 @@ async def truplexy(request: Request):
             if not 0 < len(text) <= 4000 or text.startswith("[Context only"):
                 return error("INVALID_REQUEST")
             ticket = None
+            existing = bool(conv)
             if not conv:
                 conv, ticket = await start_conversation(body.get("customer"), request)
             try:
-                r = await api("POST", f"/conversations/{conv}/messages", {"message": text})
+                # A closed ticket ends the chat: the widget starts a new one, never this one again.
+                r = await api("POST", f"/conversations/{conv}/messages", {"message": text, **({"if_ticket_closed": "reject"} if existing else {})})
             except Upstream as e:
                 if e.code != "CONVERSATION_NOT_FOUND" or not verify(body.get("session")):
                     raise

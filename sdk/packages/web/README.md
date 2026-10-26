@@ -51,6 +51,7 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | `demo` | Canned replies, no server | off |
 | `details` | `ask`: a name and email form before the first message; `off`: skip the form. Both modes attempt to open a ticket | `ask` |
 | `storage-key` | localStorage key for the conversation | `truplexy:<endpoint>` |
+| `closed-retention-days` | Days a conversation whose ticket was closed stays in the browser, read-only, before it is forgotten | `3` |
 
 The `labels` property replaces any string, for translations (see `DEFAULT_LABELS`). The panel ends with a small "Powered by Truplexy" link to truplexy.com; translate it with the `poweredBy` label.
 
@@ -81,12 +82,15 @@ These events bubble to `document`:
 import { TruplexyClient } from "@truplexy/web";
 
 const chat = new TruplexyClient({ endpoint: "/api/truplexy" });
-chat.subscribe((state) => render(state)); // customer, needsDetails, profile, ticket, messages, sending, offerHandoff, handoff, escalated, unread, error
+chat.subscribe((state) => render(state)); // customer, needsDetails, profile, ticket, closed, messages, sending, offerHandoff, handoff, escalated, unread, error
 await chat.start();
 if (chat.setCustomer("Ann", "ann@example.com")) {
   await chat.send("Where is my order?");
 }
 await chat.handoff();      // "Talk to a person"
+// When state.closed is true the team closed the ticket: show the messages read-only,
+// send() does nothing, and chat.reset() starts a new conversation. The closed chat stays
+// in the browser for closedRetentionDays (default 3).
 chat.setOpen(true);        // your UI is visible: clears unread, polls faster
 ```
 

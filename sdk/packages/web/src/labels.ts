@@ -22,6 +22,8 @@ export const DEFAULT_LABELS = {
   notSent: 'Not sent.',
   sources: 'Sources',
   newConversation: 'New conversation',
+  closed: 'This conversation has been closed.',
+  startNewChat: 'Start a new chat',
   team: 'Support',
   you: 'You',
   poweredBy: 'Powered by Truplexy',

@@ -32,13 +32,13 @@ Options: `chatKey`, `apiBase` (default production `/v3`), and `fetch`. Environme
 | `getProfile()` | `GET /profile` | Business and bot names and optional pictures; may be cached privately for 60 seconds |
 | `upsertCustomer(input)` | `PUT /customer` | Customer; 201 new or 200 existing |
 | `createConversation({customer_id?, channel_id?}?)` | `POST /conversations` | Empty conversation; 201 |
-| `getConversation(id)` | `GET /conversations/{id}` | Latest 200 messages, oldest first |
-| `sendMessage(id, text \| {text?, images?, attachments?, idempotencyKey?, signal?})` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters (may be empty with pictures: [coming soon](#sending-pictures-coming-soon)). Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
+| `getConversation(id)` | `GET /conversations/{id}` | Latest 200 messages, oldest first, and the current `ticket` (the open one, else the latest, which is then `closed` with `closed_at`) |
+| `sendMessage(id, text \| {text?, images?, attachments?, idempotencyKey?, ifTicketClosed?, signal?})` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters (may be empty with pictures: [coming soon](#sending-pictures-coming-soon)). Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
 | `handoff(id)` | `POST /conversations/{id}/handoff` | Flags the conversation and adds confirmation; AI keeps replying |
 | `escalate(id)` | `POST /conversations/{id}/escalate` | Opens/escalates a ticket; AI stops replying; safe to repeat |
 | `resume(id)` | `POST /conversations/{id}/resume` | Ends escalation; ticket stays open; safe to repeat |
 | `createTicket(id, {subject?, priority?, keep_open?}?)` | `POST /conversations/{id}/ticket` | Opens or returns the open ticket, without escalation; `keep_open: true` stops a new ticket closing on its own |
-| `closeTicket(id)` | `POST /conversations/{id}/ticket/close` | Closes the open ticket, ends escalation, clears handoff; returns the latest ticket if already closed |
+| `closeTicket(id)` | `POST /conversations/{id}/ticket/close` | Closes the open ticket, ends escalation, clears handoff; returns the latest ticket if already closed. A later `sendMessage` is still answered, unless it passes `ifTicketClosed: 'reject'`: then it fails with `409 TICKET_CLOSED` and nothing is stored (what the browser widget's route does) |
 | `sendReply(id, input)` | `POST /conversations/{id}/replies` | `{message, ticket_id, escalated}`; opens a ticket if necessary |
 | `getRealtimeToken(conversationId?)` | `POST /realtime/token` | Server topics, URL, publishable key, events |
 | `getAttachmentConfig()` | `GET /profile` | *Coming soon.* `profile.attachments`, or `{enabled: false}` while the API doesn't serve pictures |

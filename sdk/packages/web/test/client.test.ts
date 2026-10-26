@@ -292,4 +292,122 @@ describe('TruplexyClient', () => {
     expect(arrived).toEqual(['ok', 'from Sam']);
     client.destroy();
   });
+
+  describe('a closed ticket', () => {
+    const DAY = 86_400_000;
+    const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+    const closedConversation = (closedAt?: string) => ({
+      session: 'S',
+      conversation: {
+        status: 'open',
+        escalated: false,
+        messages: [msg('m1', 'user', 'hi'), msg('m2', 'assistant', 'hello')],
+        ticket: { id: 'tkt_1', status: 'closed', ...(closedAt && { closed_at: closedAt }) },
+      },
+    });
+    const memory = (saved: any) => ({ load: () => saved, save: vi.fn((s: any) => (saved = s)), clear: vi.fn(() => (saved = { session: null, messages: [], seen: 0 })) });
+    const open = { session: 'S', messages: [{ id: 'm1', role: 'user' as const, content: 'hi', createdAt: 'x' }], seen: 0, customer: { name: 'Ada', email: 'ada@example.com' }, ticket: { id: 'tkt_1', status: 'open' } };
+
+    it('shows the conversation read-only, stops listening and refuses to send', async () => {
+      const closedAt = ago(1);
+      const store = memory(open);
+      const { transport, calls } = fake({ history: () => closedConversation(closedAt), live: () => ({}), message: () => ({ session: 'S', reply: 'no', status: 'answered' }) });
+      const client = new TruplexyClient({ transport, store });
+      await client.start();
+      const s = client.getState();
+      expect(s.closed).toBe(true);
+      expect(s.messages.map((m) => m.content)).toEqual(['hi', 'hello']);
+      expect(s.ticket).toEqual({ id: 'tkt_1', status: 'closed', closedAt });
+      expect(store.save).toHaveBeenLastCalledWith(expect.objectContaining({ session: 'S', ticket: { id: 'tkt_1', status: 'closed', closedAt } }));
+      expect(calls.some((c) => c.action === 'live')).toBe(false);
+      await client.send('one more thing');
+      await client.handoff();
+      expect(calls.some((c) => c.action === 'message' || c.action === 'handoff')).toBe(false);
+      expect(client.getState().messages).toHaveLength(2);
+      client.destroy();
+    });
+
+    it('is closed again after a reload, and a new chat starts clean but keeps the visitor', async () => {
+      const closedAt = ago(1);
+      const store = memory({ ...open, ticket: { id: 'tkt_1', status: 'closed', closedAt } });
+      const { transport, calls } = fake({ history: () => closedConversation(closedAt), live: () => ({}), message: () => ({ session: 'S2', reply: 'hey', status: 'answered', ticket: { id: 'tkt_2', status: 'open' } }) });
+      const client = new TruplexyClient({ transport, store });
+      expect(client.getState().closed).toBe(false);
+      await client.start();
+      expect(client.getState().closed).toBe(true);
+
+      client.reset();
+      expect(client.getState()).toMatchObject({ closed: false, ticket: null, messages: [], customer: { name: 'Ada' } });
+      await client.send('hello again');
+      expect(calls.find((c) => c.action === 'message')!.body.session).toBeNull();
+      expect(client.getState()).toMatchObject({ closed: false, ticket: { id: 'tkt_2' } });
+      client.destroy();
+    });
+
+    it('forgets a conversation closed longer ago than the retention', async () => {
+      const store = memory({ ...open, ticket: { id: 'tkt_1', status: 'closed', closedAt: ago(4) } });
+      const { transport, calls } = fake({ history: () => closedConversation(), live: () => ({}) });
+      const client = new TruplexyClient({ transport, store });
+      await client.start();
+      expect(client.getState()).toMatchObject({ closed: false, ticket: null, messages: [], customer: { name: 'Ada' } });
+      expect(calls.some((c) => c.action === 'history')).toBe(false);
+      expect(store.save).toHaveBeenLastCalledWith(expect.objectContaining({ session: null, messages: [], customer: { name: 'Ada', email: 'ada@example.com' } }));
+      client.destroy();
+    });
+
+    it('keeps it for the retention you set', async () => {
+      const closed = { ...open, ticket: { id: 'tkt_1', status: 'closed', closedAt: ago(4) } };
+      const { transport } = fake({ history: () => closedConversation(ago(4)), live: () => ({}) });
+      const longer = new TruplexyClient({ transport, store: memory(closed), closedRetentionDays: 7 });
+      await longer.start();
+      expect(longer.getState()).toMatchObject({ closed: true, messages: [{ content: 'hi' }, { content: 'hello' }] });
+      const shorter = new TruplexyClient({ transport, store: memory({ ...closed, ticket: { ...closed.ticket, closedAt: ago(2) } }), closedRetentionDays: 1 });
+      await shorter.start();
+      expect(shorter.getState()).toMatchObject({ closed: false, messages: [] });
+      longer.destroy();
+      shorter.destroy();
+    });
+
+    it('forgets one the server says closed long ago when the visitor comes back', async () => {
+      const { transport } = fake({ history: () => closedConversation(ago(10)), live: () => ({}) });
+      const client = new TruplexyClient({ transport, store: memory(open) });
+      await client.start();
+      expect(client.getState()).toMatchObject({ closed: false, ticket: null, messages: [] });
+      client.destroy();
+    });
+
+    it('turns a refused message into a closed conversation, without a failed bubble', async () => {
+      let closed = false;
+      const { transport, calls } = fake({
+        message: (b) => {
+          if (b.session) throw new TruplexyRequestError('TICKET_CLOSED', 'This conversation is closed. Start a new one.', 409);
+          return { session: 'S', message: { id: 'm1' }, reply: 'hello', status: 'answered', ticket: { id: 'tkt_1', status: 'open' } };
+        },
+        history: () => (closed ? closedConversation(ago(0)) : { session: 'S', conversation: { status: 'open', escalated: false, messages: [msg('m1', 'user', 'hi'), msg('m2', 'assistant', 'hello')] } }),
+        live: () => ({}),
+      });
+      const client = new TruplexyClient({ transport, store: false, details: 'off' });
+      const errors: unknown[] = [];
+      client.on('error', (e) => errors.push(e));
+      await client.start();
+      await client.send('hi');
+      closed = true;
+      await client.send('are you there?');
+      await vi.waitFor(() => expect(client.getState().closed).toBe(true));
+      expect(errors).toEqual([]);
+      expect(client.getState().sending).toBe(false);
+      expect(client.getState().messages.map((m) => m.content)).toEqual(['hi', 'hello']);
+      expect(client.getState().messages.some((m) => m.error)).toBe(false);
+      expect(calls.filter((c) => c.action === 'message')).toHaveLength(2);
+      client.destroy();
+    });
+
+    it('keeps old behaviour with a route that sends no ticket', async () => {
+      const { transport } = fake({ history: () => ({ session: 'S', conversation: { status: 'open', escalated: false, messages: [msg('m1', 'user', 'hi')] } }), live: () => ({}) });
+      const client = new TruplexyClient({ transport, store: memory(open) });
+      await client.start();
+      expect(client.getState()).toMatchObject({ closed: false, ticket: { id: 'tkt_1', status: 'open' } });
+      client.destroy();
+    });
+  });
 });

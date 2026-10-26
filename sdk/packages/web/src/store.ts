@@ -25,7 +25,7 @@ const customerOf = (v: unknown): Customer | null => {
 };
 const ticketOf = (v: unknown): TicketRef | null => {
   const t = v as Partial<TicketRef> | null;
-  return t && typeof t.id === 'string' && t.id ? { id: t.id, ...(typeof t.subject === 'string' && { subject: t.subject }), ...(typeof t.status === 'string' && { status: t.status }) } : null;
+  return t && typeof t.id === 'string' && t.id ? { id: t.id, ...(typeof t.subject === 'string' && { subject: t.subject }), ...(typeof t.status === 'string' && { status: t.status }), ...(typeof t.closedAt === 'string' && { closedAt: t.closedAt }) } : null;
 };
 const KEEP = 100;
 

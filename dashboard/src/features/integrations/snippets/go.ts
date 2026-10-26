@@ -359,7 +359,16 @@ func publicConversation(conv map[string]any) map[string]any {
 		}
 		messages = append(messages, keep)
 	}
-	return map[string]any{"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
+	out := map[string]any{"status": conv["status"], "escalated": conv["escalated"], "messages": messages}
+	// A closed ticket: the widget shows the chat read-only.
+	if t, ok := conv["ticket"].(map[string]any); ok {
+		ticket := map[string]any{"id": t["id"], "status": t["status"]}
+		if closed, ok := t["closed_at"]; ok {
+			ticket["closed_at"] = closed
+		}
+		out["ticket"] = ticket
+	}
+	return out
 }
 
 var emailRe = regexp.MustCompile(\`^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$\`)
@@ -436,6 +445,7 @@ var widgetErrors = map[string]widgetError{
     "NOT_CONFIGURED": {500, "Chat is not set up correctly."},
     "TENANT_SUSPENDED": {503, "Chat is turned off right now."},
 	"INVALID_REQUEST":    {400, "Check your message, name and email."},
+	"TICKET_CLOSED":      {409, "This conversation is closed. Start a new one."},
 	"CHANNEL_DISABLED":   {503, "Chat is turned off right now."},
 	"PLAN_LIMIT_REACHED": {503, "The assistant can't reply right now. Please try again later."},
 	"LLM_RATE_LIMITED":   {429, "The assistant is busy. Please try again in a moment."},
@@ -470,12 +480,17 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
         var ticket map[string]any
+        body := map[string]string{"message": text}
+        if conv != "" {
+            // A closed ticket ends the chat: the widget starts a new one, never this one again.
+            body["if_ticket_closed"] = "reject"
+        }
         if conv == "" {
             var err error
             conv, ticket, err = startWidgetConversation(r, in.Customer)
             if err != nil { fail(err); return }
         }
-        res, err := widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": text})
+        res, err := widgetCall("POST", "/conversations/"+conv+"/messages", body)
         if e, ok := err.(*upstreamError); ok && e.code == "CONVERSATION_NOT_FOUND" && verifySession(in.Session) != "" {
             conv, ticket, err = startWidgetConversation(r, in.Customer)
             if err == nil { res, err = widgetCall("POST", "/conversations/"+conv+"/messages", map[string]string{"message": text}) }

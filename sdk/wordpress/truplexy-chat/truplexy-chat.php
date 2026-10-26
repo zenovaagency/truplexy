@@ -133,7 +133,12 @@ function truplexy_chat_public(array $conversation): array {
         }
         $messages[] = array_intersect_key($m, array_flip(['id', 'role', 'content', 'author', 'agent', 'created_at']));
     }
-    return ['status' => $conversation['status'] ?? 'open', 'escalated' => !empty($conversation['escalated']), 'messages' => $messages];
+    $public = ['status' => $conversation['status'] ?? 'open', 'escalated' => !empty($conversation['escalated']), 'messages' => $messages];
+    if (is_array($conversation['ticket'] ?? null)) {
+        // Only the id, whether it is closed and when: a closed chat is shown read-only.
+        $public['ticket'] = array_intersect_key($conversation['ticket'], array_flip(['id', 'status', 'closed_at']));
+    }
+    return $public;
 }
 
 /** An error the widget can show. Never passes on the API's own message. */
@@ -142,6 +147,7 @@ function truplexy_chat_error(string $code, string $request_id = ''): WP_REST_Res
         'CUSTOMER_CONFLICT'  => [409, 'Your contact details could not be linked. Please contact support.'],
         'CUSTOMER_EXISTS'    => [409, 'Your contact details could not be saved. Please try again.'],
         'INVALID_REQUEST'    => [400, 'Check your message and customer details.'],
+        'TICKET_CLOSED'      => [409, 'This conversation is closed. Start a new one.'],
         'RATE_LIMITED'       => [429, 'You are sending messages too quickly. Please wait a moment.'],
         'CHANNEL_DISABLED'   => [503, 'Chat is turned off right now.'],
         'TENANT_SUSPENDED'   => [503, 'Chat is turned off right now.'],
@@ -242,9 +248,11 @@ function truplexy_chat_route(WP_REST_Request $request) {
                     return truplexy_chat_error('RATE_LIMITED');
                 }
                 $ticket = null;
+                $existing = (bool) $conv;
                 if (!$conv) list($conv, $ticket) = truplexy_chat_start($request, $in['customer'] ?? null);
                 try {
-                    $r = truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => $text]);
+                    // A closed ticket ends the chat: the widget starts a new one, never this one again.
+                    $r = truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => $text] + ($existing ? ['if_ticket_closed' => 'reject'] : []));
                 } catch (Truplexy_Chat_Error $e) {
                     if ($e->api_code !== 'CONVERSATION_NOT_FOUND' || !truplexy_chat_verify($in['session'] ?? null)) throw $e;
                     list($conv, $ticket) = truplexy_chat_start($request, $in['customer'] ?? null);

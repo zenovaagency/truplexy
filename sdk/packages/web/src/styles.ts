@@ -160,7 +160,14 @@ header {
 .handoff:disabled { opacity: 0.5; cursor: default; }
 
 .details { display: grid; gap: 8px; padding: 12px 16px 10px; border-top: 1px solid var(--tx-line); }
-.details[hidden], .composer[hidden] { display: none; }
+.details[hidden], .composer[hidden], .closed[hidden] { display: none; }
+.closed { display: grid; gap: 10px; justify-items: center; padding: 12px 16px 10px; border-top: 1px solid var(--tx-line); }
+.closed p { margin: 0; font-size: 13px; color: var(--tx-muted); text-align: center; }
+.closed-new {
+  border: 0; background: var(--tx-accent); color: var(--tx-accent-ink); cursor: pointer;
+  border-radius: 999px; padding: 9px 18px; min-height: 40px; font-size: 14px; font-weight: 600;
+}
+.closed-new:hover { filter: brightness(1.08); }
 .details p { margin: 0; }
 .details-title { font-weight: 600; }
 .details-hint { font-size: 13px; color: var(--tx-muted); }
