@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Copy,
   CircleDot,
+  Download,
   KeyRound,
   Link2,
   MessageSquare,
@@ -454,7 +455,7 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
                 </p>
               )}
               <p className="text-xs text-ink-faint">
-                {i.id === 'wordpress' ? (
+                {i.download ? (
                   'Paste it on the plugin’s settings page in WordPress (Settings → Truplexy Chat).'
                 ) : (
                   <>Set it as <code className="font-mono">TRUPLEXY_CHAT_KEY</code> on your server.</>
@@ -470,7 +471,16 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
                   <li key={s}>{s}</li>
                 ))}
               </ol>
-              {i.id === 'web' ? (
+              {i.download ? (
+                <div className="grid gap-2">
+                  <Button asChild size="sm" variant="soft" leading={<Download />} className="justify-self-start">
+                    <a href={i.download.url} target="_blank" rel="noopener noreferrer">{i.download.label}</a>
+                  </Button>
+                  <p className="text-xs text-ink-faint">
+                    Prefer to keep the key out of the database? Add <code className="font-mono">define('TRUPLEXY_CHAT_KEY', 'tpx_…');</code> to wp-config.php instead of pasting it.
+                  </p>
+                </div>
+              ) : i.id === 'web' ? (
                 <WebServerCode lang={lang} setLang={setLang} pack={pack.data} code={code} packError={pack.isError} />
               ) : code && pack.data ? (
                 <>

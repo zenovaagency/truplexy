@@ -8,6 +8,9 @@ export const PUBLIC_API = /^https?:\/\//.test(apiBaseUrl) ? apiBaseUrl : 'https:
 /** The website SDK guide on the marketing site: every widget option, framework and the server protocol. */
 export const WEB_SDK_DOCS = 'https://truplexy.com/docs/web-sdk';
 
+/** The Truplexy Chat WordPress plugin, as a zip for Plugins → Add New → Upload Plugin (also works for WooCommerce). */
+export const WORDPRESS_PLUGIN_ZIP = 'https://truplexy.com/downloads/truplexy-chat.zip';
+
 export type Lang = 'node' | 'python' | 'php' | 'go' | 'java' | 'csharp' | 'ruby';
 
 export const LANG_LABEL: Record<Lang, string> = {

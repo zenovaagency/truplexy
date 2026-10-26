@@ -1,7 +1,7 @@
 import { Code2, Globe, Mail, Webhook, type LucideIcon } from 'lucide-react';
 import type { ApiKey, Channel } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
-import type { Lang } from './snippets/types';
+import { WORDPRESS_PLUGIN_ZIP, type Lang } from './snippets/types';
 
 export type IntegrationGroup = 'messaging' | 'business' | 'internal' | 'developer';
 
@@ -40,6 +40,8 @@ export interface Integration {
   teamSide?: boolean;
   /** Customers chat in the Truplexy widget, which picks up the team's replies itself: no webhook. */
   widget?: boolean;
+  /** A ready-made file to download and install instead of code samples (the WordPress plugin zip). */
+  download?: { url: string; label: string };
 }
 
 export { PUBLIC_API } from './snippets/types';
@@ -152,11 +154,11 @@ export const INTEGRATIONS: Integration[] = [
     icon: '/brands/woocommerce.svg',
     color: 'var(--color-ink)',
     match: ['woocommerce', 'woo'],
-    langs: ['php'],
     widget: true,
+    download: { url: WORDPRESS_PLUGIN_ZIP, label: 'Download the plugin (truplexy-chat.zip)' },
     steps: [
-      'Save the plugin below as wp-content/plugins/truplexy-chat/truplexy-chat.php and activate it under Plugins.',
-      "Add define('TRUPLEXY_CHAT_KEY', 'tpx_…'); to wp-config.php. The key never reaches the page.",
+      'Download the plugin, then in WordPress open Plugins → Add New → Upload Plugin, choose the zip and click Install Now, then Activate. It works on WooCommerce stores as it is.',
+      'The plugin opens its settings page. Paste the chat key from step 1 and save; the page says Connected when the key works.',
       'Set how the chat looks under Integrations → Chat widget, and add an order-lookup tool under Tools that calls the WooCommerce REST API.',
     ],
   },
@@ -168,11 +170,11 @@ export const INTEGRATIONS: Integration[] = [
     icon: '/brands/wordpress.svg',
     color: 'var(--color-ink)',
     match: ['wordpress', 'wp'],
-    langs: ['php'],
     widget: true,
+    download: { url: WORDPRESS_PLUGIN_ZIP, label: 'Download the plugin (truplexy-chat.zip)' },
     steps: [
-      'Save the plugin below as wp-content/plugins/truplexy-chat/truplexy-chat.php and activate it under Plugins.',
-      "Add define('TRUPLEXY_CHAT_KEY', 'tpx_…'); to wp-config.php. The key never reaches the page.",
+      'Download the plugin, then in WordPress open Plugins → Add New → Upload Plugin, choose the zip and click Install Now, then Activate.',
+      'The plugin opens its settings page. Paste the chat key from step 1 and save; the page says Connected when the key works.',
       'Set how the chat looks under Integrations → Chat widget: title, greeting, colour, picture and position.',
     ],
   },
