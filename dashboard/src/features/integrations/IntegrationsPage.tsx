@@ -10,6 +10,7 @@ import {
   CircleDot,
   KeyRound,
   Link2,
+  MessageSquare,
   Lock,
   Pause,
   Pencil,
@@ -65,6 +66,7 @@ import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseFi
 import { IssueKeyForm } from '@/features/api-keys/IssueKey';
 import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type Integration, type IntegrationGroup } from './catalog';
 import { useCopy } from '@/hooks';
+export { WidgetTab } from './WidgetTab';
 import { ConnectReturnBanner, ConnectedChatSetup, CustomizeChatButton, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
 import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
@@ -86,6 +88,7 @@ export default function IntegrationsPage() {
         items={[
           { to: href('integrations'), label: 'Your channels', icon: <Radio />, end: true },
           { to: href('integrations/guides'), label: 'Add a channel', icon: <Plus /> },
+          { to: href('integrations/widget'), label: 'Chat widget', icon: <MessageSquare /> },
           {
             to: href('integrations/webhook'),
             label: (
@@ -304,7 +307,7 @@ function ShopifyCard({ i, channels, prefill }: { i: Integration; channels: Chann
               <span className="truncate">{active.length > 1 ? `Connected · ${active.length} stores` : `Connected · ${active[0]!.external_id}`}</span>
             </Badge>
             <span className="flex shrink-0 items-center gap-3">
-              <CustomizeChatButton channelId={active[0]!.id} />
+              <CustomizeChatButton />
               {prefill ? (
                 <ShopifyConnectButton size="xs" variant="soft" prefill={prefill} />
               ) : (
@@ -585,6 +588,7 @@ function WebServerCode({ lang, setLang, pack, code, packError }: { lang: Lang; s
 
 /** Website chat, step 3: the widget, in the person's frontend framework. */
 function WebWidgetCode() {
+  const { href } = useScopeCtx();
   const recipes = useWebRecipes();
   const [pick, setPick] = useRecipe('web-widget', 'html');
   const list = recipes.data?.WIDGET_RECIPES ?? [];
@@ -594,9 +598,11 @@ function WebWidgetCode() {
       <RecipePicker label="Your site" recipes={list} value={recipe?.id ?? pick} onChange={setPick} />
       {recipe ? <RecipeCode recipe={recipe} /> : <CodeLoading error={recipes.isError} />}
       <p className="text-xs text-ink-faint">
-        Set <code className="font-mono">endpoint</code> to your route from step 2. Change the look with <code className="font-mono">heading</code>,{' '}
-        <code className="font-mono">greeting</code>, <code className="font-mono">accent</code>, <code className="font-mono">theme</code> and{' '}
-        <code className="font-mono">position</code>.
+        Set <code className="font-mono">endpoint</code> to your route from step 2. The title, greeting, colour, picture and position come from{' '}
+        <Link to={href('integrations/widget')} className="font-semibold text-accent hover:underline">
+          Chat widget
+        </Link>
+        , shared by every site you add the chat to. An attribute you set here, such as <code className="font-mono">accent</code>, wins over it.
       </p>
     </>
   );
@@ -814,7 +820,7 @@ export function ChannelsTab() {
             )}
             {isShopifyChannel(c) && c.active && (
               <span className="mr-1">
-                <CustomizeChatButton channelId={c.id} />
+                <CustomizeChatButton />
               </span>
             )}
             {/* After an uninstall in Shopify the channel is just off; only Reconnect brings its tools back, so it's always offered. */}

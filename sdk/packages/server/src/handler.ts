@@ -1,6 +1,6 @@
 import { signSession, verifySession } from './session';
 
-import { createChatClient, TruplexyApiError, type CustomerInput, type Conversation, type Profile } from './client';
+import { createChatClient, TruplexyApiError, type CustomerInput, type Conversation, type Profile, type WidgetLook } from './client';
 export { DEFAULT_API_BASE } from './client';
 
 export interface HandlerOptions {
@@ -266,12 +266,31 @@ function parseCustomer(raw: unknown): { name: string; email: string } | undefine
   return { name, email };
 }
 
-/** Only the names and pictures: nothing else the API might add later. */
+/** Only the names and pictures, and the window's look: nothing else the API might add later. */
 function publicProfile(p: Profile) {
+  const widget = publicWidget(p.widget);
   return {
     business: { name: p.business?.name, logo_url: p.business?.logo_url },
     bot: { id: p.bot?.id, name: p.bot?.name, avatar_url: p.bot?.avatar_url },
+    ...(widget && { widget }),
   };
+}
+
+const TEXTS = ['heading', 'subtitle', 'greeting', 'placeholder'] as const;
+
+/** The look the business set in the dashboard, field by field: anything of another type, or not listed here, is dropped. */
+function publicWidget(w: unknown): WidgetLook | undefined {
+  if (!w || typeof w !== 'object') return undefined;
+  const src = w as Record<string, unknown>;
+  const out: WidgetLook = {};
+  for (const key of TEXTS) if (typeof src[key] === 'string' && src[key]) out[key] = (src[key] as string).slice(0, 400);
+  if (typeof src.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(src.accent)) out.accent = src.accent;
+  if (src.theme === 'light' || src.theme === 'dark' || src.theme === 'auto') out.theme = src.theme;
+  if (src.position === 'right' || src.position === 'left') out.position = src.position;
+  if (typeof src.show_sources === 'boolean') out.show_sources = src.show_sources;
+  if (src.details === 'ask' || src.details === 'off') out.details = src.details;
+  if (typeof src.picture_url === 'string' && /^https:\/\/[^\s"<>]+$/.test(src.picture_url) && src.picture_url.length <= 500) out.picture_url = src.picture_url;
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** What the visitor may see: their messages and the team's, never background context. */

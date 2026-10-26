@@ -292,12 +292,14 @@ try {
             echo json_encode(['session' => sign_session($conv), 'conversation' => public_conversation(api('POST', "/conversations/$conv/handoff"))]);
             break;
         case 'profile':
-            // The business and bot name and picture; the widget shows them in its header.
+            // The business and bot name and picture, and how the business set the window to look
+            // (Truplexy dashboard: Integrations, Chat widget); the widget shows them.
             $p = api('GET', '/profile');
+            $look = is_array($p['widget'] ?? null) ? array_intersect_key($p['widget'], array_flip(['heading', 'subtitle', 'greeting', 'placeholder', 'accent', 'theme', 'position', 'show_sources', 'details', 'picture_url'])) : null;
             echo json_encode([
                 'business' => ['name' => $p['business']['name'] ?? null, 'logo_url' => $p['business']['logo_url'] ?? null],
                 'bot' => ['id' => $p['bot']['id'] ?? null, 'name' => $p['bot']['name'] ?? null, 'avatar_url' => $p['bot']['avatar_url'] ?? null],
-            ]);
+            ] + ($look ? ['widget' => $look] : []));
             break;
         case 'live':
             // Only the conversation's own topic: bot_topic carries every customer's messages.

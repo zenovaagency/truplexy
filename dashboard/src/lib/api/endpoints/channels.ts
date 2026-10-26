@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Channel, ChannelInput, ChannelType, ChannelWidget, ChannelWidgetSettings } from '@/lib/api/types';
+import type { Channel, ChannelInput, ChannelType, ChannelWidget } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { connectReturnTo } from '@/lib/shopify';
 import { useScope } from '@/lib/session/scope-context';
@@ -88,15 +88,13 @@ export function useChannelWidget(id: string | undefined, poll = false) {
   });
 }
 
-/** Saves the chat window's settings (and, when sent, whether it is shown). */
-export function useSaveChannelWidget(id: string | undefined) {
+/** Shows or hides the chat window on a Shopify store. How it looks is the bot's chat widget (see widget.ts). */
+export function useSetChannelWidgetEnabled(id: string | undefined) {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { enabled?: boolean; settings: ChannelWidgetSettings }) => api<ChannelWidget>(`/channels/${id}/widget`, { method: 'PUT', body, scope }),
-    onSuccess: (widget) => qc.setQueryData(qk.bot(scope, 'channel-widget', id), widget),
-    // The form shows these next to the fields.
-    meta: { silentCodes: ['INVALID_REQUEST'] },
+    mutationFn: (enabled: boolean) => api<ChannelWidget>(`/channels/${id}/widget`, { method: 'PUT', body: { enabled }, scope }),
+    onSuccess: (state) => qc.setQueryData(qk.bot(scope, 'channel-widget', id), state),
   });
 }
 

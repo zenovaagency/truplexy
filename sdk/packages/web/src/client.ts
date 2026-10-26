@@ -75,7 +75,7 @@ export class TruplexyClient {
   private readonly transport: Transport;
   private readonly store: SessionStore;
   private readonly live: boolean;
-  private readonly askDetails: boolean;
+  private askDetails: boolean;
   private session: string | null = null;
   private seen = 0;
   private open = false;
@@ -129,6 +129,11 @@ export class TruplexyClient {
       this.update({ ready: true });
     })();
     return this.started;
+  }
+
+  /** Whether a new conversation asks for the visitor's name and email first. */
+  setDetails(mode: 'ask' | 'off'): void {
+    this.askDetails = mode !== 'off';
   }
 
   /** Reads the business and bot name and picture from your server. Failing is fine: the widget keeps its defaults. */

@@ -97,7 +97,7 @@ export const BUSINESS_NAV: NavSection[] = [
   {
     label: 'Connect',
     items: [
-      { id: 'integrations', label: 'Integrations', path: 'integrations', icon: Plug, permission: 'integrations.read', key: 'i', prefetch: pages.integrations, keywords: ['channels', 'whatsapp', 'telegram', 'discord', 'shopify', 'wordpress', 'webhook', 'guides'] },
+      { id: 'integrations', label: 'Integrations', path: 'integrations', icon: Plug, permission: 'integrations.read', key: 'i', prefetch: pages.integrations, keywords: ['channels', 'whatsapp', 'telegram', 'discord', 'shopify', 'wordpress', 'webhook', 'guides', 'chat widget', 'appearance'] },
       { id: 'api-keys', label: 'API keys', path: 'api-keys', icon: KeyRound, permission: 'integrations.read', key: 'a', prefetch: pages.apiKeys, keywords: ['chat key', 'token', 'credentials'] },
     ],
   },

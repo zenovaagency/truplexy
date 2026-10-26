@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, TruplexyChatElement } from '../src/index';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
@@ -123,5 +123,137 @@ describe('<truplexy-chat>', () => {
     expect(el.isOpen).toBe(true);
     expect((el.shadowRoot!.querySelector('.panel') as HTMLElement).hidden).toBe(false);
     host.remove();
+  });
+});
+
+/** A server route whose profile carries the look the business set in the dashboard. */
+function routeWith(widget: Record<string, unknown> | undefined, delay = 0) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, init: { body: string }) => {
+      const { action } = JSON.parse(init.body);
+      calls.push(action);
+      if (action === 'profile') {
+        await new Promise((r) => setTimeout(r, delay));
+        return new Response(JSON.stringify({ business: { name: 'Acme Shop', logo_url: 'https://cdn.test/logo.png' }, bot: { name: 'Aria' }, ...(widget && { widget }) }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ session: null }), { status: 200 });
+    }),
+  );
+  return calls;
+}
+
+const LOOK = { heading: 'Acme help', subtitle: 'We reply fast', greeting: 'Welcome in!', placeholder: 'Ask away', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off', picture_url: 'https://cdn.test/header.png' };
+
+describe('the look set in the dashboard', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
+  });
+
+  it('is applied from the profile', async () => {
+    routeWith(LOOK);
+    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-1' });
+    await tick(20);
+    const root = el.shadowRoot!;
+    expect(root.querySelector('.title')!.textContent).toBe('Acme help');
+    expect(root.querySelector('.subtitle')!.textContent).toBe('We reply fast');
+    expect(root.querySelector('.greeting .bubble')!.textContent).toBe('Welcome in!');
+    expect(root.querySelector('textarea')!.placeholder).toBe('Ask away');
+    expect(root.querySelector('.avatar img')!.getAttribute('src')).toBe('https://cdn.test/header.png');
+    expect(el.style.getPropertyValue('--truplexy-accent')).toBe('#c2410c');
+    expect(el.dataset.txTheme).toBe('dark');
+    expect(el.dataset.txPosition).toBe('left');
+    el.remove();
+  });
+
+  it('never beats what the host page sets', async () => {
+    routeWith(LOOK);
+    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-2', heading: 'Mine', accent: '#112233', theme: 'light', position: 'right', avatar: 'https://mine.test/a.png', labels: { placeholder: 'Translated hint' } });
+    await tick(20);
+    const root = el.shadowRoot!;
+    expect(root.querySelector('.title')!.textContent).toBe('Mine');
+    expect(root.querySelector('.avatar img')!.getAttribute('src')).toBe('https://mine.test/a.png');
+    expect(el.style.getPropertyValue('--truplexy-accent')).toBe('#112233');
+    expect(el.dataset.txTheme).toBe('light');
+    expect(el.dataset.txPosition).toBe('right');
+    // The labels property (translations) beats the dashboard's text; the dashboard still sets the rest.
+    expect(root.querySelector('textarea')!.placeholder).toBe('Translated hint');
+    expect(root.querySelector('.subtitle')!.textContent).toBe('We reply fast');
+    el.remove();
+  });
+
+  it('leaves the window its own wording for what was left empty', async () => {
+    // The profile leaves out an empty greeting, so the default greeting stays.
+    routeWith({ accent: '#2338e6', theme: 'light', position: 'right', details: 'ask', show_sources: false });
+    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-3' });
+    await tick(20);
+    const root = el.shadowRoot!;
+    expect(root.querySelector('.title')!.textContent).toBe('Acme Shop');
+    expect((root.querySelector('.greeting') as HTMLElement).hidden).toBe(false);
+    expect(root.querySelector('.greeting .bubble')!.textContent).toBe('Hi there! How can we help you today?');
+    expect(root.querySelector('.avatar img')!.getAttribute('src')).toBe('https://cdn.test/logo.png');
+    el.remove();
+  });
+
+  it("skips the name and email form when the dashboard says so, unless the page asks for it", async () => {
+    routeWith({ details: 'off' });
+    const off = mount({ endpoint: '/api/truplexy', storageKey: 'look-4' });
+    await tick(20);
+    await off.client!.send('hello').catch(() => {});
+    expect(off.client!.getState().needsDetails).toBe(false);
+    off.remove();
+
+    routeWith({ details: 'off' });
+    const ask = mount({ endpoint: '/api/truplexy', storageKey: 'look-5', details: 'ask' });
+    await tick(20);
+    await ask.client!.send('hello').catch(() => {});
+    expect(ask.client!.getState().needsDetails).toBe(true);
+    ask.remove();
+  });
+
+  it('holds the launcher until the look is known, then shows it', async () => {
+    routeWith(LOOK, 60);
+    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-6' });
+    expect(el.hasAttribute('data-tx-pending')).toBe(true);
+    await tick(120);
+    expect(el.hasAttribute('data-tx-pending')).toBe(false);
+    el.remove();
+  });
+
+  it("shows the launcher anyway when the route can't say", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-7' });
+    expect(el.hasAttribute('data-tx-pending')).toBe(true);
+    await vi.advanceTimersByTimeAsync(1300);
+    expect(el.hasAttribute('data-tx-pending')).toBe(false);
+    vi.useRealTimers();
+    el.remove();
+  });
+
+  it('looks right from the first paint on a page that loads again', async () => {
+    routeWith(LOOK);
+    const first = mount({ endpoint: '/api/truplexy', storageKey: 'look-8' });
+    await tick(20);
+    first.remove();
+    // The next page's profile is slow, but the last look is used at once and nothing is held back.
+    routeWith(LOOK, 200);
+    const again = mount({ endpoint: '/api/truplexy', storageKey: 'look-8' });
+    expect(again.hasAttribute('data-tx-pending')).toBe(false);
+    expect(again.shadowRoot!.querySelector('.title')!.textContent).toBe('Acme help');
+    expect(again.dataset.txPosition).toBe('left');
+    again.remove();
+  });
+
+  it('is plain when the route passes no look on', async () => {
+    routeWith(undefined);
+    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-9' });
+    await tick(20);
+    expect(el.shadowRoot!.querySelector('.title')!.textContent).toBe('Acme Shop');
+    expect(el.dataset.txTheme).toBe('light');
+    expect(el.dataset.txPosition).toBe('right');
+    el.remove();
   });
 });
