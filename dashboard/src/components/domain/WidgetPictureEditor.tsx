@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ImagePlus, Maximize2, Trash2, Upload } from 'lucide-react';
+import { Bot, ImagePlus, Maximize2, Trash2 } from 'lucide-react';
 import { Avatar, Button, Dialog, Slider } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { MAX_ZOOM, MIN_ZOOM, centered, exportSide, exportSquare, pan, placement, squareOf, zoomTo, type Point } from '@/lib/images/crop';
@@ -36,6 +36,7 @@ async function open(file: File): Promise<{ bitmap: ImageBitmap } | { error: stri
 export function WidgetPictureEditor({
   value,
   fallback,
+  accent,
   disabled,
   busy,
   onSave,
@@ -44,6 +45,8 @@ export function WidgetPictureEditor({
   value: string;
   /** What shows when there is no picture: the business logo or the bot's picture, if any. */
   fallback?: string;
+  /** The chat's colour, behind the chat icon shown when there is no picture at all. */
+  accent?: string;
   disabled?: boolean;
   busy?: boolean;
   onSave: (file: File) => Promise<unknown> | void;
@@ -64,40 +67,48 @@ export function WidgetPictureEditor({
     setSource({ bitmap: opened.bitmap, name: file.name, type: file.type === 'image/png' ? 'image/png' : 'image/jpeg' });
   }, []);
 
+  const src = value || fallback;
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-4">
-        <Avatar name="Chat" src={value || fallback} size={64} />
-        <div className="grid gap-1.5">
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="soft" leading={<ImagePlus />} disabled={disabled || busy} loading={busy} onClick={() => input.current?.click()}>
-              {value ? 'Replace' : 'Upload a picture'}
+    <div
+      onDragOver={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        if (!disabled) void choose(e.dataTransfer.files[0]);
+      }}
+      className={cn('flex flex-wrap items-center gap-4 rounded-[14px] border border-dashed p-3 transition-colors', over ? 'border-accent bg-accent-soft' : 'border-line-strong')}
+    >
+      {src ? (
+        <Avatar name="Chat" src={src} size={56} className="shrink-0" />
+      ) : (
+        // What the chat header shows without a picture: its chat icon on the brand colour.
+        <span className="grid size-14 shrink-0 place-items-center rounded-full text-white" style={{ background: accent || 'var(--color-accent)' }} aria-hidden>
+          <Bot className="size-6" />
+        </span>
+      )}
+      <div className="grid min-w-0 flex-1 gap-1.5">
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="soft" leading={<ImagePlus />} disabled={disabled || busy} loading={busy} onClick={() => input.current?.click()}>
+            {value ? 'Replace' : 'Upload a picture'}
+          </Button>
+          {value && (
+            <Button size="sm" variant="quiet" leading={<Trash2 />} disabled={disabled || busy} onClick={() => void onRemove()}>
+              Remove
             </Button>
-            {value && (
-              <Button size="sm" variant="quiet" leading={<Trash2 />} disabled={disabled || busy} onClick={() => void onRemove()}>
-                Remove
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-ink-faint">{value ? 'Shown in the chat header.' : fallback ? 'Using your business logo. Upload a picture to replace it.' : 'Shown in the chat header. Without one, a chat icon is used.'}</p>
+          )}
         </div>
-      </div>
-      <div
-        onDragOver={(e) => {
-          if (disabled) return;
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setOver(false);
-          if (!disabled) void choose(e.dataTransfer.files[0]);
-        }}
-        className={cn('grid place-items-center gap-1 rounded-[14px] border border-dashed px-4 py-5 text-center text-xs text-ink-faint transition-colors', over ? 'border-accent bg-accent-soft text-accent' : 'border-line-strong')}
-      >
-        <Upload className="size-4" aria-hidden />
-        <span>Drop a picture here. PNG, JPEG or WebP; you can move and zoom it next.</span>
+        <p className={cn('text-xs', over ? 'font-medium text-accent' : 'text-ink-faint')}>
+          {over
+            ? 'Drop it to move and zoom it next.'
+            : `${value ? 'Shown in the chat header.' : fallback ? 'Using your business logo.' : 'Without one, the header shows a chat icon.'} PNG, JPEG or WebP; drop one here or upload it.`}
+        </p>
       </div>
       <input
         ref={input}
