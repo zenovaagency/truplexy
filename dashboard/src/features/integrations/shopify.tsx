@@ -4,30 +4,42 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { AlertTriangle, CheckCircle2, Link2, Lock, Palette, Wrench } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
-import { useEnableShopifyTools, useTools, useWorkspace } from '@/lib/api/endpoints/bot';
+import { useEnableStoreTools, useTools, useWorkspace } from '@/lib/api/endpoints/bot';
 import { useConnectChannel } from '@/lib/api/endpoints/channels';
 import { describeError } from '@/lib/errors';
 import { notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { SHOPIFY_TOOLS, connectErrorMessage, markShopifyUnavailable, readConnectReturn, shopifyUnavailable, storeFieldError, subscribeShopifyUnavailable } from '@/lib/shopify';
+import { WOOCOMMERCE_TOOLS, readWooConnectReturn, wooConnectErrorMessage } from '@/lib/woocommerce';
 import { Button, Callout, Dialog, Field, Input, Tip } from '@/components/ui';
 import { ShopifyChatSetup } from './ShopifyChatSetup';
+import { WooCommerceConnectButton } from './woocommerce';
 
 const UNAVAILABLE = "Shopify connections aren't set up on this server yet.";
 
+export type StorePlatform = 'shopify' | 'woocommerce';
+
+const PLATFORM_NAME: Record<StorePlatform, string> = { shopify: 'Shopify', woocommerce: 'WooCommerce' };
+
 /**
- * After Shopify, the API returns to the page with ?connected=shopify&channel_id=…&type=shopify
- * or ?connect_error=<code>&type=shopify. Says so once, reloads the channels and tools, and
- * tidies the URL so a reload or a shared link doesn't say it again. Any page can use it.
+ * After Shopify or a WooCommerce store, the API returns to the page with
+ * ?connected=<platform>&channel_id=…&type=<platform> or ?connect_error=<code>&type=<platform>.
+ * Says so once, reloads the channels and tools, and tidies the URL so a reload or a shared
+ * link doesn't say it again. Any page can use it.
  */
 export function useConnectReturn() {
   const [params, setParams] = useSearchParams();
   const { scope } = useScopeCtx();
   const qc = useQueryClient();
-  const ret = useMemo(() => readConnectReturn(params), [params]);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [connected, setConnected] = useState<{ channelId: string | null } | null>(null);
+  const ret = useMemo(() => {
+    const shopify = readConnectReturn(params);
+    if (shopify) return { ...shopify, platform: 'shopify' as StorePlatform };
+    const woo = readWooConnectReturn(params);
+    return woo ? { ...woo, platform: 'woocommerce' as StorePlatform } : null;
+  }, [params]);
+  const [failed, setFailed] = useState<{ code: string; platform: StorePlatform } | null>(null);
+  const [connected, setConnected] = useState<{ channelId: string | null; platform: StorePlatform } | null>(null);
   // The channel whose chat window the person is asked to set up, right after the install.
   const [customize, setCustomize] = useState<string | null>(null);
   const told = useRef('');
@@ -38,14 +50,14 @@ export function useConnectReturn() {
     if (told.current === key) return;
     told.current = key;
     if (ret.ok) {
-      notifySuccess('Your Shopify store is connected.');
+      notifySuccess(`Your ${PLATFORM_NAME[ret.platform]} store is connected.`);
       void qc.invalidateQueries({ queryKey: qk.bot(scope, 'channels') });
       void qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') });
-      setConnected({ channelId: ret.channelId });
-      setCustomize(ret.channelId);
+      setConnected({ channelId: ret.channelId, platform: ret.platform });
+      setCustomize(ret.platform === 'shopify' ? ret.channelId : null);
       setFailed(null);
     } else {
-      setFailed(ret.code);
+      setFailed({ code: ret.code, platform: ret.platform });
       setConnected(null);
     }
     setParams(
@@ -58,7 +70,7 @@ export function useConnectReturn() {
   }, [ret, params, setParams, qc, scope]);
 
   return {
-    /** The connect_error code, until dismissed. */
+    /** The connect_error code and the platform it came from, until dismissed. */
     failed,
     dismissFailed: () => setFailed(null),
     /** Set after a successful return; channelId is the store's channel. */
@@ -87,24 +99,25 @@ export function CustomizeChatButton({ size = 'xs', variant = 'soft' }: { size?: 
 }
 
 /** Why the store wasn't connected. Stays until dismissed, with a way to try again. */
-export function ConnectReturnBanner({ code, onDismiss }: { code: string; onDismiss: () => void }) {
+export function ConnectReturnBanner({ code, platform = 'shopify', onDismiss }: { code: string; platform?: StorePlatform; onDismiss: () => void }) {
+  const Retry = platform === 'woocommerce' ? WooCommerceConnectButton : ShopifyConnectButton;
   return (
     <Callout
       tone="danger"
       icon={<AlertTriangle />}
-      title="Your Shopify store wasn't connected"
+      title={`Your ${PLATFORM_NAME[platform]} store wasn't connected`}
       action={
         <span className="flex items-center gap-2">
-          <ShopifyConnectButton size="xs" variant="soft">
+          <Retry size="xs" variant="soft">
             Try again
-          </ShopifyConnectButton>
+          </Retry>
           <Button size="xs" variant="quiet" onClick={onDismiss}>
             Dismiss
           </Button>
         </span>
       }
     >
-      {connectErrorMessage(code)}
+      {platform === 'woocommerce' ? wooConnectErrorMessage(code) : connectErrorMessage(code)}
     </Callout>
   );
 }
@@ -255,14 +268,15 @@ export function ShopifyConnectButton({
   );
 }
 
-/** After a store connects: turn on both Shopify tools for the bot in one go. */
-export function ShopifyToolsPrompt({ onDismiss }: { onDismiss: () => void }) {
+/** After a store connects: turn on both of its tools for the bot in one go. */
+export function ShopifyToolsPrompt({ platform = 'shopify', onDismiss }: { platform?: StorePlatform; onDismiss: () => void }) {
   const { can, bot } = useScopeCtx();
   const ws = useWorkspace();
   const tools = useTools();
-  const enable = useEnableShopifyTools();
-  const listed = tools.data?.data.some((t) => t.built_in && (SHOPIFY_TOOLS as readonly string[]).includes(t.name));
-  const on = Boolean(ws.data?.bot.toolsEnabled && SHOPIFY_TOOLS.every((n) => ws.data?.bot.tools?.includes(n)));
+  const names: readonly string[] = platform === 'woocommerce' ? WOOCOMMERCE_TOOLS : SHOPIFY_TOOLS;
+  const enable = useEnableStoreTools(names);
+  const listed = tools.data?.data.some((t) => t.built_in && names.includes(t.name));
+  const on = Boolean(ws.data?.bot.toolsEnabled && names.every((n) => ws.data?.bot.tools?.includes(n)));
 
   if (!can('bot.write') || !ws.data || !listed) return null;
   if (on)

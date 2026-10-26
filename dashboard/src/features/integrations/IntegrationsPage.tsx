@@ -36,6 +36,7 @@ import { notifySuccess } from '@/lib/notify';
 import { hasCode, isApiError } from '@/lib/api/client';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { isShopifyChannel, shopifyToolsUnavailable } from '@/lib/shopify';
+import { isWooCommerceChannel, wooCommerceToolsUnavailable } from '@/lib/woocommerce';
 import {
   Badge,
   Button,
@@ -69,6 +70,7 @@ import { GROUP_LABEL, INTEGRATIONS, IntegrationIcon, channelsFor, keysFor, type 
 import { useCopy } from '@/hooks';
 export { WidgetTab } from './WidgetTab';
 import { ConnectReturnBanner, ConnectedChatSetup, CustomizeChatButton, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
+import { WooCommerceConnectButton } from './woocommerce';
 import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
 import { WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
@@ -185,8 +187,8 @@ export function CatalogTab() {
         </div>
       </div>
 
-      {back.failed && <ConnectReturnBanner code={back.failed} onDismiss={back.dismissFailed} />}
-      {back.connected && <ShopifyToolsPrompt onDismiss={back.dismissConnected} />}
+      {back.failed && <ConnectReturnBanner code={back.failed.code} platform={back.failed.platform} onDismiss={back.dismissFailed} />}
+      {back.connected && <ShopifyToolsPrompt platform={back.connected.platform} onDismiss={back.dismissConnected} />}
       <ConnectedChatSetup back={back} />
 
       {types.isPending ? (
@@ -352,6 +354,9 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
   const { can, scope, href, bot } = useScopeCtx();
   const keys = useApiKeys(can('integrations.read'));
   const channels = useChannels();
+  const tools = useTools(can('tools.read'));
+  const wooStores = (channels.data ?? []).filter(isWooCommerceChannel);
+  const wooLost = wooStores.some((c) => c.active) && wooCommerceToolsUnavailable(tools.data?.data);
   const webhook = useWebhook();
   const ofType = i?.channelType ? (channels.data ?? []).filter((c) => c.type === i.channelType) : [];
   // Keys bound to the integration's channels; integrations without a channel type match key names.
@@ -504,8 +509,40 @@ function GuideSheet({ integration: i, onClose }: { integration?: Integration; on
               </Step>
             )}
 
+            {i.id === 'wordpress' && (
+              <Step n={3} title="Connect your WooCommerce store (optional)" done={wooStores.some((c) => c.active)}>
+                <p className="text-[0.8125rem] text-ink-muted">
+                  For a WooCommerce store, approve read-only access on your store so {bot.name} can look up a customer's order and search your products. Truplexy never changes anything in your store, and never sees payment details.
+                </p>
+                {wooStores.length > 0 && (
+                  <ul className="grid gap-1.5">
+                    {wooStores.map((c) => (
+                      <li key={c.id} className="flex items-center gap-2 text-[0.8125rem]">
+                        <CheckCircle2 className={cn('size-3.5', c.active ? 'text-live' : 'text-ink-faint')} />
+                        <span className="font-medium text-ink">{c.name}</span>
+                        <code className="truncate font-mono text-xs text-ink-faint">{c.external_id}</code>
+                        <span className="ml-auto shrink-0 text-xs text-ink-faint">{!c.enabled ? 'off' : c.active ? (wooLost ? 'access lost' : 'connected') : 'unavailable'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {wooStores.length > 0 && wooLost ? (
+                    <WooCommerceConnectButton account={wooStores[0]!.external_id} size="xs" variant="accent">
+                      Reconnect
+                    </WooCommerceConnectButton>
+                  ) : (
+                    <WooCommerceConnectButton size="xs" variant={wooStores.length ? 'soft' : 'accent'}>
+                      {wooStores.length ? 'Connect another store' : 'Connect store'}
+                    </WooCommerceConnectButton>
+                  )}
+                </div>
+                {wooLost && <p className="text-xs text-danger">Your store no longer accepts the keys it made, so lookups don't work. Reconnect to restore them.</p>}
+              </Step>
+            )}
+
             {i.widget ? (
-              <Step n={i.id === 'web' ? 4 : 3} title="Your team's replies">
+              <Step n={i.id === 'web' || i.id === 'wordpress' ? 4 : 3} title="Your team's replies">
                 <p className="text-[0.8125rem] text-ink-muted">
                   The visitor’s name and email link the conversation and its ticket to Customers. When someone replies from Tickets, the widget shows it live, or within a few seconds where live updates aren't available. Visitors keep their conversation when they reload or come back later.
                 </p>
@@ -763,6 +800,7 @@ export function ChannelsTab() {
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="truncate font-semibold text-ink">{c.name}</span>
               {isShopifyChannel(c) && <Badge tone="outline" className="shrink-0 px-1.5 py-0 text-[0.65rem]">Shopify</Badge>}
+              {isWooCommerceChannel(c) && <Badge tone="outline" className="shrink-0 px-1.5 py-0 text-[0.65rem]">WooCommerce</Badge>}
             </span>
             <span className="truncate text-xs text-ink-faint">
               {c.type_label}
@@ -807,6 +845,10 @@ export function ChannelsTab() {
       cell: (c) =>
         isShopifyChannel(c) ? (
           <Tip content="Connected with Truplexy's Shopify app: no key needed">
+            <span className="text-ink-faint">—</span>
+          </Tip>
+        ) : isWooCommerceChannel(c) ? (
+          <Tip content="Connected with read-only keys your store made: no chat key needed">
             <span className="text-ink-faint">—</span>
           </Tip>
         ) : (
@@ -888,8 +930,8 @@ export function ChannelsTab() {
 
   return (
     <div className="grid gap-5">
-      {back.failed && <ConnectReturnBanner code={back.failed} onDismiss={back.dismissFailed} />}
-      {back.connected && <ShopifyToolsPrompt onDismiss={back.dismissConnected} />}
+      {back.failed && <ConnectReturnBanner code={back.failed.code} platform={back.failed.platform} onDismiss={back.dismissFailed} />}
+      {back.connected && <ShopifyToolsPrompt platform={back.connected.platform} onDismiss={back.dismissConnected} />}
       <ConnectedChatSetup back={back} />
       <Card
         flush
@@ -978,13 +1020,13 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
   const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setC((x) => ({ ...x, [k]: v }));
 
   const { href } = useScopeCtx();
-  const connected = Boolean(existing && isShopifyChannel(existing));
+  const connected = Boolean(existing && (isShopifyChannel(existing) || isWooCommerceChannel(existing)));
   // Offered types, upcoming ones (listed but not pickable), and the channel's own
   // type even when it's upcoming or hidden now: it may keep it. Shopify stores are
   // added with Connect, never by hand.
   const own = types.data?.find((t) => t.id === existing?.type);
   const options = (types.data ?? [])
-    .filter((t) => ((t.offered || t.upcoming) && !isShopifyChannel({ type: t.id })) || t.id === existing?.type)
+    .filter((t) => ((t.offered || t.upcoming) && !isShopifyChannel({ type: t.id }) && !isWooCommerceChannel({ type: t.id })) || t.id === existing?.type)
     .map((t) =>
       t.offered
         ? { value: t.id, label: t.label }
@@ -1037,14 +1079,14 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
           label="Type"
           hint={
             connected ? (
-              `Connected to ${existing?.external_id || 'a Shopify store'}.`
+              `Connected to ${existing?.external_id || (existing && isWooCommerceChannel(existing) ? 'a WooCommerce store' : 'a Shopify store')}.`
             ) : existing ? (
               own && !own.offered && c.type === own.id ? (
                 `${own.upcoming ? `${own.label} isn't available for new channels yet` : `Truplexy no longer offers new ${own.label} channels`}. This one keeps working, and you can still change it as long as its type stays.`
               ) : undefined
             ) : (
               <>
-                Shopify stores are added with Connect under{' '}
+                Shopify and WooCommerce stores are added with Connect under{' '}
                 <Link to={href('integrations/guides')} onClick={onClose} className="text-accent hover:underline">
                   Add a channel
                 </Link>
