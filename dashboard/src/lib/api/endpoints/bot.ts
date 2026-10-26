@@ -11,7 +11,7 @@ import type {
   Workspace,
 } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
-import { withShopifyTools } from '@/lib/shopify';
+import { SHOPIFY_TOOLS, withStoreTools } from '@/lib/shopify';
 import { useScope } from '@/lib/session/scope-context';
 
 /* Bot configuration ---------------------------------------------------- */
@@ -42,11 +42,11 @@ export function useSaveWorkspace() {
 }
 
 /**
- * Turns on both Shopify tools for the bot and saves it: adds their names to
- * `tools` and sets `toolsEnabled`. The change only adds, so when a teammate
- * saved first it is applied once more on their version instead of asking.
+ * Turns on a connected store's two tools (Shopify's or WooCommerce's) for the bot and
+ * saves it: adds their names to `tools` and sets `toolsEnabled`. The change only adds,
+ * so when a teammate saved first it is applied once more on their version instead of asking.
  */
-export function useEnableShopifyTools() {
+export function useEnableStoreTools(names: readonly string[] = SHOPIFY_TOOLS) {
   const scope = useScope();
   const qc = useQueryClient();
   const save = useSaveWorkspace();
@@ -56,7 +56,7 @@ export function useEnableShopifyTools() {
         const ws = fresh
           ? await qc.fetchQuery({ queryKey: qk.bot(scope, 'workspace'), queryFn: ({ signal }) => api<Workspace>('/workspace', { scope, signal }), staleTime: 0 })
           : await qc.ensureQueryData({ queryKey: qk.bot(scope, 'workspace'), queryFn: ({ signal }) => api<Workspace>('/workspace', { scope, signal }) });
-        const tools = withShopifyTools(ws.bot.tools);
+        const tools = withStoreTools(ws.bot.tools, names);
         if (!tools) throw new Error('This bot already uses 20 tools. Turn one off under Tools first.');
         return save.mutateAsync({ name: ws.name, bot: { ...ws.bot, toolsEnabled: true, tools }, revision: ws.revision });
       };

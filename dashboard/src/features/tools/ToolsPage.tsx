@@ -7,7 +7,7 @@ import type { HttpMethod, JsonSchema, Tool, ToolRun } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatDateTime, formatMs, formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { isShopifyTool } from '@/lib/shopify';
+import { storeToolPlatform } from '@/lib/woocommerce';
 import {
   Badge,
   Button,
@@ -60,20 +60,20 @@ function AccessBadge({ tool }: { tool: Tool }) {
 
 /** Built-in tools come with the server, not the business's API: no endpoint, edit or delete. */
 export function BuiltInBadge({ tool }: { tool: Tool }) {
-  return tool.built_in ? <Badge tone="accent">{isShopifyTool(tool) ? 'Built-in · Shopify' : 'Built-in'}</Badge> : null;
+  return tool.built_in ? <Badge tone="accent">{storeToolPlatform(tool) ? `Built-in · ${storeToolPlatform(tool)}` : 'Built-in'}</Badge> : null;
 }
 
-/** Why a tool can't be called, with the way to fix it for the Shopify tools. */
+/** Why a tool can't be called, with the way to fix it for the Shopify and WooCommerce tools. */
 export function UnavailableReason({ tool }: { tool: Tool }) {
   const { href } = useScopeCtx();
   return (
     <>
       {tool.unavailable_reason || tool.description}
-      {isShopifyTool(tool) && (
+      {storeToolPlatform(tool) && (
         <>
           {' '}
           <Link to={href('integrations/guides')} className="font-semibold text-accent hover:underline" onClick={(e) => e.stopPropagation()}>
-            Connect a Shopify store
+            Connect a {storeToolPlatform(tool)} store
           </Link>
         </>
       )}

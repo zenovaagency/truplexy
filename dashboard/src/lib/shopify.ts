@@ -65,11 +65,14 @@ export function readConnectReturn(params: URLSearchParams): { ok: true; channelI
   return null;
 }
 
-/** The bot's tools with both Shopify tools added, or null when that would pass the 20-tool limit. */
-export function withShopifyTools(tools: string[] | undefined, max = 20): string[] | null {
-  const next = [...new Set([...(tools ?? []), ...SHOPIFY_TOOLS])];
+/** The bot's tools with a store's tools added, or null when that would pass the 20-tool limit. */
+export function withStoreTools(tools: string[] | undefined, names: readonly string[], max = 20): string[] | null {
+  const next = [...new Set([...(tools ?? []), ...names])];
   return next.length > max ? null : next;
 }
+
+/** The bot's tools with both Shopify tools added, or null when that would pass the 20-tool limit. */
+export const withShopifyTools = (tools: string[] | undefined, max = 20) => withStoreTools(tools, SHOPIFY_TOOLS, max);
 
 /* Remembered for this tab: the server has no Shopify app, so Connect can't work until it's set up. */
 const UNAVAILABLE_KEY = 'truplexy.shopify-unavailable';

@@ -159,7 +159,8 @@ export const INTEGRATIONS: Integration[] = [
     steps: [
       'Download the plugin, then in WordPress open Plugins → Add New → Upload Plugin, choose the zip and click Install Now, then Activate. It works on WooCommerce stores as it is.',
       'The plugin opens its settings page. Paste the chat key from step 1 and save; the page says Connected when the key works.',
-      'Set how the chat looks under Integrations → Chat widget: title, greeting, colour, picture and position. To let the assistant look up orders on a WooCommerce store, add a tool under Tools that calls the WooCommerce REST API of your store.',
+      'WooCommerce store? Connect it below so the assistant can look up orders and products, then turn the two lookups on under Tools.',
+      'Set how the chat looks under Integrations → Chat widget: title, greeting, colour, picture and position.',
     ],
   },
   {

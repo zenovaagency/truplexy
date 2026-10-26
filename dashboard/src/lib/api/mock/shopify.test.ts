@@ -25,7 +25,7 @@ const fails = (fn: () => unknown) => {
 const back = `${window.location.origin}/integrations/guides?tab=x`;
 const connect = (account: string) => new URL(call('POST', '/channels/connect', { type: 'shopify', account, return_to: back }).url);
 const shopify = () => (call('GET', '/channels').data as any[]).filter((c) => c.type === 'shopify');
-const builtIns = () => (call('GET', '/tools').data as any[]).filter((t) => t.built_in);
+const builtIns = () => (call('GET', '/tools').data as any[]).filter((t) => t.built_in && t.name.startsWith('shopify_'));
 
 describe('POST /channels/connect', () => {
   it('accepts the three ways to write a store, and comes back with the channel', () => {

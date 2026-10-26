@@ -612,6 +612,7 @@ function channelTypes(): MockDb['channelTypes'] {
       ['discord', 'Discord', 'A support bot in a Discord server, in channels or DMs.'],
       ['email', 'Email', 'A support address, through an inbound mail webhook.'],
       ['shopify', 'Shopify', 'The Truplexy app on a Shopify store: order status and product search.'],
+      ['woocommerce', 'WooCommerce', 'A WooCommerce store, with read-only keys: order status and product search.'],
       ['hubspot', 'HubSpot', 'A HubSpot conversations inbox.'],
       ['zendesk', 'Zendesk', 'New tickets in a Zendesk account.'],
       ['slack', 'Slack', 'The Truplexy app in a Slack workspace, for escalations.'],

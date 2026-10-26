@@ -833,6 +833,59 @@ function shopifyStore(v: unknown) {
   return handle;
 }
 
+/** The store a WooCommerce connect names: its https address, as the API accepts it. */
+function wooSite(v: unknown) {
+  const raw = (str(v, 'account', 1, 200) ?? '').trim().toLowerCase().replace(/\/+$/, '');
+  const host = raw.replace(/^https:\/\//, '');
+  if (/^http:\/\//.test(raw) || !/^[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*\.[a-z]{2,}(\/[a-z0-9._~-]+){0,4}$/.test(host)) {
+    throw invalid("Set account to your store's https address, such as https://shop.example.com.");
+  }
+  return host;
+}
+
+/**
+ * Connects a WooCommerce store. The real API sends the person to the store's own approval page
+ * and finishes on its callback; the demo skips the store and answers the return_to page with the
+ * store already connected (or with the demo error named by the address's first label).
+ */
+function connectWooCommerce(c: Ctx, b: any) {
+  if (b.account === undefined) throw invalid('account is required.');
+  const host = wooSite(b.account);
+  let back: URL;
+  try {
+    back = new URL(str(b.return_to, 'return_to', 1, 2000)!);
+  } catch {
+    throw invalid('return_to must be a dashboard page.');
+  }
+  if (back.origin !== window.location.origin) throw invalid('return_to must be a dashboard page.');
+  const site = `https://${host}`;
+  audit(c, 'channel.connect_started', site, { name: site, type: 'woocommerce' });
+
+  back.searchParams.set('type', 'woocommerce');
+  const demoError = DEMO_CONNECT_ERRORS[host.split('.')[0]!];
+  const elsewhere = c.db.channels.some((x) => x.type === 'woocommerce' && x.external_id === site && x.tenant_id !== c.tenant.id);
+  if (demoError || elsewhere) {
+    back.searchParams.set('connect_error', demoError ?? 'store_connected_elsewhere');
+    return { url: back.toString() };
+  }
+
+  const now = nowIso();
+  let ch = botChannels(c).find((x) => x.type === 'woocommerce' && x.external_id === site);
+  if (ch) Object.assign(ch, { enabled: true, updated_at: now });
+  else {
+    const store = host.split('.')[0]!.split('-').map((w) => w[0]!.toUpperCase() + w.slice(1)).join(' ');
+    const taken = new Set(botChannels(c).map((x) => x.name.toLowerCase()));
+    let name = store;
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${store} ${n}`;
+    ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: 'woocommerce', name, description: '', external_id: site, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
+    c.db.channels.push(ch);
+  }
+  audit(c, 'channel.connect', ch.id, { name: ch.name, type: 'woocommerce', site });
+  back.searchParams.set('connected', 'woocommerce');
+  back.searchParams.set('channel_id', ch.id);
+  return { url: back.toString() };
+}
+
 /** Demo stores that come back from "Shopify" with each connect_error, to try the flow by hand. */
 const DEMO_CONNECT_ERRORS: Record<string, string> = {
   denied: 'denied',
@@ -851,12 +904,13 @@ const DEMO_CONNECT_ERRORS: Record<string, string> = {
 route('POST', '/channels/connect', 'channels.write', (c) => {
   const b = c.body ?? {};
   if (b.type === undefined) throw invalid('type is required.');
-  if (b.type !== 'shopify') {
+  if (b.type !== 'shopify' && b.type !== 'woocommerce') {
     if (c.db.channelTypes.some((t) => t.id === b.type)) throw err(400, 'CHANNEL_CONNECT_UNSUPPORTED', `${b.type} channels are added with POST /channels.`);
-    throw invalid('type must be shopify.');
+    throw invalid('type must be shopify or woocommerce.');
   }
   const type = offeredType(c.db, b.type);
-  if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', "Shopify isn't offered for this bot.");
+  if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `${b.type === 'shopify' ? 'Shopify' : 'WooCommerce'} isn't offered for this bot.`);
+  if (b.type === 'woocommerce') return connectWooCommerce(c, b);
   if (b.account === undefined) throw invalid('account is required.');
   const handle = shopifyStore(b.account);
   let back: URL;
@@ -1953,7 +2007,7 @@ const toolOut = (t: MockDb['tools'][number]) => {
 };
 const tenantTools = (c: Ctx) => c.db.tools.filter((t) => t.tenant_id === c.tenant.id);
 
-/** The Shopify tools: listed for every bot, available while it has an active Shopify channel. */
+/** The store tools: listed for every bot, available while it has an active channel of their platform. */
 const BUILT_IN_TOOLS: Pick<Tool, 'name' | 'description' | 'parameters'>[] = [
   {
     name: 'shopify_order_status',
@@ -1970,22 +2024,53 @@ const BUILT_IN_TOOLS: Pick<Tool, 'name' | 'description' | 'parameters'>[] = [
     description: "Search the store's active products: up to five, with price, stock and link.",
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'What the customer is looking for' } }, required: ['query'], additionalProperties: false },
   },
+  {
+    name: 'woocommerce_order_status',
+    description: "Look up a WooCommerce order's status, items, total and tracking. Needs the order number and the email the order was placed with.",
+    parameters: {
+      type: 'object',
+      properties: { order_number: { type: 'string', description: 'The order number, e.g. 1001 or #1001' }, email: { type: 'string', description: 'The email the order was placed with' } },
+      required: ['order_number', 'email'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'woocommerce_product_search',
+    description: "Search the store's published products: up to five, with price, stock and link.",
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'What the customer is looking for' } }, required: ['query'], additionalProperties: false },
+  },
 ];
 
+/** The platform a built-in tool belongs to: its name's prefix, which is also its channel type. */
+const toolPlatform = (name: string) => (name.startsWith('woocommerce_') ? 'woocommerce' : 'shopify');
+
 function builtInTools(c: Ctx): Tool[] {
-  const store = botChannels(c).some((x) => x.type === 'shopify' && x.enabled && !x.disabled_by_platform);
-  return BUILT_IN_TOOLS.map((t) => ({
-    ...t,
-    read_only: true,
-    built_in: true,
-    available: store,
-    unavailable_reason: store ? undefined : 'Connect a Shopify store to this bot.',
-    api: { method: 'GET', url: '', created_at: '', updated_at: '' },
-  }));
+  const has = (type: string) => botChannels(c).some((x) => x.type === type && x.enabled && !x.disabled_by_platform);
+  return BUILT_IN_TOOLS.map((t) => {
+    const platform = toolPlatform(t.name);
+    const store = has(platform);
+    return {
+      ...t,
+      read_only: true,
+      built_in: true,
+      available: store,
+      unavailable_reason: store ? undefined : `Connect a ${platform === 'woocommerce' ? 'WooCommerce' : 'Shopify'} store to this bot.`,
+      api: { method: 'GET', url: '', created_at: '', updated_at: '' },
+    };
+  });
 }
 
 function runBuiltIn(name: string, args: Record<string, unknown>): ToolRun {
   const started = 140 + Math.round(Math.random() * 300);
+  if (name === 'woocommerce_order_status') {
+    const n = String(args.order_number ?? '').replace(/^#/, '');
+    // The demo store has one order: #1001, placed by maya.fernandez@example.com.
+    const output =
+      n === '1001' && String(args.email ?? '').trim().toLowerCase() === 'maya.fernandez@example.com'
+        ? JSON.stringify({ order: '#1001', status: 'completed', total: '84.00 USD', items: [{ title: '12" cast iron skillet', quantity: 1 }], tracking: [{ company: 'UPS', number: '1Z999AA10123456784' }] }, null, 2)
+        : 'No order matches that number and email address. Ask the customer to check both.';
+    return { name, arguments: args, status: 'ok', output, latency_ms: started };
+  }
   if (name === 'shopify_order_status') {
     const n = String(args.order_number ?? '').replace(/^#/, '');
     // The demo store has one order: #1001, placed by maya.fernandez@example.com.
@@ -1996,9 +2081,10 @@ function runBuiltIn(name: string, args: Record<string, unknown>): ToolRun {
     return { name, arguments: args, status: 'ok', output, latency_ms: started };
   }
   const q = String(args.query ?? '').toLowerCase();
+  const base = name === 'woocommerce_product_search' ? 'https://demo-store.example.com/product' : 'https://demo-store.myshopify.com/products';
   const products = [
-    { title: '12" cast iron skillet', price: '84.00 USD', in_stock: true, url: 'https://demo-store.myshopify.com/products/skillet-12' },
-    { title: 'Enamel dutch oven', price: '129.00 USD', in_stock: false, url: 'https://demo-store.myshopify.com/products/dutch-oven' },
+    { title: '12" cast iron skillet', price: '84.00 USD', in_stock: true, url: `${base}/skillet-12` },
+    { title: 'Enamel dutch oven', price: '129.00 USD', in_stock: false, url: `${base}/dutch-oven` },
   ].filter((p) => !q || p.title.toLowerCase().split(/\W+/).some((w) => w && q.includes(w)));
   return { name, arguments: args, status: 'ok', output: JSON.stringify({ products }, null, 2), latency_ms: started };
 }
@@ -2008,7 +2094,7 @@ const isBuiltIn = (name: unknown) => BUILT_IN_TOOLS.some((t) => t.name === name)
 function toolInput(c: Ctx, b: any) {
   const name = str(b.name, 'name', 1, 64)!;
   if (!/^[a-z][a-z0-9_]{0,63}$/.test(name)) throw err(400, 'INVALID_TOOL', 'name must match ^[a-z][a-z0-9_]{0,63}$.');
-  if (name.startsWith('shopify_')) throw err(400, 'INVALID_TOOL', 'Names starting with shopify_ are kept for built-in tools.');
+  if (name.startsWith('shopify_') || name.startsWith('woocommerce_')) throw err(400, 'INVALID_TOOL', `Names starting with ${name.startsWith('shopify_') ? 'shopify_' : 'woocommerce_'} are kept for built-in tools.`);
   const description = str(b.description, 'description', 1, 1000)!;
   if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(b.method)) throw err(400, 'INVALID_TOOL', 'method must be GET, POST, PUT, PATCH or DELETE.');
   const url = str(b.url, 'url', 1, 2000)!;

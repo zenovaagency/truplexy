@@ -51,8 +51,8 @@ export function useCreateChannel() {
 }
 
 export interface ConnectInput {
-  type: 'shopify';
-  /** The store as typed: your-store, your-store.myshopify.com or its admin URL. The API normalizes it. */
+  type: 'shopify' | 'woocommerce';
+  /** The store as typed: Shopify's your-store, your-store.myshopify.com or its admin URL; WooCommerce's https address. The API normalizes it. */
   account: string;
 }
 
