@@ -3,10 +3,13 @@
  * Plugin Name:       Truplexy Chat
  * Plugin URI:        https://truplexy.com/docs/web-sdk
  * Description:       Adds the Truplexy AI support chat to your site. Your chat key stays on the server.
- * Version:           0.3.0
+ * Author:            Truplexy
+ * Author URI:        https://truplexy.com
+ * Version:           1.0.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * License:           MIT
+ * License URI:       https://opensource.org/licenses/MIT
  * Text Domain:       truplexy-chat
  *
  * Put your chat key in wp-config.php:  define('TRUPLEXY_CHAT_KEY', 'tpx_...');
@@ -17,7 +20,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-const TRUPLEXY_CHAT_VERSION = '0.3.0';
+const TRUPLEXY_CHAT_VERSION = '1.0.0';
 const TRUPLEXY_CHAT_CDN = 'https://cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js';
 
 function truplexy_chat_settings(): array {
@@ -99,10 +102,10 @@ class Truplexy_Chat_Error extends Exception {
     }
 }
 
-function truplexy_chat_api(string $method, string $path, ?array $body = null, bool $retry = true): array {
+function truplexy_chat_api(string $method, string $path, ?array $body = null, bool $retry = true, int $timeout = 55): array {
     $res = wp_remote_request(truplexy_chat_api_base() . $path, [
         'method'  => $method,
-        'timeout' => 55,
+        'timeout' => $timeout,
         'headers' => ['Authorization' => 'Bearer ' . truplexy_chat_key(), 'Content-Type' => 'application/json'],
         'body'    => $body === null ? null : wp_json_encode($body),
     ]);
@@ -112,7 +115,7 @@ function truplexy_chat_api(string $method, string $path, ?array $body = null, bo
     $status = (int) wp_remote_retrieve_response_code($res);
     $data = json_decode(wp_remote_retrieve_body($res), true);
     if ($retry && $method === 'PUT' && $path === '/customer' && $status === 409 && ($data['error']['code'] ?? '') === 'CUSTOMER_EXISTS') {
-        return truplexy_chat_api($method, $path, $body, false);
+        return truplexy_chat_api($method, $path, $body, false, $timeout);
     }
     if ($status >= 300) {
         $code = $status === 401 ? 'NOT_CONFIGURED' : ($data['error']['code'] ?? 'UPSTREAM_ERROR');
@@ -162,7 +165,7 @@ function truplexy_chat_error(string $code, string $request_id = ''): WP_REST_Res
 /** A simple per-visitor limit on messages; change it with the truplexy_chat_rate_limit filter. */
 function truplexy_chat_allow(): bool {
     $limit = (int) apply_filters('truplexy_chat_rate_limit', 20);
-    $key = 'truplexy_rl_' . md5($_SERVER['REMOTE_ADDR'] ?? '');
+    $key = 'truplexy_rl_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
     $count = (int) get_transient($key);
     if ($limit > 0 && $count >= $limit) {
         return false;
@@ -353,6 +356,34 @@ add_action('admin_init', function () {
     ]);
 });
 
+register_activation_hook(__FILE__, function () {
+    if (truplexy_chat_key() === '') {
+        set_transient('truplexy_chat_welcome', '1', MINUTE_IN_SECONDS);
+    }
+});
+
+add_action('admin_init', function () {
+    if (!get_transient('truplexy_chat_welcome')) {
+        return;
+    }
+    delete_transient('truplexy_chat_welcome');
+    // Not for bulk activations, where several plugins are switched on at once.
+    if (wp_doing_ajax() || isset($_GET['activate-multi']) || !current_user_can('manage_options')) {
+        return;
+    }
+    wp_safe_redirect(admin_url('options-general.php?page=truplexy-chat'));
+    exit;
+});
+
+add_action('admin_notices', function () {
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (truplexy_chat_key() !== '' || !current_user_can('manage_options') || !$screen || !in_array($screen->id, ['plugins', 'dashboard'], true)) {
+        return;
+    }
+    echo '<div class="notice notice-info"><p><strong>Truplexy Chat is almost ready.</strong> '
+        . '<a href="' . esc_url(admin_url('options-general.php?page=truplexy-chat')) . '">Add your chat key</a> to show the chat on your site.</p></div>';
+});
+
 add_action('admin_menu', function () {
     add_options_page('Truplexy Chat', 'Truplexy Chat', 'manage_options', 'truplexy-chat', 'truplexy_chat_settings_page');
 });
@@ -367,9 +398,21 @@ function truplexy_chat_settings_page() {
     $field = function ($key) {
         return 'truplexy_chat[' . $key . ']';
     };
+    $status = null;
+    if (truplexy_chat_key() !== '') {
+        try {
+            $profile = truplexy_chat_api('GET', '/profile', null, false, 8);
+            $status = ['ok', 'Connected' . (!empty($profile['business']['name']) ? ' to ' . $profile['business']['name'] : '') . '.'];
+        } catch (Truplexy_Chat_Error $e) {
+            $status = ['error', $e->api_code === 'NOT_CONFIGURED' ? 'Truplexy did not accept this chat key. Check that you copied all of it.' : "Couldn't reach Truplexy (" . $e->api_code . '). The chat may not work until this is resolved.'];
+        }
+    }
     ?>
     <div class="wrap">
         <h1>Truplexy Chat</h1>
+        <?php if ($status) : ?>
+            <div class="notice notice-<?php echo $status[0] === 'ok' ? 'success' : 'error'; ?> inline"><p><?php echo esc_html($status[1]); ?></p></div>
+        <?php endif; ?>
         <form method="post" action="options.php">
             <?php settings_fields('truplexy_chat'); ?>
             <table class="form-table" role="presentation">
@@ -383,8 +426,8 @@ function truplexy_chat_settings_page() {
                         <?php if (defined('TRUPLEXY_CHAT_KEY')) : ?>
                             <p>Set in <code>wp-config.php</code>.</p>
                         <?php else : ?>
-                            <input id="truplexy-key" type="password" class="regular-text" autocomplete="off" name="<?php echo esc_attr($field('chat_key')); ?>" placeholder="<?php echo $s['chat_key'] ? 'Saved. Leave blank to keep it.' : 'tpx_...'; ?>">
-                            <p class="description">Issue one in the Truplexy dashboard under Integrations → Website chat. Safer: <code>define('TRUPLEXY_CHAT_KEY', 'tpx_...');</code> in <code>wp-config.php</code>.</p>
+                            <input id="truplexy-key" type="password" class="regular-text" autocomplete="off" name="<?php echo esc_attr($field('chat_key')); ?>" placeholder="<?php echo esc_attr($s['chat_key'] ? 'Saved. Leave blank to keep it.' : 'tpx_...'); ?>">
+                            <p class="description">Paste the chat key from the Truplexy dashboard (Integrations → WordPress), then save. Advanced: <code>define('TRUPLEXY_CHAT_KEY', 'tpx_...');</code> in <code>wp-config.php</code> keeps it out of the database.</p>
                         <?php endif; ?>
                     </td>
                 </tr>

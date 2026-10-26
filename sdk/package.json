@@ -17,6 +17,7 @@
     "test": "vitest run",
     "typecheck": "npm run typecheck --workspaces",
     "size": "node scripts/size.mjs",
+    "wordpress:package": "node scripts/wordpress-package.mjs",
     "check:examples": "node scripts/check-examples.mjs",
     "playground": "node playground/server.mjs",
     "version:sdk": "node scripts/release.mjs version",
