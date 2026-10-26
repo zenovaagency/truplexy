@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-10-26',
+    title: 'Closed chats stay closed, and the team joins by name',
+    tag: 'SDK',
+    items: [
+      'When your team closes a ticket, the chat widget shows the conversation read-only with a button to start a new chat, instead of letting the visitor carry on in a ticket nobody is watching. The closed chat stays in the visitor’s browser for 3 days (closed-retention-days sets it), and the API refuses new messages to it with 409 TICKET_CLOSED.',
+      'The chat API’s GET /conversations/{id} returns the conversation’s current ticket, and sending a message takes if_ticket_closed: "reject" to refuse closed conversations. The server package, the WordPress plugin and the code in the setup guides do this for you.',
+      'The widget shows “Sam has joined and will reply here.” and “handed the conversation back to the assistant” as lines in the chat, and a visitor who asks for a person is connected to the team at once. In the dashboard, replying to a ticket the assistant is still answering asks you to take it over first.',
+      'Fixed: a widget set to open when the page loads no longer replaces the visitor’s saved chat with an empty one.',
+    ],
+  },
+  {
     date: '2026-10-25',
     title: 'Products, queries and custom properties',
     tag: 'Dashboard',

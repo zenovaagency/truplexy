@@ -88,6 +88,8 @@ export class TruplexyClient {
   private seen = 0;
   private open = false;
   private started?: Promise<void>;
+  /** The saved chat has been read. Until then nothing is written, or an early update would replace it with an empty one. */
+  private loaded = false;
   private destroyed = false;
   private seq = 0;
   private syncing?: Promise<void>;
@@ -131,6 +133,7 @@ export class TruplexyClient {
       if (this.pastRetention(saved.ticket)) saved = { session: null, messages: [], seen: 0, customer: saved.customer, ticket: null };
       this.session = saved.session;
       this.seen = saved.seen;
+      this.loaded = true;
       this.update({ messages: saved.messages.filter((m) => !m.pending), customer: saved.customer ?? null, ticket: saved.ticket ?? null, closed: saved.ticket?.status === 'closed' });
       if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
       void this.loadProfile();
@@ -160,6 +163,8 @@ export class TruplexyClient {
 
   /** Sends a visitor message. Resolves when the reply (if any) is in. */
   async send(text: string): Promise<void> {
+    // Reading the saved chat is the first step of start(), so this continues the saved conversation.
+    if (!this.started) void this.start();
     const content = text.trim().slice(0, 4000);
     // A closed conversation can't be continued: reset() starts a new one.
     if (!content || this.state.sending || this.state.closed) return;
@@ -197,6 +202,7 @@ export class TruplexyClient {
 
   /** Flags the conversation for the team (the "Talk to a person" button). */
   async handoff(): Promise<void> {
+    if (!this.started) void this.start();
     if (!this.session || this.state.closed) return;
     this.update({ offerHandoff: false, sending: true });
     try {
@@ -258,6 +264,7 @@ export class TruplexyClient {
     this.store.clear();
     this.session = null;
     this.seen = 0;
+    this.loaded = true;
     // The visitor stays known: a new conversation doesn't ask again.
     this.state = { ...initialState(), profile: this.state.profile, customer: this.state.customer, ready: true };
     this.update({});
@@ -385,7 +392,7 @@ export class TruplexyClient {
     if (this.open) this.seen = count;
     next.unread = Math.max(0, count - this.seen);
     this.state = next;
-    this.store.save({ session: this.session, messages: next.messages, seen: this.seen, customer: next.customer, ticket: next.ticket });
+    if (this.loaded) this.store.save({ session: this.session, messages: next.messages, seen: this.seen, customer: next.customer, ticket: next.ticket });
     for (const listener of this.listeners) listener(next);
     if (count > before && this.state.ready) {
       this.emit('message', next.messages.filter(isReply).slice(before - count));

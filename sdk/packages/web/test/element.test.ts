@@ -179,6 +179,28 @@ describe('<truplexy-chat>', () => {
     }
   });
 
+  it('keeps the saved chat when the page opens the widget at load', async () => {
+    const key = 'truplexy:open-at-load';
+    const seeded = { session: 'S1', seen: 0, customer: { name: 'Ada', email: 'ada@example.com' }, ticket: { id: 'tkt_1', status: 'open' }, messages: [{ id: 'm1', role: 'user', content: 'Where is my order?', createdAt: 'x' }] };
+    localStorage.setItem(key, JSON.stringify(seeded));
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const { action } = JSON.parse(String(init.body));
+      const conversation = { status: 'open', escalated: false, messages: [{ id: 'm1', role: 'user', content: 'Where is my order?', created_at: 'x' }] };
+      return new Response(JSON.stringify(action === 'history' ? { session: 'S1', conversation } : {}), { headers: { 'Content-Type': 'application/json' } });
+    });
+    try {
+      const el = mount({ endpoint: '/api/truplexy', storageKey: key, open: true });
+      await tick(10);
+      const saved = JSON.parse(localStorage.getItem(key)!);
+      expect(saved.customer).toEqual(seeded.customer);
+      expect(saved.messages.map((m: { content: string }) => m.content)).toContain('Where is my order?');
+      el.remove();
+    } finally {
+      vi.unstubAllGlobals();
+      localStorage.removeItem(key);
+    }
+  });
+
   it('links to Truplexy under the message box, in any language', () => {
     const el = mount({ demo: true });
     const brand = el.shadowRoot!.querySelector<HTMLAnchorElement>('.brand')!;

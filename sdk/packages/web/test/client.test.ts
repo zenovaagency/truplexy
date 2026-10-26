@@ -244,6 +244,19 @@ describe('TruplexyClient', () => {
     client.destroy();
   });
 
+  it('does not overwrite the saved chat when told it is open before it has started', async () => {
+    const saved = { session: 'S', messages: [{ id: 'm1', role: 'user' as const, content: 'hi', createdAt: 'x' }], seen: 0, customer: { name: 'Ada', email: 'ada@example.com' }, ticket: { id: 'tkt_1', status: 'open' } };
+    const store = { load: () => saved, save: vi.fn(), clear: vi.fn() };
+    const { transport } = fake({ history: () => ({ session: 'S', conversation: { status: 'open', escalated: false, messages: [msg('m1', 'user', 'hi')] } }), live: () => ({}) });
+    const client = new TruplexyClient({ transport, store });
+    client.setOpen(true);
+    expect(store.save).not.toHaveBeenCalled();
+    await client.start();
+    expect(client.getState()).toMatchObject({ customer: { name: 'Ada' }, ticket: { id: 'tkt_1' }, messages: [{ content: 'hi' }] });
+    expect(store.save).toHaveBeenLastCalledWith(expect.objectContaining({ session: 'S', customer: { name: 'Ada', email: 'ada@example.com' } }));
+    client.destroy();
+  });
+
   it('forgets a conversation the server no longer knows', async () => {
     const store = {
       load: () => ({ session: 'old', messages: [{ id: 'm1', role: 'user' as const, content: 'hi', createdAt: 'x' }], seen: 0 }),
