@@ -33,6 +33,10 @@ const api: FakeApi = (call) => {
   return undefined;
 };
 
+/** A radio by its text, or by its name when it is a colour swatch. */
+const radio = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((r) => r.textContent === name || r.getAttribute('aria-label') === name);
+const colourCode = () => document.querySelector('input[aria-label="Colour code"]');
+
 const mount = (permissions?: Parameters<typeof renderPage>[3]) => renderPage([{ path: '/', element: <WidgetTab /> }], '/', api, permissions);
 
 beforeEach(() => {
@@ -55,8 +59,9 @@ describe('Integrations → Chat widget', () => {
     const { calls } = await mount();
     await type(field('Title'), '  Acme help ');
     await type(field('Greeting'), 'Welcome in!');
-    await type(document.querySelector('input[aria-label="Colour code"]'), '#AA3366');
-    await click([...document.querySelectorAll('[role="radio"]')].find((r) => r.textContent === 'Left'));
+    await click(radio('Custom'));
+    await type(colourCode(), '#AA3366');
+    await click(radio('Left'));
     expect(text()).toContain('Unsaved changes');
     await click(button('Save'));
     const put = calls.find((c) => c.method === 'PUT' && c.path === '/widget');
@@ -66,11 +71,12 @@ describe('Integrations → Chat widget', () => {
 
   it('holds back what breaks a rule, and shows what the API refuses', async () => {
     const { calls } = await mount();
-    await type(document.querySelector('input[aria-label="Colour code"]'), 'red');
+    await click(radio('Custom'));
+    await type(colourCode(), 'red');
     await click(button('Save'));
     expect(text()).toContain('Pick a colour, such as #2338e6.');
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
-    await type(document.querySelector('input[aria-label="Colour code"]'), '#112233');
+    await type(colourCode(), '#112233');
     await type(field('Title'), 'refused');
     await click(button('Save'));
     expect(text()).toContain("That couldn't be saved");
@@ -78,11 +84,35 @@ describe('Integrations → Chat widget', () => {
     expect(text()).toContain('Unsaved changes');
   });
 
+  it('picks a ready-made colour, with the code box only for Custom', async () => {
+    const { calls } = await mount();
+    expect(radio('Indigo')?.getAttribute('aria-checked')).toBe('true');
+    expect(colourCode()).toBeNull();
+    await click(radio('Teal'));
+    expect(radio('Teal')?.getAttribute('aria-checked')).toBe('true');
+    expect(document.querySelector('[data-testid="preview"]')?.textContent).toBe('|#0f766e|');
+    await click(button('Save'));
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ settings: { ...WIDGET_DEFAULTS, accent: '#0f766e' } });
+  });
+
+  it('shows a saved colour that is not ready-made as Custom, and warns when white text is hard to read', async () => {
+    saved = { ...saved, settings: { ...WIDGET_DEFAULTS, accent: '#c2410c' } };
+    await mount();
+    expect(radio('Custom')?.getAttribute('aria-checked')).toBe('true');
+    expect((colourCode() as HTMLInputElement).value).toBe('#c2410c');
+    expect(text()).not.toContain('hard to read');
+    await type(colourCode(), '#ffee88');
+    expect(text()).toContain('White text is hard to read on this colour');
+  });
+
   it('resets the form to the defaults without saving', async () => {
     saved = { ...saved, settings: { ...WIDGET_DEFAULTS, heading: 'Acme help', position: 'left' } };
     const { calls } = await mount();
+    await click(radio('Custom'));
     await click(button('Reset to defaults'));
     expect((field('Title') as HTMLInputElement).value).toBe('');
+    expect(radio('Indigo')?.getAttribute('aria-checked')).toBe('true');
+    expect(colourCode()).toBeNull();
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
     expect(text()).toContain('Unsaved changes');
   });
@@ -91,6 +121,7 @@ describe('Integrations → Chat widget', () => {
     const { calls } = await mount(['bot.read', 'integrations.read']);
     expect(text()).toContain('Only editors and above can change this');
     expect(field('Title')?.closest('fieldset')?.disabled).toBe(true);
+    expect(radio('Teal')?.disabled).toBe(true);
     expect(button('Save')?.disabled).toBe(true);
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
   });
