@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { AlertTriangle, Lock, RotateCcw } from 'lucide-react';
+import { AccentPicker } from '@/components/domain/AccentPicker';
 import { WidgetPictureEditor } from '@/components/domain/WidgetPictureEditor';
 import { Button, Callout, Card, Field, Input, Segmented, Switch, Textarea } from '@/components/ui';
 import { isApiError } from '@/lib/api/client';
@@ -9,7 +10,7 @@ import { useRemoveWidgetPicture, useSaveWidget, useSetWidgetPicture, useWidget }
 import type { WidgetSettings } from '@/lib/api/types';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { isShopifyChannel } from '@/lib/shopify';
-import { WIDGET_DEFAULTS, WIDGET_LIMITS, cleanWidget, previewable, sameWidget, widgetErrors } from '@/lib/widget';
+import { WIDGET_DEFAULTS, WIDGET_LIMITS, cleanWidget, lowContrast, previewable, sameWidget, widgetErrors } from '@/lib/widget';
 import { ShopifyStoreStatus } from './ShopifyChatSetup';
 import { WidgetPreview } from './WidgetPreview';
 
@@ -36,6 +37,9 @@ export function WidgetTab() {
   const [draft, setDraft] = useState<WidgetSettings | null>(null);
   const [touched, setTouched] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Custom stays open on a ready-made colour typed or picked there, until a swatch is chosen.
+  const [customColour, setCustomColour] = useState(false);
+  const colourNote = useId();
 
   // The form starts from what is saved, once it has loaded.
   useEffect(() => {
@@ -135,18 +139,24 @@ export function WidgetTab() {
                       onRemove={() => removePicture.mutateAsync()}
                     />
                   </div>
-                  <Field label="Colour" hint="The header, the chat button and the send button." error={errors.accent}>
-                    <div className="relative w-full max-w-[11rem]">
-                      <input
-                        type="color"
-                        aria-label="Pick a colour"
-                        value={accentOk ? draft.accent : WIDGET_DEFAULTS.accent}
-                        onChange={(e) => set('accent', e.target.value)}
-                        className="absolute left-1.5 top-1/2 z-[1] size-6 -translate-y-1/2 cursor-pointer rounded-md border-0 bg-transparent p-0 disabled:cursor-default [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
-                      />
-                      <Input value={draft.accent} onChange={(e) => set('accent', e.target.value.slice(0, 7))} aria-label="Colour code" className="pl-10 font-mono text-[0.8125rem]" spellCheck={false} />
-                    </div>
-                  </Field>
+                  <div className="grid gap-1.5">
+                    {/* A row of choices, so it is titled rather than labelled, like the picture above. */}
+                    <p className="text-[0.8125rem] font-semibold text-ink">Colour</p>
+                    <AccentPicker value={draft.accent} onChange={(hex) => set('accent', hex)} custom={customColour} onCustomChange={setCustomColour} disabled={!writable} describedBy={colourNote} />
+                    {errors.accent ? (
+                      <p id={colourNote} className="text-xs font-medium text-danger">
+                        {errors.accent}
+                      </p>
+                    ) : lowContrast(draft.accent) ? (
+                      <p id={colourNote} className="text-xs font-medium text-warn">
+                        White text is hard to read on this colour. Try a darker shade.
+                      </p>
+                    ) : (
+                      <p id={colourNote} className="text-xs text-ink-faint">
+                        The header, the chat button and the send button.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </Card>
 
@@ -202,7 +212,7 @@ export function WidgetTab() {
                   </>
                 )}
               </span>
-              <Button type="button" variant="quiet" className="shrink-0" leading={<RotateCcw />} disabled={!writable || save.isPending} onClick={() => (setDraft(WIDGET_DEFAULTS), setFormError(null))}>
+              <Button type="button" variant="quiet" className="shrink-0" leading={<RotateCcw />} disabled={!writable || save.isPending} onClick={() => (setDraft(WIDGET_DEFAULTS), setCustomColour(false), setFormError(null))}>
                 Reset to defaults
               </Button>
               <Button type="submit" variant="accent" className="shrink-0" loading={save.isPending} disabled={!writable || !dirty || (touched && invalid)}>
