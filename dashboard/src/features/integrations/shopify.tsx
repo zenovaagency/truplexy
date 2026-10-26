@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Link2, Lock, MessageCircle, Wrench } from 'lucide-react';
+import { Link } from 'react-router';
+import { AlertTriangle, CheckCircle2, Link2, Lock, Palette, Wrench } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import { useEnableShopifyTools, useTools, useWorkspace } from '@/lib/api/endpoints/bot';
 import { useConnectChannel } from '@/lib/api/endpoints/channels';
@@ -75,16 +76,13 @@ export function ConnectedChatSetup({ back }: { back: Pick<ReturnType<typeof useC
   return <ShopifyChatSetup channelId={back.customize} fresh onClose={back.closeCustomize} />;
 }
 
-/** Opens the chat window set-up for a connected store's channel, at any time. */
-export function CustomizeChatButton({ channelId, size = 'xs', variant = 'soft' }: { channelId: string; size?: 'xs' | 'sm'; variant?: 'accent' | 'soft' }) {
-  const [open, setOpen] = useState(false);
+/** A way from a connected store to how its chat looks: the bot's one chat widget setting. */
+export function CustomizeChatButton({ size = 'xs', variant = 'soft' }: { size?: 'xs' | 'sm'; variant?: 'accent' | 'soft' }) {
+  const { href } = useScopeCtx();
   return (
-    <>
-      <Button size={size} variant={variant} leading={<MessageCircle />} onClick={() => setOpen(true)}>
-        Customize chat
-      </Button>
-      {open && <ShopifyChatSetup channelId={channelId} onClose={() => setOpen(false)} />}
-    </>
+    <Button asChild size={size} variant={variant} leading={<Palette />}>
+      <Link to={href('integrations/widget')}>Customize chat</Link>
+    </Button>
   );
 }
 

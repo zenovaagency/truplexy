@@ -24,7 +24,9 @@ export const STYLES = /* css */ `
   line-height: 1.45;
 }
 :host([hidden]) { display: none !important; }
-:host([theme='dark']) {
+/* Held back until the profile (with the business's look) arrives, so the window doesn't jump. */
+:host([data-tx-pending]) .launcher { visibility: hidden; }
+:host([data-tx-theme='dark']) {
   --tx-bg: var(--truplexy-background, #121624);
   --tx-surface: var(--truplexy-surface, #1d2234);
   --tx-ink: var(--truplexy-ink, #eef0f8);
@@ -33,7 +35,7 @@ export const STYLES = /* css */ `
   --tx-danger: var(--truplexy-danger, #fb923c);
 }
 @media (prefers-color-scheme: dark) {
-  :host([theme='auto']) {
+  :host([data-tx-theme='auto']) {
     --tx-bg: var(--truplexy-background, #121624);
     --tx-surface: var(--truplexy-surface, #1d2234);
     --tx-ink: var(--truplexy-ink, #eef0f8);
@@ -61,7 +63,7 @@ button { cursor: pointer; }
 .launcher .i-close { opacity: 0; transform: rotate(-45deg); }
 :host([open]) .launcher .i-chat { opacity: 0; transform: rotate(45deg); }
 :host([open]) .launcher .i-close { opacity: 1; transform: none; }
-:host([position='left']) .launcher { right: auto; left: var(--tx-x); }
+:host([data-tx-position='left']) .launcher { right: auto; left: var(--tx-x); }
 .badge {
   position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 6px;
   border-radius: 10px; background: var(--tx-danger); color: #fff;
@@ -80,7 +82,7 @@ button { cursor: pointer; }
   transform-origin: bottom right;
   animation: tx-in 0.2s ease;
 }
-:host([position='left']) .panel { right: auto; left: var(--tx-x); transform-origin: bottom left; }
+:host([data-tx-position='left']) .panel { right: auto; left: var(--tx-x); transform-origin: bottom left; }
 @keyframes tx-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
 
 :host([mode='inline']) { display: block; }
@@ -183,11 +185,11 @@ header {
 .brand:hover img, .brand:focus-visible img { opacity: 1; }
 /* Dark-text wordmark on light themes, light-text wordmark on dark ones. */
 .wordmark-on-dark { display: none !important; }
-:host([theme='dark']) .wordmark-on-light { display: none !important; }
-:host([theme='dark']) .wordmark-on-dark { display: block !important; }
+:host([data-tx-theme='dark']) .wordmark-on-light { display: none !important; }
+:host([data-tx-theme='dark']) .wordmark-on-dark { display: block !important; }
 @media (prefers-color-scheme: dark) {
-  :host([theme='auto']) .wordmark-on-light { display: none !important; }
-  :host([theme='auto']) .wordmark-on-dark { display: block !important; }
+  :host([data-tx-theme='auto']) .wordmark-on-light { display: none !important; }
+  :host([data-tx-theme='auto']) .wordmark-on-dark { display: block !important; }
 }
 textarea {
   flex: 1; resize: none; border: 1px solid var(--tx-line); border-radius: 14px;

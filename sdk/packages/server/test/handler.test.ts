@@ -265,6 +265,35 @@ describe('createHandler', () => {
     expect(api.calls[0]).toMatchObject({ path: '/profile', method: 'GET', auth: `Bearer ${KEY}` });
   });
 
+  it("passes on the chat window's look, field by field", async () => {
+    const api = fakeApi({
+      'GET /profile': () => [
+        200,
+        {
+          business: { name: 'Acme Shop' },
+          bot: { id: 'support', name: 'Aria' },
+          widget: {
+            heading: 'Acme help', greeting: 'Hi!', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off',
+            picture_url: 'https://cdn.test/h.png', secret: 'x', subtitle: 7,
+          },
+        },
+      ],
+    });
+    const body = await (await createHandler({ ...base, fetch: api.fetch })(post({ action: 'profile' }))).json();
+    expect(body.widget).toEqual({ heading: 'Acme help', greeting: 'Hi!', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off', picture_url: 'https://cdn.test/h.png' });
+  });
+
+  it('drops a look that is unsafe or not a look', async () => {
+    const api = fakeApi({
+      'GET /profile': () => [
+        200,
+        { business: { name: 'A' }, bot: { id: 'b', name: 'B' }, widget: { accent: 'red;}</style>', theme: 'neon', position: 'top', details: 1, picture_url: 'javascript:alert(1)', heading: '' } },
+      ],
+    });
+    const body = await (await createHandler({ ...base, fetch: api.fetch })(post({ action: 'profile' }))).json();
+    expect(body).toEqual({ business: { name: 'A' }, bot: { id: 'b', name: 'B' } });
+  });
+
   it('hands out only the conversation topic', async () => {
     const api = fakeApi({
       'POST /realtime/token': (body) => {

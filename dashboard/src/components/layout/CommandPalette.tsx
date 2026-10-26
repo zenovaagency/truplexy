@@ -38,6 +38,7 @@ const SUB_PAGES: { label: string; path: string; permission: Permission; keywords
   { label: 'Handoffs', path: 'tickets/handoffs', permission: 'tickets.read', keywords: ['take over', 'human'] },
   { label: 'Test retrieval', path: 'knowledge/search', permission: 'knowledge.read', keywords: ['search', 'rag'] },
   { label: 'Add a channel', path: 'integrations/guides', permission: 'integrations.read', keywords: ['connect', 'setup', 'guides', 'whatsapp', 'messenger', 'instagram', 'telegram', 'discord', 'slack', 'teams', 'shopify', 'hubspot', 'zendesk', 'wordpress'] },
+  { label: 'Chat widget', path: 'integrations/widget', permission: 'integrations.read', keywords: ['appearance', 'colour', 'color', 'greeting', 'logo', 'picture', 'avatar', 'customize', 'theme', 'wordpress', 'shopify', 'website'] },
   { label: 'Webhook', path: 'integrations/webhook', permission: 'integrations.read', keywords: ['events'] },
   { label: 'Invitations', path: 'team/invitations', permission: 'members.read' },
   { label: 'Roles & permissions', path: 'team/roles', permission: 'members.read' },

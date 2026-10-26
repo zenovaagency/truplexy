@@ -305,13 +305,17 @@ async def truplexy(request: Request):
         if action == "handoff" and conv:
             return {"session": sign(conv), "conversation": public(await api("POST", f"/conversations/{conv}/handoff"))}
         if action == "profile":
-            # The business and bot name and picture; the widget shows them in its header.
+            # The business and bot name and picture, and how the business set the window to look
+            # (Truplexy dashboard: Integrations, Chat widget); the widget shows them.
             p = await api("GET", "/profile")
-            business, bot = p.get("business", {}), p.get("bot", {})
-            return {
+            business, bot, look = p.get("business", {}), p.get("bot", {}), p.get("widget")
+            out = {
                 "business": {"name": business.get("name"), "logo_url": business.get("logo_url")},
                 "bot": {"id": bot.get("id"), "name": bot.get("name"), "avatar_url": bot.get("avatar_url")},
             }
+            if isinstance(look, dict):
+                out["widget"] = {k: look[k] for k in ("heading", "subtitle", "greeting", "placeholder", "accent", "theme", "position", "show_sources", "details", "picture_url") if k in look}
+            return out
         if action == "live":
             if not conv:
                 return {}

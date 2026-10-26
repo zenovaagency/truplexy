@@ -4,7 +4,7 @@ import type {
   BillingAddon,
   BotConfig,
   Channel,
-  ChannelWidgetSettings,
+  WidgetSettings,
   Customer,
   BusinessTypeId,
   DeletionRequest,
@@ -170,8 +170,10 @@ export interface MockDb {
   deletions: Omit<TenantDeletion, 'restorable'>[];
   channelTypes: MockChannelType[];
   channels: MockChannel[];
-  /** Shopify channels' chat windows, by channel ID. Absent until one is saved. */
-  channelWidgets?: Record<string, { enabled: boolean; settings: ChannelWidgetSettings; saved_at: number }>;
+  /** Whether a Shopify channel shows its chat window, and when the demo store "saw" it, by channel ID. */
+  channelWidgets?: Record<string, { enabled: boolean; saved_at: number }>;
+  /** Each bot's chat widget (one look for every place it is shown), by `<tenant>/<bot>`. Absent until one is saved. */
+  botWidgets?: Record<string, { settings: WidgetSettings; picture_url: string }>;
   customers: MockCustomer[];
   properties: MockProperty[];
   products: MockProduct[];
