@@ -44,6 +44,31 @@ describe('<truplexy-chat>', () => {
     el.remove();
   });
 
+  it('shows that a person joined as a line between the messages, not a bubble, and not as unread', async () => {
+    vi.useFakeTimers();
+    try {
+      const el = mount({ demo: true, details: 'off' });
+      const root = el.shadowRoot!;
+      await vi.advanceTimersByTimeAsync(10);
+      const sent = el.send('where is order 12345');
+      await vi.advanceTimersByTimeAsync(2000);
+      await sent;
+      // The window's own button hands the conversation to the team; Sam joins a few seconds later.
+      (root.querySelector('.handoff') as HTMLButtonElement).click();
+      await vi.advanceTimersByTimeAsync(5000);
+      const line = root.querySelector('.msg.notice-line')!;
+      expect(line.textContent).toBe('Sam has joined and will reply here.');
+      expect(line.getAttribute('role')).toBe('status');
+      expect(line.querySelector('.bubble')).toBeNull();
+      // Sam's own message is a bubble; the pinned notice no longer repeats the line.
+      expect([...root.querySelectorAll('.msg.agent .bubble')].map((b) => b.textContent)).toEqual([expect.stringContaining('Sam from the support team')]);
+      expect((root.querySelector('.notice') as HTMLElement).hidden).toBe(true);
+      el.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('asks for name and email on the first message, then sends it with them', async () => {
     const el = mount({ demo: true });
     const root = el.shadowRoot!;

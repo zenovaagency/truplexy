@@ -10,8 +10,8 @@ export function demoTransport(): Transport {
   const listeners = new Set<() => void>();
   let n = 0;
   const session = 'demo';
-  const add = (role: 'user' | 'assistant', content: string, agent?: string) => {
-    const msg = { id: `msg_${(++n).toString(16).padStart(32, '0')}`, role, content, created_at: new Date().toISOString(), ...(agent && { author: 'agent', agent }) };
+  const add = (role: 'user' | 'assistant', content: string, agent?: string, author = 'agent') => {
+    const msg = { id: `msg_${(++n).toString(16).padStart(32, '0')}`, role, content, created_at: new Date().toISOString(), ...(agent && { author, agent }) };
     conv.messages.push(msg);
     return msg;
   };
@@ -46,6 +46,7 @@ export function demoTransport(): Transport {
         add('assistant', "Done. I've asked the team to join; someone will reply here shortly.");
         later(3500, () => {
           conv.escalated = true;
+          add('assistant', 'Sam has joined and will reply here.', 'Sam', 'system');
           add('assistant', "Hi, I'm Sam from the support team. I've read the conversation so far. How can I help?", 'Sam');
         });
         return { session, conversation: snapshot() };

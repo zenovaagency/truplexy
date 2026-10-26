@@ -129,6 +129,7 @@ header {
 .user .bubble { background: var(--tx-accent); color: var(--tx-accent-ink); border-bottom-right-radius: 6px; white-space: pre-wrap; }
 .assistant .bubble { border-bottom-left-radius: 6px; }
 .agent .bubble { box-shadow: inset 3px 0 0 var(--tx-accent); }
+.msg.notice-line { align-self: center; max-width: 92%; padding: 2px 8px; font-size: 12px; text-align: center; color: var(--tx-muted); }
 .pending .bubble { opacity: 0.65; }
 .bubble p { margin: 0; }
 .bubble p + p, .bubble p + ul, .bubble p + ol, .bubble ul + p, .bubble ol + p, .bubble pre + p, .bubble p + pre { margin-top: 8px; }

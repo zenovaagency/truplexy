@@ -19,6 +19,8 @@ export interface ChatMessage {
   content: string;
   /** The team member who wrote it, for a person's reply. */
   agent?: string;
+  /** A notice that the conversation changed hands ("Sam has joined and will reply here."): shown as a line, not a bubble, and never counted as unread. */
+  notice?: boolean;
   createdAt: string;
   /** Cited documents and web pages, for an answered reply. */
   sources?: Source[];

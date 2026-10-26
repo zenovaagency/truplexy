@@ -188,6 +188,30 @@ describe('TruplexyClient', () => {
     client.destroy();
   });
 
+  it('maps a notice that a person joined to a line that is not a reply and not unread', async () => {
+    const { transport } = fake({
+      history: () => ({
+        session: 'S',
+        conversation: {
+          status: 'open',
+          escalated: true,
+          messages: [msg('m1', 'user', 'need team support'), msg('m2', 'assistant', 'Sam has joined and will reply here.', { author: 'system', agent: 'Sam' })],
+        },
+      }),
+      live: () => ({}),
+    });
+    const client = new TruplexyClient({ transport, store: { load: () => ({ session: 'S', messages: [], seen: 0 }), save: vi.fn(), clear: vi.fn() }, details: 'off' });
+    const onMessage = vi.fn();
+    client.on('message', onMessage);
+    await client.start();
+    const s = client.getState();
+    expect(s.messages[1]).toMatchObject({ id: 'm2', role: 'assistant', notice: true, content: 'Sam has joined and will reply here.' });
+    expect(s.messages[1].agent).toBeUndefined();
+    expect(s.unread).toBe(0);
+    expect(onMessage).not.toHaveBeenCalled();
+    client.destroy();
+  });
+
   it('restores, syncs history, maps team replies and counts unread', async () => {
     const saved = { session: 'S', messages: [{ id: 'm1', role: 'user' as const, content: 'hi', createdAt: 'x' }], seen: 1 };
     const store = { load: () => saved, save: vi.fn(), clear: vi.fn() };
