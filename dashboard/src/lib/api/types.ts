@@ -645,7 +645,8 @@ export interface TicketMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  author: 'customer' | 'assistant' | 'agent';
+  /** `system` is a notice that the conversation changed hands ("Sam has joined and will reply here."); `agent` then names the person. */
+  author: 'customer' | 'assistant' | 'agent' | 'system';
   agent?: string;
   via?: 'api';
   status?: string;

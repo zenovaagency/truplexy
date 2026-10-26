@@ -392,6 +392,18 @@ function MessageBubble({ m, refresher }: { m: TicketMessage; refresher: ImageRef
       </div>
     );
   }
+  if (m.author === 'system') {
+    // The conversation changed hands: a line in the transcript, not a bubble.
+    return (
+      <div role="status" className="flex items-center gap-3 py-1 text-[0.7rem] text-ink-faint">
+        <span className="h-px flex-1 bg-line" aria-hidden />
+        <span className="max-w-[80%] text-center">
+          {m.content} · {formatTime(m.created_at)}
+        </span>
+        <span className="h-px flex-1 bg-line" aria-hidden />
+      </div>
+    );
+  }
   if (m.author === 'agent') {
     return (
       <div className="flex flex-col items-end gap-1">
@@ -443,7 +455,7 @@ function ReplyBubble({ r }: { r: TicketReply }) {
 
 /* ------------------------------------------------------------------ */
 
-function Composer({ ticket: t }: { ticket: TDetail }) {
+export function Composer({ ticket: t }: { ticket: TDetail }) {
   const { can } = useScopeCtx();
   const reply = useReplyToTicket();
   const update = useUpdateTicket();
@@ -476,6 +488,18 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
     el.style.height = `${Math.min(240, el.scrollHeight)}px`;
   }, [text]);
 
+  // While the assistant is still answering, a reply waits for the take-over;
+  // notes don't.
+  const aiActive = Boolean(t.conversation_id) && !t.escalated && t.status !== 'closed';
+  const locked = aiActive && kind === 'reply';
+
+  // Taking over hands the cursor to the reply box.
+  const wasLocked = useRef(locked);
+  useEffect(() => {
+    if (wasLocked.current && !locked) area.current?.focus();
+    wasLocked.current = locked;
+  }, [locked]);
+
   if (!can('tickets.write')) {
     return (
       <div className="flex items-center gap-2 border-t border-line bg-surface px-5 py-4 text-[0.8125rem] text-ink-muted">
@@ -486,7 +510,7 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
 
   const send = (status?: TicketStatus) => {
     const content = text.trim();
-    if (!content) return;
+    if (!content || locked) return;
     reply.mutate(
       { id: t.id, content, kind, status },
       {
@@ -498,23 +522,21 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
     );
   };
 
-  const aiActive = Boolean(t.conversation_id) && !t.escalated && t.status !== 'closed';
-
   return (
     <div className="border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
       <div className="mx-auto grid max-w-[760px] gap-2.5">
-        {aiActive && kind === 'reply' && (
+        {locked && (
           <Callout
             tone="neutral"
             icon={<ShieldAlert />}
             className="py-2"
             action={
-              <Button size="xs" variant="soft" leading={<Hand />} loading={update.isPending} onClick={() => update.mutate({ id: t.id, patch: { escalated: true } })}>
+              <Button size="xs" variant="accent" leading={<Hand />} loading={update.isPending} onClick={() => update.mutate({ id: t.id, patch: { escalated: true } })}>
                 Take over
               </Button>
             }
           >
-            The assistant is still answering here. Take over so it doesn't reply alongside you.
+            The assistant is answering this conversation. Take it over to reply: the customer sees that you joined, and the assistant stays silent until you hand it back. Notes don't need it.
           </Callout>
         )}
         <div className={cn('overflow-hidden rounded-[14px] border bg-surface transition-colors focus-within:ring-[3px]', kind === 'note' ? 'border-warn/40 bg-warn-soft/40 focus-within:ring-warn/15' : 'border-line focus-within:border-accent focus-within:ring-accent/15')}>
@@ -529,8 +551,9 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
               }
             }}
             rows={2}
-            placeholder={kind === 'note' ? 'Write an internal note. Customers never see it.' : 'Write a reply to the customer…'}
-            className="block w-full resize-none bg-transparent px-3.5 py-3 text-[0.875rem] text-ink outline-none placeholder:text-ink-faint"
+            disabled={locked}
+            placeholder={kind === 'note' ? 'Write an internal note. Customers never see it.' : locked ? 'Take over the conversation to reply to the customer.' : 'Write a reply to the customer…'}
+            className="block w-full resize-none bg-transparent px-3.5 py-3 text-[0.875rem] text-ink outline-none placeholder:text-ink-faint disabled:cursor-not-allowed disabled:opacity-60"
             aria-label={kind === 'note' ? 'Internal note' : 'Reply'}
           />
           <div className="flex flex-wrap items-center gap-2 border-t border-line/70 px-2 py-2">
@@ -546,12 +569,12 @@ function Composer({ ticket: t }: { ticket: TDetail }) {
             />
             <span className="ml-auto hidden text-[0.7rem] text-ink-faint sm:inline">{text.length > 7000 ? `${text.length}/8000` : 'Ctrl + Enter to send'}</span>
             <div className="flex">
-              <Button size="xs" variant="accent" className="rounded-r-none" loading={reply.isPending} disabled={!text.trim()} onClick={() => send()} leading={<Send />}>
+              <Button size="xs" variant="accent" className="rounded-r-none" loading={reply.isPending} disabled={locked || !text.trim()} onClick={() => send()} leading={<Send />}>
                 {kind === 'note' ? 'Add note' : 'Send'}
               </Button>
               <Menu>
                 <MenuTrigger asChild>
-                  <Button size="xs" icon variant="accent" className="rounded-l-none border-l border-l-white/25" disabled={!text.trim() || reply.isPending} aria-label="Send and set status">
+                  <Button size="xs" icon variant="accent" className="rounded-l-none border-l border-l-white/25" disabled={locked || !text.trim() || reply.isPending} aria-label="Send and set status">
                     <ChevronDown />
                   </Button>
                 </MenuTrigger>
