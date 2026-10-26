@@ -98,7 +98,7 @@ describe('Integrations → Chat widget', () => {
   it('lists every place it shows, and the connected stores with their status', async () => {
     stores = [store()];
     await mount();
-    for (const name of ['Your website', 'WordPress', 'WooCommerce', 'Shopify']) expect(text()).toContain(name);
+    for (const name of ['Your website', 'WordPress & WooCommerce', 'Shopify']) expect(text()).toContain(name);
     const links = [...document.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(links).toContain('/integrations/guides?guide=wordpress');
     expect(text()).toContain('acme.myshopify.com');

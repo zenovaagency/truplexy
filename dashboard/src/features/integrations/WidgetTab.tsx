@@ -16,8 +16,7 @@ import { WidgetPreview } from './WidgetPreview';
 /** Where the same chat widget shows up, with the guide that sets each one up. */
 const PLACES = [
   { id: 'web', name: 'Your website', note: 'The chat widget and your server route.' },
-  { id: 'wordpress', name: 'WordPress', note: 'The Truplexy Chat plugin.' },
-  { id: 'woocommerce', name: 'WooCommerce', note: 'The same plugin, on your store.' },
+  { id: 'wordpress', name: 'WordPress & WooCommerce', note: 'The Truplexy Chat plugin, on a site or a store.' },
 ] as const;
 
 /**
