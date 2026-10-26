@@ -349,7 +349,6 @@ if ($r['reply']) send_email($mail['From'], 'Re: ' . $mail['Subject'], $r['reply'
       deliver: `send_email(substr($thread, 5), 'Re: your request', $text);`,
     },
 
-    woocommerce: wordpress,
     wordpress,
 
     api: {
