@@ -5,6 +5,7 @@ import {
   Bot,
   Check,
   ChevronDown,
+  GraduationCap,
   Hand,
   Link2,
   Lock,
@@ -20,14 +21,17 @@ import {
   Undo2,
   UserRound,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { hasCode } from '@/lib/api/client';
 import { useChannels } from '@/lib/api/endpoints/channels';
 import { useCustomer } from '@/lib/api/endpoints/customers';
 import { contactOf, customerLabel } from '@/lib/customers';
+import { useLearnFromTicket } from '@/lib/api/endpoints/knowledge';
 import { useDeleteTicket, useReplyToTicket, useSummarizeTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
 import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime, pluralize } from '@/lib/format';
-import { notifySuccess } from '@/lib/notify';
+import { notifyInfo, notifySuccess } from '@/lib/notify';
 import type { ImageRefresher } from '@/lib/images/refresh';
 import { useImageRefresher } from '@/lib/images/useImageRefresher';
 import { MessageImages } from '@/components/domain/MessageImages';
@@ -129,6 +133,23 @@ function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState(t.subject);
   const writable = can('tickets.write');
+  const learn = useLearnFromTicket();
+  // The bot learns from what a person told the customer.
+  const answered = t.messages.some((m) => m.author === 'agent' && m.content.trim());
+  const trainable = can('knowledge.write') && Boolean(t.conversation_id);
+
+  const train = () =>
+    learn.mutate(t.id, {
+      onSuccess: () =>
+        toast.success('Draft article ready', {
+          description: 'Review it under Knowledge base → Suggested. The bot uses it once you add it.',
+          action: { label: 'Review', onClick: () => nav(href('knowledge/suggestions')) },
+        }),
+      onError: (e) => {
+        if (hasCode(e, 'NOTHING_TO_LEARN')) notifyInfo('Nothing to learn here', "This answer only applies to this customer, so there's nothing to add to the knowledge base.");
+        if (hasCode(e, 'SUGGESTION_HANDLED')) notifyInfo('Already learned', "This ticket's answer is already in the knowledge base.");
+      },
+    });
 
   const saveSubject = () => {
     const s = subject.trim();
@@ -207,6 +228,15 @@ function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?
             </Button>
           </Tip>
         )}
+        {trainable && (
+          <Tip content={answered ? "Draft a knowledge article from your team's answer. You review it before the bot uses it." : 'Reply to the customer first. The bot learns from your answers.'}>
+            <span className="hidden sm:inline-flex">
+              <Button size="xs" variant="ghost" leading={<GraduationCap />} loading={learn.isPending} disabled={!answered} onClick={train}>
+                Train bot
+              </Button>
+            </span>
+          </Tip>
+        )}
         {onDetails && (
           <Tip content="Details">
             <Button icon size="xs" variant="quiet" onClick={onDetails} aria-label="Ticket details">
@@ -230,6 +260,11 @@ function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?
             {writable && t.conversation_id && t.status !== 'closed' && (
               <MenuItem className="sm:hidden" onSelect={() => update.mutate({ id: t.id, patch: { escalated: !t.escalated } })}>
                 {t.escalated ? <Undo2 /> : <Hand />} {t.escalated ? 'Hand back to the assistant' : 'Take over'}
+              </MenuItem>
+            )}
+            {trainable && (
+              <MenuItem className="sm:hidden" disabled={!answered || learn.isPending} onSelect={train}>
+                <GraduationCap /> Train bot
               </MenuItem>
             )}
             {can('tickets.delete') && (

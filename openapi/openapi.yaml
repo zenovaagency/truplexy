@@ -2255,6 +2255,29 @@ paths:
           description: Dismissed.
         default:
           $ref: '#/components/responses/Error'
+  /tickets/{id}/learn:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: learnFromTicket
+      summary: Draft a ticket's knowledge suggestion now
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Drafts the suggestion when a person asks, whether or not the bot learns from tickets on its own and whether or not the ticket is closed. Replaces a draft waiting for review or one the team dismissed. Billed like a reply. 400 NOT_ANSWERED before anyone on the team replied; 409 SUGGESTION_HANDLED once the suggestion is in the knowledge base; 422 NOTHING_TO_LEARN when the answer only applies to the customer.
+      responses:
+        '200':
+          description: The suggestion, waiting for review.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSuggestion'
+        default:
+          $ref: '#/components/responses/Error'
   /knowledge/search:
     post:
       operationId: searchKnowledge

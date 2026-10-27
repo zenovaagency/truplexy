@@ -180,3 +180,15 @@ export function useLearnFromTickets() {
     meta: { success: 'Saved' },
   });
 }
+
+/** Drafts a ticket's suggestion now, whether or not the bot learns on its own (the ticket's Train bot button). Billed like a reply. */
+export function useLearnFromTicket() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ticketId: string) => api<KnowledgeSuggestion>(`/tickets/${ticketId}/learn`, { method: 'POST', scope }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.bot(scope, 'kb-suggestions') }),
+    // The ticket explains these itself.
+    meta: { silentCodes: ['NOTHING_TO_LEARN', 'SUGGESTION_HANDLED'] },
+  });
+}

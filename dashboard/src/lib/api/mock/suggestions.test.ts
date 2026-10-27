@@ -79,3 +79,22 @@ describe('learning from closed tickets', () => {
     expect(suggestions().some((x) => x.id === b.id)).toBe(true);
   });
 });
+
+describe('training the bot from one ticket', () => {
+  it('drafts an open ticket on demand, even while the bot does not learn on its own', () => {
+    const ws = call('GET', '/workspace');
+    call('PUT', '/workspace', { name: ws.name, bot: { ...ws.bot, knowledge: { learnFromTickets: false } }, revision: ws.revision });
+    const handoff = call('GET', '/handoffs').data[0];
+    const { id } = call('POST', '/tickets', { conversation_id: handoff.conversation_id }) as { id: string };
+    expect(fails(() => call('POST', `/tickets/${id}/learn`))).toEqual({ status: 400, code: 'NOT_ANSWERED' });
+    call('PATCH', `/tickets/${id}`, { escalated: true });
+    call('POST', `/tickets/${id}/replies`, { kind: 'reply', content: 'Yes, up to 200 guests.' });
+    const s = call('POST', `/tickets/${id}/learn`);
+    expect(s).toMatchObject({ ticket_id: id, status: 'ready' });
+    expect(suggestions().some((x) => x.id === s.id)).toBe(true);
+    // Asking again redrafts the same suggestion.
+    expect(call('POST', `/tickets/${id}/learn`).id).toBe(s.id);
+    call('POST', `/knowledge/suggestions/${s.id}/accept`, {});
+    expect(fails(() => call('POST', `/tickets/${id}/learn`))).toEqual({ status: 409, code: 'SUGGESTION_HANDLED' });
+  });
+});

@@ -521,6 +521,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/knowledge/suggestions` | `knowledge.read` | Suggestions learned from closed tickets (v2) |
 | `POST` | `/knowledge/suggestions/{id}/accept` | `knowledge.write` | Add a suggestion to the knowledge base (v2) |
 | `POST` | `/knowledge/suggestions/{id}/dismiss` | `knowledge.write` | Keep a suggestion out (v2) |
+| `POST` | `/tickets/{id}/learn` | `knowledge.write` | Draft a ticket's suggestion now (v2) |
 | `GET` | `/tools` | `tools.read` | List the business's API tools |
 | `POST` | `/tools` | `tools.write` | Create an API tool |
 | `GET` | `/tools/{name}` | `tools.read` | A tool |
@@ -1542,6 +1543,18 @@ Progress while processing is `embedded_count / chunk_count`.
 #### `POST /knowledge/suggestions/{id}/dismiss`
 
 `knowledge.write`. v2. No body. Keeps the suggestion out of the knowledge base for good, even if its ticket closes again. **204**. `409 SUGGESTION_HANDLED` if someone already handled it.
+
+#### `POST /tickets/{id}/learn`
+
+`knowledge.write`. v2. No body. Drafts the ticket's knowledge suggestion now, when a person asks: whether or not the bot learns from tickets on its own (`knowledge.learnFromTickets`), and whether or not the ticket is closed. It replaces a draft waiting for review, or one the team dismissed. The draft is billed like a reply and waits in [`GET /knowledge/suggestions`](#get-knowledgesuggestions) like any other. **200** the suggestion.
+
+**Errors:**
+- `400 NOT_ANSWERED`: no one on the team has replied to the customer yet.
+- `400 NO_CONVERSATION`.
+- `404 TICKET_NOT_FOUND`.
+- `409 SUGGESTION_HANDLED`: the ticket's suggestion is already in the knowledge base.
+- `422 NOTHING_TO_LEARN`: the answer only applies to this customer.
+- `403`/`429 PLAN_LIMIT_REACHED`, and the model's errors as for the ticket summary: `503 LLM_NOT_CONFIGURED`, `504 LLM_TIMEOUT`, `429 LLM_RATE_LIMITED`, `502 LLM_PROVIDER_ERROR`.
 
 #### `POST /knowledge/search`
 

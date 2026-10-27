@@ -1965,17 +1965,35 @@ route('POST', '/knowledge/uploads', 'knowledge.write', (c) => {
  */
 function learnFrom(c: Ctx, t: MockTicket) {
   const ws = c.db.workspaces.find((w) => w.tenant_id === t.tenant_id && w.bot_id === t.bot_id);
+  const existing = c.db.suggestions.find((s) => s.ticket_id === t.id);
+  if (!ws?.bot.knowledge?.learnFromTickets || (existing && existing.status !== 'ready')) return;
+  draftFrom(c, t);
+}
+
+/** Writes a ticket's draft from its customer's question and the team's last answer, replacing one not yet added. */
+function draftFrom(c: Ctx, t: MockTicket) {
   const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
   const answer = conv?.messages.filter((m) => m.author === 'agent' && m.content.trim()).at(-1);
-  if (!ws?.bot.knowledge?.learnFromTickets || !conv || !answer) return;
+  if (!conv || !answer) return undefined;
   const question = conv.messages.find((m) => m.author === 'customer')?.content ?? t.subject;
   const existing = c.db.suggestions.find((s) => s.ticket_id === t.id);
-  if (existing && existing.status !== 'ready') return;
   const now = nowIso();
-  const draft = { title: t.subject.slice(0, 160), content: `**${question.trim()}**\n\n${answer.content.trim()}`, closed_at: t.closed_at ?? now, updated_at: now };
-  if (existing) Object.assign(existing, draft);
-  else c.db.suggestions.push({ id: newId('sug'), tenant_id: t.tenant_id, bot_id: t.bot_id, ticket_id: t.id, conversation_id: conv.id, status: 'ready', created_at: now, ...draft });
+  const draft = { status: 'ready' as const, title: t.subject.slice(0, 160), content: `**${question.trim()}**\n\n${answer.content.trim()}`, closed_at: t.closed_at, updated_at: now };
+  if (existing) return Object.assign(existing, draft);
+  const s: MockSuggestion = { id: newId('sug'), tenant_id: t.tenant_id, bot_id: t.bot_id, ticket_id: t.id, conversation_id: conv.id, created_at: now, ...draft };
+  c.db.suggestions.push(s);
+  return s;
 }
+
+// A person trains the bot from one ticket, whether or not it learns on its own or the ticket is closed.
+route('POST', '/tickets/:id/learn', 'knowledge.write', (c) => {
+  const t = findTicket(c);
+  if (!t.conversation_id) throw err(400, 'NO_CONVERSATION', 'This ticket has no conversation to learn from.');
+  if (c.db.suggestions.some((s) => s.ticket_id === t.id && s.status === 'accepted')) throw err(409, 'SUGGESTION_HANDLED', "This ticket's answer is already in the knowledge base.");
+  const s = draftFrom(c, t);
+  if (!s) throw err(400, 'NOT_ANSWERED', "Reply to the customer first. The bot learns from your team's answers.");
+  return suggestionOut(c, s);
+});
 
 const suggestionOut = (c: Ctx, { tenant_id: _t, bot_id: _b, ...s }: MockSuggestion) => ({
   ...s,
