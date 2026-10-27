@@ -1174,8 +1174,12 @@ export interface SupportStats {
   };
   first_response: DurationStats;
   resolution: DurationStats;
+  /** The assistant's replies in the conversations started in the range. Missing on older API versions. */
+  ai_replies?: { total: number; per_conversation: number };
+  /** How long the assistant took to write each of those replies. */
+  ai_reply_time?: DurationStats;
   cost: { total: number; per_ticket: number; per_conversation: number; per_ai_resolved: number };
-  by_day: { date: string; conversations: number; tickets_created: number; tickets_closed: number; ticket_cost: number }[];
+  by_day: { date: string; conversations: number; tickets_created: number; tickets_closed: number; ticket_cost: number; ai_replies?: number; ai_reply_seconds?: number }[];
 }
 
 /** Durations in whole milliseconds (avg_ms has one decimal) with nearest-rank percentiles; `count` is how many durations it covers. */

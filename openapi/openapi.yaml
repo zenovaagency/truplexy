@@ -2445,7 +2445,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [from, to, scope, conversations, tickets, backlog, first_response, resolution, cost, by_day]
+                required: [from, to, scope, conversations, tickets, backlog, first_response, resolution, ai_replies, ai_reply_time, cost, by_day]
                 properties:
                   from:
                     type: string
@@ -2464,7 +2464,7 @@ paths:
                         type: integer
                       ai_only:
                         type: integer
-                        description: Ended without a ticket or a handoff.
+                        description: The assistant answered at least once, and the conversation ended without a ticket or a handoff.
                       handed_off:
                         type: integer
                       escalated:
@@ -2531,6 +2531,29 @@ paths:
                         type: number
                       p90_seconds:
                         type: number
+                  ai_replies:
+                    description: The assistant's replies in the conversations started in the range. People's replies and notices don't count.
+                    type: object
+                    required: [total, per_conversation]
+                    properties:
+                      total:
+                        type: integer
+                      per_conversation:
+                        type: number
+                        description: total over the conversations started in the range.
+                  ai_reply_time:
+                    description: How long the assistant took to write each of those replies, from the customer's message to the answer, in seconds.
+                    type: object
+                    required: [count, avg_seconds, median_seconds, p90_seconds]
+                    properties:
+                      count:
+                        type: integer
+                      avg_seconds:
+                        type: number
+                      median_seconds:
+                        type: number
+                      p90_seconds:
+                        type: number
                   cost:
                     type: object
                     required: [total, per_ticket, per_conversation, per_ai_resolved]
@@ -2550,7 +2573,7 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [date, conversations, tickets_created, tickets_closed, ticket_cost]
+                      required: [date, conversations, tickets_created, tickets_closed, ticket_cost, ai_replies, ai_reply_seconds]
                       properties:
                         date:
                           type: string
@@ -2564,6 +2587,12 @@ paths:
                         ticket_cost:
                           type: number
                           description: The AI cost of the tickets opened that day.
+                        ai_replies:
+                          type: integer
+                          description: The assistant's replies in the conversations started that day.
+                        ai_reply_seconds:
+                          type: number
+                          description: How long those replies took to write on average, in seconds; 0 when there were none.
         default:
           $ref: '#/components/responses/Error'
   /stats/performance:
