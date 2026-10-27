@@ -189,6 +189,6 @@ export function useLearnFromTicket() {
     mutationFn: (ticketId: string) => api<KnowledgeSuggestion>(`/tickets/${ticketId}/learn`, { method: 'POST', scope }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.bot(scope, 'kb-suggestions') }),
     // The ticket explains these itself.
-    meta: { silentCodes: ['NOTHING_TO_LEARN', 'SUGGESTION_HANDLED'] },
+    meta: { silentCodes: ['NOTHING_TO_LEARN', 'SUGGESTION_HANDLED', 'ALREADY_COVERED'] },
   });
 }

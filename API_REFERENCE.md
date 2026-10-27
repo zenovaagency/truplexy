@@ -1529,7 +1529,7 @@ Progress while processing is `embedded_count / chunk_count`.
 
 #### `GET /knowledge/suggestions`
 
-`knowledge.read`. v2. Questions and answers the model wrote from closed tickets a person answered, waiting for review, newest close first (up to 100). Only bots with `knowledge.learnFromTickets` on in their workspace get any; each suggestion is billed like a reply. **200** `{data: [{id, ticket_id, ticket_subject, conversation_id, status: "ready", title, content, closed_at, created_at, updated_at}]}`.
+`knowledge.read`. v2. Questions and answers the model wrote from closed tickets a person answered, waiting for review, newest close first (up to 100). Before drafting, the model is shown the knowledge base's closest articles (searched by the customer's question and by the team's answer) and the drafts already waiting; a ticket any of them already covers, even in other words or partly, is skipped and never listed. Only bots with `knowledge.learnFromTickets` on in their workspace get any; each suggestion is billed like a reply. **200** `{data: [{id, ticket_id, ticket_subject, conversation_id, status: "ready", title, content, closed_at, created_at, updated_at}]}`.
 
 #### `POST /knowledge/suggestions/{id}/accept`
 
@@ -1553,6 +1553,8 @@ Progress while processing is `embedded_count / chunk_count`.
 - `400 NO_CONVERSATION`.
 - `404 TICKET_NOT_FOUND`.
 - `409 SUGGESTION_HANDLED`: the ticket's suggestion is already in the knowledge base.
+- `409 ALREADY_COVERED`: an article (`document_id`) or a draft waiting for review (`suggestion_id`) already covers it; nothing is stored. The message names it.
+- `502 KNOWLEDGE_CHECK_FAILED`: the knowledge base couldn't be searched, so nothing was drafted unchecked. Try again.
 - `422 NOTHING_TO_LEARN`: the answer only applies to this customer.
 - `403`/`429 PLAN_LIMIT_REACHED`, and the model's errors as for the ticket summary: `503 LLM_NOT_CONFIGURED`, `504 LLM_TIMEOUT`, `429 LLM_RATE_LIMITED`, `502 LLM_PROVIDER_ERROR`.
 

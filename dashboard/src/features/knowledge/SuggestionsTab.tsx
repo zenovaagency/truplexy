@@ -72,7 +72,7 @@ function LearnSetting() {
           disabled={!ws.data || !can('bot.write') || save.isPending || (ragOff && !learning)}
           onCheckedChange={(v) => save.mutate(v)}
           label="Learn from closed tickets"
-          description={`When a ticket a person answered closes, ${bot.name} drafts a reusable question and answer from it, without the customer’s details or your internal notes. Nothing is added until someone here accepts it. Each draft counts as one reply on your plan.`}
+          description={`When a ticket a person answered closes, ${bot.name} drafts a reusable question and answer from it, without the customer’s details or your internal notes. It skips anything your knowledge base or a waiting draft already covers. Nothing is added until someone here accepts it. Each draft counts as one reply on your plan.`}
         />
         {ragOff && (
           <Callout tone="warn" icon={<AlertTriangle />} title="Knowledge retrieval is off">

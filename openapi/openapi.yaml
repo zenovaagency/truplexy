@@ -2268,7 +2268,7 @@ paths:
       security:
         - AdminKey: []
         - MemberToken: []
-      description: v2. Drafts the suggestion when a person asks, whether or not the bot learns from tickets on its own and whether or not the ticket is closed. Replaces a draft waiting for review or one the team dismissed. Billed like a reply. 400 NOT_ANSWERED before anyone on the team replied; 409 SUGGESTION_HANDLED once the suggestion is in the knowledge base; 422 NOTHING_TO_LEARN when the answer only applies to the customer.
+      description: v2. Drafts the suggestion when a person asks, whether or not the bot learns from tickets on its own and whether or not the ticket is closed. Replaces a draft waiting for review or one the team dismissed. Billed like a reply. Like the automatic drafts, it is first checked against the knowledge base's closest articles and the drafts waiting for review: 409 ALREADY_COVERED (with document_id or suggestion_id) when one already covers it, 502 KNOWLEDGE_CHECK_FAILED when the knowledge base couldn't be searched. 400 NOT_ANSWERED before anyone on the team replied; 409 SUGGESTION_HANDLED once the suggestion is in the knowledge base; 422 NOTHING_TO_LEARN when the answer only applies to the customer.
       responses:
         '200':
           description: The suggestion, waiting for review.

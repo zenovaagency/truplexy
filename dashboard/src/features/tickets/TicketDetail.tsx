@@ -22,7 +22,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { hasCode } from '@/lib/api/client';
+import { hasCode, isApiError } from '@/lib/api/client';
 import { useChannels } from '@/lib/api/endpoints/channels';
 import { useCustomer } from '@/lib/api/endpoints/customers';
 import { contactOf, customerLabel } from '@/lib/customers';
@@ -148,6 +148,18 @@ function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?
       onError: (e) => {
         if (hasCode(e, 'NOTHING_TO_LEARN')) notifyInfo('Nothing to learn here', "This answer only applies to this customer, so there's nothing to add to the knowledge base.");
         if (hasCode(e, 'SUGGESTION_HANDLED')) notifyInfo('Already learned', "This ticket's answer is already in the knowledge base.");
+        if (hasCode(e, 'ALREADY_COVERED') && isApiError(e)) {
+          // The knowledge base, or a draft waiting for review, already says this: nothing new to add.
+          const doc = e.documentId;
+          toast.info('Already in the knowledge base', {
+            description: e.message,
+            action: doc
+              ? { label: 'Open it', onClick: () => nav(href(`knowledge?doc=${doc}`)) }
+              : e.suggestionId
+                ? { label: 'Review', onClick: () => nav(href('knowledge/suggestions')) }
+                : undefined,
+          });
+        }
       },
     });
 

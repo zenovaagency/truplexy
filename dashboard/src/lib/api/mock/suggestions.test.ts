@@ -98,3 +98,26 @@ describe('training the bot from one ticket', () => {
     expect(fails(() => call('POST', `/tickets/${id}/learn`))).toEqual({ status: 409, code: 'SUGGESTION_HANDLED' });
   });
 });
+
+describe('checking the knowledge base first', () => {
+  it('ignores a ticket an article already covers, and says which', () => {
+    const t = db.tickets.find((x) => x.tenant_id === 'acme' && x.bot_id === 'support' && x.conversation_id && /discount code/i.test(x.subject))!;
+    const conv = db.conversations.find((x) => x.id === t.conversation_id)!;
+    if (!conv.messages.some((m) => m.author === 'agent')) {
+      call('PATCH', `/tickets/${t.id}`, { escalated: true });
+      call('POST', `/tickets/${t.id}/replies`, { kind: 'reply', content: 'Codes can’t be combined with sale prices.' });
+    }
+    const doc = db.documents.find((d) => d.tenant_id === 'acme' && d.bot_id === 'support' && d.title === 'Discount codes')!;
+    try {
+      call('POST', `/tickets/${t.id}/learn`);
+      throw new Error('expected ALREADY_COVERED');
+    } catch (e) {
+      expect(e).toBeInstanceOf(MockHttpError);
+      expect((e as MockHttpError).code).toBe('ALREADY_COVERED');
+      expect((e as MockHttpError).extra).toEqual({ document_id: doc.id });
+    }
+    // Closing it suggests nothing either.
+    call('PATCH', `/tickets/${t.id}`, { status: 'closed' });
+    expect(suggestions().some((x) => x.ticket_id === t.id)).toBe(false);
+  });
+});
