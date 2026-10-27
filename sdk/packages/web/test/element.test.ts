@@ -44,6 +44,38 @@ describe('<truplexy-chat>', () => {
     el.remove();
   });
 
+  it('lets the window fade out before hiding it, and a quick reopen keeps it', () => {
+    vi.useFakeTimers();
+    const el = mount({ demo: true });
+    const panel = el.shadowRoot!.querySelector('.panel') as HTMLElement;
+    el.open();
+    expect(panel.hidden).toBe(false);
+    expect(panel.dataset.state).toBe('open');
+    el.close();
+    expect(panel.hidden).toBe(false);
+    expect(panel.dataset.state).toBeUndefined();
+    vi.advanceTimersByTime(250);
+    expect(panel.hidden).toBe(true);
+
+    el.open();
+    el.close();
+    vi.advanceTimersByTime(100);
+    el.open();
+    vi.advanceTimersByTime(250);
+    expect(panel.hidden).toBe(false);
+    expect(panel.dataset.state).toBe('open');
+    vi.useRealTimers();
+    el.remove();
+  });
+
+  it('shows a window that starts open at once', () => {
+    const el = mount({ demo: true, open: true });
+    const panel = el.shadowRoot!.querySelector('.panel') as HTMLElement;
+    expect(panel.hidden).toBe(false);
+    expect(panel.dataset.state).toBe('open');
+    el.remove();
+  });
+
   it('shows that a person joined as a line between the messages, not a bubble, and not as unread', async () => {
     vi.useFakeTimers();
     try {
@@ -223,7 +255,9 @@ describe('<truplexy-chat>', () => {
     document.body.append(host);
     const el = mount({ demo: true, mode: 'inline', target: host });
     expect(el.isOpen).toBe(true);
-    expect((el.shadowRoot!.querySelector('.panel') as HTMLElement).hidden).toBe(false);
+    const panel = el.shadowRoot!.querySelector('.panel') as HTMLElement;
+    expect(panel.hidden).toBe(false);
+    expect(panel.dataset.state).toBe('open');
     host.remove();
   });
 });
