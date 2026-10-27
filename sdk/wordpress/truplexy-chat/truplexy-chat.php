@@ -282,7 +282,7 @@ function truplexy_chat_route(WP_REST_Request $request) {
                 // The business and bot name and picture, and how the business set the chat to look
                 // (Truplexy dashboard: Integrations, Chat widget); the widget shows them.
                 $p = truplexy_chat_api('GET', '/profile');
-                $look = is_array($p['widget'] ?? null) ? array_intersect_key($p['widget'], array_flip(['heading', 'subtitle', 'greeting', 'placeholder', 'accent', 'theme', 'position', 'show_sources', 'details', 'picture_url'])) : null;
+                $look = is_array($p['widget'] ?? null) ? array_intersect_key($p['widget'], array_flip(['heading', 'subtitle', 'greeting', 'placeholder', 'accent', 'theme', 'position', 'show_sources', 'details', 'suggestions', 'picture_url'])) : null;
                 return [
                     'business' => ['name' => $p['business']['name'] ?? null, 'logo_url' => $p['business']['logo_url'] ?? null],
                     'bot'      => ['id' => $p['bot']['id'] ?? null, 'name' => $p['bot']['name'] ?? null, 'avatar_url' => $p['bot']['avatar_url'] ?? null],

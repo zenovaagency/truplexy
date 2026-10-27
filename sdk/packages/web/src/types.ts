@@ -61,6 +61,8 @@ export interface WidgetLook {
   position?: 'right' | 'left';
   show_sources?: boolean;
   details?: 'ask' | 'off';
+  /** Questions a visitor can tap to send before their first message (up to 4). */
+  suggestions?: string[];
   /** The header picture the business uploaded, already cut to a square. */
   picture_url?: string;
 }

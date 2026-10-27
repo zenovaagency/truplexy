@@ -38,6 +38,8 @@ export interface MountOptions {
   storageKey?: string;
   /** `off` skips asking for the visitor's name and email on the first message. Default `ask`. */
   details?: 'ask' | 'off';
+  /** Up to 4 questions the visitor can tap to send before their first message. Default: the dashboard's. */
+  suggestions?: string[];
   labels?: Partial<Labels>;
   /** Where to put the element. Default `document.body`. */
   target?: Element | string;
@@ -45,8 +47,8 @@ export interface MountOptions {
 
 /** Sets the element's attributes from `options`. */
 export function applyOptions(el: TruplexyChatElement, options: MountOptions): void {
-  const { labels, target: _target, showSources, storageKey, open, demo, ...attrs } = options;
-  for (const [name, value] of Object.entries({ ...attrs, 'show-sources': showSources, 'storage-key': storageKey, open, demo })) {
+  const { labels, target: _target, showSources, storageKey, open, demo, suggestions, ...attrs } = options;
+  for (const [name, value] of Object.entries({ ...attrs, 'show-sources': showSources, 'storage-key': storageKey, open, demo, suggestions: suggestions && JSON.stringify(suggestions) })) {
     if (value === undefined) continue;
     if (value === false) el.removeAttribute(name);
     else el.setAttribute(name, value === true ? '' : String(value));
@@ -120,4 +122,6 @@ export interface TruplexyChatAttributes {
   'storage-key'?: string;
   'closed-retention-days'?: number | string;
   details?: 'ask' | 'off';
+  /** A JSON array of up to 4 questions, such as `'["Where is my order?"]'`. */
+  suggestions?: string;
 }

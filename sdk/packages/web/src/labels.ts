@@ -21,6 +21,7 @@ export const DEFAULT_LABELS = {
   retry: 'Retry',
   notSent: 'Not sent.',
   sources: 'Sources',
+  suggestions: 'Suggested questions',
   newConversation: 'New conversation',
   closed: 'This conversation has been closed.',
   startNewChat: 'Start a new chat',

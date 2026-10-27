@@ -17,7 +17,7 @@ const CLOSE_MS = 200;
 const ICONS = {
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3 21l1.5-5.2A8.5 8.5 0 1 1 21 12z"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
-  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   restart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
   bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><rect x="4" y="7" width="16" height="12" rx="4"/><path d="M9 13h.01M15 13h.01"/></svg>',
 };
@@ -40,6 +40,7 @@ export const ATTRIBUTES = [
   'storage-key',
   'closed-retention-days',
   'details',
+  'suggestions',
 ] as const;
 
 // Server rendering has no HTMLElement; the class is only defined in browsers.
@@ -82,6 +83,7 @@ export class TruplexyChatElement extends Base {
     closedNew: HTMLButtonElement;
     actions: HTMLElement;
     handoff: HTMLButtonElement;
+    suggestions: HTMLElement;
     details: HTMLFormElement;
     detailsTitle: HTMLElement;
     detailsHint: HTMLElement;
@@ -155,7 +157,7 @@ export class TruplexyChatElement extends Base {
       this.syncOpen(true);
     } else {
       this.renderChrome();
-      if (this._client && (name === 'show-sources' || name === 'mode')) this.render(this._client.getState());
+      if (this._client && (name === 'show-sources' || name === 'mode' || name === 'suggestions')) this.render(this._client.getState());
     }
   }
 
@@ -213,6 +215,21 @@ export class TruplexyChatElement extends Base {
   }
 
   private shownProfile: ChatState['profile'] = null;
+  private shownSuggestions?: string;
+
+  /** Questions to tap before the first message: the `suggestions` attribute (a JSON array), else the dashboard's. */
+  private suggestionList(): string[] {
+    let list: unknown = this.look().suggestions;
+    const attr = this.getAttribute('suggestions');
+    if (attr !== null) {
+      try {
+        list = JSON.parse(attr);
+      } catch {
+        list = [];
+      }
+    }
+    return Array.isArray(list) ? list.filter((q): q is string => typeof q === 'string' && Boolean(q.trim())).map((q) => q.trim()).slice(0, 4) : [];
+  }
 
   private profileTitle(): string | undefined {
     const p = this._client?.getState().profile;
@@ -309,6 +326,7 @@ export class TruplexyChatElement extends Base {
     <button class="closed-new" part="closed-new" type="button"></button>
   </div>
   <div class="actions" hidden><button class="handoff" part="handoff" type="button"></button></div>
+  <div class="suggestions" part="suggestions" role="group" hidden></div>
   <form class="details" part="details" hidden novalidate>
     <p class="details-title"></p>
     <p class="details-hint"></p>
@@ -318,8 +336,10 @@ export class TruplexyChatElement extends Base {
     <div class="details-buttons"><button class="details-cancel" type="button"></button><button class="details-start" type="submit"></button></div>
   </form>
   <form class="composer" part="composer">
-    <textarea rows="1" maxlength="4000" enterkeyhint="send"></textarea>
-    <button class="send" type="submit" disabled>${ICONS.send}</button>
+    <div class="field" part="field">
+      <textarea rows="1" maxlength="4000" enterkeyhint="send"></textarea>
+      <button class="send" type="submit" disabled>${ICONS.send}</button>
+    </div>
   </form>
   <a class="brand" href="${BRAND_URL}" target="_blank" rel="noopener"></a>
 </section>`;
@@ -343,6 +363,7 @@ export class TruplexyChatElement extends Base {
       closedNew: q('.closed-new'),
       actions: q('.actions'),
       handoff: q('.handoff'),
+      suggestions: q('.suggestions'),
       details: q('.details'),
       detailsTitle: q('.details-title'),
       detailsHint: q('.details-hint'),
@@ -440,7 +461,7 @@ export class TruplexyChatElement extends Base {
   private grow() {
     const el = this.$.input;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight + 2, 128)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }
 
   private closeTimer?: ReturnType<typeof setTimeout>;
@@ -501,6 +522,28 @@ export class TruplexyChatElement extends Base {
     $.restart.setAttribute('aria-label', this.label('newConversation'));
     $.restart.title = this.label('newConversation');
     $.handoff.textContent = this.label('handoff');
+    $.suggestions.setAttribute('aria-label', this.label('suggestions'));
+    const questions = this.suggestionList();
+    // Rebuilt only when the list changes, so the chips don't replay their entrance on every redraw.
+    const shown = JSON.stringify(questions);
+    if (shown !== this.shownSuggestions) {
+      this.shownSuggestions = shown;
+      $.suggestions.replaceChildren(
+        ...questions.map((q, i) => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'chip';
+          chip.setAttribute('part', 'suggestion');
+          chip.style.setProperty('--i', String(i));
+          chip.textContent = q;
+          chip.addEventListener('click', () => {
+            $.input.value = q;
+            this.submit();
+          });
+          return chip;
+        }),
+      );
+    }
     $.closedText.textContent = this.label('closed');
     $.closedNew.textContent = this.label('startNewChat');
     $.detailsTitle.textContent = this.label('detailsTitle');
@@ -561,6 +604,8 @@ export class TruplexyChatElement extends Base {
     $.typing.hidden = !state.sending || state.escalated;
     $.restart.hidden = state.messages.length === 0;
     $.actions.hidden = !state.offerHandoff || state.closed;
+    // Suggestions start a conversation, so they go once it has begun.
+    $.suggestions.hidden = !this.suggestionList().length || state.messages.length > 0 || state.sending || state.needsDetails || state.closed;
     $.handoff.disabled = state.sending;
     // Taking over is announced in the transcript (a notice line), not here.
     const notice = state.closed ? '' : state.handoff && !state.escalated ? this.label('handoffDone') : '';

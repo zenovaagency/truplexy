@@ -35,6 +35,7 @@ export function widgetAttributes(s: WidgetSettings, pictureUrl = ''): Record<str
   if (s.placeholder) out.placeholder = s.placeholder;
   if (pictureUrl) out.avatar = pictureUrl;
   if (s.show_sources) out['show-sources'] = '';
+  if (s.suggestions?.length) out.suggestions = JSON.stringify(s.suggestions);
   return out;
 }
 
