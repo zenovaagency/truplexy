@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useOutletContext, useSearchParams } from 'react-router';
-import { BookOpen, CheckCircle2, FilePlus2, FileText, FlaskConical, Infinity as InfinityIcon, Search, Sparkles, TriangleAlert, Upload } from 'lucide-react';
+import { BookOpen, CheckCircle2, FilePlus2, FileText, FlaskConical, Infinity as InfinityIcon, Lightbulb, Search, Sparkles, Ticket, TriangleAlert, Upload } from 'lucide-react';
 import { useTenant } from '@/lib/api/endpoints/business';
-import { useDocuments, useSearchKnowledge } from '@/lib/api/endpoints/knowledge';
+import { useDocuments, useKnowledgeSuggestions, useSearchKnowledge } from '@/lib/api/endpoints/knowledge';
 import type { KnowledgeDocument, SearchFilters } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatBytes, formatMs, formatNumber, formatRelative } from '@/lib/format';
@@ -31,6 +31,8 @@ import {
 import { DocStatusBadge } from '@/components/domain/badges';
 import { ArticleEditor, DocumentSheet, UploadDialog } from './dialogs';
 
+export { SuggestionsTab } from './SuggestionsTab';
+
 interface Ctx {
   openUpload: () => void;
   openArticle: () => void;
@@ -47,6 +49,7 @@ export default function KnowledgePage() {
   // The documents query already has the limits; reuse its cache.
   const docs = useDocuments({});
   const first = docs.data?.pages[0];
+  const suggestions = useKnowledgeSuggestions();
   const accept = first?.accept;
   const uploadAccept = typeof accept === 'string'
     ? accept.split(',')
@@ -97,6 +100,7 @@ export default function KnowledgePage() {
       <SubNav
         items={[
           { to: href('knowledge'), label: 'Documents', icon: <BookOpen />, end: true, count: first?.total },
+          { to: href('knowledge/suggestions'), label: 'Suggested', icon: <Lightbulb />, count: suggestions.data?.length || undefined },
           { to: href('knowledge/search'), label: 'Test retrieval', icon: <FlaskConical /> },
         ]}
       />
@@ -160,12 +164,12 @@ export function DocumentsTab() {
       cell: (d) => (
         <span className="flex items-center gap-3">
           <span className={cn('grid size-8 shrink-0 place-items-center rounded-[9px]', d.source_type === 'file' ? 'bg-qualified-soft text-qualified' : 'bg-accent-soft text-accent')}>
-            {d.source_type === 'file' ? <FileText className="size-4" /> : <Sparkles className="size-4" />}
+            {d.source_type === 'file' ? <FileText className="size-4" /> : d.source_type === 'ticket' ? <Ticket className="size-4" /> : <Sparkles className="size-4" />}
           </span>
           <span className="grid min-w-0">
             <span className="truncate font-semibold text-ink">{d.title}</span>
             <span className="truncate text-xs text-ink-faint">
-              {d.source_type === 'file' ? d.source_name : 'Article'}
+              {d.source_type === 'file' ? d.source_name : d.source_type === 'ticket' ? 'From a ticket' : 'Article'}
               {d.product && ` · ${d.product}`}
               {d.locale && ` · ${d.locale}`}
             </span>

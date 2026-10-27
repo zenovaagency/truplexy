@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -433,7 +434,7 @@ const metaChanged = (doc: KnowledgeDocument, m: DocMetadata) => META_FIELDS.some
 /* ------------------------------------------------------------------ */
 
 export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onClose: () => void; onEdit: (doc: KnowledgeDocument) => void }) {
-  const { scope, can } = useScopeCtx();
+  const { scope, can, href } = useScopeCtx();
   const q = useDocument(id);
   const del = useDeleteDocument();
   const confirm = useConfirm();
@@ -469,7 +470,7 @@ export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onCl
       onConfirm: () => del.mutateAsync(d.id).then(onClose),
     });
 
-  const editable = d && (d.source_type === 'manual' || d.status === 'indexed');
+  const editable = d && (d.source_type !== 'file' || d.status === 'indexed');
 
   return (
     <Sheet
@@ -477,7 +478,7 @@ export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onCl
       onOpenChange={(o) => !o && onClose()}
       width="lg"
       title={d?.title ?? 'Document'}
-      description={d ? (d.source_type === 'file' ? d.source_name : 'Article') : undefined}
+      description={d ? (d.source_type === 'file' ? d.source_name : d.source_type === 'ticket' ? 'Article from a ticket' : 'Article') : undefined}
       headerExtra={
         d &&
         writable && (
@@ -571,6 +572,15 @@ export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onCl
             <DescList
               items={[
                 { label: 'Type', value: d.source_type === 'file' ? (d.mime_type ?? 'File') : 'Article (Markdown)' },
+                {
+                  label: 'Learned from',
+                  value: d.source_name && (
+                    <Link to={href(`tickets/${d.source_name}`)} className="text-accent hover:underline">
+                      Ticket
+                    </Link>
+                  ),
+                  hidden: d.source_type !== 'ticket' || !d.source_name,
+                },
                 { label: 'Size', value: formatBytes(d.byte_size) },
                 { label: 'Passages', value: formatNumber(d.chunk_count) },
                 { label: 'Tokens', value: formatNumber(d.token_count) },
