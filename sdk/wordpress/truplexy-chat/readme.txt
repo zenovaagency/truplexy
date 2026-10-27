@@ -4,7 +4,7 @@ Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: MIT
 
 AI customer support that keeps one conversation going, with handoff to your team. Your chat key stays on your server.
@@ -81,6 +81,10 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 
 == Changelog ==
 
+= 1.0.3 =
+* A reply from your team now uses the same message card as the assistant's, with the team member's name above it.
+* The message box shows a plain coloured border while typing, without the glow.
+
 = 1.0.2 =
 * Suggested questions: set up to four in the Truplexy dashboard (Integrations, Chat widget) and visitors can tap one to send it before their first message.
 * A cleaner message box: one rounded field with the send button inside it, and a soft ring in your colour while typing.
@@ -108,6 +112,9 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 * First release.
 
 == Upgrade Notice ==
+
+= 1.0.3 =
+Team replies match the assistant's message card, and the message box focus is a plain border.
 
 = 1.0.2 =
 Suggested questions visitors can tap, and a redesigned message box.

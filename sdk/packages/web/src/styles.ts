@@ -7,8 +7,8 @@
  * when `data-state="open"` is set; element.ts hides it once it has faded out. Suggested questions rise in one after
  * another. Reduced motion keeps only the fades.
  *
- * The message box is one rounded field with the send button inside it. Focus draws an accent ring with a soft halo
- * (`--tx-halo`, the accent at 16%), which the name and email inputs share.
+ * The message box is one rounded field with the send button inside it. Focus draws an accent ring on the field's
+ * border, with no glow. A team member's reply uses the same card as the assistant's; only its name line differs.
  */
 export const STYLES = /* css */ `
 :host {
@@ -30,8 +30,6 @@ export const STYLES = /* css */ `
   --tx-shadow: 0 24px 60px -12px rgb(14 18 34 / 0.28), 0 4px 14px rgb(14 18 34 / 0.08);
   --tx-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --tx-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --tx-halo: rgb(35 56 230 / 0.14);
-  --tx-halo: color-mix(in srgb, var(--tx-accent) 16%, transparent);
   all: initial;
   font-family: var(--tx-font);
   color: var(--tx-ink);
@@ -155,7 +153,6 @@ header {
 }
 .user .bubble { background: var(--tx-accent); color: var(--tx-accent-ink); border-bottom-right-radius: 6px; white-space: pre-wrap; }
 .assistant .bubble { border-bottom-left-radius: 6px; }
-.agent .bubble { box-shadow: inset 3px 0 0 var(--tx-accent); }
 .msg.notice-line { align-self: center; max-width: 92%; padding: 2px 8px; font-size: 12px; text-align: center; color: var(--tx-muted); }
 .pending .bubble { opacity: 0.65; }
 .bubble p { margin: 0; }
@@ -201,9 +198,9 @@ header {
 .details input {
   border: 1px solid var(--tx-line); border-radius: 12px; padding: 10px 14px; min-height: 44px;
   font: inherit; color: inherit; background: var(--tx-bg); outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease;
 }
-.details input:focus { border-color: var(--tx-accent); box-shadow: 0 0 0 4px var(--tx-halo); }
+.details input:focus { border-color: var(--tx-accent); }
 .details input::placeholder { color: var(--tx-muted); }
 .details-error { font-size: 13px; color: #c0362c; }
 .details-buttons { display: flex; justify-content: flex-end; gap: 8px; }
@@ -235,7 +232,7 @@ header {
 }
 .field:focus-within {
   background: var(--tx-bg);
-  box-shadow: inset 0 0 0 1.5px var(--tx-accent), 0 0 0 4px var(--tx-halo), 0 6px 18px -8px rgb(14 18 34 / 0.22);
+  box-shadow: inset 0 0 0 1.5px var(--tx-accent);
 }
 .field textarea {
   flex: 1; min-width: 0; resize: none; border: 0; margin: 0; padding: 8px 0;
