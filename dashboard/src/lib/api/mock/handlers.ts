@@ -2566,15 +2566,20 @@ route('GET', '/stats/support', 'usage.read', (c): SupportStats => {
   const by_day = days.map((date) => {
     const conv = bots.reduce((n, b) => n + Math.round(usageDay(c.tenant.id, b, date).requests / 3.2), 0);
     const dayTickets = tickets.filter((t) => t.created_at.slice(0, 10) === date);
+    const dayR = rng(hashString(`${date}${scope}`));
     return {
       date,
       conversations: conv,
       tickets_created: dayTickets.length + Math.round(conv * 0.04),
       tickets_closed: tickets.filter((t) => t.closed_at?.slice(0, 10) === date).length + Math.round(conv * 0.035),
       ticket_cost: +(dayTickets.length * 0.0011 + conv * 0.00004).toFixed(4),
+      ai_replies: Math.round(conv * (2.4 + dayR() * 0.4)),
+      ai_reply_seconds: conv ? +(2.4 + dayR() * 1.4).toFixed(1) : 0,
     };
   });
   const total = by_day.reduce((n, d) => n + d.conversations, 0);
+  const aiReplies = by_day.reduce((n, d) => n + d.ai_replies, 0);
+  const avgReply = aiReplies ? by_day.reduce((n, d) => n + d.ai_reply_seconds * d.ai_replies, 0) / aiReplies : 0;
   const handedOff = Math.round(total * 0.071);
   const escalated = Math.round(total * 0.032);
   const ticketsCreated = by_day.reduce((n, d) => n + d.tickets_created, 0);
@@ -2598,6 +2603,8 @@ route('GET', '/stats/support', 'usage.read', (c): SupportStats => {
     },
     first_response: { count: created_.length + 40, avg_seconds: 2400 + r() * 1200, median_seconds: 1500 + r() * 600, p90_seconds: 9000 + r() * 4000 },
     resolution: { count: closed, avg_seconds: 30000 + r() * 9000, median_seconds: 16000 + r() * 6000, p90_seconds: 90000 + r() * 30000 },
+    ai_replies: { total: aiReplies, per_conversation: total ? aiReplies / total : 0 },
+    ai_reply_time: { count: aiReplies, avg_seconds: +avgReply.toFixed(1), median_seconds: +(avgReply * 0.85).toFixed(1), p90_seconds: +(avgReply * 1.9).toFixed(1) },
     cost: { total: +costTotal.toFixed(4), per_ticket: ticketsCreated ? costTotal / ticketsCreated / 6 : 0, per_conversation: total ? costTotal / total : 0, per_ai_resolved: total ? (costTotal * 0.7) / Math.max(1, total - handedOff - escalated) : 0 },
     by_day,
   };

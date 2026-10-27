@@ -1902,16 +1902,22 @@ export function verify(rawBody, header, secret) {
   from, to, scope,
   conversations: {total, ai_only, handed_off, escalated, deflection_rate},
                    // chat API conversations started in the range
-                   // ai_only: no ticket or handoff; deflection_rate = ai_only / total
+                   // ai_only: the assistant answered at least once, with no ticket or handoff
+                   // deflection_rate = ai_only / total
   tickets: {created, closed, from_customer, reopened, reopen_rate},
   backlog: {total, overdue, unassigned, by_status: {…}, by_priority: {…}},
                    // open tickets now, whatever the range
   first_response: {count, avg_seconds, median_seconds, p90_seconds},
   resolution:     {count, avg_seconds, median_seconds, p90_seconds},
+  ai_replies:     {total, per_conversation},
+                   // the assistant's replies in those conversations; people's replies and notices don't count
+  ai_reply_time:  {count, avg_seconds, median_seconds, p90_seconds},
+                   // how long the assistant took to write each of those replies
   cost: {total, per_ticket, per_conversation, per_ai_resolved},
                    // USD billed, fee and commission included; a ticket's
                    // cost is its conversation's AI cost
-  by_day: [{date, conversations, tickets_created, tickets_closed, ticket_cost}]
+  by_day: [{date, conversations, tickets_created, tickets_closed, ticket_cost, ai_replies, ai_reply_seconds}]
+                   // ai_reply_seconds: the day's average reply time, 0 when there were no replies
 }
 ```
 

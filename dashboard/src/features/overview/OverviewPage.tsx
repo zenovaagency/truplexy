@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
   ArrowRight,
-  CheckCircle2,
   Coins,
   Gauge,
   Inbox,
+  MessageSquareReply,
   MessagesSquare,
   ScrollText,
   Sparkles,
-  Timer,
+  Zap,
 } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
 import { useAudit, useMembers, useTenant } from '@/lib/api/endpoints/business';
@@ -85,9 +85,9 @@ export default function OverviewPage() {
   const firstName = me.data?.user.name?.split(' ')[0];
 
   const vs = `vs previous ${days} days`;
-  const replyTarget = t ? t.reply_target_hours * 3600 : undefined;
-  const firstReply = s?.first_response.median_seconds;
-  const overTarget = firstReply != null && replyTarget != null && firstReply > replyTarget;
+  const replyTime = s?.ai_reply_time;
+  // Durations come in seconds; AI replies take a few, so they read better in ms or s.
+  const ms = (seconds: number | null | undefined) => (seconds == null ? undefined : seconds * 1000);
   const plan = t ? planUsage(t) : undefined;
   const backlogCounts = s
     ? [
@@ -156,29 +156,29 @@ export default function OverviewPage() {
             loading={!s}
             value={formatPercent(s?.conversations.deflection_rate)}
             delta={compareStat(s?.conversations.deflection_rate, p?.conversations.deflection_rate, { kind: 'points', title: vs })}
-            sub={s && `${formatNumber(s.conversations.ai_only)} conversations without a person`}
+            sub={s && `${formatNumber(s.conversations.ai_only)} conversations answered without a person`}
             meter={s?.conversations.deflection_rate ?? 0}
-            info="Share of conversations the assistant handled alone: no handoff, no escalation, no ticket from the customer."
+            info="Share of conversations the assistant answered at least once and handled alone: no handoff, no escalation, no ticket."
           />
           <StatCard
-            label="First reply"
-            icon={<Timer />}
-            loading={!s || !t}
-            value={formatDuration(firstReply)}
-            delta={compareStat(firstReply, p?.first_response.median_seconds, { better: 'down', title: vs })}
-            sub={s && t && `Median · target ${formatDuration(replyTarget)} · 90% within ${formatDuration(s.first_response.p90_seconds)}`}
-            meter={firstReply != null && replyTarget ? Math.min(1, firstReply / replyTarget) : 0}
-            tone={overTarget ? 'warn' : undefined}
-            info="How long customers wait for a person's first reply on a ticket. The bar fills toward the reply target in Settings."
-          />
-          <StatCard
-            label="Tickets closed"
-            icon={<CheckCircle2 />}
+            label="AI replies"
+            icon={<MessageSquareReply />}
             loading={!s}
-            value={formatNumber(s?.tickets.closed)}
-            delta={compareStat(s?.tickets.closed, p?.tickets.closed, { title: vs })}
-            sub={s && `of ${formatNumber(s.tickets.created)} opened · ${formatDuration(s.resolution.median_seconds)} median to close`}
-            trend={s?.by_day.map((d) => d.tickets_closed)}
+            value={formatNumber(s?.ai_replies?.total)}
+            delta={compareStat(s?.ai_replies?.total, p?.ai_replies?.total, { better: 'none', title: vs })}
+            sub={s?.ai_replies && `${s.ai_replies.per_conversation.toFixed(1)} per conversation`}
+            trend={s?.ai_replies && s.by_day.map((d) => d.ai_replies ?? 0)}
+            info="Replies the assistant wrote in the conversations started in this period."
+          />
+          <StatCard
+            label="AI reply time"
+            icon={<Zap />}
+            loading={!s}
+            value={formatMs(replyTime?.count ? ms(replyTime.avg_seconds) : undefined)}
+            delta={compareStat(replyTime?.count ? replyTime.avg_seconds : undefined, p?.ai_reply_time?.count ? p.ai_reply_time.avg_seconds : undefined, { better: 'down', title: vs })}
+            sub={replyTime?.count ? `Average · median ${formatMs(ms(replyTime.median_seconds))} · 90% within ${formatMs(ms(replyTime.p90_seconds))}` : undefined}
+            trend={replyTime && s?.by_day.map((d) => d.ai_reply_seconds ?? 0)}
+            info="How long the assistant takes to write a reply, from the customer's message to the answer."
           />
           <StatCard
             label="Cost per AI resolution"
