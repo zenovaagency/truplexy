@@ -1,4 +1,11 @@
-/** Shadow DOM styles. Every colour and size is a custom property the host page can override on `truplexy-chat`. */
+/**
+ * Shadow DOM styles. Every colour and size is a custom property the host page can override on `truplexy-chat`.
+ *
+ * Motion (described here because comments inside the stylesheet ship in the bundle): the launcher pops in whenever
+ * it is shown, springs when pressed, and swaps its icons by spinning the old one out fast and the new one in. The
+ * window is closed by default and grows out of the launcher's centre (29px in from the side, 43px below the window)
+ * when `data-state="open"` is set; element.ts hides it once it has faded out. Reduced motion keeps only the fades.
+ */
 export const STYLES = /* css */ `
 :host {
   --tx-accent: var(--truplexy-accent, #2338e6);
@@ -17,6 +24,8 @@ export const STYLES = /* css */ `
   --tx-y: var(--truplexy-offset-y, 20px);
   --tx-z: var(--truplexy-z-index, 2147483000);
   --tx-shadow: 0 24px 60px -12px rgb(14 18 34 / 0.28), 0 4px 14px rgb(14 18 34 / 0.08);
+  --tx-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --tx-out: cubic-bezier(0.16, 1, 0.3, 1);
   all: initial;
   font-family: var(--tx-font);
   color: var(--tx-ink);
@@ -25,7 +34,7 @@ export const STYLES = /* css */ `
 }
 :host([hidden]) { display: none !important; }
 /* Held back until the profile (with the business's look) arrives, so the window doesn't jump. */
-:host([data-tx-pending]) .launcher { visibility: hidden; }
+:host([data-tx-pending]) .launcher { display: none; }
 :host([data-tx-theme='dark']) {
   --tx-bg: var(--truplexy-background, #121624);
   --tx-surface: var(--truplexy-surface, #1d2234);
@@ -56,20 +65,26 @@ button { cursor: pointer; }
   display: grid; place-items: center;
   background: var(--tx-accent); color: var(--tx-accent-ink);
   box-shadow: var(--tx-shadow);
-  transition: transform 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.35s var(--tx-spring), box-shadow 0.25s ease;
+  animation: tx-pop 0.45s var(--tx-spring) backwards;
 }
-.launcher:hover { transform: scale(1.06); }
-.launcher svg { width: 26px; height: 26px; grid-area: 1 / 1; transition: opacity 0.18s, transform 0.18s; }
-.launcher .i-close { opacity: 0; transform: rotate(-45deg); }
-:host([open]) .launcher .i-chat { opacity: 0; transform: rotate(45deg); }
-:host([open]) .launcher .i-close { opacity: 1; transform: none; }
+@media (hover: hover) {
+  .launcher:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 28px 64px -12px rgb(14 18 34 / 0.34), 0 6px 18px rgb(14 18 34 / 0.12); }
+}
+.launcher:active { transform: scale(0.92); transition-duration: 0.08s; }
+.launcher svg { width: 26px; height: 26px; grid-area: 1 / 1; transition: opacity 0.2s ease 0.04s, transform 0.4s var(--tx-spring) 0.04s; }
+:host(:not([open])) .launcher .i-close, :host([open]) .launcher .i-chat { opacity: 0; transform: rotate(-90deg) scale(0.4); transition: opacity 0.12s ease-in, transform 0.15s ease-in; }
+:host([open]) .launcher .i-chat { transform: rotate(90deg) scale(0.4); }
 :host([data-tx-position='left']) .launcher { right: auto; left: var(--tx-x); }
 .badge {
   position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 6px;
   border-radius: 10px; background: var(--tx-danger); color: #fff;
   font-size: 12px; font-weight: 700; line-height: 20px; text-align: center;
   border: 2px solid var(--tx-bg);
+  animation: tx-pop 0.35s var(--tx-spring) backwards;
 }
+@keyframes tx-pop { from { opacity: 0; transform: scale(0.4); } }
 
 .panel {
   position: fixed; z-index: var(--tx-z);
@@ -79,17 +94,21 @@ button { cursor: pointer; }
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--tx-bg); border: 1px solid var(--tx-line); border-radius: var(--tx-radius);
   box-shadow: var(--tx-shadow);
-  transform-origin: bottom right;
-  animation: tx-in 0.2s ease;
+  transform-origin: calc(100% - 29px) calc(100% + 43px);
+  opacity: 0; transform: translateY(12px) scale(0.9); pointer-events: none;
+  transition: opacity 0.16s ease-in, transform 0.18s ease-in;
 }
-:host([data-tx-position='left']) .panel { right: auto; left: var(--tx-x); transform-origin: bottom left; }
-@keyframes tx-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+.panel[data-state='open'] {
+  opacity: 1; transform: none; pointer-events: auto;
+  transition: opacity 0.2s ease, transform 0.4s var(--tx-out);
+}
+:host([data-tx-position='left']) .panel { right: auto; left: var(--tx-x); transform-origin: 29px calc(100% + 43px); }
 
 :host([mode='inline']) { display: block; }
 :host([mode='inline']) .launcher { display: none; }
 :host([mode='inline']) .panel {
   position: relative; inset: auto; width: 100%; height: var(--tx-height);
-  box-shadow: none; animation: none;
+  box-shadow: none; transition: none;
 }
 
 header {
@@ -117,7 +136,9 @@ header {
   flex: 1; overflow-y: auto; overscroll-behavior: contain;
   padding: 18px 16px 8px; display: flex; flex-direction: column; gap: 10px;
   scrollbar-width: thin;
+  transition: opacity 0.3s ease 0.06s, transform 0.4s var(--tx-out) 0.06s;
 }
+.panel:not([data-state='open']) .log { opacity: 0; transform: translateY(8px); transition: 0s 0.2s; }
 .msg { display: flex; flex-direction: column; max-width: 86%; gap: 4px; }
 .msg.user { align-self: flex-end; align-items: flex-end; }
 .msg.assistant { align-self: flex-start; }
@@ -216,11 +237,14 @@ textarea::placeholder { color: var(--tx-muted); }
 @media (max-width: 480px) {
   :host(:not([mode='inline'])) .panel {
     inset: 0; width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0;
+    transform: translateY(24px);
   }
+  :host(:not([mode='inline'])) .panel[data-state='open'] { transform: none; }
   :host([open]:not([mode='inline'])) .launcher { display: none; }
   textarea, .details input { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel, .launcher, .launcher svg, .dots i { animation: none !important; transition: none !important; }
+  .launcher, .launcher svg, .badge, .panel, .log { transform: none !important; }
+  .dots i { animation: none !important; }
 }
 `;

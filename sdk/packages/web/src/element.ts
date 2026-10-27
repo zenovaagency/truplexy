@@ -11,6 +11,9 @@ export const TAG = 'truplexy-chat';
 /** Where "Powered by Truplexy" links to; the UTM tags show widget referrals in the site's analytics. */
 export const BRAND_URL = 'https://truplexy.com/?utm_source=chat-widget&utm_medium=referral';
 
+/** How long the window takes to fade out (its closing transition in styles.ts) before it is hidden. */
+const CLOSE_MS = 200;
+
 const ICONS = {
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3 21l1.5-5.2A8.5 8.5 0 1 1 21 12z"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -440,10 +443,27 @@ export class TruplexyChatElement extends Base {
     el.style.height = `${Math.min(el.scrollHeight + 2, 128)}px`;
   }
 
-  /** Reflects the `open` attribute onto the panel, the client and events. */
+  private closeTimer?: ReturnType<typeof setTimeout>;
+
+  /** Reflects the `open` attribute onto the panel, the client and events. Only a change after the first render animates. */
   private syncOpen(announce: boolean) {
     const open = this.isOpen;
-    this.$.panel.hidden = !open;
+    const panel = this.$.panel;
+    clearTimeout(this.closeTimer);
+    if (open) {
+      if (panel.hidden && announce) {
+        panel.hidden = false;
+        // Lay out the closed state first, so the window has something to grow from.
+        void panel.offsetWidth;
+      }
+      panel.hidden = false;
+      panel.dataset.state = 'open';
+    } else {
+      delete panel.dataset.state;
+      // The window stays while it fades out; reopening before then cancels this.
+      if (announce) this.closeTimer = setTimeout(() => (panel.hidden = true), CLOSE_MS);
+      else panel.hidden = true;
+    }
     this.$.launcher.setAttribute('aria-expanded', String(open));
     this.$.launcher.setAttribute('aria-label', this.label(open ? 'close' : 'open'));
     this._client?.setOpen(open);
