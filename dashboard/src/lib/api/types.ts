@@ -313,6 +313,8 @@ export interface WidgetSettings {
   show_sources: boolean;
   /** `ask` shows a name and email form before the first message. */
   details: 'ask' | 'off';
+  /** Up to 4 questions of up to 80 characters, for a visitor to tap before their first message. Absent from an API that predates them. */
+  suggestions: string[];
 }
 
 /** GET and PUT /widget (v2). */

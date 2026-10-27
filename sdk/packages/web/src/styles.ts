@@ -4,7 +4,11 @@
  * Motion (described here because comments inside the stylesheet ship in the bundle): the launcher pops in whenever
  * it is shown, springs when pressed, and swaps its icons by spinning the old one out fast and the new one in. The
  * window is closed by default and grows out of the launcher's centre (29px in from the side, 43px below the window)
- * when `data-state="open"` is set; element.ts hides it once it has faded out. Reduced motion keeps only the fades.
+ * when `data-state="open"` is set; element.ts hides it once it has faded out. Suggested questions rise in one after
+ * another. Reduced motion keeps only the fades.
+ *
+ * The message box is one rounded field with the send button inside it. Focus draws an accent ring with a soft halo
+ * (`--tx-halo`, the accent at 16%), which the name and email inputs share.
  */
 export const STYLES = /* css */ `
 :host {
@@ -26,6 +30,8 @@ export const STYLES = /* css */ `
   --tx-shadow: 0 24px 60px -12px rgb(14 18 34 / 0.28), 0 4px 14px rgb(14 18 34 / 0.08);
   --tx-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --tx-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --tx-halo: rgb(35 56 230 / 0.14);
+  --tx-halo: color-mix(in srgb, var(--tx-accent) 16%, transparent);
   all: initial;
   font-family: var(--tx-font);
   color: var(--tx-ink);
@@ -195,15 +201,16 @@ header {
 .details input {
   border: 1px solid var(--tx-line); border-radius: 12px; padding: 10px 14px; min-height: 44px;
   font: inherit; color: inherit; background: var(--tx-bg); outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.details input:focus { border-color: var(--tx-accent); }
+.details input:focus { border-color: var(--tx-accent); box-shadow: 0 0 0 4px var(--tx-halo); }
 .details input::placeholder { color: var(--tx-muted); }
 .details-error { font-size: 13px; color: #c0362c; }
 .details-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 .details-buttons button { border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .details-cancel { border: 1px solid var(--tx-line); background: transparent; color: var(--tx-muted); }
 .details-start { border: 0; background: var(--tx-accent); color: var(--tx-accent-ink); }
-.composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px 6px; border-top: 1px solid var(--tx-line); }
+.composer { padding: 6px 12px 8px; }
 .brand {
   display: flex; align-items: center; justify-content: center; gap: 5px;
   padding: 2px 12px 9px; font-size: 11px; line-height: 1.4;
@@ -220,19 +227,44 @@ header {
   :host([data-tx-theme='auto']) .wordmark-on-light { display: none !important; }
   :host([data-tx-theme='auto']) .wordmark-on-dark { display: block !important; }
 }
-textarea {
-  flex: 1; resize: none; border: 1px solid var(--tx-line); border-radius: 14px;
-  padding: 10px 14px; max-height: 128px; min-height: 44px; line-height: 1.4;
-  background: var(--tx-bg); outline: none;
+.field {
+  display: flex; align-items: flex-end; gap: 6px; padding: 4px 4px 4px 16px;
+  border-radius: 24px; background: var(--tx-surface);
+  box-shadow: inset 0 0 0 1px var(--tx-line);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
-textarea:focus { border-color: var(--tx-accent); }
+.field:focus-within {
+  background: var(--tx-bg);
+  box-shadow: inset 0 0 0 1.5px var(--tx-accent), 0 0 0 4px var(--tx-halo), 0 6px 18px -8px rgb(14 18 34 / 0.22);
+}
+.field textarea {
+  flex: 1; min-width: 0; resize: none; border: 0; margin: 0; padding: 8px 0;
+  min-height: 38px; max-height: 128px; line-height: 1.4;
+  background: transparent; outline: none; scrollbar-width: thin;
+}
 textarea::placeholder { color: var(--tx-muted); }
 .send {
-  flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; padding: 0;
+  flex: none; width: 38px; height: 38px; border: 0; border-radius: 50%; padding: 0;
   display: grid; place-items: center; background: var(--tx-accent); color: var(--tx-accent-ink);
+  box-shadow: 0 2px 8px -2px rgb(14 18 34 / 0.3);
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.35s var(--tx-spring);
 }
-.send:disabled { opacity: 0.45; cursor: default; }
-.send svg { width: 20px; height: 20px; }
+@media (hover: hover) { .send:not(:disabled):hover { filter: brightness(1.1); } }
+.send:not(:disabled):active { transform: scale(0.9); transition-duration: 0.08s; }
+.send:disabled { background: var(--tx-line); color: var(--tx-muted); box-shadow: none; transform: scale(0.9); cursor: default; }
+.send svg { width: 18px; height: 18px; }
+.suggestions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding: 2px 14px 6px; }
+.chip {
+  max-width: 100%; border: 1px solid var(--tx-line); border-radius: 999px; padding: 7px 13px;
+  border-color: color-mix(in srgb, var(--tx-accent) 30%, var(--tx-line));
+  background: var(--tx-bg); background: color-mix(in srgb, var(--tx-accent) 6%, var(--tx-bg));
+  font-size: 13.5px; font-weight: 500; line-height: 1.3; text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.3s var(--tx-spring);
+  animation: tx-rise 0.4s var(--tx-out) calc(var(--i, 0) * 50ms + 120ms) backwards;
+}
+@media (hover: hover) { .chip:hover { background: var(--tx-accent); border-color: var(--tx-accent); color: var(--tx-accent-ink); } }
+.chip:active { transform: scale(0.96); }
+@keyframes tx-rise { from { opacity: 0; transform: translateY(6px); } }
 
 @media (max-width: 480px) {
   :host(:not([mode='inline'])) .panel {
@@ -244,7 +276,7 @@ textarea::placeholder { color: var(--tx-muted); }
   textarea, .details input { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .launcher, .launcher svg, .badge, .panel, .log { transform: none !important; }
+  .launcher, .launcher svg, .badge, .panel, .log, .send, .chip { transform: none !important; }
   .dots i { animation: none !important; }
 }
 `;

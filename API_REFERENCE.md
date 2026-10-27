@@ -4,13 +4,20 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Suggested questions (2026-10-27)
+
+The [chat widget setting](#get-widget-v2) gains `suggestions`: up to 4 questions, each up to 80 characters, that a visitor can tap to send before their first message. It adds one field and changes nothing else.
+
+- `GET /widget` returns `suggestions` in `settings` and `defaults` (an empty list for a bot that never set any). `PUT /widget` takes it: lines are joined into one, empty and repeated questions (ignoring case) are dropped, and more than 4 is `400 INVALID_REQUEST`. A dashboard that doesn't send it saves an empty list.
+- `GET /profile` includes `widget.suggestions` only when there are some. A server route has to pass it on, like the rest of `widget`.
 
 ## Product catalog (2026-10-25)
 
@@ -1321,6 +1328,7 @@ When the app is uninstalled from the store, the store's channels are turned off 
 | `position` | `right` (default) or `left`. |
 | `show_sources` | Link the pages answers came from. Default `false`. |
 | `details` | `ask` (default): a name and email form before the first message. `off` skips it. |
+| `suggestions` | Up to 4 questions of up to 80 characters each, shown for a visitor to tap before their first message. Each is one line; empty and repeated ones are dropped. Default `[]`. |
 
 #### `PUT /widget` (v2)
 
@@ -2671,13 +2679,13 @@ How the key's business and bot present themselves, for a widget's header. **200*
 {
   business: { name, logo_url? },
   bot:      { id, name, avatar_url? },
-  widget:   { accent, theme, position, show_sources, details, heading?, subtitle?, greeting?, placeholder?, picture_url? }
+  widget:   { accent, theme, position, show_sources, details, heading?, subtitle?, greeting?, placeholder?, suggestions?, picture_url? }
 }
 ```
 
 `bot.name` is the name saved in the bot's configuration, which customers see. `logo_url` and `avatar_url` are left out when there is no picture ([profile images](#profile-images-v2)). Nothing about the plan, team or account is returned.
 
-`widget` is the bot's [chat widget setting](#get-widget-v2), for the widget to apply. Texts the business left empty are left out, so the window keeps its own wording; `picture_url` is the uploaded header picture. A widget applies it beneath anything the host page sets itself, and a server route has to pass it on: forward the `widget` object field by field, as the SDK's route does.
+`widget` is the bot's [chat widget setting](#get-widget-v2), for the widget to apply. Texts the business left empty are left out, so the window keeps its own wording, and so is an empty `suggestions`; `picture_url` is the uploaded header picture. A widget applies it beneath anything the host page sets itself, and a server route has to pass it on: forward the `widget` object field by field, as the SDK's route does.
 
 Image input adds `attachments: {enabled, max_bytes, max_per_message, content_types}`, with the values `GET /playground/attachments/config` gives, so a widget knows whether to offer an attach button. It is absent before the feature exists, and `enabled: false` hides the button. The reason (plan or model) isn't revealed to customers. Unlike other chat endpoints it may be cached: `Cache-Control: private, max-age=60`.
 

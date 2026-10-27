@@ -32,6 +32,8 @@ export const TruplexyChat = defineComponent({
     storageKey: String,
     /** `off` skips asking for the visitor's name and email. */
     details: String as PropType<'ask' | 'off'>,
+    /** Up to 4 questions the visitor can tap to send before their first message. */
+    suggestions: Array as PropType<string[]>,
     labels: Object as PropType<Partial<Labels>>,
   },
   emits: {
@@ -96,6 +98,7 @@ export const TruplexyChat = defineComponent({
         demo: props.demo ? '' : undefined,
         'storage-key': props.storageKey,
         details: props.details,
+        suggestions: props.suggestions && JSON.stringify(props.suggestions),
       });
   },
 });

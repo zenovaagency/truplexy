@@ -542,7 +542,7 @@ func widgetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if look, ok := p["widget"].(map[string]any); ok {
 			shown := map[string]any{}
-			for _, k := range []string{"heading", "subtitle", "greeting", "placeholder", "accent", "theme", "position", "show_sources", "details", "picture_url"} {
+			for _, k := range []string{"heading", "subtitle", "greeting", "placeholder", "accent", "theme", "position", "show_sources", "details", "suggestions", "picture_url"} {
 				if v, ok := look[k]; ok {
 					shown[k] = v
 				}

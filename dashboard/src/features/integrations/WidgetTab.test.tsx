@@ -141,6 +141,53 @@ describe('Integrations → Chat widget', () => {
     expect(text()).toContain('Connect a store');
   });
 
+  it('adds, edits and removes suggested questions, and saves them cleaned', async () => {
+    const { calls } = await mount();
+    const question = (n: number) => document.querySelector(`input[aria-label="Suggested question ${n}"]`);
+    await click(button('Add a question'));
+    await type(question(1), '  Where is my order? ');
+    await click(button('Add a question'));
+    await type(question(2), 'Talk to someone');
+    await click(button('Add a question'));
+    await type(question(3), 'where is my order?');
+    await click(document.querySelector('[aria-label="Remove question 2"]'));
+    expect((question(2) as HTMLInputElement).value).toBe('where is my order?');
+    await click(button('Add a question'));
+    await type(question(3), 'Returns');
+    expect(text()).toContain('Unsaved changes');
+    await click(button('Save'));
+    const put = calls.find((c) => c.method === 'PUT' && c.path === '/widget');
+    expect(put?.body).toEqual({ settings: { ...WIDGET_DEFAULTS, suggestions: ['Where is my order?', 'Returns'] } });
+    expect(text()).toContain('All changes saved');
+  });
+
+  it('starts from an idea and stops at four questions', async () => {
+    await mount();
+    await click(button('What is your return policy?'));
+    expect((document.querySelector('input[aria-label="Suggested question 1"]') as HTMLInputElement).value).toBe('What is your return policy?');
+    for (let n = 0; n < 3; n++) await click(button('Add a question'));
+    expect(text()).toContain('4 of 4');
+    expect(button('Add a question')?.disabled).toBe(true);
+  });
+
+  it('holds back a question that is too long', async () => {
+    const { calls } = await mount();
+    await click(button('Add a question'));
+    await type(document.querySelector('input[aria-label="Suggested question 1"]'), 'x'.repeat(81));
+    expect(text()).toContain('81/80');
+    await click(button('Save'));
+    expect(text()).toContain('Keep each question to 80 characters.');
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('loads settings from an API that has no suggested questions yet', async () => {
+    const { suggestions: _none, ...older } = WIDGET_DEFAULTS;
+    saved = { ...saved, settings: older as Widget['settings'] };
+    await mount();
+    expect(text()).toContain('All changes saved');
+    expect(button('Add a question')).toBeDefined();
+  });
+
   it('removes the header picture', async () => {
     saved = { ...saved, picture_url: 'https://img.test/h.png' };
     const { calls } = await mount();

@@ -294,6 +294,10 @@ function publicWidget(w: unknown): WidgetLook | undefined {
   if (src.position === 'right' || src.position === 'left') out.position = src.position;
   if (typeof src.show_sources === 'boolean') out.show_sources = src.show_sources;
   if (src.details === 'ask' || src.details === 'off') out.details = src.details;
+  if (Array.isArray(src.suggestions)) {
+    const list = src.suggestions.filter((q): q is string => typeof q === 'string' && Boolean(q.trim())).slice(0, 4).map((q) => q.slice(0, 80));
+    if (list.length) out.suggestions = list;
+  }
   if (typeof src.picture_url === 'string' && /^https:\/\/[^\s"<>]+$/.test(src.picture_url) && src.picture_url.length <= 500) out.picture_url = src.picture_url;
   return Object.keys(out).length ? out : undefined;
 }

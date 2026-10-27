@@ -46,7 +46,7 @@ export interface TruplexyChatHandle {
  * the browser, so it's safe in Next.js server layouts.
  */
 export const TruplexyChat = forwardRef<TruplexyChatHandle, TruplexyChatProps>(function TruplexyChat(props, ref) {
-  const { open, labels, onOpen, onClose, onMessage, onStatus, onError, className, style, showSources, demo, storageKey, ...attrs } = props;
+  const { open, labels, onOpen, onClose, onMessage, onStatus, onError, className, style, showSources, demo, storageKey, suggestions, ...attrs } = props;
   const el = useRef<TruplexyChatElement>(null);
   const handlers = useRef({ onOpen, onClose, onMessage, onStatus, onError });
   handlers.current = { onOpen, onClose, onMessage, onStatus, onError };
@@ -100,6 +100,7 @@ export const TruplexyChat = forwardRef<TruplexyChatHandle, TruplexyChatProps>(fu
     'show-sources': showSources ? '' : undefined,
     demo: demo ? '' : undefined,
     'storage-key': storageKey,
+    suggestions: suggestions && JSON.stringify(suggestions),
     className,
     style,
     suppressHydrationWarning: true,

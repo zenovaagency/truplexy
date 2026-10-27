@@ -250,6 +250,56 @@ describe('<truplexy-chat>', () => {
     el.remove();
   });
 
+  it('offers suggested questions before the first message and sends the one tapped', async () => {
+    const el = mount({ demo: true, details: 'off', suggestions: [' Where is order 12345? ', '', 'Returns', 7 as unknown as string] });
+    const root = el.shadowRoot!;
+    const group = root.querySelector('.suggestions') as HTMLElement;
+    const chips = [...root.querySelectorAll<HTMLButtonElement>('.chip')];
+    expect(chips.map((c) => c.textContent)).toEqual(['Where is order 12345?', 'Returns']);
+    expect(group.hidden).toBe(false);
+    expect(group.getAttribute('aria-label')).toBe('Suggested questions');
+    el.open();
+    chips[0].click();
+    await tick();
+    expect(group.hidden).toBe(true);
+    const bubbles = [...root.querySelectorAll('.msg:not(.greeting):not(.typing) .bubble')].map((b) => b.textContent);
+    expect(bubbles[0]).toBe('Where is order 12345?');
+    expect(root.querySelector('textarea')!.value).toBe('');
+    el.remove();
+  });
+
+  it('asks for name and email first when a suggested question is tapped', async () => {
+    const el = mount({ demo: true, suggestions: ['Where is order 12345?'] });
+    const root = el.shadowRoot!;
+    const group = root.querySelector('.suggestions') as HTMLElement;
+    el.open();
+    root.querySelector<HTMLButtonElement>('.chip')!.click();
+    await tick();
+    expect((root.querySelector('.details') as HTMLElement).hidden).toBe(false);
+    expect(group.hidden).toBe(true);
+    (root.querySelector('.details-name') as HTMLInputElement).value = 'Ada Lovelace';
+    (root.querySelector('.details-email') as HTMLInputElement).value = 'ada@example.com';
+    root.querySelector('.details')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick(1500);
+    const bubbles = [...root.querySelectorAll('.msg:not(.greeting):not(.typing) .bubble')].map((b) => b.textContent);
+    expect(bubbles[0]).toBe('Where is order 12345?');
+    expect(group.hidden).toBe(true);
+    el.remove();
+  });
+
+  it('shows no suggestions unless there are some, and keeps the send button inside the message box', () => {
+    const el = mount({ demo: true });
+    const root = el.shadowRoot!;
+    expect((root.querySelector('.suggestions') as HTMLElement).hidden).toBe(true);
+    el.setAttribute('suggestions', 'not json');
+    expect(root.querySelectorAll('.chip')).toHaveLength(0);
+    el.setAttribute('suggestions', '["Returns"]');
+    expect((root.querySelector('.suggestions') as HTMLElement).hidden).toBe(false);
+    expect(root.querySelector('.field textarea')).not.toBeNull();
+    expect(root.querySelector('.field .send')).not.toBeNull();
+    el.remove();
+  });
+
   it('renders inline, always open', () => {
     const host = document.createElement('div');
     document.body.append(host);
@@ -280,7 +330,7 @@ function routeWith(widget: Record<string, unknown> | undefined, delay = 0) {
   return calls;
 }
 
-const LOOK = { heading: 'Acme help', subtitle: 'We reply fast', greeting: 'Welcome in!', placeholder: 'Ask away', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off', picture_url: 'https://cdn.test/header.png' };
+const LOOK = { heading: 'Acme help', subtitle: 'We reply fast', greeting: 'Welcome in!', placeholder: 'Ask away', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off', suggestions: ['Track my order', 'Returns'], picture_url: 'https://cdn.test/header.png' };
 
 describe('the look set in the dashboard', () => {
   afterEach(() => {
@@ -301,12 +351,13 @@ describe('the look set in the dashboard', () => {
     expect(el.style.getPropertyValue('--truplexy-accent')).toBe('#c2410c');
     expect(el.dataset.txTheme).toBe('dark');
     expect(el.dataset.txPosition).toBe('left');
+    expect([...root.querySelectorAll('.chip')].map((c) => c.textContent)).toEqual(['Track my order', 'Returns']);
     el.remove();
   });
 
   it('never beats what the host page sets', async () => {
     routeWith(LOOK);
-    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-2', heading: 'Mine', accent: '#112233', theme: 'light', position: 'right', avatar: 'https://mine.test/a.png', labels: { placeholder: 'Translated hint' } });
+    const el = mount({ endpoint: '/api/truplexy', storageKey: 'look-2', heading: 'Mine', accent: '#112233', theme: 'light', position: 'right', avatar: 'https://mine.test/a.png', suggestions: ['Mine'], labels: { placeholder: 'Translated hint' } });
     await tick(20);
     const root = el.shadowRoot!;
     expect(root.querySelector('.title')!.textContent).toBe('Mine');
@@ -314,6 +365,7 @@ describe('the look set in the dashboard', () => {
     expect(el.style.getPropertyValue('--truplexy-accent')).toBe('#112233');
     expect(el.dataset.txTheme).toBe('light');
     expect(el.dataset.txPosition).toBe('right');
+    expect([...root.querySelectorAll('.chip')].map((c) => c.textContent)).toEqual(['Mine']);
     // The labels property (translations) beats the dashboard's text; the dashboard still sets the rest.
     expect(root.querySelector('textarea')!.placeholder).toBe('Translated hint');
     expect(root.querySelector('.subtitle')!.textContent).toBe('We reply fast');

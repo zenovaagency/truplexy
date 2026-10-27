@@ -13,6 +13,7 @@ export const WIDGET_DEFAULTS: WidgetSettings = {
   position: 'right',
   show_sources: false,
   details: 'ask',
+  suggestions: [],
 };
 
 /**
@@ -51,6 +52,24 @@ export const lowContrast = (hex: string) => isHex(hex) && contrastOnWhite(hex) <
 /** The longest each text may be, in characters. */
 export const WIDGET_LIMITS = { heading: 60, subtitle: 100, greeting: 300, placeholder: 80 } as const;
 
+/** How many suggested questions the window shows, and how long each may be. */
+export const MAX_SUGGESTIONS = 4;
+export const SUGGESTION_LIMIT = 80;
+
+/** The questions as the API keeps them: on one line, trimmed, without empty or repeated ones (ignoring case). */
+export function cleanSuggestions(list: readonly string[] = []): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of list) {
+    const q = raw.replace(/\s+/g, ' ').trim();
+    if (q && !seen.has(q.toLowerCase())) {
+      seen.add(q.toLowerCase());
+      out.push(q);
+    }
+  }
+  return out;
+}
+
 /** The same rules the API applies, so a form can say what is wrong before it asks. */
 export function widgetErrors(s: WidgetSettings): Partial<Record<keyof WidgetSettings, string>> {
   const out: Partial<Record<keyof WidgetSettings, string>> = {};
@@ -58,6 +77,9 @@ export function widgetErrors(s: WidgetSettings): Partial<Record<keyof WidgetSett
     if ([...s[key].trim()].length > max) out[key] = `Keep this to ${max} characters.`;
   }
   if (!/^#[0-9a-fA-F]{6}$/.test(s.accent.trim())) out.accent = 'Pick a colour, such as #2338e6.';
+  const questions = cleanSuggestions(s.suggestions);
+  if (questions.some((q) => [...q].length > SUGGESTION_LIMIT)) out.suggestions = `Keep each question to ${SUGGESTION_LIMIT} characters.`;
+  else if (questions.length > MAX_SUGGESTIONS) out.suggestions = `Keep to ${MAX_SUGGESTIONS} questions.`;
   return out;
 }
 
@@ -69,6 +91,7 @@ export const cleanWidget = (s: WidgetSettings): WidgetSettings => ({
   greeting: s.greeting.trim(),
   placeholder: s.placeholder.trim(),
   accent: s.accent.trim().toLowerCase(),
+  suggestions: cleanSuggestions(s.suggestions),
 });
 
 /** The same settings, comparable: what the form would save. */

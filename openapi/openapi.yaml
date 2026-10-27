@@ -4548,6 +4548,11 @@ paths:
                         type: string
                       placeholder:
                         type: string
+                      suggestions:
+                        type: array
+                        description: Left out when there are none.
+                        items:
+                          type: string
                       picture_url:
                         type: string
                         format: uri
@@ -7658,6 +7663,14 @@ components:
           enum: [ask, 'off']
           default: ask
           description: ask shows a name and email form before the first message.
+        suggestions:
+          type: array
+          maxItems: 4
+          default: []
+          description: Questions a visitor can tap to send before their first message. Each is one line; empty and repeated ones (ignoring case) are dropped.
+          items:
+            type: string
+            maxLength: 80
     Widget:
       type: object
       required: [settings, defaults, picture_url]

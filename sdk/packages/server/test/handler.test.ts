@@ -299,19 +299,20 @@ describe('createHandler', () => {
           widget: {
             heading: 'Acme help', greeting: 'Hi!', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off',
             picture_url: 'https://cdn.test/h.png', secret: 'x', subtitle: 7,
+            suggestions: ['Track my order', '', 3, 'Returns', 'a', 'b', 'c'],
           },
         },
       ],
     });
     const body = await (await createHandler({ ...base, fetch: api.fetch })(post({ action: 'profile' }))).json();
-    expect(body.widget).toEqual({ heading: 'Acme help', greeting: 'Hi!', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off', picture_url: 'https://cdn.test/h.png' });
+    expect(body.widget).toEqual({ heading: 'Acme help', greeting: 'Hi!', accent: '#c2410c', theme: 'dark', position: 'left', show_sources: true, details: 'off', picture_url: 'https://cdn.test/h.png', suggestions: ['Track my order', 'Returns', 'a', 'b'] });
   });
 
   it('drops a look that is unsafe or not a look', async () => {
     const api = fakeApi({
       'GET /profile': () => [
         200,
-        { business: { name: 'A' }, bot: { id: 'b', name: 'B' }, widget: { accent: 'red;}</style>', theme: 'neon', position: 'top', details: 1, picture_url: 'javascript:alert(1)', heading: '' } },
+        { business: { name: 'A' }, bot: { id: 'b', name: 'B' }, widget: { accent: 'red;}</style>', theme: 'neon', position: 'top', details: 1, picture_url: 'javascript:alert(1)', heading: '', suggestions: 'Track my order' } },
       ],
     });
     const body = await (await createHandler({ ...base, fetch: api.fetch })(post({ action: 'profile' }))).json();

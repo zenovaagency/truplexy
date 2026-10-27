@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { AlertTriangle, Lock, RotateCcw } from 'lucide-react';
 import { AccentPicker } from '@/components/domain/AccentPicker';
+import { SuggestionsEditor } from '@/components/domain/SuggestionsEditor';
 import { WidgetPictureEditor } from '@/components/domain/WidgetPictureEditor';
 import { Button, Callout, Card, Field, Input, Segmented, Switch, Textarea } from '@/components/ui';
 import { isApiError } from '@/lib/api/client';
@@ -40,10 +41,11 @@ export function WidgetTab() {
   // Custom stays open on a ready-made colour typed or picked there, until a swatch is chosen.
   const [customColour, setCustomColour] = useState(false);
   const colourNote = useId();
+  const suggestionsNote = useId();
 
-  // The form starts from what is saved, once it has loaded.
+  // The form starts from what is saved, once it has loaded. An API from before suggestions sends none.
   useEffect(() => {
-    if (widget.data && draft === null) setDraft(widget.data.settings);
+    if (widget.data && draft === null) setDraft({ ...WIDGET_DEFAULTS, ...widget.data.settings });
   }, [widget.data, draft]);
 
   const errors = useMemo(() => (draft ? widgetErrors(draft) : {}), [draft]);
@@ -122,6 +124,17 @@ export function WidgetTab() {
                   <Field label="Message box hint" optional error={errors.placeholder} aside={<Count value={draft.placeholder} max={WIDGET_LIMITS.placeholder} />}>
                     <Input value={draft.placeholder} onChange={(e) => set('placeholder', e.target.value)} placeholder="Write a message…" />
                   </Field>
+                </div>
+              </Card>
+
+              <Card title="Suggested questions" description="Questions customers can tap to send before their first message. Leave the list empty to show none.">
+                <div className="grid gap-2">
+                  <SuggestionsEditor value={draft.suggestions} onChange={(list) => set('suggestions', list)} disabled={!writable} describedBy={errors.suggestions ? suggestionsNote : undefined} />
+                  {errors.suggestions && (
+                    <p id={suggestionsNote} className="text-xs font-medium text-danger">
+                      {errors.suggestions}
+                    </p>
+                  )}
                 </div>
               </Card>
 

@@ -320,7 +320,7 @@ async def truplexy(request: Request):
                 "bot": {"id": bot.get("id"), "name": bot.get("name"), "avatar_url": bot.get("avatar_url")},
             }
             if isinstance(look, dict):
-                out["widget"] = {k: look[k] for k in ("heading", "subtitle", "greeting", "placeholder", "accent", "theme", "position", "show_sources", "details", "picture_url") if k in look}
+                out["widget"] = {k: look[k] for k in ("heading", "subtitle", "greeting", "placeholder", "accent", "theme", "position", "show_sources", "details", "suggestions", "picture_url") if k in look}
             return out
         if action == "live":
             if not conv:

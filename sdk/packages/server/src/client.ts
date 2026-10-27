@@ -53,6 +53,8 @@ export interface WidgetLook {
   heading?: string; subtitle?: string; greeting?: string; placeholder?: string;
   accent?: string; theme?: 'light' | 'dark' | 'auto'; position?: 'right' | 'left';
   show_sources?: boolean; details?: 'ask' | 'off'; picture_url?: string;
+  /** Up to 4 questions a visitor can tap to send before their first message; absent when there are none. */
+  suggestions?: string[];
 }
 export interface Message {
   id: string; role: 'user' | 'assistant'; content: string;
