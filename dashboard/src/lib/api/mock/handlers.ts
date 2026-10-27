@@ -37,7 +37,7 @@ import type {
 import { quoteTokens } from '@/lib/billing';
 import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
 import { emit, topicFor } from './bus';
-import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockTenant, type MockTicket, type MockUser } from './db';
+import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockSuggestion, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 import { buildPerformance, performanceMode } from './performance';
 import { PRESETS, PROPERTY_ENTITIES, PropertyError, applyValues, changeDefinition, matchesFilters, newDefinition, visibleValues, type MockProperty } from './properties';
@@ -1737,8 +1737,8 @@ route('PUT', '/workspace', 'bot.write', (c) => {
     next.topK = kept.topK;
     next.routing = kept.routing;
     if (next.knowledge || kept.knowledge) {
-      const { policy } = next.knowledge ?? {};
-      next.knowledge = { ...kept.knowledge, ...(policy !== undefined && { policy }) };
+      const { policy, learnFromTickets } = next.knowledge ?? {};
+      next.knowledge = { ...kept.knowledge, ...(policy !== undefined && { policy }), ...(learnFromTickets !== undefined && { learnFromTickets }) };
     }
   }
   const changed = JSON.stringify(next) !== JSON.stringify(ws.bot);
@@ -1808,7 +1808,7 @@ function articleFields(b: any, partial: boolean) {
 
 function indexText(d: MockDoc) {
   const bytes = new TextEncoder().encode(d.content).length;
-  d.byte_size = d.source_type === 'manual' ? bytes : d.byte_size;
+  d.byte_size = d.source_type !== 'file' ? bytes : d.byte_size;
   d.chunk_count = Math.max(1, Math.ceil(bytes / 600));
   d.embedded_count = d.chunk_count;
   d.token_count = Math.round(bytes / 4);
@@ -1955,6 +1955,82 @@ route('POST', '/knowledge/uploads', 'knowledge.write', (c) => {
     headers: { 'Content-Type': d.mime_type ?? 'application/octet-stream' },
     expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
   });
+});
+
+/* Suggestions learned from closed tickets (v2) ------------------------ */
+
+/**
+ * A closed ticket a person answered becomes a suggestion when its bot learns from tickets. The real API
+ * has a model write it a few minutes later; here it is the team's last answer, at once.
+ */
+function learnFrom(c: Ctx, t: MockTicket) {
+  const ws = c.db.workspaces.find((w) => w.tenant_id === t.tenant_id && w.bot_id === t.bot_id);
+  const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
+  const answer = conv?.messages.filter((m) => m.author === 'agent' && m.content.trim()).at(-1);
+  if (!ws?.bot.knowledge?.learnFromTickets || !conv || !answer) return;
+  const question = conv.messages.find((m) => m.author === 'customer')?.content ?? t.subject;
+  const existing = c.db.suggestions.find((s) => s.ticket_id === t.id);
+  if (existing && existing.status !== 'ready') return;
+  const now = nowIso();
+  const draft = { title: t.subject.slice(0, 160), content: `**${question.trim()}**\n\n${answer.content.trim()}`, closed_at: t.closed_at ?? now, updated_at: now };
+  if (existing) Object.assign(existing, draft);
+  else c.db.suggestions.push({ id: newId('sug'), tenant_id: t.tenant_id, bot_id: t.bot_id, ticket_id: t.id, conversation_id: conv.id, status: 'ready', created_at: now, ...draft });
+}
+
+const suggestionOut = (c: Ctx, { tenant_id: _t, bot_id: _b, ...s }: MockSuggestion) => ({
+  ...s,
+  ticket_subject: c.db.tickets.find((t) => t.id === s.ticket_id)?.subject ?? '',
+});
+
+function findSuggestion(c: Ctx) {
+  const s = c.db.suggestions.find((x) => x.id === c.params.id && x.tenant_id === c.tenant.id && x.bot_id === c.botId);
+  if (!s) throw err(404, 'SUGGESTION_NOT_FOUND', 'No knowledge suggestion has this ID. Refresh the list.');
+  if (s.status !== 'ready') throw err(409, 'SUGGESTION_HANDLED', 'Someone already added or dismissed this suggestion. Refresh the list.');
+  return s;
+}
+
+route('GET', '/knowledge/suggestions', 'knowledge.read', (c) => ({
+  data: c.db.suggestions
+    .filter((s) => s.tenant_id === c.tenant.id && s.bot_id === c.botId && s.status === 'ready')
+    .sort((a, b) => (b.closed_at ?? '').localeCompare(a.closed_at ?? ''))
+    .map((s) => suggestionOut(c, s)),
+}));
+
+route('POST', '/knowledge/suggestions/:id/accept', 'knowledge.write', (c) => {
+  const s = findSuggestion(c);
+  const title = c.body?.title?.trim() ? str(c.body.title.trim(), 'title', 1, 160)! : s.title;
+  const content = c.body?.content?.trim() ? str(c.body.content, 'content', 1, 50000)! : s.content;
+  const dup = botDocs(c).find((d) => d.content.trim() === content.trim());
+  if (dup) throw err(409, 'DUPLICATE_DOCUMENT', `This is already in your knowledge base as “${dup.title}”.`, { document_id: dup.id });
+  requireLimit(c.tenant, 'documents_per_bot', botDocs(c).length);
+  const now = nowIso();
+  const d: MockDoc = {
+    id: newId('doc'),
+    tenant_id: c.tenant.id,
+    bot_id: c.botId,
+    title,
+    content,
+    source_type: 'ticket',
+    source_name: s.ticket_id,
+    byte_size: 0,
+    status: 'processing',
+    chunk_count: 0,
+    embedded_count: 0,
+    token_count: 0,
+    created_at: now,
+    updated_at: now,
+  };
+  indexText(d);
+  c.db.documents.push(d);
+  bumpKb(c);
+  Object.assign(s, { status: 'accepted', title, content, document_id: d.id, updated_at: now });
+  return created({ suggestion: suggestionOut(c, s), document: docOut(d) });
+});
+
+route('POST', '/knowledge/suggestions/:id/dismiss', 'knowledge.write', (c) => {
+  const s = findSuggestion(c);
+  Object.assign(s, { status: 'dismissed', updated_at: nowIso() });
+  return noContent();
 });
 
 route('POST', '/knowledge/search', 'knowledge.read', (c) => {
@@ -2306,6 +2382,7 @@ route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
     t.priority = b.priority;
   }
   if (b.status !== undefined) applyStatus(t, b.status);
+  if (t.status === 'closed') learnFrom(c, t);
   if (b.keep_open !== undefined) {
     if (typeof b.keep_open !== 'boolean') throw invalid('keep_open must be true or false.');
     t.keep_open = b.keep_open;
@@ -2345,6 +2422,7 @@ route('DELETE', '/tickets/:id', 'tickets.delete', (c) => {
   const t = findTicket(c);
   c.db.tickets = c.db.tickets.filter((x) => x !== t);
   delete c.db.replies[t.id];
+  c.db.suggestions = c.db.suggestions.filter((s) => s.ticket_id !== t.id);
   emit(t.tenant_id, t.bot_id, 'ticket.updated', { ticket: { id: t.id }, deleted: true });
   return noContent();
 });
@@ -2375,6 +2453,7 @@ route('POST', '/tickets/:id/replies', 'tickets.write', (c) => {
     t.handed_off = false;
   }
   if (c.body.status) applyStatus(t, c.body.status);
+  if (t.status === 'closed') learnFrom(c, t);
   // Closing with a reply hands the conversation back after the reply.
   if (wasEscalated && !t.escalated) addNotice(c, t, 'handed_back');
   t.updated_at = now;

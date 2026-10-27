@@ -47,6 +47,7 @@ const businessRoutes: RouteObject[] = [
       ...lazyRoute(pages.knowledge, (m) => m.default),
       children: [
         { index: true, ...lazyRoute(pages.knowledge, (m) => m.DocumentsTab) },
+        { path: 'suggestions', ...lazyRoute(pages.knowledge, (m) => m.SuggestionsTab) },
         { path: 'search', ...lazyRoute(pages.knowledge, (m) => m.SearchTab) },
         missing,
       ],

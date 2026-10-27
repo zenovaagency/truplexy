@@ -372,6 +372,8 @@ export interface BotKnowledge {
   ragMode?: string;
   maxSubqueries?: number;
   verify?: string;
+  /** Turn closed tickets a person answered into suggestions on the Knowledge page (v2). Billed like a reply. */
+  learnFromTickets?: boolean;
 }
 
 /** Platform-managed and not edited here; typed so a saved bot is sent back as loaded. */
@@ -449,7 +451,8 @@ export interface DocMetadata {
 export interface KnowledgeDocument extends DocMetadata {
   id: string;
   title: string;
-  source_type: 'manual' | 'file';
+  /** `ticket`: an article accepted from a suggestion; `source_name` is the ticket's ID. */
+  source_type: 'manual' | 'file' | 'ticket';
   source_name?: string;
   mime_type?: string;
   byte_size: number;
@@ -462,6 +465,23 @@ export interface KnowledgeDocument extends DocMetadata {
   updated_at: string;
   indexed_at?: string;
   content?: string;
+}
+
+/** A question and answer the model wrote from a closed ticket, waiting for the team (v2). */
+export interface KnowledgeSuggestion {
+  id: string;
+  ticket_id: string;
+  /** Empty once the ticket is deleted. */
+  ticket_subject: string;
+  conversation_id: string;
+  status: 'ready' | 'accepted';
+  title: string;
+  /** Markdown. */
+  content: string;
+  document_id?: string;
+  closed_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DocumentList {

@@ -2171,6 +2171,90 @@ paths:
                     format: date-time
         default:
           $ref: '#/components/responses/Error'
+  /knowledge/suggestions:
+    get:
+      operationId: listKnowledgeSuggestions
+      summary: List suggestions learned from closed tickets
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Questions and answers the model wrote from closed tickets a person answered, waiting for review, newest close first (up to 100). Only bots with knowledge.learnFromTickets on get any.
+      responses:
+        '200':
+          description: The suggestions waiting for review.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/KnowledgeSuggestion'
+        default:
+          $ref: '#/components/responses/Error'
+  /knowledge/suggestions/{id}/accept:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: acceptKnowledgeSuggestion
+      summary: Add a suggestion to the knowledge base
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Adds the suggestion as an article with source_type ticket, with the edits sent; empty fields keep the model's. Then call process while the document is processing. The article's own errors (duplicate, full, plan limit) leave the suggestion ready.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 160
+                content:
+                  type: string
+                  maxLength: 50000
+      responses:
+        '201':
+          description: The accepted suggestion and its new document.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [suggestion, document]
+                properties:
+                  suggestion:
+                    $ref: '#/components/schemas/KnowledgeSuggestion'
+                  document:
+                    $ref: '#/components/schemas/KnowledgeDocument'
+        default:
+          $ref: '#/components/responses/Error'
+  /knowledge/suggestions/{id}/dismiss:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: dismissKnowledgeSuggestion
+      summary: Keep a suggestion out of the knowledge base
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. The suggestion isn't suggested again, even if its ticket closes again.
+      responses:
+        '204':
+          description: Dismissed.
+        default:
+          $ref: '#/components/responses/Error'
   /knowledge/search:
     post:
       operationId: searchKnowledge
@@ -8322,6 +8406,39 @@ components:
           type: string
           enum: [platform]
           description: Always platform. The platform chooses each reply's model and how every bot answers, so a dashboard should hide the model, temperature, output limit, passage count, routing, retrieval mode and verification controls.
+    KnowledgeSuggestion:
+      type: object
+      required: [id, ticket_id, ticket_subject, conversation_id, status, title, content, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        ticket_id:
+          type: string
+        ticket_subject:
+          type: string
+          description: Empty once the ticket is deleted.
+        conversation_id:
+          type: string
+        status:
+          type: string
+          enum: [ready, accepted]
+        title:
+          type: string
+        content:
+          type: string
+          description: Markdown.
+        document_id:
+          type: string
+          description: The article an accepted suggestion became.
+        closed_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     KnowledgeDocument:
       type: object
       required: [id, title, source_type, byte_size, status, chunk_count, embedded_count, token_count, created_at, updated_at]
@@ -8332,9 +8449,10 @@ components:
           type: string
         source_type:
           type: string
-          enum: [manual, file]
+          enum: [manual, file, ticket]
         source_name:
           type: string
+          description: The uploaded file's name, or for source_type ticket the ID of the ticket the article was learned from.
         mime_type:
           type: string
         byte_size:

@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Scope } from '@/lib/api/client';
-import type { DocMetadata, DocumentList, DocumentStatus, KnowledgeDocument, SearchFilters, SearchResult, UploadRegistration } from '@/lib/api/types';
+import { api, hasCode, type Scope } from '@/lib/api/client';
+import type { DocMetadata, DocumentList, DocumentStatus, KnowledgeDocument, KnowledgeSuggestion, SearchFilters, SearchResult, UploadRegistration, Workspace } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -107,5 +107,76 @@ export function useSearchKnowledge() {
   return useMutation({
     mutationFn: (body: { query: string; top_k?: number; filters?: SearchFilters }) =>
       api<SearchResult>('/knowledge/search', { method: 'POST', body, scope }),
+  });
+}
+
+/* Suggestions learned from closed tickets (v2) ---------------------------- */
+
+export function useKnowledgeSuggestions(enabled = true) {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.bot(scope, 'kb-suggestions'),
+    queryFn: ({ signal }) => api<{ data: KnowledgeSuggestion[] }>('/knowledge/suggestions', { scope, signal }),
+    select: (r) => r.data,
+    enabled,
+    // New ones arrive from a job every few minutes.
+    refetchInterval: 120_000,
+  });
+}
+
+/** Adds a suggestion to the knowledge base, with the person's edits, and indexes it to completion. */
+export function useAcceptSuggestion() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, title, content }: { id: string; title: string; content: string }) => {
+      const r = await api<{ suggestion: KnowledgeSuggestion; document: KnowledgeDocument }>(`/knowledge/suggestions/${id}/accept`, {
+        method: 'POST',
+        body: { title, content },
+        scope,
+      });
+      return r.document.status === 'processing' ? await processUntilDone(scope, r.document.id) : r.document;
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.bot(scope, 'kb-suggestions') });
+      qc.invalidateQueries({ queryKey: qk.bot(scope, 'documents') });
+    },
+    meta: { silentCodes: ['DUPLICATE_DOCUMENT'] },
+  });
+}
+
+export function useDismissSuggestion() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/knowledge/suggestions/${id}/dismiss`, { method: 'POST', scope }),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.bot(scope, 'kb-suggestions') }),
+  });
+}
+
+/**
+ * Turns learning from closed tickets on or off for the bot and saves it. Only that setting
+ * changes, so when a teammate saved first it is applied once more on their version.
+ */
+export function useLearnFromTickets() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (on: boolean) => {
+      const attempt = async (fresh: boolean) => {
+        const load = { queryKey: qk.bot(scope, 'workspace'), queryFn: ({ signal }: { signal: AbortSignal }) => api<Workspace>('/workspace', { scope, signal }) };
+        const ws = fresh ? await qc.fetchQuery({ ...load, staleTime: 0 }) : await qc.ensureQueryData(load);
+        const bot = { ...ws.bot, knowledge: { ...ws.bot.knowledge, learnFromTickets: on } };
+        return api<Workspace>('/workspace', { method: 'PUT', body: { name: ws.name, bot, revision: ws.revision }, scope });
+      };
+      try {
+        return await attempt(false);
+      } catch (e) {
+        if (!hasCode(e, 'WORKSPACE_CONFLICT')) throw e;
+        return attempt(true);
+      }
+    },
+    onSuccess: (ws) => qc.setQueryData(qk.bot(scope, 'workspace'), ws),
+    meta: { success: 'Saved' },
   });
 }

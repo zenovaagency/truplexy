@@ -10,6 +10,7 @@ import type {
   DeletionRequest,
   Invite,
   KnowledgeDocument,
+  KnowledgeSuggestion,
   LedgerEntry,
   Limits,
   PlanId,
@@ -111,6 +112,12 @@ export type MockModel = Omit<
 export type MockInvite = Invite & { tenant_id: string; token: string };
 export type MockAudit = AuditEvent & { tenant_id: string };
 export type MockDoc = KnowledgeDocument & { tenant_id: string; bot_id: string; content: string; sha256?: string };
+/** A suggestion learned from a closed ticket. `ticket_subject` is read from the ticket on the way out. */
+export type MockSuggestion = Omit<KnowledgeSuggestion, 'ticket_subject' | 'status'> & {
+  tenant_id: string;
+  bot_id: string;
+  status: 'ready' | 'accepted' | 'dismissed';
+};
 export type MockTool = Tool & { id: string; tenant_id: string; disabled: boolean; calls: number; errors: number };
 /** `channel_name` and `channel_type` are stored only once the channel is deleted; otherwise they're read from it. */
 export type MockTicket = Omit<Ticket, 'flags' | 'needs_reply' | 'keep_open' | 'auto_close_at'> & { tenant_id: string; bot_id: string; keep_open?: boolean };
@@ -155,6 +162,8 @@ export interface MockDb {
   apiKeys: ApiKey[];
   audit: MockAudit[];
   documents: MockDoc[];
+  /** Suggestions learned from closed tickets (v2). */
+  suggestions: MockSuggestion[];
   tools: MockTool[];
   tickets: MockTicket[];
   conversations: MockConversation[];
@@ -182,7 +191,7 @@ export interface MockDb {
   queries: MockQuery[];
 }
 
-export const DB_VERSION = 16;
+export const DB_VERSION = 17;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

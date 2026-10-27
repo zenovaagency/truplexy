@@ -917,7 +917,7 @@ export function seedDb(): MockDb {
   const workspaces: MockDb['workspaces'] = [
     {
       tenant_id: 'acme', bot_id: 'support', name: 'Store assistant', revision: 7, updated_at: ago(2 * DAY),
-      bot: { name: 'Ava', promptTemplateId: 'tpl_' + 'a'.repeat(32), promptVariables: { ...supportVars, return_policy: '30 days, unused items; damaged items replaced free.' }, model: 'google/gemini-3.1-flash-lite', temperature: 0.4, maxTokens: 800, ragEnabled: true, topK: 6, toolsEnabled: true, tools: ['lookup_order', 'start_return'] },
+      bot: { name: 'Ava', promptTemplateId: 'tpl_' + 'a'.repeat(32), promptVariables: { ...supportVars, return_policy: '30 days, unused items; damaged items replaced free.' }, model: 'google/gemini-3.1-flash-lite', temperature: 0.4, maxTokens: 800, ragEnabled: true, topK: 6, toolsEnabled: true, tools: ['lookup_order', 'start_return'], knowledge: { learnFromTickets: true } },
       history: [],
     },
     {
@@ -1105,6 +1105,7 @@ Hand over when: {{escalation_policy}}
     apiKeys,
     audit,
     documents,
+    suggestions: seedSuggestions(tickets, conversations),
     tools,
     tickets,
     conversations,
@@ -1123,6 +1124,23 @@ Hand over when: {{escalation_policy}}
     productImports: [],
     ...seedQueries(conversations),
   };
+}
+
+/** Draft articles Acme's support bot learned from tickets its team answered and closed: the question and the team's answer. */
+function seedSuggestions(tickets: MockTicket[], conversations: MockConversation[]): MockDb['suggestions'] {
+  return tickets
+    .filter((t) => t.tenant_id === 'acme' && t.bot_id === 'support' && t.status === 'closed')
+    .flatMap((t) => {
+      const conv = conversations.find((c) => c.id === t.conversation_id);
+      const question = conv?.messages.find((m) => m.author === 'customer')?.content;
+      const answer = conv?.messages.filter((m) => m.author === 'agent' && m.content.trim()).at(-1)?.content;
+      if (!conv || !question || !answer) return [];
+      const at = t.closed_at ?? t.updated_at;
+      return [{ id: `sug_${hex(32)}`, tenant_id: 'acme', bot_id: 'support', ticket_id: t.id, conversation_id: conv.id, status: 'ready' as const, title: t.subject, content: `**${question}**
+
+${answer}`, closed_at: at, created_at: at, updated_at: at }];
+    })
+    .slice(0, 3);
 }
 
 /** A small catalog on Acme's support bot. */
