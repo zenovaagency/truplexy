@@ -9,7 +9,7 @@ export const WORDPRESS_PLUGIN = String.raw`<?php
  * Description:       Adds the Truplexy AI support chat to your site. Your chat key stays on the server.
  * Author:            Truplexy
  * Author URI:        https://truplexy.com
- * Version:           1.0.1
+ * Version:           1.0.2
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * License:           MIT
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-const TRUPLEXY_CHAT_VERSION = '1.0.1';
+const TRUPLEXY_CHAT_VERSION = '1.0.2';
 const TRUPLEXY_CHAT_CDN = 'https://cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js';
 
 function truplexy_chat_settings(): array {
