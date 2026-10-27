@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { ArrowRightLeft, Filter, Hand, Inbox, MessagesSquare, Plus, Search, X } from 'lucide-react';
+import { ArrowRightLeft, Download, Filter, Hand, Inbox, MessagesSquare, Plus, Search, X } from 'lucide-react';
 import { useChannelIcon, useChannels } from '@/lib/api/endpoints/channels';
 import { useCreateTicket, useHandoffs, usePrefetchTicket, useTickets } from '@/lib/api/endpoints/tickets';
 import type { TicketCounts, TicketFlag, TicketPriority, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatRelative } from '@/lib/format';
+import { downloadBlob } from '@/lib/export';
+import { notifyError, notifySuccess } from '@/lib/notify';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { useDebounce, useHotkeys, useIsDesktop } from '@/hooks';
 import {
@@ -31,6 +33,7 @@ import { PRIORITIES, PRIORITY, PriorityBadge, TICKET_STATUS, TICKET_STATUSES, Ti
 import { ChannelBadge } from '@/components/domain/ChannelBadge';
 import { useCustomer } from '@/lib/api/endpoints/customers';
 import { customerLabel } from '@/lib/customers';
+import { exportTickets, type TicketExportFormat, type TicketExportProgress } from './export';
 import { FLAG_LABEL, TicketFlags, useAssignees } from './shared';
 import { TicketDetail } from './TicketDetail';
 
@@ -100,6 +103,9 @@ export default function TicketsPage() {
 
   const extraFilters = [filters.status, filters.priority, filters.assignee, filters.flag, filters.channel, filters.customer].filter(Boolean).length;
   const newOpen = params.get('new') === '1';
+  const [exportOpen, setExportOpen] = useState(false);
+  // Without search or extra filters, the view's own count is the export's size.
+  const viewCount = filters.q || extraFilters ? undefined : counts?.[VIEWS.find((v) => v.value === (filters.view ?? 'open'))?.count ?? 'open'];
 
   // j / k move through the queue; Esc closes the ticket.
   useHotkeys({
@@ -249,6 +255,9 @@ export default function TicketsPage() {
 
   const headerActions = (
     <>
+      <Button variant="ghost" leading={<Download />} onClick={() => setExportOpen(true)}>
+        Export
+      </Button>
       <Button asChild variant="ghost" leading={<Hand />}>
         <Link to={href('tickets/handoffs')}>
           Handoffs <Count n={handoffs.data?.length} tone="accent" />
@@ -270,6 +279,10 @@ export default function TicketsPage() {
     />
   );
 
+  const exportDialog = (
+    <ExportDialog open={exportOpen} onOpenChange={setExportOpen} query={query} viewCount={viewCount} allCount={counts?.all} />
+  );
+
   // Phones and tablets: the list, or the ticket full-screen.
   if (!isDesktop) {
     return (
@@ -283,6 +296,7 @@ export default function TicketsPage() {
           </Page>
         )}
         {newDialog}
+        {exportDialog}
       </>
     );
   }
@@ -316,6 +330,7 @@ export default function TicketsPage() {
         </div>
       </div>
       {newDialog}
+      {exportDialog}
     </div>
   );
 }
@@ -393,6 +408,114 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
         )}
         <Switch checked={keepOpen} onCheckedChange={setKeepOpen} label="Keep open" description="It won't close on its own after a quiet spell; only a person closes it." />
       </form>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+const isAbort = (e: unknown) => (e as Error)?.name === 'AbortError';
+
+function progressLabel(p: TicketExportProgress) {
+  if (p.stage === 'list') return `Finding tickets… ${p.done}`;
+  if (p.stage === 'details') return `Reading tickets ${p.done} / ${p.total}`;
+  return 'Packing the zip…';
+}
+
+function ExportDialog({ open, onOpenChange, query, viewCount, allCount }: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  query: TicketQuery;
+  viewCount?: number;
+  allCount?: number;
+}) {
+  const { scope } = useScopeCtx();
+  const [which, setWhich] = useState<'view' | 'all'>('view');
+  const [format, setFormat] = useState<TicketExportFormat>('zip');
+  const [progress, setProgress] = useState<TicketExportProgress | null>(null);
+  const abort = useRef<AbortController | null>(null);
+  const running = Boolean(progress);
+
+  useEffect(() => {
+    if (open) setWhich('view');
+    // Closing the dialog stops an export that is still running.
+    else abort.current?.abort();
+  }, [open]);
+  useEffect(() => () => abort.current?.abort(), []);
+
+  const run = async () => {
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setProgress({ stage: 'list', done: 0 });
+    try {
+      const out = await exportTickets(scope, which === 'all' ? { view: 'all' } : query, format, { signal: ctl.signal, onProgress: setProgress });
+      ctl.signal.throwIfAborted();
+      downloadBlob(out.blob, out.filename);
+      notifySuccess('Tickets exported', `${out.count} ticket${out.count === 1 ? '' : 's'}.`);
+      onOpenChange(false);
+    } catch (e) {
+      if (!isAbort(e)) notifyError(e, 'Export failed');
+    } finally {
+      if (abort.current === ctl) abort.current = null;
+      setProgress(null);
+    }
+  };
+
+  const count = (n?: number) => (n === undefined ? '' : ` (${n})`);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Export tickets"
+      description="Download tickets to keep, share or open in a spreadsheet."
+      footer={
+        running ? (
+          <>
+            <span className="mr-auto text-[0.8125rem] text-ink-muted tabular-nums" role="status">{progressLabel(progress!)}</span>
+            <Button variant="ghost" onClick={() => abort.current?.abort()}>Cancel</Button>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button variant="accent" leading={<Download />} onClick={() => void run()}>
+              Export
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className="grid gap-4">
+        <Field label="Tickets">
+          <Segmented
+            label="Tickets"
+            value={which}
+            onChange={setWhich}
+            stretch
+            options={[
+              { value: 'view', label: `This view & filters${count(viewCount)}` },
+              { value: 'all', label: `All tickets${count(allCount)}` },
+            ]}
+          />
+        </Field>
+        <Field label="Format">
+          <Segmented
+            label="Format"
+            value={format}
+            onChange={setFormat}
+            stretch
+            options={[
+              { value: 'zip', label: 'ZIP' },
+              { value: 'csv', label: 'CSV' },
+            ]}
+          />
+        </Field>
+        <p className="text-[0.8125rem] text-ink-muted">
+          {format === 'zip'
+            ? 'A spreadsheet of the tickets, every ticket in full as JSON, and a readable transcript of each with its replies and internal notes.'
+            : 'One row per ticket: subject, status, priority, assignee, channel and dates. No messages.'}
+        </p>
+      </div>
     </Dialog>
   );
 }

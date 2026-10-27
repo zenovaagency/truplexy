@@ -30,6 +30,7 @@ import { useDocuments } from '@/lib/api/endpoints/knowledge';
 import type { Billing, BotConfig, BusinessTypeId, DocumentList, KnowledgeDocument, LedgerEntry } from '@/lib/api/types';
 import { formatMonth, LEDGER_KIND, ordinal, quoteTokens } from '@/lib/billing';
 import { cn } from '@/lib/cn';
+import { downloadBlob } from '@/lib/export';
 import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber, formatPerM, isoDay } from '@/lib/format';
 import { AUTO_CLOSE_MAX_HOURS, AutoCloseField } from '@/components/domain/AutoCloseField';
 import { ImageUploader } from '@/components/domain/ImageUploader';
@@ -787,12 +788,7 @@ export function BackupTab() {
       }
       const w = ws.data ?? (await api<{ name: string; bot: BotConfig }>('/workspace', { scope }));
       const file: BackupFile = { format: 'truplexy-backup', version: 1, exported_at: new Date().toISOString(), business: scope.tenant, bot: scope.bot, workspace: { name: w.name, bot: w.bot }, documents: full };
-      const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `truplexy-${scope.tenant}-${scope.bot}-${isoDay(new Date())}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      downloadBlob(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }), `truplexy-${scope.tenant}-${scope.bot}-${isoDay(new Date())}.json`);
       notifySuccess('Backup downloaded', `Configuration and ${full.length} documents.`);
     } catch (e) {
       notifyError(e, 'Export failed');

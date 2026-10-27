@@ -4,6 +4,7 @@ import { useAudit, useMembers } from '@/lib/api/endpoints/business';
 import type { AuditEvent } from '@/lib/api/types';
 import { AUDIT_CATEGORY_LABEL, auditCategory, describeAudit, type AuditCategory } from '@/lib/audit';
 import { cn } from '@/lib/cn';
+import { downloadBlob, toCsv } from '@/lib/export';
 import { formatDateTime, formatRelative, isoDay } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { useDebounce } from '@/hooks';
@@ -22,10 +23,11 @@ const CATEGORY_TONE: Record<AuditCategory, Tone> = {
   other: 'neutral',
 };
 
-function toCsv(rows: AuditEvent[], actorName: (e: AuditEvent) => string) {
-  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const head = ['time', 'actor', 'actor_email', 'action', 'target', 'details'];
-  return [head.join(','), ...rows.map((e) => [e.created_at, actorName(e), e.actor_email, e.action, e.target, e.details ? JSON.stringify(e.details) : ''].map(esc).join(','))].join('\n');
+function auditCsv(rows: AuditEvent[], actorName: (e: AuditEvent) => string) {
+  return toCsv(
+    ['time', 'actor', 'actor_email', 'action', 'target', 'details'],
+    rows.map((e) => [e.created_at, actorName(e), e.actor_email, e.action, e.target, e.details ? JSON.stringify(e.details) : '']),
+  );
 }
 
 export default function LogsPage() {
@@ -71,14 +73,8 @@ export default function LogsPage() {
 
   const filtered = Boolean(category || actor || from || to || term);
 
-  const download = () => {
-    const blob = new Blob([toCsv(rows, actorName)], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `truplexy-activity-${scope.tenant}-${isoDay(new Date())}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  };
+  const download = () =>
+    downloadBlob(new Blob([auditCsv(rows, actorName)], { type: 'text/csv;charset=utf-8' }), `truplexy-activity-${scope.tenant}-${isoDay(new Date())}.csv`);
 
   return (
     <Page>
