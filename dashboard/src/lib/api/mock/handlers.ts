@@ -1966,7 +1966,7 @@ route('POST', '/knowledge/uploads', 'knowledge.write', (c) => {
 function learnFrom(c: Ctx, t: MockTicket) {
   const ws = c.db.workspaces.find((w) => w.tenant_id === t.tenant_id && w.bot_id === t.bot_id);
   const existing = c.db.suggestions.find((s) => s.ticket_id === t.id);
-  if (!ws?.bot.knowledge?.learnFromTickets || (existing && existing.status !== 'ready')) return;
+  if (!ws?.bot.knowledge?.learnFromTickets || (existing && existing.status !== 'ready') || coveredBy(c, t)) return;
   draftFrom(c, t);
 }
 
@@ -1985,14 +1985,38 @@ function draftFrom(c: Ctx, t: MockTicket) {
   return s;
 }
 
+const COMMON_WORDS = new Set(['your', 'with', 'from', 'have', 'does', 'what', 'when', 'about', 'there', 'this', 'that', 'order', 'need', 'help', 'want', 'still', 'after']);
+/** Four-letter stems of a text's longer words, so "ship" and "shipping" meet. */
+const stems = (text: string) =>
+  new Set((text.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((w) => !COMMON_WORDS.has(w)).map((w) => w.slice(0, 4)));
+
+/**
+ * The article or waiting draft that already covers a ticket. The real API has the model compare the
+ * ticket with the closest articles and drafts; here a title sharing a word with the subject does.
+ */
+function coveredBy(c: Ctx, t: MockTicket) {
+  const words = stems(t.subject);
+  const shares = (title: string) => [...stems(title)].some((w) => words.has(w));
+  const doc = c.db.documents.find((d) => d.tenant_id === t.tenant_id && d.bot_id === t.bot_id && d.status === 'indexed' && shares(d.title));
+  if (doc) return { title: doc.title, extra: { document_id: doc.id } };
+  const draft = c.db.suggestions.find((s) => s.tenant_id === t.tenant_id && s.bot_id === t.bot_id && s.status === 'ready' && s.ticket_id !== t.id && shares(s.title));
+  if (draft) return { title: draft.title, extra: { suggestion_id: draft.id } };
+  return undefined;
+}
+
 // A person trains the bot from one ticket, whether or not it learns on its own or the ticket is closed.
 route('POST', '/tickets/:id/learn', 'knowledge.write', (c) => {
   const t = findTicket(c);
   if (!t.conversation_id) throw err(400, 'NO_CONVERSATION', 'This ticket has no conversation to learn from.');
   if (c.db.suggestions.some((s) => s.ticket_id === t.id && s.status === 'accepted')) throw err(409, 'SUGGESTION_HANDLED', "This ticket's answer is already in the knowledge base.");
-  const s = draftFrom(c, t);
-  if (!s) throw err(400, 'NOT_ANSWERED', "Reply to the customer first. The bot learns from your team's answers.");
-  return suggestionOut(c, s);
+  const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
+  if (!conv?.messages.some((m) => m.author === 'agent' && m.content.trim())) throw err(400, 'NOT_ANSWERED', "Reply to the customer first. The bot learns from your team's answers.");
+  const cover = coveredBy(c, t);
+  if (cover) {
+    const what = 'suggestion_id' in cover.extra ? `the draft “${cover.title}”, waiting for review` : `“${cover.title}”`;
+    throw err(409, 'ALREADY_COVERED', `Already covered by ${what}. Nothing new to add.`, cover.extra);
+  }
+  return suggestionOut(c, draftFrom(c, t)!);
 });
 
 const suggestionOut = (c: Ctx, { tenant_id: _t, bot_id: _b, ...s }: MockSuggestion) => ({

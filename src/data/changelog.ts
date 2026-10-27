@@ -18,7 +18,7 @@ export const CHANGELOG: ChangeEntry[] = [
     title: 'Your assistant learns from your team’s answers',
     tag: 'Dashboard',
     items: [
-      'Turn on Learn from closed tickets under Knowledge base → Suggested. When a ticket your team answered closes, the assistant drafts a reusable question and answer from it, without the customer’s details or your internal notes.',
+      'Turn on Learn from closed tickets under Knowledge base → Suggested. When a ticket your team answered closes, the assistant drafts a reusable question and answer from it, without the customer’s details or your internal notes. It checks your knowledge base and the drafts already waiting first, and skips anything they already cover.',
       'Nothing is added on its own: edit a draft and add it to the knowledge base, or dismiss it. Added articles show as From a ticket and link back to it.',
       'Train bot on a ticket drafts its article right away, whether or not learning is on. Each draft counts as one AI reply.',
     ],

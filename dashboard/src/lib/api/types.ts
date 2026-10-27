@@ -1750,6 +1750,8 @@ export interface ApiErrorBody {
     message: string;
     request_id?: string;
     document_id?: string;
+    /** ALREADY_COVERED: the draft waiting for review that covers the ticket. */
+    suggestion_id?: string;
     limit?: LimitName;
     /** SOLE_OWNER: the businesses the person is the only owner of. */
     tenants?: { id: string; name: string }[];

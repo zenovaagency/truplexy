@@ -12,6 +12,8 @@ export class ApiError extends Error {
   readonly status: number;
   readonly requestId?: string;
   readonly documentId?: string;
+  /** ALREADY_COVERED: the draft waiting for review that covers the ticket. */
+  readonly suggestionId?: string;
   readonly limit?: LimitName;
   /** SOLE_OWNER: the businesses the person is the only owner of. */
   readonly tenants?: { id: string; name: string }[];
@@ -24,6 +26,7 @@ export class ApiError extends Error {
     status: number;
     requestId?: string;
     documentId?: string;
+    suggestionId?: string;
     limit?: LimitName;
     tenants?: { id: string; name: string }[];
     retryAfter?: number;
@@ -34,6 +37,7 @@ export class ApiError extends Error {
     this.status = init.status;
     this.requestId = init.requestId;
     this.documentId = init.documentId;
+    this.suggestionId = init.suggestionId;
     this.limit = init.limit;
     this.tenants = init.tenants;
     this.retryAfter = init.retryAfter;
@@ -156,6 +160,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
       status: res.status,
       requestId: err?.request_id ?? requestId,
       documentId: err?.document_id,
+      suggestionId: err?.suggestion_id,
       limit: err?.limit,
       tenants: err?.tenants,
       retryAfter: parseRetryAfter(res.headers.get('Retry-After')),
