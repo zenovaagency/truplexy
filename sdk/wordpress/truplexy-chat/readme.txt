@@ -4,7 +4,7 @@ Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: MIT
 
 AI customer support that keeps one conversation going, with handoff to your team. Your chat key stays on your server.
@@ -81,6 +81,10 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 
 == Changelog ==
 
+= 1.0.1 =
+* The chat button pops in, lifts when you hover it, presses in when clicked, and spins between its chat and close icons.
+* The chat window grows out of the button when it opens and fades back into it when it closes, instead of vanishing. On phones it slides up. Visitors who turn off motion in their system settings see fades only.
+
 = 1.0.0 =
 * First release on WordPress.org.
 * The widget script is bundled with the plugin instead of loaded from a CDN.
@@ -100,6 +104,9 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 * First release.
 
 == Upgrade Notice ==
+
+= 1.0.1 =
+The chat button and window open and close with smooth animations.
 
 = 1.0.0 =
 First WordPress.org release. The chat widget is now bundled with the plugin, and the settings page checks that your chat key works.
