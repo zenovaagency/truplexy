@@ -1,11 +1,12 @@
 import { isApiError, type Scope } from '@/lib/api/client';
-import { processUntilDone, registerUpload } from '@/lib/api/endpoints/knowledge';
+import { processUntilDone, registerReplace, registerUpload } from '@/lib/api/endpoints/knowledge';
 import type { DocMetadata, KnowledgeDocument } from '@/lib/api/types';
 
 /**
  * The knowledge upload flow from API_REFERENCE.md: hash in the browser,
  * register, PUT the bytes straight to R2, then process until indexed.
- * Files never pass through the API.
+ * Files never pass through the API. A file named like one already
+ * uploaded replaces it, as does an upload with `replaceId`.
  */
 
 export type UploadPhase = 'queued' | 'hashing' | 'registering' | 'uploading' | 'processing' | 'indexed' | 'failed' | 'duplicate';
@@ -17,6 +18,13 @@ export interface UploadState {
   document?: KnowledgeDocument;
   error?: string;
   duplicateOf?: string;
+  /** The file replaced `document`'s previous version. */
+  replaced?: boolean;
+}
+
+export interface UploadOptions {
+  /** Replace this document's file instead of adding one. */
+  replaceId?: string;
 }
 
 export async function sha256Hex(file: Blob) {
@@ -46,25 +54,30 @@ export async function uploadOne(
   file: File,
   meta: DocMetadata & { title?: string },
   onState: (s: UploadState) => void,
+  { replaceId }: UploadOptions = {},
 ) {
   try {
     onState({ phase: 'hashing', progress: 0 });
     const sha256 = await sha256Hex(file);
 
     onState({ phase: 'registering', progress: 0 });
-    const reg = await registerUpload(scope, { filename: file.name, size: file.size, sha256, ...meta });
+    const body = { filename: file.name, size: file.size, sha256 };
+    const reg = replaceId ? await registerReplace(scope, replaceId, body) : await registerUpload(scope, { ...body, ...meta, replace_existing: true });
+    const replaced = Boolean(reg.replaced);
 
-    onState({ phase: 'uploading', progress: 0, document: reg.document });
-    await putObject(reg.url, reg.headers, file, (p) => onState({ phase: 'uploading', progress: p, document: reg.document }));
+    onState({ phase: 'uploading', progress: 0, document: reg.document, replaced });
+    await putObject(reg.url, reg.headers, file, (p) => onState({ phase: 'uploading', progress: p, document: reg.document, replaced }));
 
-    onState({ phase: 'processing', progress: 0, document: reg.document });
+    onState({ phase: 'processing', progress: 0, document: reg.document, replaced });
     const doc = await processUntilDone(scope, reg.document.id, (d) =>
-      onState({ phase: 'processing', progress: d.chunk_count ? d.embedded_count / d.chunk_count : 0, document: d }),
+      onState({ phase: 'processing', progress: d.chunk_count ? d.embedded_count / d.chunk_count : 0, document: d, replaced }),
     );
     onState(
-      doc.status === 'indexed'
-        ? { phase: 'indexed', progress: 1, document: doc }
-        : { phase: 'failed', progress: 1, document: doc, error: doc.error ?? 'Indexing failed.' },
+      doc.replace_pending
+        ? { phase: 'failed', progress: 1, document: doc, error: "The new file didn't reach storage. The current version is still in use." }
+        : doc.status === 'indexed'
+          ? { phase: 'indexed', progress: 1, document: doc, replaced }
+          : { phase: 'failed', progress: 1, document: doc, error: doc.error ?? 'Indexing failed.' },
     );
   } catch (e) {
     if (isApiError(e) && e.code === 'DUPLICATE_DOCUMENT') {
@@ -81,13 +94,13 @@ export async function uploadMany(
   files: { key: string; file: File }[],
   meta: DocMetadata,
   onState: (key: string, s: UploadState) => void,
-  concurrency = 3,
+  { concurrency = 3, ...opts }: UploadOptions & { concurrency?: number } = {},
 ) {
   const queue = [...files];
   const worker = async () => {
     for (let item = queue.shift(); item; item = queue.shift()) {
       const { key, file } = item;
-      await uploadOne(scope, file, meta, (s) => onState(key, s));
+      await uploadOne(scope, file, meta, (s) => onState(key, s), opts);
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, files.length) }, worker));

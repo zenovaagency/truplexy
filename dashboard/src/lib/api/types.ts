@@ -464,6 +464,8 @@ export interface KnowledgeDocument extends DocMetadata {
   created_at: string;
   updated_at: string;
   indexed_at?: string;
+  /** A new version of the file is uploaded but not read yet; answers still come from the current one. */
+  replace_pending?: boolean;
   content?: string;
 }
 
@@ -500,6 +502,8 @@ export interface UploadRegistration {
   method: 'PUT';
   headers: Record<string, string>;
   expires_at: string;
+  /** The file replaces `document`'s current one. */
+  replaced?: boolean;
 }
 
 export interface SearchFilters {

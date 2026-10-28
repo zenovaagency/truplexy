@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useOutletContext, useSearchParams } from 'react-router';
-import { BookOpen, CheckCircle2, FilePlus2, FileText, FlaskConical, Infinity as InfinityIcon, Lightbulb, Search, Sparkles, Ticket, TriangleAlert, Upload } from 'lucide-react';
+import { BookOpen, CheckCircle2, FilePlus2, FileText, FileUp, FlaskConical, Infinity as InfinityIcon, Lightbulb, Search, Sparkles, Ticket, Trash2, TriangleAlert, Upload } from 'lucide-react';
 import { useTenant } from '@/lib/api/endpoints/business';
-import { useDocuments, useKnowledgeSuggestions, useSearchKnowledge } from '@/lib/api/endpoints/knowledge';
+import { useDocument, useDocuments, useKnowledgeSuggestions, useSearchKnowledge } from '@/lib/api/endpoints/knowledge';
 import type { KnowledgeDocument, SearchFilters } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatBytes, formatMs, formatNumber, formatRelative } from '@/lib/format';
@@ -29,7 +29,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { DocStatusBadge } from '@/components/domain/badges';
-import { ArticleEditor, DocumentSheet, UploadDialog } from './dialogs';
+import { ArticleEditor, DocumentSheet, UploadDialog, useConfirmDeleteDocument } from './dialogs';
 
 export { SuggestionsTab } from './SuggestionsTab';
 
@@ -37,6 +37,10 @@ interface Ctx {
   openUpload: () => void;
   openArticle: () => void;
   openDoc: (id: string) => void;
+  /** Upload a new version of a file. */
+  openReplace: (id: string) => void;
+  /** Ask, then delete; closes the drawer if it shows the document. */
+  deleteDoc: (doc: KnowledgeDocument) => void;
 }
 
 /** Defaults until the first list response says otherwise. */
@@ -46,6 +50,9 @@ export default function KnowledgePage() {
   const { can, href, bot } = useScopeCtx();
   const [params, setParams] = useSearchParams();
   const [editing, setEditing] = useState<KnowledgeDocument | null>(null);
+  const confirmDelete = useConfirmDeleteDocument();
+  const replaceId = params.get('replace');
+  const replacing = useDocument(replaceId);
   // The documents query already has the limits; reuse its cache.
   const docs = useDocuments({});
   const first = docs.data?.pages[0];
@@ -73,11 +80,27 @@ export default function KnowledgePage() {
     openDoc: (id) => setParams((p) => {
       const n = new URLSearchParams(p);
       n.delete('upload');
+      n.delete('replace');
       n.delete('article');
       n.set('doc', id);
       return n;
     }),
+    openReplace: (id) => setParams((p) => {
+      const n = new URLSearchParams(p);
+      n.delete('doc');
+      n.set('upload', '1');
+      n.set('replace', id);
+      return n;
+    }),
+    deleteDoc: (d) => void confirmDelete(d, () => params.get('doc') === d.id && setParam('doc')),
   };
+  const closeUpload = () =>
+    setParams((p) => {
+      const n = new URLSearchParams(p);
+      n.delete('upload');
+      n.delete('replace');
+      return n;
+    }, { replace: true });
 
   return (
     <Page>
@@ -109,11 +132,13 @@ export default function KnowledgePage() {
       {can('knowledge.write') && (
         <>
           <UploadDialog
-            open={params.get('upload') === '1'}
-            onOpenChange={(o) => !o && setParam('upload')}
+            // A replacement waits for its document, so the dialog never opens as a plain upload.
+            open={params.get('upload') === '1' && (!replaceId || Boolean(replacing.data))}
+            onOpenChange={(o) => !o && closeUpload()}
             accept={uploadAccept}
             maxFileBytes={first?.max_file_bytes ?? 25 * 1024 * 1024}
             onOpenDocument={ctx.openDoc}
+            replaceDoc={replaceId ? replacing.data : undefined}
           />
           <ArticleEditor
             open={params.get('article') === 'new' || Boolean(editing)}
@@ -131,7 +156,7 @@ export default function KnowledgePage() {
           />
         </>
       )}
-      <DocumentSheet id={params.get('doc')} onClose={() => setParam('doc')} onEdit={(d) => setEditing(d)} />
+      <DocumentSheet id={params.get('doc')} onClose={() => setParam('doc')} onEdit={(d) => setEditing(d)} onReplace={(d) => ctx.openReplace(d.id)} />
     </Page>
   );
 }
@@ -140,7 +165,7 @@ export default function KnowledgePage() {
 
 export function DocumentsTab() {
   const { can } = useScopeCtx();
-  const { openUpload, openArticle, openDoc } = useOutletContext<Ctx>();
+  const { openUpload, openArticle, openDoc, openReplace, deleteDoc } = useOutletContext<Ctx>();
   const [search, setSearch] = useState('');
   const q = useDebounce(search.trim(), 300);
   const list = useDocuments({ q: q || undefined });
@@ -200,6 +225,30 @@ export function DocumentsTab() {
     { key: 'size', header: 'Size', align: 'right', hideBelowLg: true, cell: (d) => <span className="tabular-nums text-ink-muted">{formatBytes(d.byte_size)}</span> },
     { key: 'updated', header: 'Updated', align: 'right', cell: (d) => <span className="whitespace-nowrap text-ink-muted">{formatRelative(d.updated_at)}</span> },
   ];
+  if (can('knowledge.write')) {
+    columns.push({
+      key: 'actions',
+      header: <span className="sr-only">Actions</span>,
+      align: 'right',
+      className: 'w-px',
+      cell: (d) => (
+        <span className="inline-flex items-center justify-end gap-1">
+          {d.source_type === 'file' && (
+            <Tip content="Replace file">
+              <Button size="xs" icon variant="quiet" aria-label={`Replace ${d.source_name ?? d.title}`} onClick={() => openReplace(d.id)}>
+                <FileUp />
+              </Button>
+            </Tip>
+          )}
+          <Tip content="Delete">
+            <Button size="xs" icon variant="quiet" className="hover:text-danger" aria-label={`Delete ${d.title}`} onClick={() => deleteDoc(d)}>
+              <Trash2 />
+            </Button>
+          </Tip>
+        </span>
+      ),
+    });
+  }
 
   return (
     <div className="grid gap-5">

@@ -77,8 +77,19 @@ export const reindexDocument = (scope: Scope, id: string, opts: { extract?: bool
     query: { extract: opts.extract || undefined, force: opts.force || undefined },
   });
 
-export const registerUpload = (scope: Scope, body: { filename: string; size: number; sha256: string; title?: string } & DocMetadata) =>
+export type UploadBody = { filename: string; size: number; sha256: string };
+
+/** With `replace_existing`, a file named like one already uploaded replaces it. */
+export const registerUpload = (scope: Scope, body: UploadBody & { title?: string; replace_existing?: boolean } & DocMetadata) =>
   api<UploadRegistration>('/knowledge/uploads', { method: 'POST', body, scope });
+
+/** Registers a new version of an uploaded file; it is read on the next /process. */
+export const registerReplace = (scope: Scope, id: string, body: UploadBody) =>
+  api<UploadRegistration>(`/knowledge/documents/${id}/replace`, { method: 'POST', body, scope });
+
+/** The uploaded file with this name, ignoring case, if there is one. */
+export const findDocumentByName = async (scope: Scope, name: string) =>
+  (await api<DocumentList>('/knowledge/documents', { scope, query: { source_name: name, limit: 1 } })).data[0];
 
 /**
  * Indexes a document to completion: repeats /process while it is

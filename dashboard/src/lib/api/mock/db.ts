@@ -111,7 +111,14 @@ export type MockModel = Omit<
 
 export type MockInvite = Invite & { tenant_id: string; token: string };
 export type MockAudit = AuditEvent & { tenant_id: string };
-export type MockDoc = KnowledgeDocument & { tenant_id: string; bot_id: string; content: string; sha256?: string };
+export type MockDoc = KnowledgeDocument & {
+  tenant_id: string;
+  bot_id: string;
+  content: string;
+  sha256?: string;
+  /** A new version of the file, registered and read on the next /process. */
+  replacement?: { filename: string; size: number; sha256: string };
+};
 /** A suggestion learned from a closed ticket. `ticket_subject` is read from the ticket on the way out. */
 export type MockSuggestion = Omit<KnowledgeSuggestion, 'ticket_subject' | 'status'> & {
   tenant_id: string;
