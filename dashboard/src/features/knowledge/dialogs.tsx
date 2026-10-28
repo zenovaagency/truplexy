@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import {
+  findDocumentByName,
   processUntilDone,
   reindexDocument,
   useCreateArticle,
@@ -125,20 +126,51 @@ interface QueuedFile {
   file: File;
   state: UploadState;
   problem?: string;
+  /** The uploaded file with the same name, which this one replaces. */
+  replaces?: { id: string; title: string };
 }
 
+/** Why a file can't be uploaded, if it can't. */
+function checkFile(file: File, exts: string[], maxFileBytes: number) {
+  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+  const limit = TEXT_EXT.test(file.name) ? Math.min(TEXT_MAX, maxFileBytes) : maxFileBytes;
+  return !exts.includes(ext)
+    ? `${ext || 'This type'} isn't supported`
+    : file.size > limit
+      ? `Larger than ${formatBytes(limit)}`
+      : file.size === 0
+        ? 'The file is empty'
+        : undefined;
+}
+
+function statusText(f: QueuedFile, replacing?: string) {
+  const s = f.state;
+  if (f.problem) return f.problem;
+  if (s.phase === 'duplicate' && s.duplicateOf && s.duplicateOf === (replacing ?? f.replaces?.id)) return 'Same as the current file';
+  if (s.error && s.phase !== 'indexed') return s.error;
+  if (s.phase === 'indexed' && s.replaced) return 'Replaced';
+  if (s.phase === 'queued' && f.replaces) return `Replaces “${f.replaces.title}”`;
+  return PHASE_LABEL[s.phase];
+}
+
+/**
+ * Uploads files. A file named like one already uploaded replaces it; with
+ * `replaceDoc`, the one file chosen replaces that document's.
+ */
 export function UploadDialog({
   open,
   onOpenChange,
   accept,
   maxFileBytes,
   onOpenDocument,
+  replaceDoc,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   accept: string[];
   maxFileBytes: number;
   onOpenDocument: (id: string) => void;
+  replaceDoc?: KnowledgeDocument;
 }) {
   const { scope } = useScopeCtx();
   const qc = useQueryClient();
@@ -148,6 +180,7 @@ export function UploadDialog({
   const [drag, setDrag] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const done = files.length > 0 && files.every((f) => ['indexed', 'failed', 'duplicate'].includes(f.state.phase) || f.problem);
+  const replacing = replaceDoc?.id;
 
   useEffect(() => {
     if (open) {
@@ -155,7 +188,7 @@ export function UploadDialog({
       setMeta({});
       setRunning(false);
     }
-  }, [open]);
+  }, [open, replacing]);
 
   const exts = accept
     .map((a) => a.trim())
@@ -163,32 +196,41 @@ export function UploadDialog({
     .map((a) => (a.startsWith('.') ? a : `.${a}`).toLowerCase());
   const add = useCallback(
     (list: FileList | File[]) => {
-      const next = [...list].map<QueuedFile>((file) => {
-        const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-        const limit = TEXT_EXT.test(file.name) ? Math.min(TEXT_MAX, maxFileBytes) : maxFileBytes;
-        const problem = !exts.includes(ext)
-          ? `${ext || 'This type'} isn't supported`
-          : file.size > limit
-            ? `Larger than ${formatBytes(limit)}`
-            : file.size === 0
-              ? 'The file is empty'
-              : undefined;
-        return { key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`, file, state: { phase: 'queued', progress: 0 }, problem };
-      });
+      const next = [...list].slice(replacing ? -1 : 0).map<QueuedFile>((file) => ({
+        key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
+        file,
+        state: { phase: 'queued', progress: 0 },
+        problem: checkFile(file, exts, maxFileBytes),
+      }));
+      if (replacing) {
+        setFiles(next);
+        return;
+      }
       setFiles((f) => [...f, ...next]);
+      // Say which files will replace one already uploaded; the upload replaces them either way.
+      for (const f of next.filter((x) => !x.problem)) {
+        findDocumentByName(scope, f.file.name)
+          .then((doc) => doc && setFiles((all) => all.map((x) => (x.key === f.key ? { ...x, replaces: { id: doc.id, title: doc.title } } : x))))
+          .catch(() => {});
+      }
     },
-    [exts, maxFileBytes],
+    [exts, maxFileBytes, replacing, scope],
   );
 
   const start = async () => {
     const ok = files.filter((f) => !f.problem && f.state.phase === 'queued');
     if (!ok.length) return;
     setRunning(true);
-    await uploadMany(scope, ok.map(({ key, file }) => ({ key, file })), cleanMeta(meta), (key, state) =>
-      setFiles((all) => all.map((f) => (f.key === key ? { ...f, state } : f))),
+    await uploadMany(
+      scope,
+      ok.map(({ key, file }) => ({ key, file })),
+      replacing ? {} : cleanMeta(meta),
+      (key, state) => setFiles((all) => all.map((f) => (f.key === key ? { ...f, state } : f))),
+      { replaceId: replacing },
     );
     setRunning(false);
     qc.invalidateQueries({ queryKey: qk.bot(scope, 'documents') });
+    if (replacing) qc.invalidateQueries({ queryKey: qk.bot(scope, 'document', replacing) });
   };
 
   const pending = files.filter((f) => !f.problem && f.state.phase === 'queued').length;
@@ -199,12 +241,16 @@ export function UploadDialog({
       open={open}
       onOpenChange={(o) => !running && onOpenChange(o)}
       size="lg"
-      title="Upload documents"
-      description="Files go straight to storage and are indexed in the background. Keep this open until they finish."
+      title={replaceDoc ? `Replace “${replaceDoc.title}”` : 'Upload documents'}
+      description={
+        replaceDoc
+          ? 'Choose the new version. The document keeps its title, link and filters, and answers from the current file until the new one is ready.'
+          : 'Files go straight to storage and are indexed in the background. A file with the same name as one already uploaded replaces it. Keep this open until they finish.'
+      }
       footer={
         done ? (
           <Button variant="accent" onClick={() => onOpenChange(false)}>
-            Done{indexed ? ` · ${indexed} indexed` : ''}
+            Done{indexed && !replacing ? ` · ${indexed} indexed` : ''}
           </Button>
         ) : (
           <>
@@ -212,7 +258,7 @@ export function UploadDialog({
               Cancel
             </Button>
             <Button variant="accent" loading={running} disabled={!pending} onClick={start} leading={<UploadCloud />}>
-              {running ? 'Uploading…' : `Upload ${pending || ''} ${pending === 1 ? 'file' : 'files'}`}
+              {running ? 'Uploading…' : replacing ? 'Replace file' : `Upload ${pending || ''} ${pending === 1 ? 'file' : 'files'}`}
             </Button>
           </>
         )
@@ -243,14 +289,14 @@ export function UploadDialog({
             <span className="grid size-12 place-items-center rounded-2xl bg-surface text-accent shadow-sm">
               <FileUp className="size-5" />
             </span>
-            <p className="text-[0.875rem] font-semibold text-ink">Drop files here, or click to choose</p>
+            <p className="text-[0.875rem] font-semibold text-ink">{replacing ? 'Drop the new version here, or click to choose' : 'Drop files here, or click to choose'}</p>
             <p className="text-xs text-ink-faint">
               {exts.join(', ')} · text up to {formatBytes(Math.min(TEXT_MAX, maxFileBytes))}, PDF, Word and HTML up to {formatBytes(maxFileBytes)}
             </p>
             <input
               ref={input}
               type="file"
-              multiple
+              multiple={!replacing}
               accept={exts.join(',')}
               className="hidden"
               onChange={(e) => {
@@ -273,13 +319,13 @@ export function UploadDialog({
                     <div className="grid min-w-0 flex-1">
                       <span className="truncate text-[0.8125rem] font-semibold text-ink">{f.file.name}</span>
                       <span className="text-xs text-ink-faint">
-                        {formatBytes(f.file.size)} · {f.problem ?? (s.error && s.phase !== 'indexed' ? s.error : PHASE_LABEL[s.phase])}
+                        {formatBytes(f.file.size)} · {statusText(f, replacing)}
                         {s.phase === 'processing' && s.document?.chunk_count ? ` · ${s.document.embedded_count}/${s.document.chunk_count} passages` : ''}
                       </span>
                     </div>
                     {s.phase === 'indexed' && <CheckCircle2 className="size-4 text-live" />}
                     {failed && <AlertTriangle className="size-4 text-danger" />}
-                    {s.phase === 'duplicate' && s.duplicateOf && (
+                    {s.phase === 'duplicate' && s.duplicateOf && s.duplicateOf !== replacing && (
                       <Button size="xs" variant="ghost" onClick={() => onOpenDocument(s.duplicateOf!)}>
                         Open existing
                       </Button>
@@ -300,7 +346,7 @@ export function UploadDialog({
           </ul>
         )}
 
-        {!running && !done && <MetadataFields value={meta} onChange={setMeta} />}
+        {!running && !done && !replacing && <MetadataFields value={meta} onChange={setMeta} />}
       </div>
     </Dialog>
   );
@@ -433,11 +479,34 @@ const metaChanged = (doc: KnowledgeDocument, m: DocMetadata) => META_FIELDS.some
 /* Document drawer                                                     */
 /* ------------------------------------------------------------------ */
 
-export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onClose: () => void; onEdit: (doc: KnowledgeDocument) => void }) {
-  const { scope, can, href } = useScopeCtx();
-  const q = useDocument(id);
+/** Asks before deleting a document, then deletes it and calls onDeleted. */
+export function useConfirmDeleteDocument() {
   const del = useDeleteDocument();
   const confirm = useConfirm();
+  return (d: KnowledgeDocument, onDeleted?: () => void) =>
+    confirm({
+      title: `Delete “${d.title}”?`,
+      description: 'Its passages, embeddings and stored file are deleted. The assistant stops using it right away.',
+      confirmLabel: 'Delete document',
+      tone: 'danger',
+      onConfirm: () => del.mutateAsync(d.id).then(onDeleted),
+    });
+}
+
+export function DocumentSheet({
+  id,
+  onClose,
+  onEdit,
+  onReplace,
+}: {
+  id: string | null;
+  onClose: () => void;
+  onEdit: (doc: KnowledgeDocument) => void;
+  onReplace: (doc: KnowledgeDocument) => void;
+}) {
+  const { scope, can, href } = useScopeCtx();
+  const q = useDocument(id);
+  const confirmDelete = useConfirmDeleteDocument();
   const qc = useQueryClient();
   const [working, setWorking] = useState<string | null>(null);
   const writable = can('knowledge.write');
@@ -460,15 +529,7 @@ export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onCl
     }
   };
 
-  const remove = () =>
-    d &&
-    confirm({
-      title: `Delete “${d.title}”?`,
-      description: 'Its passages, embeddings and stored file are deleted. The assistant stops using it right away.',
-      confirmLabel: 'Delete document',
-      tone: 'danger',
-      onConfirm: () => del.mutateAsync(d.id).then(onClose),
-    });
+  const remove = () => d && confirmDelete(d, onClose);
 
   const editable = d && (d.source_type !== 'file' || d.status === 'indexed');
 
@@ -489,6 +550,14 @@ export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onCl
               </Button>
             </MenuTrigger>
             <MenuContent>
+              {d.source_type === 'file' && (
+                <>
+                  <MenuItem onSelect={() => onReplace(d)}>
+                    <FileUp /> Replace file…
+                  </MenuItem>
+                  <MenuSeparator />
+                </>
+              )}
               <MenuLabel>Reindex</MenuLabel>
               <MenuItem onSelect={() => void reindex({}, 'Rebuilding')}>
                 <RefreshCw /> Rebuild passages
@@ -565,8 +634,18 @@ export function DocumentSheet({ id, onClose, onEdit }: { id: string | null; onCl
               </Callout>
             )}
             {d.status === 'pending_upload' && (
-              <Callout tone="warn" icon={<AlertTriangle />} title="The upload never finished">
+              <Callout
+                tone="warn"
+                icon={<AlertTriangle />}
+                title="The upload never finished"
+                action={writable ? <Button size="xs" onClick={() => onReplace(d)}>Upload again</Button> : undefined}
+              >
                 Upload the file again, or delete this entry.
+              </Callout>
+            )}
+            {d.replace_pending && (
+              <Callout tone="accent" icon={<Loader2 className="animate-spin" />} title="A new version is on its way">
+                Answers come from the current file until the new one is ready.
               </Callout>
             )}
             <DescList

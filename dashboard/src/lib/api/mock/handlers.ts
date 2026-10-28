@@ -1757,7 +1757,8 @@ route('GET', '/models', 'bot.read', () => ({ selection: 'platform' as const, mod
 
 /* Knowledge ---------------------------------------------------------- */
 
-const docOut = ({ tenant_id: _t, bot_id: _b, content: _c, sha256: _s, ...d }: MockDoc) => d;
+const docOut = ({ tenant_id: _t, bot_id: _b, content: _c, sha256: _s, replacement, ...d }: MockDoc) =>
+  replacement ? { ...d, replace_pending: true } : d;
 const botDocs = (c: Ctx) => c.db.documents.filter((d) => d.tenant_id === c.tenant.id && d.bot_id === c.botId);
 const ACCEPT = ['.md', '.markdown', '.txt', '.text', '.csv', '.json', '.html', '.htm', '.pdf', '.docx'];
 
@@ -1774,10 +1775,16 @@ function bumpKb(c: Ctx) {
 
 route('GET', '/knowledge/documents', 'knowledge.read', (c) => {
   const q = (c.query.get('q') ?? '').toLowerCase();
+  const name = (c.query.get('source_name') ?? '').trim().toLowerCase();
   const status = c.query.get('status');
   const limit = Math.min(100, Math.max(1, Number(c.query.get('limit') ?? 50)));
   const all = botDocs(c).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const matched = all.filter((d) => (!q || `${d.title} ${d.source_name ?? ''}`.toLowerCase().includes(q)) && (!status || d.status === status));
+  const matched = all.filter(
+    (d) =>
+      (!q || `${d.title} ${d.source_name ?? ''}`.toLowerCase().includes(q)) &&
+      (!name || (d.source_type === 'file' && d.source_name?.toLowerCase() === name)) &&
+      (!status || d.status === status),
+  );
   const start = Number(c.query.get('cursor') ?? 0);
   const page = matched.slice(start, start + limit);
   const counts: Record<string, number> = {};
@@ -1866,12 +1873,32 @@ route('PUT', '/knowledge/documents/:id', 'knowledge.write', (c) => {
 route('DELETE', '/knowledge/documents/:id', 'knowledge.write', (c) => {
   const d = findDoc(c);
   c.db.documents = c.db.documents.filter((x) => x !== d);
+  pendingObjects.delete(d.id);
+  pendingObjects.delete(`${d.id}:replacement`);
   bumpKb(c);
   return noContent();
 });
 
 route('POST', '/knowledge/documents/:id/process', 'knowledge.write', (c) => {
   const d = findDoc(c);
+  // A new version that has arrived is read first; until then the current one stays.
+  const next = d.replacement;
+  if (next && pendingObjects.has(`${d.id}:replacement`)) {
+    const text = pendingObjects.get(`${d.id}:replacement`)!;
+    pendingObjects.delete(`${d.id}:replacement`);
+    d.replacement = undefined;
+    if (/\.json$/i.test(next.filename) && text && !isJson(text)) {
+      throw invalid(`${next.filename} couldn't replace the current file: the JSON could not be read. The current version is still in use.`);
+    }
+    // A title taken from the old file name follows the new file.
+    if (d.title === titleOf(d.source_name ?? '')) d.title = titleOf(next.filename);
+    Object.assign(d, fileFields(next.filename, next.size), { sha256: next.sha256, error: undefined });
+    d.content = text || `# ${d.title}\n\n(Extracted text of ${d.source_name}.)`;
+    d.status = 'processing';
+    d.chunk_count = Math.max(2, Math.ceil(d.byte_size / 2400));
+    // Unchanged passages keep their embeddings.
+    d.embedded_count = Math.floor(d.chunk_count / 2);
+  }
   if (d.status === 'pending_upload') {
     if (!pendingObjects.has(d.id)) {
       d.status = 'failed';
@@ -1913,16 +1940,79 @@ route('POST', '/knowledge/documents/:id/reindex', 'knowledge.write', (c) => {
 /** Text of files "uploaded" to mock storage, keyed by document ID, until processed. */
 export const pendingObjects = new Map<string, string>();
 
-route('POST', '/knowledge/uploads', 'knowledge.write', (c) => {
-  const filename = str(c.body.filename, 'filename', 1, 260)!;
+const titleOf = (filename: string) => filename.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
+
+const isJson = (text: string) => {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+function fileFields(filename: string, size: number) {
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  return {
+    source_name: filename,
+    mime_type: ext === '.pdf' ? 'application/pdf' : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'text/plain',
+    byte_size: size,
+  };
+}
+
+/** Checks the file an upload or replacement describes. */
+function uploadFile(b: any) {
+  const filename = str(b.filename, 'filename', 1, 260)!;
   if (filename.includes('/')) throw invalid('filename must not contain slashes.');
   const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
   if (!ACCEPT.includes(ext)) throw invalid(`Files must end in ${ACCEPT.join(', ')}.`);
-  const size = Number(c.body.size);
+  const size = Number(b.size);
   const textual = ['.md', '.markdown', '.txt', '.text', '.csv', '.json'].includes(ext);
   if (!size || size > (textual ? 5 : 25) * 1024 * 1024) throw invalid(`size must be at most ${textual ? 5 : 25} MB for ${ext} files.`);
-  if (!/^[0-9a-f]{64}$/.test(c.body.sha256 ?? '')) throw invalid('sha256 must be 64 lowercase hex characters.');
-  const existing = botDocs(c).find((d) => d.sha256 === c.body.sha256);
+  if (!/^[0-9a-f]{64}$/.test(b.sha256 ?? '')) throw invalid('sha256 must be 64 lowercase hex characters.');
+  return { filename, size, sha256: b.sha256 as string };
+}
+
+const uploadOut = (d: MockDoc, key: string, replaced?: boolean) => ({
+  document: docOut(d),
+  url: `mock://r2/${key}`,
+  method: 'PUT',
+  headers: { 'Content-Type': d.mime_type ?? 'application/octet-stream' },
+  expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+  ...(replaced ? { replaced } : {}),
+});
+
+/** Stages a new version of d's file, or takes it straight away when the current one never arrived. */
+function replaceFile(c: Ctx, d: MockDoc, file: ReturnType<typeof uploadFile>) {
+  if (d.source_type !== 'file') throw invalid('Only uploaded files can be replaced. Edit the article’s text instead.');
+  if (file.sha256 === d.sha256 && d.status !== 'pending_upload' && d.status !== 'failed') {
+    throw err(409, 'DUPLICATE_DOCUMENT', `This file is already in "${d.title}".`, { document_id: d.id });
+  }
+  const other = botDocs(c).find((x) => x.id !== d.id && x.sha256 === file.sha256 && x.status !== 'failed');
+  if (other) throw err(409, 'DUPLICATE_DOCUMENT', `This file is already in "${other.title}".`, { document_id: other.id });
+  if (d.status === 'pending_upload') {
+    if (d.title === titleOf(d.source_name ?? '')) d.title = titleOf(file.filename);
+    Object.assign(d, fileFields(file.filename, file.size), { sha256: file.sha256, error: undefined, updated_at: nowIso() });
+    return created(uploadOut(d, d.id, true));
+  }
+  d.replacement = file;
+  return created({ ...uploadOut(d, `${d.id}:replacement`, true), headers: { 'Content-Type': fileFields(file.filename, file.size).mime_type } });
+}
+
+route('POST', '/knowledge/documents/:id/replace', 'knowledge.write', (c) => {
+  const file = uploadFile(c.body);
+  return replaceFile(c, findDoc(c), file);
+});
+
+route('POST', '/knowledge/uploads', 'knowledge.write', (c) => {
+  const { filename, size, sha256 } = uploadFile(c.body);
+  if (c.body.replace_existing) {
+    const same = botDocs(c)
+      .filter((d) => d.source_type === 'file' && d.source_name?.toLowerCase() === filename.toLowerCase())
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+    if (same) return replaceFile(c, same, { filename, size, sha256 });
+  }
+  const existing = botDocs(c).find((d) => d.sha256 === sha256);
   if (existing && existing.status !== 'pending_upload') throw err(409, 'DUPLICATE_DOCUMENT', `This file is already in "${existing.title}".`, { document_id: existing.id });
   requireLimit(c.tenant, 'documents_per_bot', botDocs(c).length);
   const now = nowIso();
@@ -1932,11 +2022,9 @@ route('POST', '/knowledge/uploads', 'knowledge.write', (c) => {
       id: newId('doc'),
       tenant_id: c.tenant.id,
       bot_id: c.botId,
-      title: c.body.title || filename.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+      title: c.body.title || titleOf(filename),
       source_type: 'file',
-      source_name: filename,
-      mime_type: ext === '.pdf' ? 'application/pdf' : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'text/plain',
-      byte_size: size,
+      ...fileFields(filename, size),
       status: 'pending_upload',
       chunk_count: 0,
       embedded_count: 0,
@@ -1944,17 +2032,11 @@ route('POST', '/knowledge/uploads', 'knowledge.write', (c) => {
       created_at: now,
       updated_at: now,
       content: '',
-      sha256: c.body.sha256,
+      sha256,
       ...articleFields({ ...c.body, title: undefined, content: undefined, filename: undefined, size: undefined, sha256: undefined }, true),
     } as MockDoc);
   if (!existing) c.db.documents.push(d);
-  return created({
-    document: docOut(d),
-    url: `mock://r2/${d.id}`,
-    method: 'PUT',
-    headers: { 'Content-Type': d.mime_type ?? 'application/octet-stream' },
-    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
-  });
+  return created(uploadOut(d, d.id));
 });
 
 /* Suggestions learned from closed tickets (v2) ------------------------ */
