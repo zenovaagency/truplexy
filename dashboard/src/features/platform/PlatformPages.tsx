@@ -1920,12 +1920,20 @@ export function PlatformModels() {
               {
                 key: 'model',
                 header: 'Model',
+                className: 'min-w-[15rem]',
                 cell: (m) => (
-                  <span className="grid min-w-0">
-                    <span className="flex items-center gap-1.5 font-semibold text-ink">
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-ink">
                       {m.label} {m.is_default && <Badge tone="accent">Default</Badge>}
                     </span>
-                    <span className="truncate font-mono text-xs text-ink-faint">{m.id}</span>
+                    <span className="break-all font-mono text-xs text-ink-faint">{m.id}</span>
+                    {(m.supports_tools || m.supports_prompt_cache || m.supports_vision) && (
+                      <span className="flex flex-wrap gap-1 pt-1">
+                        {m.supports_tools && <Badge tone="outline">Tools</Badge>}
+                        {m.supports_prompt_cache && <Badge tone="outline">Cache</Badge>}
+                        {m.supports_vision && <Badge tone="outline">Pictures</Badge>}
+                      </span>
+                    )}
                   </span>
                 ),
               },
@@ -1947,24 +1955,25 @@ export function PlatformModels() {
                 ),
               },
               {
-                key: 'markup',
-                header: 'Markup',
+                key: 'billed',
+                header: 'Billed in / out',
                 align: 'right',
-                hideBelowLg: true,
                 cell: (m) => (
-                  <Tip content={`${m.effective_fee_percent}% fee + ${m.effective_commission_percent}% commission${m.fee_percent == null && m.commission_percent == null ? ' (platform defaults)' : ''}`}>
-                    <span className="tabular-nums text-ink-muted">
-                      {+(m.effective_fee_percent + m.effective_commission_percent).toFixed(2)}%{(m.fee_percent != null || m.commission_percent != null) && <span className="text-accent">*</span>}
-                    </span>
-                  </Tip>
+                  <span className="grid justify-items-end">
+                    <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-ink">{formatPerM(m.billed_input_price_per_mtok)} / {formatPerM(m.billed_output_price_per_mtok)}</span>
+                    <Tip content={`${m.effective_fee_percent}% fee + ${m.effective_commission_percent}% commission${m.fee_percent == null && m.commission_percent == null ? ' (platform defaults)' : ''}`}>
+                      <span className="whitespace-nowrap text-[0.68rem] tabular-nums text-ink-faint">
+                        +{+(m.effective_fee_percent + m.effective_commission_percent).toFixed(2)}% markup{(m.fee_percent != null || m.commission_percent != null) && <span className="text-accent">*</span>}
+                      </span>
+                    </Tip>
+                  </span>
                 ),
               },
-              { key: 'billed', header: 'Billed in / out', align: 'right', cell: (m) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-ink">{formatPerM(m.billed_input_price_per_mtok)} / {formatPerM(m.billed_output_price_per_mtok)}</span> },
               {
                 key: 'openrouter',
                 header: 'OpenRouter now',
                 align: 'right',
-                hideBelowLg: true,
+                className: 'hidden xl:table-cell',
                 cell: (m) => {
                   const p = or.data?.byId.get(m.id);
                   if (!p) return <span className="text-xs text-ink-faint">{or.isPending ? '…' : 'Not listed'}</span>;
@@ -1977,8 +1986,7 @@ export function PlatformModels() {
                   );
                 },
               },
-              { key: 'ctx', header: 'Context', align: 'right', hideBelowLg: true, cell: (m) => <span className="tabular-nums text-ink-muted">{formatCompact(m.context_tokens)}</span> },
-              { key: 'caps', header: 'Features', hideBelowLg: true, cell: (m) => <span className="flex gap-1">{m.supports_tools && <Badge tone="outline">Tools</Badge>}{m.supports_prompt_cache && <Badge tone="outline">Cache</Badge>}{m.supports_vision && <Badge tone="outline">Pictures</Badge>}</span> },
+              { key: 'ctx', header: 'Context', align: 'right', className: 'hidden 2xl:table-cell', cell: (m) => <span className="tabular-nums text-ink-muted">{formatCompact(m.context_tokens)}</span> },
               { key: 'bots', header: 'Bots', align: 'right', cell: (m) => <span className="tabular-nums">{m.bots}</span> },
               { key: 'edit', header: <span className="sr-only">Edit</span>, align: 'right', cell: (m) => <Button size="xs" icon variant="quiet" aria-label={`Edit ${m.label}`} onClick={() => setEdit(m)}><Pencil /></Button> },
             ]}
