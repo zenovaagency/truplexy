@@ -56,10 +56,13 @@ const reply = (status: string, text: string | null) => (): [number, unknown] => 
 describe('createHandler', () => {
   const base = { chatKey: KEY, apiBase: 'https://api.test/v3', onError: () => {} };
 
+  // A conversation that opened its ticket, as POST /conversations with `ticket` returns it.
+  const opened = (id: string, subject = 'Website chat') => (): [number, unknown] =>
+    [201, { id, ticket: { id: 'tkt_1', subject, status: 'open', priority: 'normal', escalated: false } }];
+
   it('starts a conversation on the first message and signs a session', async () => {
     const api = fakeApi({
-      'POST /conversations': () => [201, { id: CONV }],
-      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_1', subject: 'Website chat', status: 'open', priority: 'normal', escalated: false }],
+      'POST /conversations': opened(CONV),
       [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi!'),
     });
     const handler = createHandler({ ...base, fetch: api.fetch });
@@ -68,21 +71,53 @@ describe('createHandler', () => {
     expect(res.status).toBe(200);
     expect(data).toMatchObject({ reply: 'Hi!', status: 'answered', sources: [] });
     expect(await verifySession(data.session, KEY, 60)).toBe(CONV);
-    expect(api.calls.map((c) => c.path)).toEqual(['/conversations', `/conversations/${CONV}/ticket`, `/conversations/${CONV}/messages`]);
-    expect(api.calls[2].body).toEqual({ message: 'hello' });
+    // One call starts the conversation and opens its ticket.
+    expect(api.calls.map((c) => c.path)).toEqual(['/conversations', `/conversations/${CONV}/messages`]);
+    expect(api.calls[0].body).toEqual({ ticket: { subject: 'Website chat' } });
+    expect(api.calls[1].body).toEqual({ message: 'hello' });
     expect(data.ticket).toEqual({ id: 'tkt_1', subject: 'Website chat', status: 'open' });
     expect(api.calls.every((c) => c.auth === `Bearer ${KEY}`)).toBe(true);
   });
 
-  it('asks for tickets that stay open with keepTicketsOpen', async () => {
+  it('opens the ticket on its own when the conversation came back without one', async () => {
     const api = fakeApi({
       'POST /conversations': () => [201, { id: CONV }],
-      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_1', subject: 'Website chat', status: 'open', keep_open: true }],
+      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_1', subject: 'Website chat', status: 'open', priority: 'normal', escalated: false }],
+      [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi!'),
+    });
+    const data = await (await createHandler({ ...base, fetch: api.fetch })(post({ action: 'message', text: 'hello' }))).json();
+    expect(api.calls.map((c) => c.path)).toEqual(['/conversations', `/conversations/${CONV}/ticket`, `/conversations/${CONV}/messages`]);
+    expect(api.calls[1].body).toEqual({ subject: 'Website chat' });
+    expect(data.ticket).toEqual({ id: 'tkt_1', subject: 'Website chat', status: 'open' });
+  });
+
+  it('starts the old way with an API that takes no background or ticket', async () => {
+    const api = fakeApi({
+      'POST /conversations': (body) => (body && ('ticket' in (body as object) || 'context' in (body as object))
+        ? [400, { error: { code: 'INVALID_REQUEST', message: 'unknown field' } }] : [201, { id: CONV }]),
+      [`POST /conversations/${CONV}/ticket`]: () => [200, { id: 'tkt_1', subject: 'Website chat', status: 'open' }],
+      [`POST /conversations/${CONV}/messages`]: reply('answered', 'ok'),
+    });
+    const handler = createHandler({ ...base, fetch: api.fetch, channelId: 'chn_x', context: () => 'Pro plan' });
+    const data = await (await handler(post({ action: 'message', text: 'hi' }))).json();
+    expect(api.calls.map((c) => c.body)).toEqual([
+      { channel_id: 'chn_x', context: 'Pro plan', ticket: { subject: 'Website chat' } },
+      { channel_id: 'chn_x' },
+      { message: '[Context only] Pro plan' },
+      { subject: 'Website chat' },
+      { message: 'hi' },
+    ]);
+    expect(data).toMatchObject({ reply: 'ok', ticket: { id: 'tkt_1' } });
+  });
+
+  it('asks for tickets that stay open with keepTicketsOpen', async () => {
+    const api = fakeApi({
+      'POST /conversations': opened(CONV),
       [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi!'),
     });
     const handler = createHandler({ ...base, fetch: api.fetch, keepTicketsOpen: true });
     const data = await (await handler(post({ action: 'message', text: 'hello' }))).json();
-    expect(api.calls[1].body).toEqual({ subject: 'Website chat', keep_open: true });
+    expect(api.calls[0].body).toEqual({ ticket: { subject: 'Website chat', keep_open: true } });
     expect(data.ticket).toEqual({ id: 'tkt_1', subject: 'Website chat', status: 'open' });
   });
 
@@ -109,22 +144,19 @@ describe('createHandler', () => {
 
   it('sends context once, when the conversation starts', async () => {
     const api = fakeApi({
-      'POST /conversations': () => [201, { id: CONV }],
+      'POST /conversations': opened(CONV),
       [`POST /conversations/${CONV}/messages`]: reply('answered', 'ok'),
     });
     const handler = createHandler({ ...base, fetch: api.fetch, channelId: 'chn_x', context: () => 'Signed in as Ada, Pro plan' });
     await handler(post({ action: 'message', text: 'hi' }));
-    expect(api.calls[0].body).toEqual({ channel_id: 'chn_x' });
-    expect(api.calls[1].body).toEqual({ message: '[Context only] Signed in as Ada, Pro plan' });
-    expect(api.calls[2].path).toBe(`/conversations/${CONV}/ticket`);
-    expect(api.calls[3].body).toEqual({ message: 'hi' });
+    expect(api.calls[0].body).toEqual({ channel_id: 'chn_x', context: 'Signed in as Ada, Pro plan', ticket: { subject: 'Website chat' } });
+    expect(api.calls.slice(1).map((c) => c.body)).toEqual([{ message: 'hi' }]);
   });
 
   it('links the visitor as a customer, tells the model who they are and opens their ticket', async () => {
     const api = fakeApi({
       'PUT /customer': () => [201, { id: 'cus_1', name: 'Ada Lovelace', secret: 'x' }],
-      'POST /conversations': () => [201, { id: CONV, customer_id: 'cus_1' }],
-      [`POST /conversations/${CONV}/ticket`]: (body) => [200, { id: 'tkt_2', subject: (body as { subject: string }).subject, status: 'open', secret: 'x' }],
+      'POST /conversations': (body) => [201, { id: CONV, customer_id: 'cus_1', ticket: { id: 'tkt_2', subject: (body as { ticket: { subject: string } }).ticket.subject, status: 'open', secret: 'x' } }],
       [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi Ada!'),
     });
     const handler = createHandler({ ...base, fetch: api.fetch, channelId: 'chn_x', context: () => 'Pro plan' });
@@ -133,13 +165,14 @@ describe('createHandler', () => {
       'PUT /customer',
       'POST /conversations',
       `POST /conversations/${CONV}/messages`,
-      `POST /conversations/${CONV}/ticket`,
-      `POST /conversations/${CONV}/messages`,
     ]);
     expect(api.calls[0].body).toEqual({ name: 'Ada Lovelace', contacts: [{ type: 'email', value: 'ada@example.com' }] });
-    expect(api.calls[1].body).toEqual({ channel_id: 'chn_x', customer_id: 'cus_1' });
-    expect(api.calls[2].body).toEqual({ message: '[Context only] Customer: Ada Lovelace <ada@example.com>. Pro plan' });
-    expect(api.calls[3].body).toEqual({ subject: 'Chat with Ada Lovelace' });
+    expect(api.calls[1].body).toEqual({
+      channel_id: 'chn_x', customer_id: 'cus_1',
+      context: 'Customer: Ada Lovelace <ada@example.com>. Pro plan',
+      ticket: { subject: 'Chat with Ada Lovelace' },
+    });
+    expect(api.calls[2].body).toEqual({ message: 'hi' });
     expect(data.ticket).toEqual({ id: 'tkt_2', subject: 'Chat with Ada Lovelace', status: 'open' });
   });
 
@@ -169,9 +202,20 @@ describe('createHandler', () => {
     const handler = createHandler({ ...base, fetch: api.fetch, customer: () => identity });
     expect((await handler(post({ action: 'message', text: 'hi', customer: 'untrusted' }))).status).toBe(200);
     expect(api.calls[0].body).toEqual(identity);
-    expect(api.calls[1].body).toEqual({ customer_id: 'cus_1' });
+    expect(api.calls[1].body).toMatchObject({ customer_id: 'cus_1', ticket: { subject: `Chat with ${'A'.repeat(120)}` } });
     const fallback = createHandler({ ...base, fetch: api.fetch, customer: () => null });
     expect((await fallback(post({ action: 'message', text: 'hi', customer: { name: 'A'.repeat(120), email: 'a@b.co' } }))).status).toBe(200);
+  });
+
+  it('keeps a long trusted name within the ticket subject limit', async () => {
+    const identity = { name: 'B'.repeat(250), contacts: [{ type: 'app', value: 'user-2' }] };
+    const api = fakeApi({
+      'PUT /customer': () => [200, { id: 'cus_2', ...identity }],
+      'POST /conversations': opened(CONV),
+      [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi'),
+    });
+    await createHandler({ ...base, fetch: api.fetch, customer: () => identity })(post({ action: 'message', text: 'hi' }));
+    expect((api.calls[1].body as { ticket: { subject: string } }).ticket.subject).toHaveLength(200);
   });
 
   it('requires a customer ID even when the upstream responds with success', async () => {

@@ -31,7 +31,7 @@ Options: `chatKey`, `apiBase` (default production `/v3`), and `fetch`. Environme
 | --- | --- | --- |
 | `getProfile()` | `GET /profile` | Business and bot names and optional pictures; may be cached privately for 60 seconds |
 | `upsertCustomer(input)` | `PUT /customer` | Customer; 201 new or 200 existing |
-| `createConversation({customer_id?, channel_id?}?)` | `POST /conversations` | Empty conversation; 201 |
+| `createConversation({customer_id?, channel_id?, context?, ticket?}?)` | `POST /conversations` | Conversation; 201. `context` (up to 4000 characters) is stored as a `[Context only]` message for the assistant; `ticket` (`{subject?, priority?, keep_open?}`) opens its ticket, returned as `ticket`. Both best effort, in the same call |
 | `getConversation(id)` | `GET /conversations/{id}` | Latest 200 messages, oldest first, and the current `ticket` (the open one, else the latest, which is then `closed` with `closed_at`) |
 | `sendMessage(id, text \| {text?, images?, attachments?, idempotencyKey?, ifTicketClosed?, signal?})` | `POST /conversations/{id}/messages` | `{message, reply, status, sources}`; text 1–4000 characters (may be empty with pictures: [coming soon](#sending-pictures-coming-soon)). Sources are cited documents or, when the bot searches the web, web pages (`kind: "web"`, a `url` and no `document_id`) |
 | `handoff(id)` | `POST /conversations/{id}/handoff` | Flags the conversation and adds confirmation; AI keeps replying |

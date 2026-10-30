@@ -9,7 +9,7 @@ export const WORDPRESS_PLUGIN = String.raw`<?php
  * Description:       Adds the Truplexy AI support chat to your site. Your chat key stays on the server.
  * Author:            Truplexy
  * Author URI:        https://truplexy.com
- * Version:           1.0.5
+ * Version:           1.0.6
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * License:           MIT
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-const TRUPLEXY_CHAT_VERSION = '1.0.5';
+const TRUPLEXY_CHAT_VERSION = '1.0.6';
 const TRUPLEXY_CHAT_CDN = 'https://cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js';
 
 function truplexy_chat_settings(): array {
@@ -219,21 +219,34 @@ function truplexy_chat_start(WP_REST_Request $request, $raw): array {
         if (empty($known['id'])) throw new Truplexy_Chat_Error('UPSTREAM_ERROR');
         $opening['customer_id'] = $known['id'];
     }
-    $conv = truplexy_chat_api('POST', '/conversations', $opening ?: null)['id'];
     $name = $customer['name'] ?? '';
+    $background = '';
     try {
         $context = (string) apply_filters('truplexy_chat_context', '', $request, $user_id);
-        $background = trim(($name ? 'Customer: ' . $name . '. ' : '') . $context);
-        if ($background !== '') truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => mb_substr('[Context only] ' . $background, 0, 4000)]);
+        $background = mb_substr(trim(($name ? 'Customer: ' . $name . '. ' : '') . $context), 0, 4000);
     } catch (Throwable $e) { truplexy_chat_log('Background context unavailable'); }
-    $ticket = null;
+    $opening_ticket = ['subject' => mb_substr($name ? 'Chat with ' . $name : 'Website chat', 0, 200)];
+    // Without keep_open, the ticket closes on its own after the business's auto-close time.
+    if (truplexy_chat_settings()['keep_tickets_open']) $opening_ticket['keep_open'] = true;
+    // One call starts the conversation, passes the background and opens the ticket (both best effort).
+    // An API from before they could be sent together refuses the fields: then each is its own call.
     try {
-        $opening_ticket = ['subject' => $name ? 'Chat with ' . $name : 'Website chat'];
-        // Without keep_open, the ticket closes on its own after the business's auto-close time.
-        if (truplexy_chat_settings()['keep_tickets_open']) $opening_ticket['keep_open'] = true;
-        $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", $opening_ticket);
-        $ticket = array_intersect_key($t, array_flip(['id', 'subject', 'status']));
-    } catch (Truplexy_Chat_Error $e) { truplexy_chat_log($e->api_code); }
+        $created = truplexy_chat_api('POST', '/conversations', $opening + ($background !== '' ? ['context' => $background] : []) + ['ticket' => $opening_ticket]);
+    } catch (Truplexy_Chat_Error $e) {
+        if ($e->api_code !== 'INVALID_REQUEST') throw $e;
+        $created = truplexy_chat_api('POST', '/conversations', $opening ?: null);
+        try {
+            if ($background !== '') truplexy_chat_api('POST', "/conversations/{$created['id']}/messages", ['message' => mb_substr('[Context only] ' . $background, 0, 4000)]);
+        } catch (Throwable $e) { truplexy_chat_log('Background context unavailable'); }
+    }
+    $conv = $created['id'];
+    $t = $created['ticket'] ?? null;
+    if (!is_array($t)) {
+        try {
+            $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", $opening_ticket);
+        } catch (Truplexy_Chat_Error $e) { truplexy_chat_log($e->api_code); }
+    }
+    $ticket = is_array($t) ? array_intersect_key($t, array_flip(['id', 'subject', 'status'])) : null;
     return [$conv, $ticket];
 }
 

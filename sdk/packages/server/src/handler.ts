@@ -1,6 +1,6 @@
 import { signSession, verifySession } from './session';
 
-import { createChatClient, TruplexyApiError, type CustomerInput, type Conversation, type Profile, type WidgetLook } from './client';
+import { createChatClient, TruplexyApiError, type CustomerInput, type Conversation, type Profile, type TicketInput, type WidgetLook } from './client';
 export { DEFAULT_API_BASE } from './client';
 
 export interface HandlerOptions {
@@ -62,6 +62,7 @@ const MAX_NAME = 120;
 const MAX_EMAIL = 254;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TEXT = 4000;
+const MAX_SUBJECT = 200;
 const CONTEXT_PREFIX = '[Context only';
 
 /** API failures the widget can explain; everything else becomes UPSTREAM_ERROR. */
@@ -146,15 +147,24 @@ export function createHandler(options: HandlerOptions = {}): Handler {
           throw new TruplexyApiError('UPSTREAM_ERROR', 502, 'The chat API returned no customer ID.');
         }
         const opening = { ...(options.channelId && { channel_id: options.channelId }), ...(known && { customer_id: known.id }) };
-        const conv = await api.createConversation(Object.keys(opening).length ? opening : undefined);
         const name = known?.name || identity?.name;
+        let background = '';
         try {
-          const lines = [visitor ? `Customer: ${visitor.name} <${visitor.email}>` : name && `Customer: ${name}`, (await options.context?.(request))?.trim()].filter(Boolean);
-          if (lines.length) await api.sendMessage(conv.id, `${CONTEXT_PREFIX}] ${lines.join('. ')}`.slice(0, MAX_TEXT));
+          background = [visitor ? `Customer: ${visitor.name} <${visitor.email}>` : name && `Customer: ${name}`, (await options.context?.(request))?.trim()].filter(Boolean).join('. ').slice(0, MAX_TEXT);
         } catch (e) { report(safeError(e)); }
-        // Background and automatic ticket creation remain best effort.
-        ticket = await api.createTicket(conv.id, { subject: name ? `Chat with ${name}` : 'Website chat', ...(options.keepTicketsOpen && { keep_open: true }) })
-          .then(publicTicket, (e) => (report(safeError(e)), undefined));
+        const wanted: TicketInput = { subject: (name ? `Chat with ${name}` : 'Website chat').slice(0, MAX_SUBJECT), ...(options.keepTicketsOpen && { keep_open: true }) };
+        // One call starts the conversation, passes the background and opens the ticket (both best effort).
+        // An API from before they could be sent together refuses the fields: then each is its own call.
+        let conv = await api.createConversation({ ...opening, ...(background && { context: background }), ticket: wanted }).catch((e) => {
+          if (e instanceof TruplexyApiError && e.code === 'INVALID_REQUEST') return null;
+          throw e;
+        });
+        if (!conv) {
+          conv = await api.createConversation(Object.keys(opening).length ? opening : undefined);
+          if (background) await api.sendMessage(conv.id, `${CONTEXT_PREFIX}] ${background}`.slice(0, MAX_TEXT)).catch((e) => report(safeError(e)));
+        }
+        ticket = conv.ticket ? publicTicket(conv.ticket)
+          : await api.createTicket(conv.id, wanted).then(publicTicket, (e) => (report(safeError(e)), undefined));
         return conv.id;
       };
 
