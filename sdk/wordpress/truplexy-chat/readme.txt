@@ -2,7 +2,7 @@
 Contributors: tanvirhossen
 Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 1.0.4
 License: MIT
@@ -21,7 +21,7 @@ This plugin connects your site to Truplexy (https://truplexy.com), a hosted AI c
 
 * **What is sent:** each message a visitor types into the chat, and optionally the name and email they enter in the chat form, the background text your own code adds with the `truplexy_chat_context` and `truplexy_chat_customer` filters, and your chat key. Nothing is sent until a visitor sends a message, apart from a request for the chat's title, colours and picture when the widget loads.
 * **Where it goes:** from your server to `https://api.truplexy.com`. The visitor's browser only talks to your own site (`/wp-json/truplexy/v1/chat`).
-* **The widget script:** `truplexy.min.js` is included in the plugin and served from your site. No third-party CDN is used unless you delete that file.
+* **The widget script:** `truplexy.min.js` is included in the plugin and served from your site. No third-party CDN is used.
 * Terms of service: https://truplexy.com/terms
 * Privacy policy: https://truplexy.com/privacy
 
@@ -82,6 +82,9 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 == Changelog ==
 
 = 1.0.4 =
+* The widget script is always served from your site; the plugin never loads it from a CDN.
+* Failed Truplexy calls are written to the PHP error log only when WP_DEBUG_LOG is on.
+* Tested with WordPress 7.1.
 * New Truplexy look: the chat window's default colour is black, on neutral greys, and the "Powered by" line shows the new Truplexy logo.
 * On a dark window, a dark colour such as black stays visible: its buttons and outlines are lifted and its fills get a faint light edge.
 * A colour you already chose in the dashboard is kept.
