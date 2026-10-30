@@ -1,63 +1,41 @@
 /**
- * One-off brand asset pipeline. Run with `npm run brand`.
+ * Brand asset pipeline. Run with `npm run brand`.
  *
- * The supplied logo PNGs in /logo are transparent but carry generous
- * padding, which makes them sit low and small in the nav. This trims them,
- * writes the trimmed masters into src/assets/brand (astro:assets resizes and
- * re-encodes them per use), and renders the fixed-size files that must live
- * in /public: favicons, the touch icon and the manifest icons.
+ * Renders the fixed-size files that must live in /public (favicons, the touch
+ * icon, the manifest icons and the manifest itself) from the Soft Triplex SVG
+ * sources in /logo/soft-triplex. Those sources, and src/assets/brand/brand-paths.ts
+ * (the inline logo), come from the brand kit generator:
+ * brand/soft-logo-concepts/source/build-kit.mjs.
  *
- * Re-run it whenever a file in /logo changes. The outputs are committed, so
- * the build itself never depends on this script.
+ * src/assets/brand/wordmark-*.png are no longer written here; the SDK's
+ * "powered by" line (sdk/scripts/brand-assets.mjs) still reads them.
+ *
+ * Re-run it whenever a file in /logo/soft-triplex changes. The outputs are
+ * committed, so the build itself never depends on this script.
  */
-import { mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import sharp from 'sharp';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (f) => path.join(root, 'logo', f);
-const assets = path.join(root, 'src', 'assets', 'brand');
-const pub = path.join(root, 'public');
+const src = (f) => path.join(root, 'logo', 'soft-triplex', f);
+const pub = (f) => path.join(root, 'public', f);
 
-await mkdir(assets, { recursive: true });
-await mkdir(pub, { recursive: true });
-
-/** Trims transparent padding. A small threshold eats anti-aliasing haze. */
-const trimmed = (file) => sharp(src(file)).trim({ threshold: 8 }).png();
-
-// Masters for astro:assets ------------------------------------------------
-await trimmed('logo.png').toFile(path.join(assets, 'mark.png'));
-await trimmed('truplexy-dark.png').toFile(path.join(assets, 'wordmark-dark.png'));
-await trimmed('truplexy-light.png').toFile(path.join(assets, 'wordmark-light.png'));
-
-const markBuf = await trimmed('logo.png').toBuffer();
-
-/**
- * Square icon with the mark centred on `bg` (or transparent), padded so the
- * triangle's optical centre sits in the middle of the tile.
- */
-async function icon(size, { bg = null, pad = 0.14 } = {}) {
-  const inner = Math.round(size * (1 - pad * 2));
-  const mark = await sharp(markBuf)
-    .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .toBuffer();
-  return sharp({
-    create: {
-      width: size,
-      height: size,
-      channels: 4,
-      background: bg ?? { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .composite([{ input: mark, gravity: 'center' }])
-    .png();
+/** Renders an SVG source to a square PNG of `size` px. */
+async function png(file, size) {
+  const svg = await readFile(src(file));
+  const viewW = +String(svg).match(/viewBox="[^"]*?([\d.]+) [\d.]+"/)[1];
+  return sharp(svg, { density: (72 * size) / viewW }).resize(size, size).png().toBuffer();
 }
 
-const fav32 = await (await icon(32, { pad: 0.04 })).toBuffer();
-const fav16 = await (await icon(16, { pad: 0.02 })).toBuffer();
-await writeFile(path.join(pub, 'favicon-32.png'), fav32);
-await writeFile(path.join(pub, 'favicon-16.png'), fav16);
+// Favicons: a black rounded tile, so the mark reads on light and dark tab bars.
+// favicon.svg is the vector one; it switches black/white with the system theme.
+const fav = {};
+for (const size of [16, 32, 48]) fav[size] = await png('favicon-tile.svg', size);
+await writeFile(pub('favicon-16.png'), fav[16]);
+await writeFile(pub('favicon-32.png'), fav[32]);
+await copyFile(src('favicon.svg'), pub('favicon.svg'));
 
 /**
  * Packs PNG buffers into a .ico. Browsers and crawlers request /favicon.ico
@@ -82,33 +60,35 @@ function ico(entries) {
   });
   return Buffer.concat([head, ...dir, ...entries.map((e) => e.png)]);
 }
-await writeFile(
-  path.join(pub, 'favicon.ico'),
-  ico([
-    { size: 16, png: fav16 },
-    { size: 32, png: fav32 },
-  ]),
-);
-// iOS ignores transparency and fills it with black, so the touch icon is opaque.
-await (await icon(180, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'apple-touch-icon.png'));
-await (await icon(192, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'icon-192.png'));
-await (await icon(512, { bg: '#ffffff', pad: 0.16 })).toFile(path.join(pub, 'icon-512.png'));
+await writeFile(pub('favicon.ico'), ico([16, 32, 48].map((size) => ({ size, png: fav[size] }))));
+
+// Home-screen icons are full-bleed squares: iOS and Android round them.
+await writeFile(pub('apple-touch-icon.png'), await png('app-square.svg', 180));
+await writeFile(pub('icon-192.png'), await png('app-square.svg', 192));
+await writeFile(pub('icon-512.png'), await png('app-square.svg', 512));
+await writeFile(pub('icon-maskable-512.png'), await png('app-maskable.svg', 512));
 
 // The OG card (public/og-card.png) is rendered from scripts/og-card.html: `npm run og`.
 
-// Manifest + robots -------------------------------------------------------
+// Manifest -----------------------------------------------------------------
 await writeFile(
-  path.join(pub, 'site.webmanifest'),
+  pub('site.webmanifest'),
   JSON.stringify(
     {
+      id: '/',
       name: 'Truplexy',
       short_name: 'Truplexy',
+      description: 'An AI assistant on every channel your customers use, and one platform for your team to manage every conversation.',
+      lang: 'en',
+      start_url: '/',
+      scope: '/',
       icons: [
         { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
-      theme_color: '#F7F8FC',
-      background_color: '#F7F8FC',
+      theme_color: '#F6F3EE',
+      background_color: '#F6F3EE',
       display: 'standalone',
     },
     null,
@@ -116,4 +96,4 @@ await writeFile(
   ) + '\n',
 );
 
-console.log('Brand assets written to src/assets/brand and public/.');
+console.log('Brand assets written to public/.');

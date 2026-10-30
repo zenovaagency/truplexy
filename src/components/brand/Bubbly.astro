@@ -1,0 +1,44 @@
+---
+/**
+ * Bubbly, the Truplexy assistant: the glossy animated mascot, inlined so its
+ * CSS motion runs and a script can steer its gaze.
+ *
+ * Motion (bubbly.css): a gentle bob, a glow, a blink and a glance aside.
+ * `look` adds the `.look` hook: a script sets --look-x / --look-y (in the
+ * SVG's units, about ±30) on the root to turn the face toward the pointer,
+ * which pauses the idle glance. Reduced motion keeps it still.
+ *
+ * Each copy gets its own ids, since the clip, mask and filters are
+ * referenced by id and several Bubblys can share a page.
+ */
+import raw from '../../assets/brand/bubbly-animated.svg?raw';
+import './bubbly.css';
+
+interface Props {
+  size?: number | string;
+  class?: string;
+  /** No motion (avatars, thumbnails). */
+  still?: boolean;
+  /** Face can follow the pointer (set --look-x / --look-y). */
+  look?: boolean;
+}
+const { size, class: className = '', still = false, look = false } = Astro.props;
+
+const uid = Math.random().toString(36).slice(2, 8);
+const inner = raw
+  .replace(/^<svg[^>]*>/, '')
+  .replace(/<\/svg>\s*$/, '')
+  .replace(/<title>[^<]*<\/title>/, '')
+  .replace(/<style>[\s\S]*?<\/style>/, '')
+  .replace(/id="([^"]+)"/g, `id="$1-${uid}"`)
+  .replace(/url\(#([^)]+)\)/g, `url(#$1-${uid})`);
+---
+
+<svg
+  viewBox="0 0 636 707"
+  width={size}
+  class:list={['bubbly', still && 'is-still', look && 'look', className]}
+  aria-hidden="true"
+  focusable="false"
+  set:html={inner}
+/>

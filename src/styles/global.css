@@ -7,6 +7,64 @@
 /* The dashboard is a separate app with its own Tailwind build. */
 @source not '../../dashboard';
 
+/* ------------------------------------------------------------------ *
+ * Site brand: Soft Triplex. Overrides tokens.css for the marketing site
+ * only (the dashboard keeps its own look until it is rebranded).
+ *
+ * Monochrome: ink on warm stone, like the mark. The one colour on the
+ * page is Bubbly, the assistant: its iridescent blue-violet-pink ramp
+ * appears where the AI does, and in a few highlights.
+ *
+ * Accessibility rules carry over from tokens.css:
+ *   --color-accent  carries text and links (ink, 18:1 on paper)
+ *   --color-btn     is a button surface with white text
+ *   cyan, blue, lilac are DECORATIVE: gradient stops and glyphs only.
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-paper: #f6f3ee;
+  --color-surface: #ffffff;
+  --color-surface-2: #f3efe8;
+  --color-surface-3: #ebe6dd;
+
+  --color-ink: #0a0a0a;
+  --color-ink-muted: #55514b;
+  --color-ink-faint: #6b665e;
+
+  --color-line: #e7e2d9;
+  --color-line-strong: #d4cdc1;
+
+  --color-accent: #0a0a0a;
+  --color-accent-soft: #f0ece5;
+  --color-btn: #0a0a0a;
+  --color-btn-hover: #2b2a28;
+
+  /* Bubbly's ramp. */
+  --color-cyan: #72c4ff;
+  --color-blue: #8fb3ff;
+  --color-indigo: #7c56f0;
+  --color-violet: #c5a6ff;
+  --color-lilac: #f6a3ff;
+
+  --color-ai: #5b3bd6;
+  --color-ai-soft: #f1ecff;
+
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --gradient-bubbly: linear-gradient(120deg, #72c4ff 0%, #c5a6ff 52%, #f6a3ff 100%);
+  --gradient-brand: var(--gradient-bubbly);
+  /* Text-safe Bubbly: deep enough to clear 3:1 for large type on paper. */
+  --gradient-text: linear-gradient(95deg, #2f7fd6 0%, #6b45e6 50%, #b03cc9 100%);
+
+  --shadow-sm: 0 1px 2px rgb(30 24 16 / 0.05), 0 2px 8px rgb(30 24 16 / 0.04);
+  --shadow-md: 0 2px 4px rgb(30 24 16 / 0.04), 0 12px 32px rgb(30 24 16 / 0.08);
+  --shadow-lg: 0 4px 10px rgb(30 24 16 / 0.05), 0 28px 64px rgb(30 24 16 / 0.12);
+
+  --glow-a: rgb(114 196 255 / 0.2);
+  --glow-b: rgb(197 166 255 / 0.22);
+}
+
 @layer base {
   * {
     min-width: 0;
@@ -128,6 +186,12 @@
     font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
     line-height: 1.6;
     color: var(--color-ink-muted);
+  }
+
+  /* The second tone of a two-line headline ("Every channel. / One platform."):
+     warm grey, 3.6:1 on white, for large type only. */
+  .tone-2 {
+    color: #857f76;
   }
 
   .gradient-text {
@@ -482,6 +546,23 @@
   transform-origin: 0 0; /* the viewBox centre */
   transform: rotate(var(--from));
   animation: orbit-spin var(--dur) linear infinite;
+}
+
+/* Channel tiles and the live strip stay monochrome, like the mark; the
+   strip takes its colours back on hover. */
+.hero-orbit .tile-float {
+  filter: grayscale(1);
+}
+
+.channel-strip li,
+.channel-strip span:has(> svg) {
+  filter: grayscale(1);
+  transition: filter 300ms var(--ease-out-expo), color 300ms var(--ease-out-expo);
+}
+
+.channel-strip li:hover {
+  filter: none;
+  color: var(--color-ink);
 }
 
 /* Tiles bob gently on their rings. */

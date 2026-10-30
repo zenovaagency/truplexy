@@ -1,8 +1,7 @@
 ---
-import { Image } from 'astro:assets';
 import { BookOpen, Headset, Inbox, Workflow } from 'lucide-react';
 import ChannelIcon from '../ui/ChannelIcon';
-import mark from '../../assets/brand/mark.png';
+import Mark from '../brand/Mark.astro';
 import { GROUP_LABEL, channelsIn, LIVE_CHANNELS, SOON_CHANNELS, type ChannelGroup } from '../../data/channels';
 import { channelHref } from '../../data/setup-guides';
 
@@ -79,7 +78,7 @@ const core = [
           <div class="relative w-full max-w-[300px]" data-eco-hub>
             <div class="eco-halo absolute -inset-6 rounded-[44px]" aria-hidden="true"></div>
             <div class="card relative !rounded-[30px] px-6 py-7 text-center !shadow-[var(--shadow-lg)]">
-              <Image src={mark} alt="" width={72} height={76} densities={[1, 2]} class="mx-auto h-[76px] w-auto" />
+              <Mark size={76} class="mx-auto text-ink" />
               <p class="mt-4 text-xl font-bold tracking-tight">Truplexy</p>
               <p class="mt-1 text-[0.85rem] text-ink-muted">One platform</p>
               <ul class="mt-5 flex flex-col gap-1.5 text-left text-[0.8rem]">
@@ -136,7 +135,7 @@ const core = [
 
     <p class="display mx-auto mt-[clamp(56px,7vw,96px)] max-w-[900px] text-center text-[clamp(1.9rem,1.2rem+2.6vw,3.3rem)]">
       Every channel.
-      <span class="gradient-text block">One platform.</span>
+      <span class="tone-2 block">One platform.</span>
     </p>
   </div>
 </section>
@@ -212,7 +211,7 @@ const core = [
 
       const defs = el('defs', {});
       const grad = el('linearGradient', { id: 'eco-grad', gradientUnits: 'userSpaceOnUse', x1: 0, y1: 0, x2: box.width, y2: 0 });
-      [['0', '#45d4ff'], ['0.4', '#1f7bff'], ['0.6', '#2338e6'], ['1', '#6a2bff']].forEach(([o, c]) =>
+      [['0', '#72c4ff'], ['0.4', '#8fb3ff'], ['0.6', '#c5a6ff'], ['1', '#f6a3ff']].forEach(([o, c]) =>
         grad.appendChild(el('stop', { offset: o, 'stop-color': c })),
       );
       defs.appendChild(grad);

@@ -1,0 +1,279 @@
+---
+/**
+ * The site's own chat: Bubbly floats in the corner and opens the real
+ * Truplexy widget, in demo mode (canned replies, nothing leaves the page).
+ *
+ * The SDK is imported from source on first intent (hover, focus or tap), so
+ * pages pay nothing for it until someone reaches for the chat. Its own
+ * launcher is hidden: Bubbly is the launcher, and turns into a close button
+ * while the panel is open. A small nudge introduces it once per session.
+ *
+ * Pointing the widget at a real bot later only needs an `endpoint`.
+ */
+import Bubbly from '../brand/Bubbly.astro';
+---
+
+<div class="bc" data-bubbly-chat>
+  <p class="bc-nudge" data-nudge hidden>
+    <span>Hi! I'm the Truplexy assistant. Tap me to try the chat.</span>
+    <button type="button" class="bc-nudge-x" data-nudge-close aria-label="Dismiss">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+    </button>
+  </p>
+  <button type="button" class="bc-launch" data-launch aria-label="Open chat" aria-expanded="false">
+    <span class="bc-face"><Bubbly size={40} look /></span>
+    <svg class="bc-x" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+  </button>
+</div>
+
+<style>
+  .bc {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  .bc-launch {
+    pointer-events: auto;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--color-ink);
+    color: #fff;
+    box-shadow: 0 18px 40px -14px rgb(30 24 16 / 0.55), 0 4px 12px rgb(30 24 16 / 0.18);
+    transition: transform 420ms var(--ease-spring), box-shadow 300ms var(--ease-out-expo);
+    animation: bc-pop 600ms var(--ease-spring) 400ms backwards;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* An iridescent rim: Bubbly's colours, just showing round the edge. */
+  .bc-launch::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--gradient-bubbly);
+    opacity: 0.7;
+    filter: blur(6px);
+    transition: opacity 300ms;
+  }
+
+  .bc-launch > * { grid-area: 1 / 1; }
+
+  .bc-face {
+    display: grid;
+    place-items: center;
+    margin: 4px 0 0 5px; /* the tail pulls Bubbly left */
+    transition: transform 420ms var(--ease-spring), opacity 200ms;
+  }
+
+  .bc-x {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.4);
+    transition: transform 420ms var(--ease-spring), opacity 160ms;
+  }
+
+  .bc-launch[aria-expanded='true'] .bc-face { opacity: 0; transform: rotate(90deg) scale(0.4); }
+  .bc-launch[aria-expanded='true'] .bc-x { opacity: 1; transform: none; }
+  .bc-launch[aria-expanded='true']::before { opacity: 0; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .bc-launch:hover { transform: translateY(-3px) scale(1.05); }
+    .bc-launch:hover .bc-face { transform: rotate(-6deg); }
+  }
+  .bc-launch:active { transform: scale(0.93); transition-duration: 90ms; }
+  .bc-launch:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 4px; border-radius: 50%; }
+
+  .bc-nudge {
+    pointer-events: auto;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    max-width: 236px;
+    margin: 0 6px 0 0;
+    padding: 12px 10px 12px 14px;
+    border: 1px solid var(--color-line);
+    border-radius: 16px 16px 4px 16px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-lg);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--color-ink);
+    animation: bc-nudge 520ms var(--ease-out-expo) both;
+  }
+  .bc-nudge[hidden] { display: none; }
+
+  .bc-nudge-x {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    color: var(--color-ink-faint);
+  }
+  .bc-nudge-x:hover { background: var(--color-surface-2); color: var(--color-ink); }
+
+  /* On phones the panel fills the screen and has its own close button. */
+  @media (max-width: 480px) {
+    .bc { right: 16px; bottom: 16px; }
+    .bc.is-open { display: none; }
+  }
+
+  @keyframes bc-pop {
+    from { transform: scale(0.4); opacity: 0; }
+  }
+  @keyframes bc-nudge {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bc-launch, .bc-nudge { animation: none; }
+  }
+
+  /* The widget itself: the SDK's launcher gives way to Bubbly, and the panel
+     takes the site's palette. Custom properties pass into its shadow root. */
+  :global(truplexy-chat[data-site-chat]) {
+    --truplexy-accent: #0a0a0a;
+    --truplexy-background: #ffffff;
+    --truplexy-surface: #f3efe8;
+    --truplexy-ink: #0a0a0a;
+    --truplexy-muted: #55514b;
+    --truplexy-line: #e7e2d9;
+    --truplexy-font: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+    --truplexy-offset-y: 16px;
+  }
+  :global(truplexy-chat[data-site-chat])::part(launcher) {
+    display: none;
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-bubbly-chat]');
+  const launch = root?.querySelector<HTMLButtonElement>('[data-launch]');
+  const nudge = root?.querySelector<HTMLElement>('[data-nudge]');
+  const bubbly = root?.querySelector<SVGElement>('.bubbly');
+
+  const NUDGE_KEY = 'tpx-nudge-seen';
+  const seen = () => {
+    try {
+      return sessionStorage.getItem(NUDGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const markSeen = () => {
+    try {
+      sessionStorage.setItem(NUDGE_KEY, '1');
+    } catch {
+      /* private mode: the nudge may show again, which is fine */
+    }
+  };
+  const hideNudge = () => {
+    if (nudge) nudge.hidden = true;
+    markSeen();
+  };
+
+  let chat: HTMLElement | null = null;
+  let loading: Promise<{ open(): void; close(): void } | undefined> | null = null;
+
+  function load() {
+    loading ??= import('../../../sdk/packages/web/src/index').then(({ truplexy }) => {
+      chat = document.createElement('truplexy-chat');
+      chat.setAttribute('demo', '');
+      chat.setAttribute('details', 'off');
+      chat.setAttribute('data-site-chat', '');
+      chat.setAttribute('heading', 'Truplexy assistant');
+      chat.setAttribute('subtitle', 'Demo mode: canned replies');
+      chat.setAttribute(
+        'greeting',
+        "Hi! I'm the widget your customers would see, playing a sample store's assistant. Ask where an order is, about returns, or to talk to a person.",
+      );
+      chat.setAttribute('suggestions', JSON.stringify(['Where is order 12345?', 'Can I return something?', 'Talk to a person']));
+      chat.setAttribute('avatar', '/brand/bubbly-avatar.png');
+      chat.addEventListener('truplexy:open', () => sync(true));
+      chat.addEventListener('truplexy:close', () => {
+        sync(false);
+        // The SDK focuses its own (hidden) launcher; Bubbly is the launcher here.
+        requestAnimationFrame(() => launch?.focus({ preventScroll: true }));
+      });
+      document.body.append(chat);
+      return truplexy;
+    });
+    return loading;
+  }
+
+  function sync(open: boolean) {
+    launch?.setAttribute('aria-expanded', String(open));
+    launch?.setAttribute('aria-label', open ? 'Close chat' : 'Open chat');
+    root?.classList.toggle('is-open', open);
+  }
+
+  if (root && launch) {
+    // Load on intent, so the first tap opens instantly.
+    for (const type of ['pointerenter', 'focus', 'touchstart'] as const) launch.addEventListener(type, () => void load(), { once: true, passive: true });
+
+    launch.addEventListener('click', async () => {
+      hideNudge();
+      const api = await load();
+      if (launch.getAttribute('aria-expanded') === 'true') api?.close();
+      else api?.open();
+    });
+
+    // Anything on the page can open the chat: [data-open-chat].
+    document.addEventListener('click', (e) => {
+      const trigger = (e.target as Element | null)?.closest?.('[data-open-chat]');
+      if (!trigger) return;
+      e.preventDefault();
+      hideNudge();
+      void load().then((api) => api?.open());
+    });
+
+    nudge?.querySelector('[data-nudge-close]')?.addEventListener('click', hideNudge);
+    if (nudge && !seen()) {
+      window.setTimeout(() => {
+        if (!seen() && launch.getAttribute('aria-expanded') !== 'true') {
+          nudge.hidden = false;
+          markSeen();
+        }
+      }, 5000);
+    }
+
+    // Bubbly glances toward the pointer when it's near the corner.
+    const fine = window.matchMedia('(pointer: fine)').matches;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (bubbly && fine && !still) {
+      let frame = 0;
+      window.addEventListener(
+        'pointermove',
+        (e) => {
+          if (frame) return;
+          frame = requestAnimationFrame(() => {
+            frame = 0;
+            const r = launch.getBoundingClientRect();
+            const dx = e.clientX - (r.left + r.width / 2);
+            const dy = e.clientY - (r.top + r.height / 2);
+            const dist = Math.hypot(dx, dy);
+            const near = dist < 420;
+            bubbly.classList.toggle('is-looking', near);
+            const k = near ? Math.min(1, dist / 160) / (dist || 1) : 0;
+            bubbly.style.setProperty('--look-x', (dx * k * 34).toFixed(1));
+            bubbly.style.setProperty('--look-y', (dy * k * 24).toFixed(1));
+          });
+        },
+        { passive: true },
+      );
+    }
+  }
+</script>

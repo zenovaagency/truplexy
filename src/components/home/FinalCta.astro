@@ -1,37 +1,15 @@
 ---
 import Button from '../ui/Button.astro';
+import Mark from '../brand/Mark.astro';
 import { SITE } from '../../data/site';
-
-// Threads converging from the edges toward the right of the band: every
-// channel, one conversation. Stretched across the full width, behind the copy.
-const threads = [
-  'M-10 20 C 300 30, 520 150, 900 120',
-  'M-10 90 C 320 90, 540 140, 900 120',
-  'M-10 160 C 330 165, 560 135, 900 120',
-  'M-10 230 C 320 225, 540 150, 900 120',
-  'M1210 20 C 1100 40, 1000 100, 900 120',
-  'M1210 220 C 1100 200, 1000 140, 900 120',
-];
 ---
 
-<!-- One dark band with the footer below it. No card: the section is the panel. -->
-<section class="relative isolate overflow-hidden bg-ink text-white" aria-labelledby="cta-title">
-  <div
-    class="pointer-events-none absolute inset-0 -z-10"
-    style="background: radial-gradient(60% 70% at 18% 0%, rgb(35 56 230 / 0.55), transparent 70%), radial-gradient(50% 60% at 88% 10%, rgb(106 43 255 / 0.4), transparent 70%);"
-    aria-hidden="true"
-  >
-  </div>
-  <svg class="pointer-events-none absolute inset-0 -z-10 h-full w-full opacity-[0.22]" viewBox="0 0 1200 240" preserveAspectRatio="none" aria-hidden="true">
-    <defs>
-      <linearGradient id="cta-thread" x1="0" x2="1">
-        <stop offset="0" stop-color="#45d4ff" stop-opacity="0" />
-        <stop offset="0.45" stop-color="#45d4ff" />
-        <stop offset="1" stop-color="#d9b8ff" />
-      </linearGradient>
-    </defs>
-    {threads.map((d) => <path d={d} fill="none" stroke="url(#cta-thread)" stroke-width="1.2" vector-effect="non-scaling-stroke" />)}
-  </svg>
+<!-- One dark band with the footer below it. No card: the section is the panel.
+     Behind the copy, the mark at full size in outline: its bars sit apart
+     until the band scrolls into view, then lock together. -->
+<section class="cta relative isolate overflow-hidden bg-ink text-white" aria-labelledby="cta-title" data-cta>
+  <div class="cta-glow pointer-events-none absolute -z-10" aria-hidden="true"></div>
+  <Mark class="cta-mark pointer-events-none absolute -z-10" />
 
   <div class="container-t pb-[clamp(48px,6vw,88px)] pt-[clamp(72px,10vw,152px)]">
     <div class="grid gap-12 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-end lg:gap-16">
@@ -58,12 +36,64 @@ const threads = [
 </section>
 
 <style>
-  /* Brand ramp for dark grounds: the cyan end is legible here. */
+  /* Bubbly's colours, legible on ink. */
   .gradient-text-on-dark {
-    background: linear-gradient(95deg, #45d4ff 0%, #8f9bff 50%, #d9b8ff 100%);
+    background: var(--gradient-bubbly);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     padding-bottom: 0.08em;
   }
+
+  .cta-glow {
+    right: -10%;
+    top: -30%;
+    width: 70%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgb(197 166 255 / 0.22), rgb(114 196 255 / 0.1) 55%, transparent);
+  }
+
+  /* The outlined mark: oversized, off the right edge. */
+  .cta :global(.cta-mark) {
+    right: -6%;
+    top: 50%;
+    width: min(760px, 70vw);
+    height: auto;
+    translate: 0 -50%;
+    fill: none;
+    stroke: rgb(255 255 255 / 0.14);
+    stroke-width: 1.4;
+  }
+  .cta :global(.cta-mark .bar) {
+    vector-effect: non-scaling-stroke;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 1.4s var(--ease-out-expo), stroke 1.2s var(--ease-out-expo);
+  }
+  /* Apart until the band is in view (only when JS can bring them home). */
+  :global(.js) .cta:not(.is-locked) :global(.cta-mark .bar) {
+    transform: translate(calc(var(--dx) * -70px + var(--dy) * 26px), calc(var(--dy) * -70px - var(--dx) * 26px));
+  }
+  .cta.is-locked :global(.cta-mark .bar) { stroke: rgb(255 255 255 / 0.2); }
+  .cta :global(.cta-mark .bar-1) { transition-delay: 0.12s; }
+  .cta :global(.cta-mark .bar-2) { transition-delay: 0.24s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cta :global(.cta-mark .bar) { transform: none !important; transition: none; }
+  }
 </style>
+
+<script>
+  const cta = document.querySelector<HTMLElement>('[data-cta]');
+  if (cta) {
+    new IntersectionObserver(
+      ([e], io) => {
+        if (!e.isIntersecting) return;
+        cta.classList.add('is-locked');
+        io.disconnect();
+      },
+      { threshold: 0.35 },
+    ).observe(cta);
+  }
+</script>

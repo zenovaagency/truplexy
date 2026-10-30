@@ -191,7 +191,7 @@ function Sidebar({ markSrc, needsReply }: { markSrc: string; needsReply: number 
   return (
     <aside className="hidden w-[64px] shrink-0 flex-col border-r border-line bg-paper md:flex lg:w-[208px]" aria-hidden="true">
       <div className="flex h-[var(--d-topbar)] shrink-0 items-center justify-center gap-2 px-2 lg:justify-start lg:px-5">
-        <img src={markSrc} alt="" width={26} height={28} className="h-7 w-auto" />
+        <img src={markSrc} alt="" width={26} height={26} className="h-[26px] w-[26px]" />
         <span className="hidden text-[1.05rem] font-bold tracking-tight text-ink lg:inline">Truplexy</span>
         <span className="d-badge accent ml-auto hidden lg:inline-flex">Pro</span>
       </div>

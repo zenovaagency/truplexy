@@ -1,0 +1,62 @@
+/* Bubbly's motion, lifted out of bubbly-animated.svg so it ships once per
+   page however many Bubblys there are. Only the named groups get
+   fill-box origins: applying it to everything breaks the rotate()
+   attributes on the eyes. */
+.tpx-bubbly .float,
+.tpx-bubbly .breathe,
+.tpx-bubbly .face,
+.tpx-bubbly .eyes,
+.tpx-bubbly .eye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.bubbly {
+  height: auto;
+  overflow: visible;
+}
+
+.tpx-bubbly .float { animation: tpx-bubbly-bob 3.4s ease-in-out infinite; }
+.tpx-bubbly .halo { animation: tpx-bubbly-glow 3.4s ease-in-out infinite; }
+.tpx-bubbly .eyes { animation: tpx-bubbly-look 6s ease-in-out infinite; }
+.tpx-bubbly .eye { animation: tpx-bubbly-blink 4.6s infinite; }
+
+/* Pointer gaze: the whole face turns; the idle glance steps aside. */
+.bubbly.look .face {
+  transform: translate(calc(var(--look-x, 0) * 1px), calc(var(--look-y, 0) * 1px));
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bubbly.look.is-looking .eyes { animation: none; }
+
+/* A wink on demand (the footer Bubbly). */
+.bubbly.is-winking .eye:last-child { animation: tpx-bubbly-wink 520ms ease-in-out; }
+
+.bubbly.is-still .tpx-bubbly *,
+.bubbly.is-still .tpx-bubbly { animation: none !important; }
+
+@keyframes tpx-bubbly-bob {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(0, -16px); }
+}
+@keyframes tpx-bubbly-glow {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+@keyframes tpx-bubbly-look {
+  0%, 22% { transform: translate(0, 0); }
+  30%, 52% { transform: translate(-40px, 6px); }
+  60%, 100% { transform: translate(0, 0); }
+}
+@keyframes tpx-bubbly-blink {
+  0%, 87%, 93%, 100% { transform: scaleY(1); }
+  90% { transform: scaleY(0.08); }
+}
+@keyframes tpx-bubbly-wink {
+  0%, 100% { transform: scaleY(1); }
+  40%, 60% { transform: scaleY(0.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tpx-bubbly *,
+  .bubbly .face { animation: none !important; transition: none !important; }
+}

@@ -1,10 +1,10 @@
 ---
 import { getImage } from 'astro:assets';
 import LoopDemo from '../../islands/LoopDemo';
-import mark from '../../assets/brand/mark.png';
+import bubbly from '../../assets/brand/bubbly-avatar.png';
 import { STORE_CHAT } from '../../data/demo';
 
-const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
+const markSmall = await getImage({ src: bubbly, width: 96, format: 'webp' });
 ---
 
 <section id="demo" class="section scroll-mt-[calc(var(--section-y)*-1)]" aria-labelledby="demo-title">
@@ -25,7 +25,7 @@ const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
 
     <div class="relative mt-14">
       <div class="absolute inset-x-0 -inset-y-10 -z-10 rounded-[56px] opacity-80 blur-3xl sm:-inset-x-6" style="background: radial-gradient(45% 55% at 20% 40%, var(--glow-a), transparent 70%), radial-gradient(40% 50% at 85% 60%, var(--glow-b), transparent 70%);" aria-hidden="true"></div>
-      <LoopDemo client:visible={{ rootMargin: '400px' }} markSrc={markSmall.src} />
+      <LoopDemo client:visible={{ rootMargin: '400px' }} avatarSrc={markSmall.src} />
     </div>
   </div>
 </section>
