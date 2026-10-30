@@ -205,14 +205,6 @@ const core = [
       const h = rect(hub);
       svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
 
-      const defs = el('defs', {});
-      const grad = el('linearGradient', { id: 'eco-grad', gradientUnits: 'userSpaceOnUse', x1: 0, y1: 0, x2: box.width, y2: 0 });
-      [['0', '#b8b1a6'], ['0.5', '#0a0a0a'], ['1', '#b8b1a6']].forEach(([o, c]) =>
-        grad.appendChild(el('stop', { offset: o, 'stop-color': c })),
-      );
-      defs.appendChild(grad);
-      svg.appendChild(defs);
-
       (['left', 'right'] as const).forEach((side) => {
         const list = nodes.filter((n) => n.dataset.ecoNode === side);
         list.forEach((n, i) => {
@@ -230,11 +222,11 @@ const core = [
           const active = status === 'live' || status === 'core';
           svg.appendChild(
             el('path', active
-              ? { d, fill: 'none', stroke: 'url(#eco-grad)', 'stroke-width': 1.4, opacity: 0.55 }
+              ? { d, fill: 'none', stroke: 'var(--color-ink)', 'stroke-width': 1.4, opacity: 0.35 }
               : { d, fill: 'none', stroke: 'var(--color-line-strong)', 'stroke-width': 1.2, 'stroke-dasharray': '3 5' }),
           );
           if (active) {
-            const pulse = el('path', { d, fill: 'none', stroke: 'url(#eco-grad)', 'stroke-width': 2.4, 'stroke-linecap': 'round', class: 'flow' });
+            const pulse = el('path', { d, fill: 'none', stroke: 'var(--color-ink)', 'stroke-width': 2.4, 'stroke-linecap': 'round', class: 'flow' });
             (pulse as SVGElement).style.animationDelay = `${(-i * 0.45).toFixed(2)}s`;
             svg.appendChild(pulse);
           }
