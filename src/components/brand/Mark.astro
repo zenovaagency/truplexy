@@ -1,0 +1,31 @@
+---
+/**
+ * The Soft Triplex mark in currentColor. Each bar is its own path (classes
+ * `bar bar-0..2`: right, bottom, left) so a parent can move them; `--dx`
+ * and `--dy` on each bar hold its direction of travel as a unit vector.
+ */
+import { MARK_BARS, MARK_DIRS, MARK_VIEWBOX } from '../../assets/brand/brand-paths';
+
+interface Props {
+  size?: number | string;
+  class?: string;
+  /** Accessible name; leave empty for a decorative mark. */
+  label?: string;
+}
+const { size, class: className = '', label = '' } = Astro.props;
+---
+
+<svg
+  viewBox={MARK_VIEWBOX}
+  width={size}
+  height={size}
+  fill="currentColor"
+  class:list={['mark overflow-visible', className]}
+  role={label ? 'img' : undefined}
+  aria-label={label || undefined}
+  aria-hidden={label ? undefined : 'true'}
+>
+  {MARK_BARS.map((d, i) => (
+    <path class={`bar bar-${i}`} d={d} style={`--dx: ${MARK_DIRS[i][0]}; --dy: ${MARK_DIRS[i][1]};`} />
+  ))}
+</svg>

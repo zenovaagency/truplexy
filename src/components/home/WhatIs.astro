@@ -35,7 +35,7 @@ const answers = [
 ];
 ---
 
-<section id="what-is-truplexy" class="section !pt-[clamp(56px,6vw,88px)] !pb-0 scroll-mt-[calc(var(--section-y)*-1)]" aria-labelledby="what-is-title">
+<section id="what-is-truplexy" class="section scroll-mt-[calc(var(--section-y)*-1)] bg-ground-white" aria-labelledby="what-is-title">
   <div class="container-t">
     <div class="mx-auto max-w-[800px] text-center">
       <p class="eyebrow">About</p>
@@ -48,7 +48,7 @@ const answers = [
 
     <dl class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {answers.map((item) => (
-        <div class="flex flex-col rounded-[20px] border border-line bg-surface p-6">
+        <div class="flex flex-col rounded-[20px] border border-line bg-ground-cream p-6">
           <dt class="text-[1.0625rem] font-semibold tracking-tight">{item.q}</dt>
           <dd class="mt-2 flex-1 text-[0.92rem] leading-relaxed text-ink-muted">
             {item.a}
@@ -58,7 +58,7 @@ const answers = [
           </dd>
         </div>
       ))}
-      <div class="flex flex-col rounded-[20px] border border-line bg-surface p-6">
+      <div class="flex flex-col rounded-[20px] border border-line bg-ground-cream p-6">
         <dt class="text-[1.0625rem] font-semibold tracking-tight">Is it related to Perplexity?</dt>
         <dd class="mt-2 flex-1 text-[0.92rem] leading-relaxed text-ink-muted">
           No. {SITE.name} is a separate product from {LEGAL.entity} and is not Perplexity AI or affiliated with Perplexity.

@@ -1,10 +1,10 @@
 ---
 import { getImage } from 'astro:assets';
 import { CircleCheck, Headset, UserRound } from 'lucide-react';
-import mark from '../../assets/brand/mark.png';
+import bubbly from '../../assets/brand/bubbly-avatar.png';
 import { INBOX } from '../../data/demo';
 
-const markSmall = await getImage({ src: mark, width: 64, format: 'webp' });
+const markSmall = await getImage({ src: bubbly, width: 96, format: 'webp' });
 
 const daniel = INBOX.find((t) => t.id === 'daniel')!;
 const goodReply = daniel.messages.find((m) => m.from === 'agent')!;
@@ -28,7 +28,7 @@ const NODE = {
 } as const;
 ---
 
-<section id="handoff" class="section scroll-mt-[calc(var(--section-y)*-1)] border-y border-line bg-surface" aria-labelledby="handoff-title">
+<section id="handoff" class="section scroll-mt-[calc(var(--section-y)*-1)] bg-ground-cream" aria-labelledby="handoff-title">
   <div class="container-t">
     <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-end">
       <div>
@@ -66,7 +66,7 @@ const NODE = {
                   <li class="flex items-center gap-3 sm:flex-col sm:gap-2 sm:text-center">
                     <span class:list={['grid h-12 w-12 flex-none place-items-center rounded-2xl', n.tone]}>
                       {s === 'truplexy'
-                        ? <img src={markSmall.src} alt="" width="26" height="26" class="h-[26px] w-[26px]" />
+                        ? <img src={markSmall.src} alt="" width="48" height="48" class="h-12 w-12 rounded-2xl" />
                         : n.icon && <n.icon size={20} strokeWidth={1.9} aria-hidden="true" />}
                     </span>
                     <span class="text-[0.85rem] font-semibold sm:max-w-[92px] sm:leading-tight">{n.label}</span>

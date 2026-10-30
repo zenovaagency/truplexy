@@ -7,6 +7,65 @@
 /* The dashboard is a separate app with its own Tailwind build. */
 @source not '../../dashboard';
 
+/* ------------------------------------------------------------------ *
+ * Site brand: Soft Triplex. Overrides tokens.css for the marketing site
+ * only (the dashboard keeps its own look until it is rebranded).
+ *
+ * Monochrome: ink on warm stone, like the mark, with no gradients. The
+ * one colour on the page is Bubbly itself, the assistant. --gradient-brand
+ * is kept for the components that read it, but resolves to flat ink.
+ *
+ * Accessibility rules carry over from tokens.css:
+ *   --color-accent  carries text and links (ink, 18:1 on paper)
+ *   --color-btn     is a button surface with white text
+ *   cyan, blue, lilac are DECORATIVE: gradient stops and glyphs only.
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-paper: #f6f3ee;
+  --color-surface: #ffffff;
+  --color-surface-2: #f3efe8;
+  --color-surface-3: #ebe6dd;
+
+  --color-ink: #0a0a0a;
+  --color-ink-muted: #55514b;
+  --color-ink-faint: #6b665e;
+
+  --color-line: #e7e2d9;
+  --color-line-strong: #d4cdc1;
+
+  --color-accent: #0a0a0a;
+  --color-accent-soft: #f0ece5;
+  --color-btn: #0a0a0a;
+  --color-btn-hover: #2b2a28;
+
+  /* Bubbly's ramp. */
+  --color-cyan: #72c4ff;
+  --color-blue: #8fb3ff;
+  --color-indigo: #7c56f0;
+  --color-violet: #c5a6ff;
+  --color-lilac: #f6a3ff;
+
+  --color-ai: #5b3bd6;
+  --color-ai-soft: #f1ecff;
+
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Section grounds: the home page alternates cream and white, so each
+     section reads as its own chapter without borders, and closes on ink
+     (the final call to action and the footer). Cream is the logo's stone. */
+  --color-ground-cream: #f6f3ee;
+  --color-ground-white: #ffffff;
+}
+
+:root {
+  --gradient-brand: linear-gradient(var(--color-ink), var(--color-ink));
+
+  --shadow-sm: 0 1px 2px rgb(30 24 16 / 0.05), 0 2px 8px rgb(30 24 16 / 0.04);
+  --shadow-md: 0 2px 4px rgb(30 24 16 / 0.04), 0 12px 32px rgb(30 24 16 / 0.08);
+  --shadow-lg: 0 4px 10px rgb(30 24 16 / 0.05), 0 28px 64px rgb(30 24 16 / 0.12);
+
+}
+
 @layer base {
   * {
     min-width: 0;
@@ -14,7 +73,7 @@
 
   html {
     -webkit-text-size-adjust: 100%;
-    scroll-behavior: auto; /* Lenis owns scrolling; see lib/scroll.ts */
+    scroll-behavior: auto; /* in-page jumps are smoothed in lib/scroll.ts */
     scroll-padding-top: calc(var(--nav-h) + 8px);
   }
 
@@ -31,8 +90,8 @@
   }
 
   ::selection {
-    background: var(--color-lilac);
-    color: #0e1222;
+    background: var(--color-ink);
+    color: #fff;
   }
 
   :focus-visible {
@@ -74,6 +133,21 @@
 }
 
 @layer components {
+  /* Flat buttons for the site: no sheen and no hover glow (buttons.css is
+     shared with the dashboard, which keeps them). The lift, press and label
+     roll stay. */
+  .btn-primary,
+  .btn-ghost,
+  .btn-soft,
+  .btn-light,
+  .btn-on-dark {
+    --btn-glow: none;
+    background-image: none;
+    box-shadow: none;
+  }
+  .btn-ghost { background-color: var(--color-surface); }
+  .btn-light { color: var(--color-ink); }
+
   .container-t {
     width: 100%;
     max-width: calc(var(--container) + var(--gutter) * 2);
@@ -97,18 +171,12 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Section label: a small pill above each section heading. */
+  /* Section label: a quiet line of text above each section heading. */
   .eyebrow {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--color-line);
-    border-radius: 9999px;
-    background: var(--color-surface);
-    padding: 0.25rem 0.875rem;
-    font-size: 0.8rem;
+    display: inline-block;
+    font-size: 0.875rem;
     font-weight: 500;
-    color: var(--color-ink-muted);
-    box-shadow: var(--shadow-sm);
+    color: var(--color-ink-faint);
   }
 
   .display {
@@ -130,13 +198,15 @@
     color: var(--color-ink-muted);
   }
 
+  /* The second tone of a two-line headline ("Every channel. / One platform."):
+     warm grey, 3.6:1 on white, for large type only. */
+  .tone-2 {
+    color: #857f76;
+  }
+
+  /* Historic name: the highlight in a heading. Now the flat second tone. */
   .gradient-text {
-    background: var(--gradient-text);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    /* Descenders (y, g) sit outside the line box; keep the clip from cutting them. */
-    padding-bottom: 0.08em;
+    color: #857f76;
   }
 
   .card {
@@ -152,38 +222,16 @@
   .thread {
     width: 2px;
     border-radius: 2px;
-    background: linear-gradient(180deg, var(--color-cyan), var(--color-blue) 35%, var(--color-indigo) 65%, var(--color-violet));
+    background: var(--color-line-strong);
   }
 
   .thread-h {
     height: 2px;
     border-radius: 2px;
-    background: var(--gradient-brand);
+    background: var(--color-line-strong);
   }
 
-  /* Soft colour field behind hero/CTA. Pure CSS, no canvas. */
-  .aurora {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(46% 52% at 14% 8%, var(--glow-a), transparent 70%),
-      radial-gradient(40% 50% at 92% 18%, var(--glow-b), transparent 70%),
-      radial-gradient(50% 40% at 60% 100%, color-mix(in oklab, var(--color-blue) 10%, transparent), transparent 70%);
-  }
 
-  .grid-fade {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(to right, color-mix(in oklab, var(--color-line) 70%, transparent) 1px, transparent 1px),
-      linear-gradient(to bottom, color-mix(in oklab, var(--color-line) 70%, transparent) 1px, transparent 1px);
-    background-size: 56px 56px;
-    mask-image: radial-gradient(70% 60% at 50% 30%, #000 20%, transparent 75%);
-    -webkit-mask-image: radial-gradient(70% 60% at 50% 30%, #000 20%, transparent 75%);
-    opacity: 0.55;
-  }
 
   /* Chat bubbles shared by Astro markup and the React islands. */
   .bubble {
@@ -443,60 +491,5 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-}
-
-/* Hero orbit: rings sized to the viewport band, centred on the copy. */
-.hero-orbit {
-  --orbit: 900px;
-  width: var(--orbit);
-  height: var(--orbit);
-}
-
-/* Only the rings fade out; the tiles stay fully opaque. The rings are gone
-   by the channel strip under the copy: the copy block's padding keeps the
-   strip at least ~85% down the orbit on phones and ~65% from sm up, and
-   the hero's extra height on tall screens only pushes it lower. */
-.hero-orbit-rings {
-  --fade: #000 62%, transparent 86%;
-  mask-image: linear-gradient(to bottom, var(--fade));
-  -webkit-mask-image: linear-gradient(to bottom, var(--fade));
-}
-
-@media (min-width: 640px) {
-  .hero-orbit { --orbit: 1240px; }
-  .hero-orbit-rings { --fade: #000 45%, transparent 65%; }
-}
-
-@media (min-width: 1024px) {
-  .hero-orbit { --orbit: 1560px; }
-}
-
-/* Highlighted arcs travel slowly round their ring. */
-@keyframes orbit-spin {
-  from { transform: rotate(var(--from)); }
-  to { transform: rotate(calc(var(--from) + 360deg * var(--dir))); }
-}
-
-.orbit-spin {
-  transform-origin: 0 0; /* the viewBox centre */
-  transform: rotate(var(--from));
-  animation: orbit-spin var(--dur) linear infinite;
-}
-
-/* Tiles bob gently on their rings. */
-@keyframes tile-float {
-  0%, 100% { transform: translateY(-4px); }
-  50% { transform: translateY(5px); }
-}
-
-.tile-float {
-  animation: tile-float 7s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .orbit-spin,
-  .tile-float {
-    animation: none !important;
   }
 }

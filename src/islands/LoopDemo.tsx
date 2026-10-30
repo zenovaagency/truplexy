@@ -58,7 +58,7 @@ const finished = () => {
   return { log, facts };
 };
 
-export default function LoopDemo({ markSrc }: { markSrc: string }) {
+export default function LoopDemo({ avatarSrc }: { avatarSrc: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const run = useRef(0);
@@ -174,9 +174,7 @@ export default function LoopDemo({ markSrc }: { markSrc: string }) {
       <div className="card pointer-events-none select-none overflow-hidden !rounded-[28px] !shadow-[var(--shadow-lg)]" aria-hidden="true">
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <span className="relative flex-none">
-            <span className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface-2">
-              <img src={markSrc} alt="" width={22} height={22} className="h-[22px] w-[22px]" />
-            </span>
+            <img src={avatarSrc} alt="" width={40} height={40} className="h-10 w-10 rounded-full" />
             <span className="live-dot absolute -bottom-0.5 -right-0.5 ring-2 ring-surface" />
           </span>
           <div className="min-w-0 flex-1 leading-tight">

@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Truplexy",
   "short_name": "Truplexy",
-  "description": "The AI customer-support layer that keeps one continuous conversation going across every channel.",
+  "description": "An AI assistant on every channel your customers use, and one platform for your team to manage every conversation.",
   "lang": "en",
   "start_url": "/",
   "scope": "/",
@@ -16,9 +16,15 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "theme_color": "#F7F8FC",
-  "background_color": "#F7F8FC",
+  "theme_color": "#F6F3EE",
+  "background_color": "#F6F3EE",
   "display": "standalone"
 }

@@ -6,8 +6,8 @@ import '../styles/docs.css';
 
 /**
  * The documentation page shell: hero, sticky "On this page" list and the
- * `.docs` article. /docs/web-sdk set the pattern; every docs and channel
- * page uses it.
+ * `.docs` article. /docs/web-sdk set the pattern; every docs, channel and
+ * legal page uses it. The hero sits on cream and the article on white.
  */
 interface Props {
   title: string;
@@ -25,8 +25,7 @@ const { title, description, breadcrumbs, eyebrow, heading, lede, toc } = Astro.p
 <Base title={title} description={description} breadcrumbs={breadcrumbs}>
   <Nav />
   <main id="main" class="relative overflow-x-clip">
-    <section class="relative pb-14 pt-[calc(var(--nav-h)+clamp(3rem,6vw,5rem))]" aria-labelledby="docs-title">
-      <div class="aurora" aria-hidden="true"></div>
+    <section class="relative bg-ground-cream pb-14 pt-[calc(var(--nav-h)+clamp(3rem,6vw,5rem))]" aria-labelledby="docs-title">
       <div class="container-t relative">
         <div class="max-w-[760px]">
           <slot name="hero-top" />
@@ -40,7 +39,8 @@ const { title, description, breadcrumbs, eyebrow, heading, lede, toc } = Astro.p
       </div>
     </section>
 
-    <div class="container-t pb-[var(--section-y)]">
+    <div class="bg-ground-white">
+    <div class="container-t pb-[var(--section-y)] pt-14">
       <div class="grid gap-12 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav class="hidden lg:block" aria-label="On this page">
           <ul class="sticky top-[calc(var(--nav-h)+2rem)] grid gap-1 border-l border-line text-[0.875rem]">
@@ -54,6 +54,7 @@ const { title, description, breadcrumbs, eyebrow, heading, lede, toc } = Astro.p
           <slot />
         </article>
       </div>
+    </div>
     </div>
   </main>
   <Footer />

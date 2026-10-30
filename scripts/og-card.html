@@ -2,9 +2,9 @@
 <!--
   Source of public/og-card.png (1200×630). Render it with `npm run og`.
   Copy follows the launch film: the end line "Every channel. One platform."
-  The thread under "One platform." is the hero's (src/components/home/Hero.astro):
-  one strand per channel braids into a single brand thread ending in a node.
-  Colours and type are the site's tokens (src/styles/tokens.css).
+  Brand: the Soft Triplex logo (logo/soft-triplex/logo-black.svg, inlined),
+  ink on warm stone, with Bubbly the assistant as the one colour.
+  Type is the site's: Geist, with Geist Mono for the URL.
 -->
 <html lang="en">
   <head>
@@ -12,9 +12,9 @@
     <title>Truplexy OG card</title>
     <style>
       @font-face {
-        font-family: 'Plus Jakarta Sans';
-        font-weight: 200 800;
-        src: url('../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2') format('woff2');
+        font-family: 'Geist';
+        font-weight: 100 900;
+        src: url('../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
       }
       @font-face {
         font-family: 'Geist Mono';
@@ -28,175 +28,87 @@
 
       body {
         position: relative;
-        font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-        color: #0e1222;
-        background:
-          radial-gradient(60% 75% at 8% 4%, rgb(207 239 255 / 0.95), transparent 70%),
-          radial-gradient(60% 75% at 94% 98%, rgb(234 217 255 / 0.95), transparent 70%),
-          #f7f8fc;
+        font-family: 'Geist', 'Segoe UI', sans-serif;
+        color: #0a0a0a;
+        background: #f6f3ee;
       }
+
 
       .card {
         position: absolute;
         inset: 0;
+        padding: 72px 80px;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        text-align: center;
-        padding-top: 58px;
       }
 
-      .wordmark { height: 52px; width: auto; display: block; }
+      .logo { height: 56px; width: auto; display: block; align-self: flex-start; }
 
       h1 {
-        margin-top: 34px;
-        font-size: 96px;
+        margin-top: 64px;
+        font-size: 104px;
         line-height: 0.98;
-        font-weight: 800;
-        letter-spacing: -0.045em;
+        font-weight: 700;
+        letter-spacing: -0.05em;
       }
 
-      .one {
-        position: relative;
-        display: inline-block;
-      }
-
-      .one-text {
-        display: inline-block;
-        padding-bottom: 0.08em;
-        background: linear-gradient(95deg, #1f7bff 0%, #2338e6 45%, #6a2bff 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-      }
-
-      /* Same geometry as the hero: reaches left past the word so the strands
-         arrive from outside it, and sits under the descenders. */
-      .one-thread {
-        position: absolute;
-        left: -40%;
-        width: 140%;
-        top: calc(100% - 0.03em);
-        height: 0.46em;
-        overflow: visible;
-        fill: none;
-        stroke-linecap: round;
-      }
-
-      .one-thread path { vector-effect: non-scaling-stroke; }
-      .strand { stroke-width: 2.25; }
-      .merged { stroke-width: 5; }
-
-      .one-node {
-        position: absolute;
-        right: 0;
-        top: calc(100% - 0.03em + 0.46em * 28 / 60);
-        width: 0.14em;
-        height: 0.14em;
-        border-radius: 50%;
-        background: #6a2bff;
-        box-shadow: 0 0 0 0.055em rgb(106 43 255 / 0.18), 0 0 0.3em rgb(106 43 255 / 0.55);
-        transform: translate(10%, -50%);
-      }
+      .two { color: #857f76; }
 
       .sub {
-        margin-top: 64px;
+        margin-top: 34px;
+        max-width: 640px;
         font-size: 27px;
         line-height: 1.35;
+        font-weight: 450;
+        letter-spacing: -0.01em;
+        color: #55514b;
+      }
+
+      .bubbly {
+        position: absolute;
+        right: 92px;
+        bottom: 96px;
+        width: 250px;
+        height: auto;
+        filter: drop-shadow(0 30px 40px rgb(90 70 140 / 0.25));
+      }
+
+      .say {
+        position: absolute;
+        right: 64px;
+        top: 150px;
+        max-width: 300px;
+        padding: 14px 20px;
+        border-radius: 22px 22px 6px 22px;
+        background: #fff;
+        border: 1px solid #e7e2d9;
+        box-shadow: 0 18px 40px rgb(30 24 16 / 0.1);
+        font-size: 22px;
         font-weight: 500;
         letter-spacing: -0.01em;
-        color: #4a5068;
-      }
-
-      .channels {
-        margin-top: 30px;
-        display: flex;
-        gap: 14px;
-        align-items: center;
-      }
-
-      .channels li {
-        list-style: none;
-        display: grid;
-        place-items: center;
-        width: 58px;
-        height: 58px;
-        border-radius: 17px;
-        background: #fff;
-        border: 1px solid #e3e6f0;
-        box-shadow: 0 14px 30px rgb(35 56 230 / 0.1);
-      }
-
-      .channels img { width: 30px; height: 30px; display: block; }
-
-      .channels .more {
-        width: auto;
-        padding: 0 20px;
-        font-family: 'Geist Mono', monospace;
-        font-size: 15px;
-        font-weight: 500;
-        letter-spacing: 0.01em;
-        color: #61688a;
       }
 
       .url {
         position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 24px;
+        left: 80px;
+        bottom: 56px;
         font-family: 'Geist Mono', monospace;
-        font-size: 17px;
+        font-size: 18px;
         font-weight: 500;
         letter-spacing: 0.04em;
-        color: #2338e6;
-        text-align: center;
+        color: #55514b;
       }
     </style>
   </head>
   <body>
+
     <main class="card">
-      <img class="wordmark" src="../src/assets/brand/wordmark-dark.png" alt="Truplexy" />
-      <h1>
-        Every channel.<br />
-        <span class="one">
-          <span class="one-text">One platform.</span>
-          <svg class="one-thread" viewBox="0 0 640 60" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="merged" gradientUnits="userSpaceOnUse" x1="270" y1="0" x2="632" y2="0">
-                <stop offset="0" stop-color="#1f7bff" />
-                <stop offset="0.45" stop-color="#2338e6" />
-                <stop offset="1" stop-color="#6a2bff" />
-              </linearGradient>
-              <linearGradient id="fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="170" y2="0">
-                <stop offset="0" stop-color="#fff" stop-opacity="0" />
-                <stop offset="1" stop-color="#fff" />
-              </linearGradient>
-              <mask id="mask" maskUnits="userSpaceOnUse" x="0" y="-10" width="640" height="80">
-                <rect x="0" y="-10" width="640" height="80" fill="url(#fade)" />
-              </mask>
-            </defs>
-            <g mask="url(#mask)">
-              <path class="strand" d="M0 4 C 120 4, 170 30, 272 30" stroke="#45d4ff" />
-              <path class="strand" d="M0 17 C 120 17, 170 30, 272 30" stroke="#1f7bff" />
-              <path class="strand" d="M0 30 C 120 30, 170 30, 272 30" stroke="#2338e6" />
-              <path class="strand" d="M0 43 C 120 43, 170 30, 272 30" stroke="#6a2bff" />
-              <path class="strand" d="M0 56 C 120 56, 170 30, 272 30" stroke="#d9b8ff" />
-            </g>
-            <path class="merged" d="M270 30 C 380 30, 440 38, 530 33 S 610 26, 632 28" stroke="url(#merged)" />
-          </svg>
-          <span class="one-node"></span>
-        </span>
-      </h1>
+      <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 504 99" width="504" height="99" role="img" aria-label="Truplexy"><g transform="translate(0 0) scale(0.271) translate(-64 -84.63)"><path fill="#0a0a0a" d="M211.54 123.6L223.07 103.64A38.03 38.03 0 0 1 288.93 103.64L386.28 272.25A22.08 22.08 0 0 1 367.16 305.37L316.49 305.37A30 30 0 0 1 290.51 290.37L211.54 153.6A30 30 0 0 1 211.54 123.6ZM431.38 350.37L442.9 370.33A38.03 38.03 0 0 1 409.97 427.37L215.28 427.37A22.08 22.08 0 0 1 196.16 394.25L221.49 350.37A30 30 0 0 1 247.47 335.37L405.4 335.37A30 30 0 0 1 431.38 350.37ZM125.08 427.37L102.03 427.37A38.03 38.03 0 0 1 69.1 370.33L166.44 201.72A22.08 22.08 0 0 1 204.69 201.72L230.02 245.6A30 30 0 0 1 230.02 275.6L151.06 412.37A30 30 0 0 1 125.08 427.37Z"/></g><path fill="#0a0a0a" transform="translate(135.951 76.5) scale(0.088889)" d="M212 -673L358 -673L358 0L212 0ZM556 -673L556 -538L14 -538L14 -673ZM712.6 0L570.6 0L570.6 -284Q570.6 -348 594.6 -398.5Q618.6 -449 667.6 -478.5Q716.6 -508 789.6 -508Q814.6 -508 838.6 -503.5Q862.6 -499 881.6 -491L881.6 -353Q863.6 -364 842.6 -369Q821.6 -374 802.6 -374Q760.6 -374 736.6 -348.5Q712.6 -323 712.6 -279ZM1161.39 -124Q1198.39 -124 1222.89 -143.5Q1247.39 -163 1259.39 -195.5Q1271.39 -228 1271.39 -266L1271.39 -495L1413.39 -495L1413.39 -249Q1413.39 -176 1384.89 -116.5Q1356.39 -57 1300.39 -22Q1244.39 13 1161.39 13Q1079.39 13 1023.39 -22Q967.39 -57 938.89 -117Q910.39 -177 910.39 -249L910.39 -495L1052.39 -495L1052.39 -265Q1052.39 -228 1064.39 -195.5Q1076.39 -163 1100.89 -143.5Q1125.39 -124 1161.39 -124ZM1658.29 228L1516.29 228L1516.29 -249Q1516.29 -324 1551.29 -382.5Q1586.29 -441 1646.79 -475Q1707.29 -509 1784.29 -509Q1861.29 -509 1921.79 -473.5Q1982.29 -438 2017.29 -379Q2052.29 -320 2052.29 -249Q2052.29 -172 2019.29 -112.5Q1986.29 -53 1927.79 -19.5Q1869.29 14 1792.29 14Q1738.29 14 1692.29 -10.5Q1646.29 -35 1617.79 -74.5Q1589.29 -114 1589.29 -160L1658.29 -148ZM1784.29 -120Q1821.29 -120 1849.79 -137.5Q1878.29 -155 1894.29 -184Q1910.29 -213 1910.29 -248Q1910.29 -283 1894.29 -312Q1878.29 -341 1849.79 -358Q1821.29 -375 1784.29 -375Q1748.29 -375 1719.79 -358Q1691.29 -341 1674.79 -312Q1658.29 -283 1658.29 -248Q1658.29 -213 1674.79 -184Q1691.29 -155 1719.79 -137.5Q1748.29 -120 1784.29 -120ZM2157.58 -723L2299.58 -723L2299.58 0L2157.58 0ZM2673.9 13Q2596.9 13 2535.4 -20.5Q2473.9 -54 2438.9 -113.5Q2403.9 -173 2403.9 -252Q2403.9 -323 2436.4 -382.5Q2468.9 -442 2526.9 -477.5Q2584.9 -513 2660.9 -513Q2739.9 -513 2794.9 -478.5Q2849.9 -444 2879.4 -387Q2908.9 -330 2908.9 -262L2908.9 -220L2516.9 -220L2538.9 -255Q2536.9 -213 2553.4 -180Q2569.9 -147 2600.4 -128.5Q2630.9 -110 2672.9 -110Q2712.9 -110 2745.4 -129Q2777.9 -148 2794.9 -182L2903.9 -127Q2871.9 -60 2812.4 -23.5Q2752.9 13 2673.9 13ZM2546.9 -299L2767.9 -299Q2764.9 -325 2750.4 -345.5Q2735.9 -366 2712.9 -377.5Q2689.9 -389 2659.9 -389Q2628.9 -389 2605.4 -377Q2581.9 -365 2567.4 -344.5Q2552.9 -324 2546.9 -299ZM3542.5 0L3383.5 0L3298.5 -137Q3283.5 -161 3276 -189.5Q3268.5 -218 3268.5 -245Q3268.5 -274 3276 -302.5Q3283.5 -331 3298.5 -356L3382.5 -495L3542.5 -495L3423.5 -300Q3404.5 -269 3404.5 -247Q3404.5 -224 3426.5 -188ZM3134.5 0L2975.5 0L3091.5 -188Q3113.5 -224 3113.5 -247Q3113.5 -269 3094.5 -300L2975.5 -495L3135.5 -495L3219.5 -356Q3234.5 -331 3242 -302.5Q3249.5 -274 3249.5 -245Q3249.5 -218 3242 -189.5Q3234.5 -161 3219.5 -137ZM3349.5 -186L3180.5 -186L3180.5 -313L3349.5 -313ZM3864.36 242Q3776.36 242 3712.86 205.5Q3649.36 169 3615.36 100L3732.36 36Q3749.36 68 3781.86 90Q3814.36 112 3862.36 112Q3905.36 112 3934.86 92.5Q3964.36 73 3980.36 38.5Q3996.36 4 3996.36 -42L3996.36 -119L4024.36 -130Q4017.36 -86 3996.86 -56Q3976.36 -26 3943.36 -10Q3910.36 6 3864.36 6Q3784.36 6 3733.36 -26Q3682.36 -58 3657.86 -114.5Q3633.36 -171 3633.36 -244L3633.36 -495L3773.36 -495L3773.36 -249Q3773.36 -195 3801.36 -161.5Q3829.36 -128 3882.36 -128Q3914.36 -128 3939.86 -144Q3965.36 -160 3979.86 -188.5Q3994.36 -217 3994.36 -252L3994.36 -495L4138.36 -495L4138.36 -44Q4138.36 42 4103.86 106.5Q4069.36 171 4007.86 206.5Q3946.36 242 3864.36 242Z"/></svg>
+      <h1>Every channel.<br /><span class="two">One platform.</span></h1>
       <p class="sub">A human-like AI assistant on every channel, and one platform for your team.</p>
-      <ul class="channels" aria-hidden="true">
-        <li><img src="../public/brands/whatsapp.svg" alt="" /></li>
-        <li><img src="../public/brands/instagram.svg" alt="" /></li>
-        <li><img src="../public/brands/messenger.svg" alt="" /></li>
-        <li><img src="../public/brands/telegram.svg" alt="" /></li>
-        <li><img src="../public/brands/discord.svg" alt="" /></li>
-        <li class="more">+ website, email &amp; more</li>
-      </ul>
-      <p class="url">truplexy.com</p>
     </main>
+    <p class="say">Hi! I answer your customers, day and night.</p>
+    <svg class="bubbly" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 596 647" width="596" height="647" role="img" aria-label="Truplexy Bubbly"><defs><clipPath id="c02mc"><path d="M522 208.3C528.1 208.3 534.1 208.3 540.2 208.4C546.3 208.5 552.4 208.7 558.5 209C564.6 209.3 570.7 209.6 576.9 210.2C583 210.7 589.2 211.4 595.4 212.2C601.5 213.1 607.7 214.1 613.9 215.3C620.1 216.5 626.3 217.9 632.4 219.5C638.5 221.2 644.6 223 650.6 225.1C656.7 227.3 662.7 229.6 668.5 232.3C674.4 234.9 680.1 237.8 685.7 241C691.3 244.1 696.8 247.6 702.1 251.3C707.4 255 712.5 259 717.3 263.3C722.2 267.5 726.8 272.1 731.2 276.8C735.6 281.5 739.7 286.5 743.5 291.7C747.4 296.9 750.9 302.3 754.2 307.8C757.5 313.3 760.5 319.1 763.2 324.8C765.9 330.6 768.3 336.6 770.5 342.6C772.6 348.5 774.5 354.6 776.1 360.7C777.7 366.8 779.1 372.9 780.3 379C781.4 385.1 782.4 391.3 783.1 397.4C783.9 403.5 784.4 409.5 784.8 415.6C785.2 421.6 785.4 427.6 785.6 433.6C785.7 439.5 785.6 445.4 785.5 451.3C785.4 457.2 785.2 463 784.9 468.8C784.7 474.5 784.3 480.3 784 486C783.7 491.7 783.3 497.4 782.9 503.1C782.5 508.8 782 514.5 781.4 520.2C780.9 525.8 780.2 531.5 779.5 537.2C778.7 542.9 777.8 548.6 776.8 554.3C775.7 559.9 774.6 565.6 773.2 571.3C771.9 576.9 770.4 582.6 768.7 588.2C767 593.8 765.1 599.3 763 604.8C760.8 610.3 758.5 615.8 756 621.1C753.4 626.4 750.6 631.7 747.6 636.8C744.6 641.8 741.3 646.8 737.9 651.6C734.4 656.4 730.6 661.1 726.7 665.5C722.7 669.9 718.5 674.2 714.2 678.2C709.8 682.2 705.2 686 700.5 689.5C695.7 693 690.8 696.3 685.7 699.4C680.7 702.4 675.5 705.2 670.2 707.8C664.9 710.3 659.5 712.6 654 714.7C648.6 716.8 643 718.6 637.5 720.2C632 721.8 626.4 723.2 620.8 724.5C615.2 725.7 609.6 726.7 604 727.6C598.4 728.5 592.9 729.2 587.3 729.8C581.8 730.4 576.3 730.8 570.8 731.2C565.3 731.5 559.8 731.8 554.4 731.9C548.9 732.1 543.5 732.2 538.1 732.2C532.7 732.3 527.4 732.3 522 732.3C516.6 732.3 511.3 732.3 505.9 732.2C500.5 732.2 495.1 732.1 489.6 731.9C484.2 731.8 478.7 731.5 473.2 731.2C467.7 730.8 462.2 730.4 456.7 729.8C451.1 729.2 445.6 728.5 440 727.6C434.4 726.7 428.8 725.7 423.2 724.5C417.6 723.2 412 721.8 406.5 720.2C401 718.6 395.4 716.8 390 714.7C384.5 712.6 379.1 710.3 373.8 707.8C368.5 705.2 363.3 702.4 358.3 699.4C353.2 696.3 348.3 693 343.5 689.5C338.8 686 334.2 682.2 329.8 678.2C325.5 674.2 321.3 669.9 317.3 665.5C313.4 661.1 309.6 656.4 306.1 651.6C302.7 646.8 299.4 641.8 296.4 636.8C293.4 631.7 290.6 626.4 288 621.1C285.5 615.8 283.2 610.3 281 604.8C278.9 599.3 277 593.8 275.3 588.2C273.6 582.6 272.1 576.9 270.8 571.3C269.4 565.6 268.3 559.9 267.2 554.3C266.2 548.6 265.3 542.9 264.5 537.2C263.8 531.5 263.1 525.8 262.6 520.2C262 514.5 261.5 508.8 261.1 503.1C260.7 497.4 260.3 491.7 260 486C259.7 480.3 259.3 474.5 259.1 468.8C258.8 463 258.6 457.2 258.5 451.3C258.4 445.4 258.3 439.5 258.4 433.6C258.6 427.6 258.8 421.6 259.2 415.6C259.6 409.5 260.1 403.5 260.9 397.4C261.6 391.3 262.6 385.1 263.7 379C264.9 372.9 266.3 366.8 267.9 360.7C269.5 354.6 271.4 348.5 273.5 342.6C275.7 336.6 278.1 330.6 280.8 324.8C283.5 319.1 286.5 313.3 289.8 307.8C293.1 302.3 296.6 296.9 300.5 291.7C304.3 286.5 308.4 281.5 312.8 276.8C317.2 272.1 321.8 267.5 326.7 263.3C331.5 259 336.6 255 341.9 251.3C347.2 247.6 352.7 244.1 358.3 241C363.9 237.8 369.6 234.9 375.5 232.3C381.3 229.6 387.3 227.3 393.4 225.1C399.4 223 405.5 221.2 411.6 219.5C417.7 217.9 423.9 216.5 430.1 215.3C436.3 214.1 442.5 213.1 448.6 212.2C454.8 211.4 461 210.7 467.1 210.2C473.3 209.6 479.4 209.3 485.5 209C491.6 208.7 497.7 208.5 503.8 208.4C509.9 208.3 515.9 208.3 522 208.3Z"/><path d="M500 690C430 770 340 812 238 806C300 750 330 680 340 560Z"/></clipPath><mask id="c02mo" maskUnits="userSpaceOnUse" x="-512" y="-512" width="2048" height="2048"><rect x="-512" y="-512" width="2048" height="2048" fill="#fff"/><g fill="#000"><path d="M522 208.3C528.1 208.3 534.1 208.3 540.2 208.4C546.3 208.5 552.4 208.7 558.5 209C564.6 209.3 570.7 209.6 576.9 210.2C583 210.7 589.2 211.4 595.4 212.2C601.5 213.1 607.7 214.1 613.9 215.3C620.1 216.5 626.3 217.9 632.4 219.5C638.5 221.2 644.6 223 650.6 225.1C656.7 227.3 662.7 229.6 668.5 232.3C674.4 234.9 680.1 237.8 685.7 241C691.3 244.1 696.8 247.6 702.1 251.3C707.4 255 712.5 259 717.3 263.3C722.2 267.5 726.8 272.1 731.2 276.8C735.6 281.5 739.7 286.5 743.5 291.7C747.4 296.9 750.9 302.3 754.2 307.8C757.5 313.3 760.5 319.1 763.2 324.8C765.9 330.6 768.3 336.6 770.5 342.6C772.6 348.5 774.5 354.6 776.1 360.7C777.7 366.8 779.1 372.9 780.3 379C781.4 385.1 782.4 391.3 783.1 397.4C783.9 403.5 784.4 409.5 784.8 415.6C785.2 421.6 785.4 427.6 785.6 433.6C785.7 439.5 785.6 445.4 785.5 451.3C785.4 457.2 785.2 463 784.9 468.8C784.7 474.5 784.3 480.3 784 486C783.7 491.7 783.3 497.4 782.9 503.1C782.5 508.8 782 514.5 781.4 520.2C780.9 525.8 780.2 531.5 779.5 537.2C778.7 542.9 777.8 548.6 776.8 554.3C775.7 559.9 774.6 565.6 773.2 571.3C771.9 576.9 770.4 582.6 768.7 588.2C767 593.8 765.1 599.3 763 604.8C760.8 610.3 758.5 615.8 756 621.1C753.4 626.4 750.6 631.7 747.6 636.8C744.6 641.8 741.3 646.8 737.9 651.6C734.4 656.4 730.6 661.1 726.7 665.5C722.7 669.9 718.5 674.2 714.2 678.2C709.8 682.2 705.2 686 700.5 689.5C695.7 693 690.8 696.3 685.7 699.4C680.7 702.4 675.5 705.2 670.2 707.8C664.9 710.3 659.5 712.6 654 714.7C648.6 716.8 643 718.6 637.5 720.2C632 721.8 626.4 723.2 620.8 724.5C615.2 725.7 609.6 726.7 604 727.6C598.4 728.5 592.9 729.2 587.3 729.8C581.8 730.4 576.3 730.8 570.8 731.2C565.3 731.5 559.8 731.8 554.4 731.9C548.9 732.1 543.5 732.2 538.1 732.2C532.7 732.3 527.4 732.3 522 732.3C516.6 732.3 511.3 732.3 505.9 732.2C500.5 732.2 495.1 732.1 489.6 731.9C484.2 731.8 478.7 731.5 473.2 731.2C467.7 730.8 462.2 730.4 456.7 729.8C451.1 729.2 445.6 728.5 440 727.6C434.4 726.7 428.8 725.7 423.2 724.5C417.6 723.2 412 721.8 406.5 720.2C401 718.6 395.4 716.8 390 714.7C384.5 712.6 379.1 710.3 373.8 707.8C368.5 705.2 363.3 702.4 358.3 699.4C353.2 696.3 348.3 693 343.5 689.5C338.8 686 334.2 682.2 329.8 678.2C325.5 674.2 321.3 669.9 317.3 665.5C313.4 661.1 309.6 656.4 306.1 651.6C302.7 646.8 299.4 641.8 296.4 636.8C293.4 631.7 290.6 626.4 288 621.1C285.5 615.8 283.2 610.3 281 604.8C278.9 599.3 277 593.8 275.3 588.2C273.6 582.6 272.1 576.9 270.8 571.3C269.4 565.6 268.3 559.9 267.2 554.3C266.2 548.6 265.3 542.9 264.5 537.2C263.8 531.5 263.1 525.8 262.6 520.2C262 514.5 261.5 508.8 261.1 503.1C260.7 497.4 260.3 491.7 260 486C259.7 480.3 259.3 474.5 259.1 468.8C258.8 463 258.6 457.2 258.5 451.3C258.4 445.4 258.3 439.5 258.4 433.6C258.6 427.6 258.8 421.6 259.2 415.6C259.6 409.5 260.1 403.5 260.9 397.4C261.6 391.3 262.6 385.1 263.7 379C264.9 372.9 266.3 366.8 267.9 360.7C269.5 354.6 271.4 348.5 273.5 342.6C275.7 336.6 278.1 330.6 280.8 324.8C283.5 319.1 286.5 313.3 289.8 307.8C293.1 302.3 296.6 296.9 300.5 291.7C304.3 286.5 308.4 281.5 312.8 276.8C317.2 272.1 321.8 267.5 326.7 263.3C331.5 259 336.6 255 341.9 251.3C347.2 247.6 352.7 244.1 358.3 241C363.9 237.8 369.6 234.9 375.5 232.3C381.3 229.6 387.3 227.3 393.4 225.1C399.4 223 405.5 221.2 411.6 219.5C417.7 217.9 423.9 216.5 430.1 215.3C436.3 214.1 442.5 213.1 448.6 212.2C454.8 211.4 461 210.7 467.1 210.2C473.3 209.6 479.4 209.3 485.5 209C491.6 208.7 497.7 208.5 503.8 208.4C509.9 208.3 515.9 208.3 522 208.3Z"/><path d="M500 690C430 770 340 812 238 806C300 750 330 680 340 560Z"/></g></mask><filter id="c02mbb" filterUnits="userSpaceOnUse" x="-512" y="-512" width="2048" height="2048" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="90"/></filter><filter id="c02ms" filterUnits="userSpaceOnUse" x="-512" y="-512" width="2048" height="2048" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="40"/></filter><filter id="c02mr" filterUnits="userSpaceOnUse" x="-512" y="-512" width="2048" height="2048" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="22"/></filter><filter id="c02mh" filterUnits="userSpaceOnUse" x="-512" y="-512" width="2048" height="2048" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="21.6"/></filter></defs><g transform="translate(-214 -184)"><g clip-path="url(#c02mc)"><rect x="-512" y="-512" width="2048" height="2048" fill="#c9c9ff"/><g filter="url(#c02mbb)"><circle cx="380" cy="380" r="200" fill="#72c4ff" opacity="1"/><circle cx="680" cy="640" r="200" fill="#f6a3ff" opacity="1"/><circle cx="700" cy="380" r="160" fill="#c5a6ff" opacity="1"/><circle cx="460" cy="640" r="150" fill="#e8fbff" opacity="0.9"/><circle cx="300" cy="760" r="90" fill="#9fd4ff" opacity="1"/></g><g filter="url(#c02ms)" opacity="0.32"><rect x="-512" y="-512" width="2048" height="2048" fill="#7c56f0" mask="url(#c02mo)" transform="translate(-20 -24)"/></g><g filter="url(#c02mr)" opacity="0.45"><rect x="-512" y="-512" width="2048" height="2048" fill="#ffffff" mask="url(#c02mo)" transform="translate(14 16)"/></g><ellipse cx="380" cy="330" rx="90" ry="48" transform="rotate(-32 380 330)" fill="#fff" opacity="0.7" filter="url(#c02mh)"/></g><g class="eyes"><g class="eye"><ellipse cx="586" cy="470" rx="35" ry="52" fill="#1d1631" transform="rotate(8 586 470)"/><circle cx="597.2" cy="448.2" r="10.5" fill="#fff"/></g><g class="eye"><ellipse cx="690" cy="460" rx="35" ry="52" fill="#1d1631" transform="rotate(8 690 460)"/><circle cx="701.2" cy="438.2" r="10.5" fill="#fff"/></g></g></g></svg>
+    <p class="url">truplexy.com</p>
   </body>
 </html>

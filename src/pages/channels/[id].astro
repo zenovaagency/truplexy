@@ -54,7 +54,7 @@ const glance: [string, string][] = [
         <ChannelIcon id={id} size={24} />
       </span>
       {live
-        ? <span class="chip"><span class="live-dot" aria-hidden="true"></span>Live now</span>
+        ? <span class="inline-flex items-center gap-2 text-[0.875rem] font-medium text-ink-muted"><span class="live-dot" aria-hidden="true"></span>Live now</span>
         : <span class="soon-tag">Coming soon</span>}
     </div>
   </Fragment>

@@ -1,9 +1,19 @@
 ---
 import Logo from './Logo.astro';
+import Bubbly from '../brand/Bubbly.astro';
 import { CHANGELOG_HREF, DOCS_LINKS, PRODUCT_LINKS, SITE, navHref } from '../../data/site';
 import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
 import { channelHref } from '../../data/setup-guides';
 import { LEGAL_PAGES } from '../../data/legal';
+import {
+  LOGO_HEIGHT,
+  LOGO_MARK_TRANSFORM,
+  LOGO_WIDTH,
+  LOGO_WORD_D,
+  LOGO_WORD_TRANSFORM,
+  MARK_BARS,
+  MARK_DIRS,
+} from '../../assets/brand/brand-paths';
 
 const year = new Date().getFullYear();
 const onHome = Astro.url.pathname === '/';
@@ -17,105 +27,389 @@ const link = 'text-white/60 transition-colors hover:text-white';
 ---
 
 <!-- Same ink ground as the call to action above it, so the two read as one
-     band; a hairline marks where one ends. -->
-<footer class="relative overflow-hidden border-t border-white/10 bg-ink text-white">
-  <div class="container-t relative pt-16">
-    <div class="grid gap-12 sm:grid-cols-2 lg:grid-cols-[1.25fr_0.8fr_0.85fr_1.5fr_1fr] lg:gap-10">
-      <div>
-        <Logo height={28} onDark />
-        <p class="mt-6 max-w-[320px] text-[clamp(1.5rem,1.2rem+1vw,2rem)] font-bold leading-tight tracking-tight">
-          Every channel.
-          <span class="footer-gradient block">One platform.</span>
-        </p>
-      </div>
+     band; a hairline marks where one ends.
 
-      <nav aria-label="Product">
-        <h2 class="mono text-white/60">Product</h2>
-        <ul class="mt-4 space-y-2.5 text-[0.95rem]">
-          {product.map((item) => (
-            <li><a href={navHref(item.href, onHome)} class={link}>{item.label}</a></li>
-          ))}
-        </ul>
-      </nav>
-
-      <nav aria-label="Resources">
-        <h2 class="mono text-white/60">Resources</h2>
-        <ul class="mt-4 space-y-2.5 text-[0.95rem]">
-          {resources.map((item) => (
-            <li><a href={item.href} class={link}>{item.label}</a></li>
-          ))}
-        </ul>
-      </nav>
-
-      <div>
-        <h2 class="mono text-white/60">Channels</h2>
-        <ul class:list={['mt-4 text-[0.95rem]', SOON_CHANNELS.length > 0 ? 'space-y-2.5' : 'grid grid-cols-2 gap-x-5 gap-y-2.5 !text-[0.875rem]']}>
-          {LIVE_CHANNELS.map((c) => (
-            <li class="flex items-center gap-2">
-              <a href={channelHref(c.id)} class={link}>{c.name}</a>
-              {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" title="Live" aria-label="Live"></span>}
-            </li>
-          ))}
-        </ul>
-        {SOON_CHANNELS.length > 0 && (
-          <div class="mt-5">
-            <span class="mono inline-flex rounded-full border border-dashed border-white/25 px-2 py-0.5 text-[0.625rem] text-white/60">Coming soon</span>
-            <ul class="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.82rem] text-white/60">
-              {SOON_CHANNELS.map((c) => <li>{c.name}</li>)}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h2 class="mono text-white/60">Talk to us</h2>
-        <ul class="mt-4 space-y-2.5 text-[0.95rem]">
-          <li><a href={`mailto:${SITE.email}`} class={link}>{SITE.email}</a></li>
-          <li><a href={SITE.demoUrl} class={link}>Book a demo</a></li>
-          <li><a href={SITE.signupUrl} class="font-semibold text-white transition-colors hover:text-white/80">Get started →</a></li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="mt-14 flex flex-col gap-3 border-t border-white/10 pt-6 text-[0.82rem] text-white/60 sm:flex-row sm:items-center sm:justify-between">
-      <p>© {year} {SITE.name}. All rights reserved.</p>
-      <nav aria-label="Legal">
-        <ul class="flex flex-wrap gap-x-5 gap-y-1">
-          {LEGAL_PAGES.map((page) => <li><a href={page.href} class={link}>{page.label}</a></li>)}
-        </ul>
-      </nav>
-      <p>Conversations shown on this page are illustrative samples.</p>
-    </div>
+     Three small toys, all optional (the footer is complete without JS):
+     - Bubbly peeks over the top edge, watches the pointer and says hello
+       (on pages with the chat, it opens it).
+     - The oversized logo: its three bars lean toward the pointer, and a
+       click scatters them so they lock back into the mark.
+     - Back to top. -->
+<footer class="site-footer relative z-[1] border-t border-white/10 bg-ink text-white" data-footer>
+  <div class="peek" data-peek>
+    <p class="peek-say" data-say aria-live="polite"></p>
+    <button type="button" class="peek-btn" data-peek-btn aria-label="Say hi to the Truplexy assistant">
+      <Bubbly size={92} look class="peek-bubbly" />
+    </button>
   </div>
 
-  <!-- Oversized wordmark, fading out and cropped by the bottom edge. Decorative. -->
-  <p class="footer-word" aria-hidden="true">Truplexy</p>
+  <div class="overflow-hidden">
+    <div class="container-t relative pt-16">
+      <div class="grid gap-12 sm:grid-cols-2 lg:grid-cols-[1.25fr_0.8fr_0.85fr_1.5fr_1fr] lg:gap-10">
+        <div>
+          <Logo height={28} onDark />
+          <p class="mt-6 max-w-[320px] text-[clamp(1.5rem,1.2rem+1vw,2rem)] font-semibold leading-tight tracking-tight">
+            Every channel.
+            <span class="footer-gradient block">One platform.</span>
+          </p>
+        </div>
+
+        <nav aria-label="Product">
+          <h2 class="mono text-white/60">Product</h2>
+          <ul class="mt-4 space-y-2.5 text-[0.95rem]">
+            {product.map((item) => (
+              <li><a href={navHref(item.href, onHome)} class={link}>{item.label}</a></li>
+            ))}
+          </ul>
+        </nav>
+
+        <nav aria-label="Resources">
+          <h2 class="mono text-white/60">Resources</h2>
+          <ul class="mt-4 space-y-2.5 text-[0.95rem]">
+            {resources.map((item) => (
+              <li><a href={item.href} class={link}>{item.label}</a></li>
+            ))}
+          </ul>
+        </nav>
+
+        <div>
+          <h2 class="mono text-white/60">Channels</h2>
+          <ul class:list={['mt-4 text-[0.95rem]', SOON_CHANNELS.length > 0 ? 'space-y-2.5' : 'grid grid-cols-2 gap-x-5 gap-y-2.5 !text-[0.875rem]']}>
+            {LIVE_CHANNELS.map((c) => (
+              <li class="flex items-center gap-2">
+                <a href={channelHref(c.id)} class={link}>{c.name}</a>
+                {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" title="Live" aria-label="Live"></span>}
+              </li>
+            ))}
+          </ul>
+          {SOON_CHANNELS.length > 0 && (
+            <div class="mt-5">
+              <span class="mono inline-flex rounded-full border border-dashed border-white/25 px-2 py-0.5 text-[0.625rem] text-white/60">Coming soon</span>
+              <ul class="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.82rem] text-white/60">
+                {SOON_CHANNELS.map((c) => <li>{c.name}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h2 class="mono text-white/60">Talk to us</h2>
+          <ul class="mt-4 space-y-2.5 text-[0.95rem]">
+            <li><a href={`mailto:${SITE.email}`} class={link}>{SITE.email}</a></li>
+            <li><a href={SITE.demoUrl} class={link}>Book a demo</a></li>
+            <li><a href={SITE.signupUrl} class="font-semibold text-white transition-colors hover:text-white/80">Get started →</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- The sign-off: the logo, oversized. Decorative; the button makes the
+           mark playable for pointer and keyboard alike. -->
+      <div class="lockup mt-16 sm:mt-24">
+        <div class="lockup-glow" aria-hidden="true"></div>
+        <svg class="lockup-svg" viewBox={`0 0 ${LOGO_WIDTH} ${LOGO_HEIGHT}`} fill="currentColor" aria-hidden="true" data-lockup>
+          <g transform={LOGO_MARK_TRANSFORM}>
+            {MARK_BARS.map((d, i) => (
+              <path class="bar" d={d} data-bar style={`--dx: ${MARK_DIRS[i][0]}; --dy: ${MARK_DIRS[i][1]};`} />
+            ))}
+          </g>
+          <path class="word" transform={LOGO_WORD_TRANSFORM} d={LOGO_WORD_D} />
+        </svg>
+        <button type="button" class="lockup-btn" data-lockup-btn aria-label="Scatter the three bars and lock them back into the mark"></button>
+      </div>
+
+      <div class="mt-10 flex flex-col gap-3 border-t border-white/10 pb-24 pt-6 text-[0.82rem] md:pb-6 text-white/60 md:flex-row md:items-center md:justify-between md:pr-20">
+        <p>© {year} {SITE.name}. All rights reserved.</p>
+        <nav aria-label="Legal">
+          <ul class="flex flex-wrap gap-x-5 gap-y-1">
+            {LEGAL_PAGES.map((page) => <li><a href={page.href} class={link}>{page.label}</a></li>)}
+          </ul>
+        </nav>
+        <p>Conversations shown on this page are illustrative samples.</p>
+        <a href="#main" class="to-top" data-to-top>
+          Back to top
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m0 0-6 6m6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+      </div>
+    </div>
+  </div>
 </footer>
 
 <style>
   .footer-gradient {
-    background: linear-gradient(95deg, #45d4ff 0%, #8f9bff 50%, #d9b8ff 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    padding-bottom: 0.08em;
+    color: rgb(255 255 255 / 0.45);
   }
 
-  .footer-word {
-    margin: 1.5rem 0 0;
-    padding-inline: var(--gutter);
-    text-align: center;
-    font-size: clamp(4rem, 18vw, 16rem);
-    font-weight: 800;
-    letter-spacing: -0.05em;
-    line-height: 0.78;
-    height: 0.62em;
+  /* ---------------------------------------------------------------- *
+   * Bubbly, peeking over the footer's top edge. The window clips its
+   * lower half; hover (or a hello) lifts it further out.
+   * ---------------------------------------------------------------- */
+  .peek {
+    position: absolute;
+    right: clamp(20px, 9vw, 140px);
+    bottom: 100%;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .peek-btn {
+    pointer-events: auto;
+    display: block;
+    width: 92px;
+    height: 84px;
     overflow: hidden;
-    user-select: none;
-    white-space: nowrap;
-    background: linear-gradient(to bottom, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    border-radius: 46px 46px 0 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .peek-btn :global(.peek-bubbly) {
+    transform: translateY(34px);
+    transition: transform 520ms var(--ease-spring);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .peek-btn:hover :global(.peek-bubbly) { transform: translateY(12px) rotate(-5deg); }
+  }
+  .peek.is-saying .peek-btn :global(.peek-bubbly) { transform: translateY(8px); }
+  .peek-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+  .peek-say {
+    margin: 0 0 44px;
+    max-width: 210px;
+    padding: 8px 12px;
+    border-radius: 14px 14px 4px 14px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line);
+    box-shadow: var(--shadow-md);
+    font-size: 0.85rem;
+    line-height: 1.35;
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+    transform-origin: 100% 100%;
+    transition: opacity 200ms, transform 360ms var(--ease-spring);
+  }
+  .peek.is-saying .peek-say { opacity: 1; transform: none; }
+
+  /* ---------------------------------------------------------------- *
+   * The oversized logo. Bars carry --mx/--my (mark units) from the
+   * script; leaving springs them home, and the lock flashes softly
+   * behind the mark.
+   * ---------------------------------------------------------------- */
+  .lockup {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .lockup-svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    color: #fff;
+  }
+
+  .lockup .word { opacity: 0.94; }
+
+  .lockup .bar {
+    transform: translate(calc(var(--mx, 0) * 1px), calc(var(--my, 0) * 1px)) rotate(calc(var(--mr, 0) * 1deg));
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 380ms var(--ease-out-expo);
+  }
+  .lockup.is-home .bar { transition: transform 700ms var(--ease-spring); }
+  .lockup.is-scatter .bar { transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+
+  /* Covers the mark only (the first fifth of the lockup). */
+  .lockup-btn {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 21%;
+    height: 100%;
+    border-radius: 24px;
+    cursor: pointer;
+  }
+  .lockup-btn:focus-visible { outline: 2px solid #fff; outline-offset: 6px; }
+
+  .lockup-glow {
+    position: absolute;
+    left: 2%;
+    top: 8%;
+    z-index: -1;
+    width: 17%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #fff;
+    filter: blur(60px);
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 600ms var(--ease-out-expo), transform 700ms var(--ease-out-expo);
+  }
+  .lockup.is-near .lockup-glow { opacity: 0.08; transform: scale(0.9); }
+  .lockup.is-locked .lockup-glow { opacity: 0.22; transform: scale(1.15); transition-duration: 160ms; }
+
+  .to-top {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgb(255 255 255 / 0.6);
+    transition: color 200ms;
+  }
+  .to-top:hover { color: #fff; }
+  .to-top svg { transition: transform 300ms var(--ease-spring); }
+  .to-top:hover svg { transform: translateY(-2px); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .peek-btn :global(.peek-bubbly),
+    .lockup .bar,
+    .lockup-glow { transition: none; }
   }
 </style>
+
+<script>
+  import { scrollToTop } from '../../lib/scroll';
+
+  const footer = document.querySelector<HTMLElement>('[data-footer]');
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fine = window.matchMedia('(pointer: fine)').matches;
+
+  if (footer) {
+    const peek = footer.querySelector<HTMLElement>('[data-peek]')!;
+    const peekBtn = footer.querySelector<HTMLButtonElement>('[data-peek-btn]')!;
+    const say = footer.querySelector<HTMLElement>('[data-say]')!;
+    const bubbly = peek.querySelector<HTMLElement>('.bubbly');
+    const lockup = footer.querySelector<HTMLElement>('.lockup')!;
+    const mark = lockup.querySelector<SVGGElement>('[data-lockup] g')!;
+    const bars = [...lockup.querySelectorAll<SVGPathElement>('[data-bar]')];
+    const lockBtn = footer.querySelector<HTMLButtonElement>('[data-lockup-btn]')!;
+
+    // ------------------------------------------------------------ Bubbly
+    // On pages with the chat, Bubbly opens it (BubblyChat listens for [data-open-chat]).
+    const hasChat = !!document.querySelector('[data-bubbly-chat]');
+    if (hasChat) {
+      peekBtn.setAttribute('data-open-chat', '');
+      peekBtn.setAttribute('aria-label', 'Chat with the Truplexy assistant');
+    }
+
+    const LINES = hasChat
+      ? ['Let’s chat!']
+      : ['Hi! I’m the Truplexy assistant.', 'Every channel. One platform.', 'I answer customers day and night.', 'Still here if you need me.'];
+    let line = 0;
+    let quiet = 0;
+    peekBtn.addEventListener('click', () => {
+      say.textContent = LINES[line++ % LINES.length];
+      peek.classList.add('is-saying');
+      bubbly?.classList.remove('is-winking');
+      void bubbly?.getBoundingClientRect();
+      bubbly?.classList.add('is-winking');
+      clearTimeout(quiet);
+      quiet = window.setTimeout(() => peek.classList.remove('is-saying'), 2600);
+    });
+
+    // ------------------------------------------------------------ the lockup
+    const set = (bar: SVGPathElement, x: number, y: number, r = 0) => {
+      bar.style.setProperty('--mx', x.toFixed(1));
+      bar.style.setProperty('--my', y.toFixed(1));
+      bar.style.setProperty('--mr', r.toFixed(1));
+    };
+    const home = () => {
+      lockup.classList.remove('is-scatter', 'is-near');
+      lockup.classList.add('is-home');
+      bars.forEach((b) => set(b, 0, 0));
+      // the lock: a soft flash once the bars have landed
+      window.setTimeout(() => {
+        lockup.classList.add('is-locked');
+        window.setTimeout(() => lockup.classList.remove('is-locked', 'is-home'), 260);
+      }, 360);
+    };
+
+    let busy = false;
+    lockBtn.addEventListener('click', () => {
+      if (still || busy) return;
+      busy = true;
+      lockup.classList.remove('is-home');
+      lockup.classList.add('is-scatter');
+      bars.forEach((b) => {
+        const dx = Number(b.style.getPropertyValue('--dx'));
+        const dy = Number(b.style.getPropertyValue('--dy'));
+        // out along the bar's own line, and a little away from the centre
+        set(b, dx * 90 - dy * 40, dy * 90 + dx * 40, (Math.random() - 0.5) * 24);
+      });
+      window.setTimeout(() => {
+        home();
+        window.setTimeout(() => (busy = false), 700);
+      }, 380);
+    });
+
+    // Bars lean toward the pointer, and Bubbly watches it, while the footer is on screen.
+    if (fine && !still) {
+      let inView = false;
+      new IntersectionObserver(([e]) => (inView = e.isIntersecting)).observe(footer);
+
+      let frame = 0;
+      let leaning = false;
+      footer.addEventListener('pointermove', (e) => {
+        if (!inView || frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          // Bubbly
+          if (bubbly) {
+            const r = peekBtn.getBoundingClientRect();
+            const dx = e.clientX - (r.left + r.width / 2);
+            const dy = e.clientY - (r.top + r.height / 2);
+            const d = Math.hypot(dx, dy) || 1;
+            const k = Math.min(1, d / 200) / d;
+            bubbly.classList.add('is-looking');
+            bubbly.style.setProperty('--look-x', (dx * k * 34).toFixed(1));
+            bubbly.style.setProperty('--look-y', (dy * k * 22).toFixed(1));
+          }
+          // the bars
+          if (busy) return;
+          const m = mark.getBoundingClientRect();
+          const cx = m.left + m.width / 2;
+          const cy = m.top + m.height / 2;
+          const px = e.clientX - cx;
+          const py = e.clientY - cy;
+          const dist = Math.hypot(px, py);
+          const reach = Math.max(260, m.width * 2.2);
+          if (dist > reach) {
+            if (leaning) {
+              leaning = false;
+              home();
+            }
+            return;
+          }
+          leaning = true;
+          lockup.classList.remove('is-home');
+          lockup.classList.add('is-near');
+          const pull = (1 - dist / reach) * 34; // mark units
+          // screen px → mark units
+          const unit = 384 / m.width;
+          bars.forEach((b) => {
+            const bb = b.getBoundingClientRect();
+            const bx = e.clientX - (bb.left + bb.width / 2);
+            const by = e.clientY - (bb.top + bb.height / 2);
+            const bd = Math.hypot(bx, by) || 1;
+            const near = Math.min(1, bd * unit / 140);
+            set(b, (bx / bd) * pull * near, (by / bd) * pull * near, (bx / bd) * pull * 0.12);
+          });
+        });
+      });
+      footer.addEventListener('pointerleave', () => {
+        bubbly?.classList.remove('is-looking');
+        if (leaning) {
+          leaning = false;
+          home();
+        }
+      });
+    }
+
+    // ------------------------------------------------------------ back to top
+    footer.querySelector('[data-to-top]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      scrollToTop();
+    });
+  }
+</script>

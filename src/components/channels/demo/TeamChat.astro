@@ -1,7 +1,7 @@
 ---
 import { getImage } from 'astro:assets';
 import { Bell, CircleCheck, Hash, MessageSquare, Plus, Reply, Search, SmilePlus, Users } from 'lucide-react';
-import mark from '../../../assets/brand/mark.png';
+import bubbly from '../../../assets/brand/bubbly-avatar.png';
 import type { ChannelDemoData, DemoLine } from '../../../data/channel-pages';
 import { initials, times, type TeamVariant } from './shared';
 
@@ -18,7 +18,7 @@ interface Props {
 }
 const { variant, demo } = Astro.props;
 const at = times(demo.lines.length);
-const logo = await getImage({ src: mark, width: 72, format: 'webp' });
+const logo = await getImage({ src: bubbly, width: 72, format: 'webp' });
 
 const SIDEBAR: Record<TeamVariant, { title: string; items: string[]; active: string }> = {
   discord: { title: 'Loom & Lane', items: ['welcome', 'announcements', 'help', 'new-arrivals'], active: 'help' },
@@ -83,7 +83,7 @@ const timeLabel = (t: string) => (variant === 'discord' ? `Today at ${t} AM` : `
             <p class="tc-sys" data-line>{l.text}</p>
           ) : (
             <div class="tc-msg" data-line>
-              <span class={`tc-ava from-${l.from}`} aria-hidden="true">{l.from === 'ai' ? 'L&L' : initials(demo.customer)}</span>
+              {l.from === 'ai' ? <img class="tc-ava tc-logo" src={logo.src} width="40" height="40" alt="" /> : <span class={`tc-ava from-${l.from}`} aria-hidden="true">{initials(demo.customer)}</span>}
               <div class="tc-msg-body">
                 <p class="tc-meta"><b>{nameOf(l)}</b>{tagOf(l) && <span class="tc-tag">{tagOf(l)}</span>}<span class="tc-time">{timeLabel(l.time)}</span></p>
                 <p class="tc-text whitespace-pre-line">{l.text}</p>
@@ -284,10 +284,9 @@ const timeLabel = (t: string) => (variant === 'discord' ? `Today at ${t} AM` : `
     font-size: 12px;
     font-weight: 700;
   }
-  .tc-logo { object-fit: cover; background: #fff; border: 1px solid var(--line); }
+  .tc-logo { object-fit: cover; }
   .tc-ava.from-agent { background: #2bac76; }
   .v-discord .tc-ava { width: 40px; height: 40px; border-radius: 50%; }
-  .v-discord .tc-ava.from-ai { background: #5865f2; }
   .v-discord .tc-ava.from-customer { background: #eb459e; }
   .v-teams .tc-ava { border-radius: 50%; }
   .v-teams .tc-ava.from-agent { background: #c19c00; }

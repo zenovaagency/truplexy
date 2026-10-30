@@ -2,6 +2,8 @@
 import { Archive, ArrowLeft, Forward, Reply, Star, Trash2 } from 'lucide-react';
 import type { ChannelDemoData } from '../../../data/channel-pages';
 import { initials, times } from './shared';
+import { getImage } from 'astro:assets';
+import bubbly from '../../../assets/brand/bubbly-avatar.png';
 
 /** The customer's own inbox: one email thread with the store's support address. */
 interface Props {
@@ -11,6 +13,8 @@ const { demo } = Astro.props;
 const at = times(demo.lines.length);
 const SUPPORT = { name: 'Loom & Lane Support', address: 'support@loomandlane.example' };
 const customerAddress = `${demo.customer.split(' ')[0].toLowerCase()}@example.com`;
+// Bubbly, the assistant, speaks for the store wherever the AI does.
+const avatar = await getImage({ src: bubbly, width: 72, format: 'webp' });
 ---
 
 <div class="mail">
@@ -27,9 +31,9 @@ const customerAddress = `${demo.customer.split(' ')[0].toLowerCase()}@example.co
         <p class="ml-event" data-line>{l.text}</p>
       ) : (
         <article class="ml-msg" data-line>
-          <span class={`ml-ava ${l.from === 'customer' ? 'is-me' : ''}`} aria-hidden="true">
-            {l.from === 'customer' ? initials(demo.customer) : 'L&L'}
-          </span>
+          {l.from === 'ai' ? <img class="ml-ava" src={avatar.src} width="36" height="36" alt="" /> : <span class={`ml-ava ${l.from === 'customer' ? 'is-me' : ''}`} aria-hidden="true">
+            {initials(l.from === 'customer' ? demo.customer : l.author ?? 'Team')}
+          </span>}
           <div class="ml-main">
             <p class="ml-from">
               <b>{l.from === 'customer' ? demo.customer : l.author ?? SUPPORT.name}</b>
@@ -121,6 +125,7 @@ const customerAddress = `${demo.customer.split(' ')[0].toLowerCase()}@example.co
     font-size: 11px;
     font-weight: 700;
   }
+  img.ml-ava { object-fit: cover; }
   .ml-ava.is-me { background: #7b1fa2; }
   .ml-main { min-width: 0; flex: 1; }
   .ml-from { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }

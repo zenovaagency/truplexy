@@ -1,208 +1,52 @@
 ---
 import Button from '../ui/Button.astro';
-import ChannelIcon from '../ui/ChannelIcon';
-import HeroOrbit from './HeroOrbit.astro';
+import HeroStage from './HeroStage.astro';
 import { channel, channelsIn } from '../../data/channels';
 import { SITE } from '../../data/site';
 
 // Live customer-messaging channels are named as-is; any flagship messaging
-// app not yet live is shown faded with an explicit "Coming soon" label.
-// Both read the registry.
+// app not yet live is named as coming soon. Both read the registry.
 const heroLive = channelsIn('messaging').filter((c) => c.status === 'live');
 const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).filter((c) => c.status === 'soon');
-
-// The strands of the heading's thread, top to bottom, in the brand ramp.
-const STRANDS = [
-  { y: 4, color: '#45d4ff' },
-  { y: 17, color: '#1f7bff' },
-  { y: 30, color: '#2338e6' },
-  { y: 43, color: '#6a2bff' },
-  { y: 56, color: '#d9b8ff' },
-];
+const list = (names: string[]) => new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
 ---
 
-<!-- Fills the first screen (capped on tall monitors): the copy centres in the
-     space between the nav and the channel strip, which sits at the bottom. -->
-<section class="relative isolate flex min-h-[min(100svh,1000px)] flex-col overflow-hidden border-b border-line bg-surface">
-  <div class="container-t relative flex flex-1 flex-col pt-[var(--nav-h)]">
-    <!-- Copy block. The orbit centres itself on this block, so its padding
-         stays symmetric. -->
-    <div class="relative mx-auto my-auto flex w-full max-w-[980px] flex-col items-center py-[clamp(40px,5vh,64px)] text-center">
-      <HeroOrbit />
-
-      <p class="flex flex-col items-center gap-2.5 text-[0.875rem] text-ink-muted sm:flex-row sm:gap-3">
-        <span class="flex items-center" aria-hidden="true">
-          {heroLive.map((c, i) => (
-            <span class:list={['grid h-8 w-8 place-items-center rounded-full border border-line bg-surface shadow-[var(--shadow-sm)] ring-2 ring-surface', i > 0 && '-ml-2']}>
-              <ChannelIcon id={c.id} size={16} strokeWidth={2.25} />
-            </span>
-          ))}
-        </span>
-        <span>Your customers have questions. Anytime. Everywhere.</span>
-      </p>
-
-      <h1
-        class="display mt-6 text-[clamp(2.9rem,1.2rem+5.4vw,5.75rem)] !font-extrabold !leading-[0.98] !tracking-[-0.045em]"
-      >
+<!-- Fills the first screen (capped on tall monitors). Copy on the left; on
+     the right, the stage shows the tagline happening: questions from every
+     channel reach the assistant and land in one inbox. Plain stone ground. -->
+<section class="hero relative bg-ground-cream">
+  <div class="container-t grid min-h-[min(100svh,960px)] items-center gap-14 pb-16 pt-[calc(var(--nav-h)+40px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-10 lg:pb-14">
+    <div class="flex flex-col items-center text-center lg:items-start lg:text-left">
+      <h1 class="display text-[clamp(2.9rem,1.4rem+4.6vw,5.4rem)] !font-bold !leading-[0.98] !tracking-[-0.05em]">
         Every channel.
-        <span class="block">
-          <span class="one">
-            <span class="one-text">One platform.</span>
-            <!-- The tagline, drawn: one strand per channel runs in from the left
-                 and they braid into a single brand thread under "platform". -->
-            <svg class="one-thread" viewBox="0 0 640 60" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="one-merged" gradientUnits="userSpaceOnUse" x1="270" y1="0" x2="632" y2="0">
-                  <stop offset="0" stop-color="#1f7bff" />
-                  <stop offset="0.45" stop-color="#2338e6" />
-                  <stop offset="1" stop-color="#6a2bff" />
-                </linearGradient>
-                <linearGradient id="one-fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="170" y2="0">
-                  <stop offset="0" stop-color="#fff" stop-opacity="0" />
-                  <stop offset="1" stop-color="#fff" />
-                </linearGradient>
-                <mask id="one-mask" maskUnits="userSpaceOnUse" x="0" y="-10" width="640" height="80">
-                  <rect x="0" y="-10" width="640" height="80" fill="url(#one-fade)" />
-                </mask>
-              </defs>
-              <g mask="url(#one-mask)">
-                {STRANDS.map((s) => (
-                  <path
-                    class="strand"
-                    d={`M0 ${s.y} C 120 ${s.y}, 170 30, 272 30`}
-                    stroke={s.color}
-                   
-                  />
-                ))}
-              </g>
-              <path class="merged" d="M270 30 C 380 30, 440 38, 530 33 S 610 26, 632 28" stroke="url(#one-merged)" />
-            </svg>
-            <span class="one-node" aria-hidden="true"></span>
-          </span>
-        </span>
+        <span class="tone-2 block">One platform.</span>
       </h1>
 
-      <p class="lede mt-11 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] sm:mt-14">
+      <p class="lede mt-7 max-w-[540px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)]">
         Truplexy puts a human-like AI assistant on every channel you already use, and gives your team
         one platform to manage every conversation.
       </p>
 
-      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:mt-10 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center">
+      <div class="mt-9 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-center">
         <Button href={SITE.signupUrl}>Start free trial</Button>
         <Button href="#demo" variant="ghost" arrow={false}>See it in action</Button>
       </div>
 
-      <p class="mono mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.68rem] text-ink-faint">
-        <span>AI on every channel</span><span aria-hidden="true" class="text-line-strong">·</span>
-        <span>One inbox for your team</span><span aria-hidden="true" class="text-line-strong">·</span>
-        <span>Human when it matters</span>
+      <!-- Where Truplexy runs today, in words. Stands in for a customer-logo strip. -->
+      <p class="mt-12 max-w-[480px] text-[0.9rem] leading-relaxed text-ink-faint">
+        Live today on <span class="text-ink">{list(heroLive.map((c) => c.name))}</span>.
+        {upcoming.length > 0 && <> {list(upcoming.map((c) => c.name))} coming soon.</>}
       </p>
     </div>
 
-    <!-- Where Truplexy runs today. Stands in for a customer-logo strip. -->
-    <div class="border-t border-line py-8 sm:py-10">
-      <p class="text-center text-[0.875rem] text-ink-faint">Live today on the channels your customers already use</p>
-      <div class="mt-5 flex flex-col items-center gap-x-10 gap-y-4 xl:flex-row xl:justify-center">
-        <ul class="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:gap-x-10">
-          {heroLive.map((c) => (
-            <li class="flex items-center gap-2 text-[1.0625rem] font-semibold tracking-tight text-ink-muted">
-              <ChannelIcon id={c.id} size={20} />
-              {c.name}
-            </li>
-          ))}
-        </ul>
-        {upcoming.length > 0 && (
-          <p class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 xl:border-l xl:border-line xl:pl-10">
-            {upcoming.map((c) => (
-              <span class="flex items-center gap-2 text-[1.0625rem] font-semibold tracking-tight text-ink-faint opacity-60">
-                <ChannelIcon id={c.id} size={18} />
-                {c.name}
-              </span>
-            ))}
-            <span class="soon-tag">Coming soon</span>
-          </p>
-        )}
-      </div>
+    <div>
+      <HeroStage />
+      <p class="mt-5 text-center text-[0.85rem] text-ink-faint">
+        Sample conversations.{' '}
+        <button type="button" class="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" data-open-chat>
+          Ask the assistant yourself →
+        </button>
+      </p>
     </div>
   </div>
 </section>
-
-<style>
-  /* "One platform.": brand gradient, with a glint of light that sweeps
-     across once the strands below have braided into one thread. */
-  .one {
-    position: relative;
-    display: inline-block;
-  }
-
-  .one-text {
-    background:
-      linear-gradient(100deg, transparent 42%, rgb(255 255 255 / 0.75) 50%, transparent 58%) no-repeat,
-      var(--gradient-text);
-    background-size: 250% 100%, 100% 100%;
-    background-position: 0% 0, 0 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    padding-bottom: 0.08em;
-    animation: one-glint 1.2s var(--ease-out-expo) 1.55s both;
-  }
-
-  /* Sits under the descenders; reaches left past the text so the strands
-     arrive from outside the word. */
-  .one-thread {
-    position: absolute;
-    left: -30%;
-    width: 130%;
-    max-width: none; /* preflight caps svg at 100% */
-    top: calc(100% - 0.03em);
-    height: 0.46em;
-    overflow: visible;
-    fill: none;
-    stroke-linecap: round;
-    pointer-events: none;
-    /* Drawn in left to right: strands first, then the merged thread. A clip,
-       not a dash offset, because Chrome mis-measures dashes on
-       non-scaling strokes. */
-    clip-path: inset(-50% 100% -50% 0);
-    animation: one-reveal 1.5s var(--ease-out-expo) 0.3s forwards;
-  }
-
-  .one-thread path { vector-effect: non-scaling-stroke; }
-  .strand { stroke-width: 1.75; }
-  .merged { stroke-width: 4; }
-
-  /* Where the strands end up: a small glowing node, the one platform. Sits
-     at the thread's end (x 632 of 640, y 28 of 60 in the SVG). */
-  .one-node {
-    position: absolute;
-    right: 0;
-    top: calc(100% - 0.03em + 0.46em * 28 / 60);
-    width: 0.13em;
-    height: 0.13em;
-    border-radius: 50%;
-    background: #6a2bff;
-    box-shadow: 0 0 0 0.05em rgb(106 43 255 / 0.18), 0 0 0.28em rgb(106 43 255 / 0.55);
-    transform: translate(10%, -50%) scale(0);
-    animation: one-node 0.6s var(--ease-spring) 1.6s forwards;
-  }
-
-  @keyframes one-node {
-    to { transform: translate(10%, -50%) scale(1); }
-  }
-
-  @keyframes one-reveal {
-    to { clip-path: inset(-50% -2% -50% 0); }
-  }
-
-  @keyframes one-glint {
-    from { background-position: 100% 0, 0 0; }
-    to { background-position: 0% 0, 0 0; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .one-text { animation: none; }
-    .one-thread { animation: none; clip-path: none; }
-    .one-node { animation: none; transform: translate(10%, -50%); }
-  }
-</style>
