@@ -6,7 +6,6 @@ import { BrandMark } from '@/components/layout/Brand';
 function FullPage({ children }: { children: React.ReactNode }) {
   return (
     <main className="relative grid min-h-dvh place-items-center overflow-hidden bg-paper px-4">
-      <div className="aurora" />
       <div className="relative grid justify-items-center gap-6">
         <BrandMark className="h-8" />
         <div className="panel w-full max-w-md">{children}</div>
@@ -19,7 +18,6 @@ function FullPage({ children }: { children: React.ReactNode }) {
 function ScreenFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-paper">
-      <div className="aurora" />
       <header className="relative px-4 pt-6 sm:px-8 sm:pt-8">
         <Link to="/" aria-label="Truplexy" className="inline-block">
           <BrandMark className="h-7" />

@@ -8,7 +8,6 @@ import {
   ExternalLink,
   FileText,
   FileUp,
-  Loader2,
   MoreHorizontal,
   Pencil,
   RefreshCw,
@@ -57,6 +56,7 @@ import {
   useConfirm,
 } from '@/components/ui';
 import { DocStatusBadge } from '@/components/domain/badges';
+import { Loader } from '@/components/ui/loader';
 
 /* ------------------------------------------------------------------ */
 /* Metadata fields shared by uploads and articles                       */
@@ -330,7 +330,7 @@ export function UploadDialog({
                         Open existing
                       </Button>
                     )}
-                    {['hashing', 'registering', 'uploading', 'processing'].includes(s.phase) && <Loader2 className="size-4 animate-spin text-accent" />}
+                    {['hashing', 'registering', 'uploading', 'processing'].includes(s.phase) && <Loader className="size-4 text-accent" />}
                     {s.phase === 'queued' && !running && (
                       <Button size="xs" icon variant="quiet" aria-label={`Remove ${f.file.name}`} onClick={() => setFiles((all) => all.filter((x) => x.key !== f.key))}>
                         <X />
@@ -616,7 +616,7 @@ export function DocumentSheet({
               <DocStatusBadge status={d.status} />
               {working && (
                 <Badge tone="accent">
-                  <Loader2 className="size-3 animate-spin" /> {working}…
+                  <Loader size={12} label={null} /> {working}…
                 </Badge>
               )}
             </div>
@@ -644,7 +644,7 @@ export function DocumentSheet({
               </Callout>
             )}
             {d.replace_pending && (
-              <Callout tone="accent" icon={<Loader2 className="animate-spin" />} title="A new version is on its way">
+              <Callout tone="accent" icon={<Loader label={null} />} title="A new version is on its way">
                 Answers come from the current file until the new one is ready.
               </Callout>
             )}

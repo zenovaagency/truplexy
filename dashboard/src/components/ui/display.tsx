@@ -9,6 +9,7 @@ import { useCopy } from '@/hooks';
 import { Button } from './button';
 import { Tip } from './overlay';
 import { NotFoundState, type NotFoundCopy } from './status';
+import { Loader } from '@/components/ui/loader';
 
 /* ------------------------------------------------------------------ */
 /* Badge                                                               */
@@ -43,7 +44,7 @@ export function Count({ n, tone = 'neutral', className }: { n?: number; tone?: '
     <span
       className={cn(
         'inline-grid h-[18px] min-w-[18px] place-items-center rounded-full px-1.5 text-[0.65rem] font-semibold tabular-nums',
-        tone === 'accent' && 'bg-btn text-white',
+        tone === 'accent' && 'bg-btn text-btn-ink',
         tone === 'danger' && 'bg-danger text-white dark:text-paper',
         tone === 'neutral' && 'bg-surface-3 text-ink-muted',
         className,
@@ -165,7 +166,7 @@ export function ErrorState({
 }
 
 export function Spinner({ className }: { className?: string }) {
-  return <RefreshCw className={cn('size-4 animate-spin text-ink-faint', className)} aria-label="Loading" />;
+  return <Loader className={cn('size-4 text-ink-faint', className)} />;
 }
 
 /* ------------------------------------------------------------------ */

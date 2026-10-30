@@ -2,7 +2,6 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { Link, useNavigate } from 'react-router';
 import {
   ArrowLeft,
-  Bot,
   Check,
   ChevronDown,
   GraduationCap,
@@ -63,6 +62,7 @@ import {
 import { PRIORITIES, PRIORITY, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 import { AssigneePicker, TicketFlags } from './shared';
 import { OpenQueryLink } from '@/features/queries/CustomerQueries';
+import { AssistantAvatar } from '@/components/layout/Brand';
 
 type Item = { kind: 'message'; at: string; m: TicketMessage } | { kind: 'note' | 'reply'; at: string; r: TicketReply };
 
@@ -467,7 +467,7 @@ function MessageBubble({ m, refresher }: { m: TicketMessage; refresher: ImageRef
       <div className={cn('bubble bubble-ai', m.error && 'border-danger/40 bg-danger-soft')}>{m.content || <span className="italic text-ink-faint">No reply</span>}</div>
       {m.error && <p className="px-1 text-[0.7rem] font-medium text-danger">{m.error}</p>}
       <Meta right>
-        <Bot className="size-3 text-accent" /> Assistant
+        <AssistantAvatar size={14} /> Assistant
         {m.model && <span className="font-mono">{m.model.split('/').pop()}</span>}
         {m.usage && <span>· {formatCurrency(m.usage.cost)}</span>}
         <span>· {formatTime(m.created_at)}</span>

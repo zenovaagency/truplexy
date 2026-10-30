@@ -1,46 +1,50 @@
 /* Shared by the marketing site and the dashboard (dashboard/src/styles/app.css). */
 
 /* ------------------------------------------------------------------ *
- * Design tokens. The site has a single light theme.
+ * Design tokens: the Soft Triplex brand, light theme. The dashboard
+ * re-points these names for its dark theme (app.css).
  *
- * The gradient ramp is sampled from the Truplexy mark: cyan at the top
- * corner, blue across the upper band, indigo on the left fold, violet and
- * lilac on the lower band.
+ * Monochrome: ink on warm stone, like the mark, with no gradients. The
+ * one colour is Bubbly, the assistant; its ramp (cyan … lilac) is kept
+ * for decoration only. --gradient-brand is kept for the components that
+ * read it, but resolves to flat ink.
  *
  * Accessibility rules:
- *   --color-accent  carries text and links (7.5:1 on white)
- *   --color-btn     is a button surface with white text (≥ 4.5:1)
- *   cyan, blue, lilac are DECORATIVE: gradient stops and glyphs only.
+ *   --color-accent  carries text and links (ink, 18:1 on paper)
+ *   --color-btn     is a button surface; --color-btn-ink is its text
+ *   cyan, blue, lilac are DECORATIVE: glyphs only, never text.
  * ------------------------------------------------------------------ */
 @theme {
-  --color-paper: #f7f8fc;
+  --color-paper: #f6f3ee;
   --color-surface: #ffffff;
-  --color-surface-2: #f1f3fa;
-  --color-surface-3: #e9ecf6;
+  --color-surface-2: #f3efe8;
+  --color-surface-3: #ebe6dd;
 
-  --color-ink: #0e1222;
-  --color-ink-muted: #4a5068;
-  --color-ink-faint: #61688a;
+  --color-ink: #0a0a0a;
+  --color-ink-muted: #55514b;
+  --color-ink-faint: #6b665e;
 
-  --color-line: #e3e6f0;
-  --color-line-strong: #cbd0e0;
+  --color-line: #e7e2d9;
+  --color-line-strong: #d4cdc1;
 
-  --color-accent: #2338e6;
-  --color-accent-soft: #eef0ff;
-  --color-btn: #2338e6;
-  --color-btn-hover: #1a2bc4;
+  --color-accent: #0a0a0a;
+  --color-accent-soft: #f0ece5;
+  --color-btn: #0a0a0a;
+  --color-btn-hover: #2b2a28;
+  --color-btn-ink: #ffffff;
 
-  --color-cyan: #45d4ff;
-  --color-blue: #1f7bff;
-  --color-indigo: #2338e6;
-  --color-violet: #6a2bff;
-  --color-lilac: #d9b8ff;
+  /* Bubbly's ramp. Decorative. */
+  --color-cyan: #72c4ff;
+  --color-blue: #8fb3ff;
+  --color-indigo: #7c56f0;
+  --color-violet: #c5a6ff;
+  --color-lilac: #f6a3ff;
 
   /* Status pairs: text on tint. Each text colour clears 4.5:1 on its tint. */
   --color-live: #15803d;
   --color-live-soft: #e6f6eb;
-  --color-ai: #2338e6;
-  --color-ai-soft: #eef0ff;
+  --color-ai: #5b3bd6;
+  --color-ai-soft: #f1ecff;
   --color-qualified: #0b6e86;
   --color-qualified-soft: #e2f6fb;
   --color-resolved: #15803d;
@@ -48,7 +52,7 @@
   --color-human: #9a4b00;
   --color-human-soft: #fff1dd;
 
-  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   --radius-xs: 8px;
@@ -68,16 +72,11 @@
   --container: 1240px;
   --nav-h: 84px;
 
-  --gradient-brand: linear-gradient(100deg, var(--color-cyan) 0%, var(--color-blue) 38%, var(--color-indigo) 62%, var(--color-violet) 100%);
-  /* Text-safe gradient: no cyan, so the palest stop still clears 3:1 for large type. */
-  --gradient-text: linear-gradient(95deg, var(--color-blue) 0%, var(--color-indigo) 45%, var(--color-violet) 100%);
+  --gradient-brand: linear-gradient(var(--color-ink), var(--color-ink));
 
-  --shadow-sm: 0 1px 2px rgb(14 18 34 / 0.04), 0 2px 8px rgb(14 18 34 / 0.04);
-  --shadow-md: 0 2px 4px rgb(14 18 34 / 0.04), 0 12px 32px rgb(35 56 230 / 0.07);
-  --shadow-lg: 0 4px 10px rgb(14 18 34 / 0.05), 0 28px 64px rgb(35 56 230 / 0.1);
-
-  --glow-a: rgb(69 212 255 / 0.22);
-  --glow-b: rgb(106 43 255 / 0.14);
+  --shadow-sm: 0 1px 2px rgb(30 24 16 / 0.05), 0 2px 8px rgb(30 24 16 / 0.04);
+  --shadow-md: 0 2px 4px rgb(30 24 16 / 0.04), 0 12px 32px rgb(30 24 16 / 0.08);
+  --shadow-lg: 0 4px 10px rgb(30 24 16 / 0.05), 0 28px 64px rgb(30 24 16 / 0.12);
 
   color-scheme: light;
 }

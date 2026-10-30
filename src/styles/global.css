@@ -7,63 +7,13 @@
 /* The dashboard is a separate app with its own Tailwind build. */
 @source not '../../dashboard';
 
-/* ------------------------------------------------------------------ *
- * Site brand: Soft Triplex. Overrides tokens.css for the marketing site
- * only (the dashboard keeps its own look until it is rebranded).
- *
- * Monochrome: ink on warm stone, like the mark, with no gradients. The
- * one colour on the page is Bubbly itself, the assistant. --gradient-brand
- * is kept for the components that read it, but resolves to flat ink.
- *
- * Accessibility rules carry over from tokens.css:
- *   --color-accent  carries text and links (ink, 18:1 on paper)
- *   --color-btn     is a button surface with white text
- *   cyan, blue, lilac are DECORATIVE: gradient stops and glyphs only.
- * ------------------------------------------------------------------ */
+/* Section grounds: the site's pages alternate cream and white, so each
+   section reads as its own chapter without borders, and close on ink (the
+   final call to action and the footer). Cream is the logo's stone. The
+   brand palette itself lives in tokens.css, shared with the dashboard. */
 @theme {
-  --color-paper: #f6f3ee;
-  --color-surface: #ffffff;
-  --color-surface-2: #f3efe8;
-  --color-surface-3: #ebe6dd;
-
-  --color-ink: #0a0a0a;
-  --color-ink-muted: #55514b;
-  --color-ink-faint: #6b665e;
-
-  --color-line: #e7e2d9;
-  --color-line-strong: #d4cdc1;
-
-  --color-accent: #0a0a0a;
-  --color-accent-soft: #f0ece5;
-  --color-btn: #0a0a0a;
-  --color-btn-hover: #2b2a28;
-
-  /* Bubbly's ramp. */
-  --color-cyan: #72c4ff;
-  --color-blue: #8fb3ff;
-  --color-indigo: #7c56f0;
-  --color-violet: #c5a6ff;
-  --color-lilac: #f6a3ff;
-
-  --color-ai: #5b3bd6;
-  --color-ai-soft: #f1ecff;
-
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-
-  /* Section grounds: the home page alternates cream and white, so each
-     section reads as its own chapter without borders, and closes on ink
-     (the final call to action and the footer). Cream is the logo's stone. */
   --color-ground-cream: #f6f3ee;
   --color-ground-white: #ffffff;
-}
-
-:root {
-  --gradient-brand: linear-gradient(var(--color-ink), var(--color-ink));
-
-  --shadow-sm: 0 1px 2px rgb(30 24 16 / 0.05), 0 2px 8px rgb(30 24 16 / 0.04);
-  --shadow-md: 0 2px 4px rgb(30 24 16 / 0.04), 0 12px 32px rgb(30 24 16 / 0.08);
-  --shadow-lg: 0 4px 10px rgb(30 24 16 / 0.05), 0 28px 64px rgb(30 24 16 / 0.12);
-
 }
 
 @layer base {
@@ -133,21 +83,6 @@
 }
 
 @layer components {
-  /* Flat buttons for the site: no sheen and no hover glow (buttons.css is
-     shared with the dashboard, which keeps them). The lift, press and label
-     roll stay. */
-  .btn-primary,
-  .btn-ghost,
-  .btn-soft,
-  .btn-light,
-  .btn-on-dark {
-    --btn-glow: none;
-    background-image: none;
-    box-shadow: none;
-  }
-  .btn-ghost { background-color: var(--color-surface); }
-  .btn-light { color: var(--color-ink); }
-
   .container-t {
     width: 100%;
     max-width: calc(var(--container) + var(--gutter) * 2);
