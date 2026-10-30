@@ -2,6 +2,8 @@
 import { Camera, CheckCheck, ChevronLeft, Image, Info, Mic, Paperclip, Phone, Plus, Smile, ThumbsUp, Video } from 'lucide-react';
 import type { ChannelDemoData } from '../../../data/channel-pages';
 import { times, type PhoneVariant } from './shared';
+import { getImage } from 'astro:assets';
+import bubbly from '../../../assets/brand/bubbly-avatar.png';
 
 /**
  * The customer's phone, in the messaging app they already use. Their messages
@@ -14,6 +16,8 @@ interface Props {
 }
 const { variant, demo } = Astro.props;
 const at = times(demo.lines.length);
+// Bubbly, the assistant, speaks for the store wherever the AI does.
+const avatar = await getImage({ src: bubbly, width: 72, format: 'webp' });
 
 const HEAD: Record<PhoneVariant, { title: string; sub: string }> = {
   whatsapp: { title: 'Loom & Lane', sub: 'Business account' },
@@ -34,7 +38,7 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
 
   <div class="ph-head">
     <ChevronLeft size={22} aria-hidden="true" />
-    <span class="ph-avatar" aria-hidden="true">L&amp;L</span>
+    <img class="ph-avatar" src={avatar.src} width="36" height="36" alt="" />
     <span class="ph-who">
       <span class="ph-title">{head.title}</span>
       <span class="ph-sub">{head.sub}</span>
@@ -51,7 +55,7 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
         <p class="ph-note" data-line>{l.text}</p>
       ) : (
         <div class={`ph-row ${l.from === 'customer' ? 'out' : 'in'}`} data-line>
-          {l.from !== 'customer' && variant === 'messenger' && <span class="ph-mini" aria-hidden="true">L</span>}
+          {l.from !== 'customer' && variant === 'messenger' && <img class="ph-mini" src={avatar.src} width="28" height="28" alt="" />}
           <div class="ph-bubble">
             {l.from === 'agent' && l.author && <span class="ph-author">{l.author}</span>}
             <span class="whitespace-pre-line">{l.text}</span>
@@ -143,7 +147,6 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
     background-size: 22px 22px, 15px 15px;
     background-position: 0 0, 9px 11px;
   }
-  .v-whatsapp .ph-avatar { background: #dfe5e7; color: #54656f; }
 
   /* Telegram: white bar, green wallpaper, pale green outgoing bubbles. */
   .v-telegram {
@@ -158,7 +161,6 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
     background-image: linear-gradient(160deg, #cfe2b6 0%, #a8c98f 45%, #8cb88f 100%);
   }
   .v-telegram .ph-row.in .ph-meta { color: #a1aab3; }
-  .v-telegram .ph-avatar { background: linear-gradient(#72d5fd, #2a9ef1); color: #fff; }
 
   /* Messenger: white, blue-to-violet outgoing, grey incoming with a small avatar. */
   .v-messenger {
@@ -169,8 +171,7 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
   }
   .v-messenger .ph-row.out .ph-bubble { background: linear-gradient(135deg, #0a7cff, #a033ff); }
   .v-messenger .ph-bubble { border-radius: 18px; }
-  .v-messenger .ph-avatar,
-  .v-messenger .ph-mini { background: #1b1d22; color: #fff; }
+
 
   /* Instagram: white, blue outgoing, grey incoming, ringed avatar. */
   .v-instagram {
@@ -182,12 +183,7 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
     --accent: #000;
   }
   .v-instagram .ph-bubble { border-radius: 22px; }
-  .v-instagram .ph-avatar {
-    background: #1b1d22;
-    color: #fff;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #d62976;
-    background-clip: padding-box;
-  }
+  .v-instagram .ph-avatar { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #d62976; }
   .v-instagram .ph-head { border-bottom: 1px solid #efefef; }
   .v-instagram .ph-title { font-weight: 700; }
 
@@ -243,10 +239,8 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
     flex: none;
     width: 36px;
     height: 36px;
-    place-items: center;
     border-radius: 50%;
-    font-size: 11px;
-    font-weight: 700;
+    object-fit: cover;
   }
   .ph-who {
     display: flex;
@@ -346,14 +340,11 @@ const inlineTime = variant === 'whatsapp' || variant === 'telegram';
   }
   .ph-meta :global(svg) { color: var(--tick); }
   .ph-mini {
-    display: grid;
     flex: none;
     width: 26px;
     height: 26px;
-    place-items: center;
     border-radius: 50%;
-    font-size: 11px;
-    font-weight: 700;
+    object-fit: cover;
   }
 
   .ph-compose {

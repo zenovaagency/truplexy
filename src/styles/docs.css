@@ -118,8 +118,7 @@
   padding: 16px 18px;
   border: 1px solid var(--color-line);
   border-radius: 16px;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--color-ground-cream);
   font-size: 0.9rem;
   line-height: 1.5;
 }
@@ -189,8 +188,7 @@
   padding: 14px 16px;
   border: 1px solid var(--color-line);
   border-radius: 14px;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--color-ground-cream);
   font-weight: 400;
   color: var(--color-ink-muted);
   text-decoration: none;
@@ -198,7 +196,7 @@
 }
 .docs .card-link:hover {
   border-color: var(--color-line-strong);
-  box-shadow: var(--shadow-md);
+  background: var(--color-surface);
   text-decoration: none;
 }
 .docs .card-link .icon {

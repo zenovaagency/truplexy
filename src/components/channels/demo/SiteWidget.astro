@@ -2,11 +2,14 @@
 import { ArrowRight, Lock, RotateCcw, ShoppingBag, X } from 'lucide-react';
 import type { ChannelDemoData } from '../../../data/channel-pages';
 import type { SiteVariant } from './shared';
+import { getImage } from 'astro:assets';
+import bubbly from '../../../assets/brand/bubbly-avatar.png';
 
 /**
  * A page of the store's own site with the Truplexy chat widget open on it,
  * drawn from the widget's real styles (sdk/packages/web/src/styles.ts) and
- * default labels (sdk/packages/web/src/labels.ts).
+ * default labels (sdk/packages/web/src/labels.ts), in the site's ink theme
+ * (the colours the home page's own chat uses), with Bubbly as the avatar.
  */
 
 interface Props {
@@ -15,6 +18,8 @@ interface Props {
 }
 const { variant, demo } = Astro.props;
 const url = `loomandlane.example${demo.page ?? '/'}`;
+// Bubbly, the assistant, speaks for the store wherever the AI does.
+const avatar = await getImage({ src: bubbly, width: 72, format: 'webp' });
 const product = variant === 'shopify' ? { name: 'Atlas Jacket', tone: '#2f3a33' } : { name: 'Linen Shirt', tone: '#c9b99a' };
 ---
 
@@ -65,7 +70,7 @@ const product = variant === 'shopify' ? { name: 'Atlas Jacket', tone: '#2f3a33' 
     <div class="tx">
       <div class="tx-panel">
         <div class="tx-head">
-          <span class="tx-avatar" aria-hidden="true">L&amp;L</span>
+          <img class="tx-avatar" src={avatar.src} width="34" height="34" alt="" />
           <span class="tx-heading">
             <span class="tx-title">Loom &amp; Lane</span>
             <span class="tx-sub">Ask us anything. We usually reply in seconds.</span>
@@ -179,13 +184,14 @@ const product = variant === 'shopify' ? { name: 'Atlas Jacket', tone: '#2f3a33' 
   .pg-buy { display: block; padding: 9px; border-radius: 8px; background: #2a2a2a; color: #fff; font-size: 12px; text-align: center; }
   .v-woocommerce .pg-buy { background: #7f54b3; }
 
-  /* The widget: values from the SDK's stylesheet. */
+  /* The widget: the SDK's stylesheet with the site's theme (see
+     BubblyChat.astro): ink accent on warm neutrals. */
   .tx {
-    --tx-accent: #2338e6;
-    --tx-surface: #f4f5fa;
-    --tx-ink: #0e1222;
-    --tx-muted: #5a6080;
-    --tx-line: #e3e6f0;
+    --tx-accent: #0a0a0a;
+    --tx-surface: #f3efe8;
+    --tx-ink: #0a0a0a;
+    --tx-muted: #55514b;
+    --tx-line: #e7e2d9;
     position: absolute;
     top: 16px;
     right: 20px;
@@ -224,11 +230,8 @@ const product = variant === 'shopify' ? { name: 'Atlas Jacket', tone: '#2f3a33' 
     flex: none;
     width: 34px;
     height: 34px;
-    place-items: center;
     border-radius: 50%;
-    background: rgb(255 255 255 / 0.18);
-    font-size: 11px;
-    font-weight: 700;
+    object-fit: cover;
   }
   .tx-heading { display: flex; min-width: 0; flex: 1; flex-direction: column; }
   .tx-title { font-size: 15px; font-weight: 700; line-height: 1.25; }

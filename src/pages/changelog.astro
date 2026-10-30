@@ -14,8 +14,7 @@ import { SITE } from '../data/site';
 >
   <Nav />
   <main id="main" class="relative overflow-x-clip">
-    <section class="relative pb-[var(--section-y)] pt-[calc(var(--nav-h)+clamp(3rem,6vw,5.5rem))]" aria-labelledby="changelog-title">
-      <div class="aurora" aria-hidden="true"></div>
+    <section class="relative bg-ground-cream pb-[clamp(56px,7vw,96px)] pt-[calc(var(--nav-h)+clamp(3rem,6vw,5.5rem))]" aria-labelledby="changelog-title">
       <div class="container-t relative">
         <div class="mx-auto max-w-[760px] text-center">
           <p class="eyebrow">Changelog</p>
@@ -26,15 +25,19 @@ import { SITE } from '../data/site';
             New features, channels and SDK releases, newest first.
           </p>
         </div>
+      </div>
+    </section>
 
-        <ol class="mx-auto mt-16 max-w-[880px]">
+    <section class="section bg-ground-white" aria-label="Releases">
+      <div class="container-t">
+        <ol class="mx-auto max-w-[880px]">
           {CHANGELOG.map((entry) => (
             <li class="grid gap-3 border-t border-line py-10 first:border-t-0 first:pt-0 md:grid-cols-[180px_1fr] md:gap-10">
               <div class="md:pt-1">
                 <time datetime={entry.date} class="mono text-[0.75rem] text-ink-faint">{formatChangeDate(entry.date)}</time>
               </div>
-              <article class="card !bg-paper p-6 sm:p-7">
-                <span class="mono inline-flex rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-[0.625rem] text-ink-muted">{entry.tag}</span>
+              <article class="card !bg-ground-cream !shadow-none p-6 sm:p-7">
+                <span class="mono text-[0.68rem] text-ink-faint">{entry.tag}</span>
                 <h2 class="mt-3 text-[1.25rem] font-bold leading-snug tracking-tight text-ink">{entry.title}</h2>
                 <ul class="mt-4 grid gap-2.5 text-[0.95rem] leading-relaxed text-ink-muted">
                   {entry.items.map((item) => (

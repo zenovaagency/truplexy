@@ -2,6 +2,8 @@
 import { ArrowRightLeft, Inbox, Mail, Search, Tag, UserRound } from 'lucide-react';
 import type { ChannelDemoData } from '../../../data/channel-pages';
 import { initials, times, type HelpdeskVariant } from './shared';
+import { getImage } from 'astro:assets';
+import bubbly from '../../../assets/brand/bubbly-avatar.png';
 
 /**
  * Your team's help desk, with Truplexy working inside it: the customer's
@@ -33,6 +35,8 @@ const fields: [string, string][] =
         ['Lifecycle stage', 'Customer'],
         ['Owner', assigned ?? 'Support'],
       ];
+// Bubbly, the assistant, speaks for the store wherever the AI does.
+const avatar = await getImage({ src: bubbly, width: 72, format: 'webp' });
 ---
 
 <div class={`hd v-${variant}`}>
@@ -74,7 +78,7 @@ const fields: [string, string][] =
             <p class="hd-event" data-line><ArrowRightLeft size={13} aria-hidden="true" />{l.text}</p>
           ) : (
             <article class={`hd-msg from-${l.from}`} data-line>
-              <span class="hd-ava" aria-hidden="true">{l.from === 'customer' ? initials(demo.customer) : 'L&L'}</span>
+              {l.from === 'ai' ? <img class="hd-ava" src={avatar.src} width="32" height="32" alt="" /> : <span class="hd-ava" aria-hidden="true">{initials(l.from === 'customer' ? demo.customer : l.author ?? 'Team')}</span>}
               <div class="hd-body">
                 <p class="hd-meta">
                   <b>{l.from === 'customer' ? demo.customer : l.from === 'agent' ? l.author : SUPPORT}</b>
@@ -222,7 +226,7 @@ const fields: [string, string][] =
     font-size: 11px;
     font-weight: 700;
   }
-  .hd-msg.from-ai .hd-ava,
+  img.hd-ava { object-fit: cover; }
   .hd-msg.from-agent .hd-ava { background: #1b1d22; }
   .hd-body { min-width: 0; flex: 1; }
   .v-hubspot .hd-msg .hd-text { margin-top: 4px; padding: 8px 12px; border-radius: 6px; background: #f5f8fa; }

@@ -64,8 +64,6 @@
   --shadow-md: 0 2px 4px rgb(30 24 16 / 0.04), 0 12px 32px rgb(30 24 16 / 0.08);
   --shadow-lg: 0 4px 10px rgb(30 24 16 / 0.05), 0 28px 64px rgb(30 24 16 / 0.12);
 
-  --glow-a: rgb(30 24 16 / 0.05);
-  --glow-b: rgb(30 24 16 / 0.04);
 }
 
 @layer base {
@@ -233,13 +231,6 @@
     background: var(--color-line-strong);
   }
 
-  /* Soft colour field behind hero/CTA. Pure CSS, no canvas. */
-  .aurora {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: none;
-  }
 
 
   /* Chat bubbles shared by Astro markup and the React islands. */
