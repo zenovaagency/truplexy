@@ -89,6 +89,13 @@ function truplexy_chat_verify($token): ?string {
  * The chat API.
  * ---------------------------------------------------------------------- */
 
+/** Notes a failed Truplexy call in the PHP error log, only when the site logs for debugging (WP_DEBUG_LOG). */
+function truplexy_chat_log(string $message): void {
+    if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+        error_log('[truplexy-chat] ' . $message); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in through WP_DEBUG_LOG.
+    }
+}
+
 class Truplexy_Chat_Error extends Exception {
     public $api_code;
     public $request_id;
@@ -119,7 +126,7 @@ function truplexy_chat_api(string $method, string $path, ?array $body = null, bo
     }
     if ($status >= 300) {
         $code = $status === 401 ? 'NOT_CONFIGURED' : ($data['error']['code'] ?? 'UPSTREAM_ERROR');
-        throw new Truplexy_Chat_Error($code, (string) ($data['error']['request_id'] ?? wp_remote_retrieve_header($res, 'x-request-id')), $status);
+        throw new Truplexy_Chat_Error(esc_html($code), esc_html((string) ($data['error']['request_id'] ?? wp_remote_retrieve_header($res, 'x-request-id'))), absint($status));
     }
     return is_array($data) ? $data : [];
 }
@@ -214,7 +221,7 @@ function truplexy_chat_start(WP_REST_Request $request, $raw): array {
         $context = (string) apply_filters('truplexy_chat_context', '', $request, $user_id);
         $background = trim(($name ? 'Customer: ' . $name . '. ' : '') . $context);
         if ($background !== '') truplexy_chat_api('POST', "/conversations/$conv/messages", ['message' => mb_substr('[Context only] ' . $background, 0, 4000)]);
-    } catch (Throwable $e) { error_log('[truplexy-chat] Background context unavailable'); }
+    } catch (Throwable $e) { truplexy_chat_log('Background context unavailable'); }
     $ticket = null;
     try {
         $opening_ticket = ['subject' => $name ? 'Chat with ' . $name : 'Website chat'];
@@ -222,7 +229,7 @@ function truplexy_chat_start(WP_REST_Request $request, $raw): array {
         if (truplexy_chat_settings()['keep_tickets_open']) $opening_ticket['keep_open'] = true;
         $t = truplexy_chat_api('POST', "/conversations/$conv/ticket", $opening_ticket);
         $ticket = array_intersect_key($t, array_flip(['id', 'subject', 'status']));
-    } catch (Truplexy_Chat_Error $e) { error_log('[truplexy-chat] ' . $e->api_code); }
+    } catch (Truplexy_Chat_Error $e) { truplexy_chat_log($e->api_code); }
     return [$conv, $ticket];
 }
 
@@ -304,7 +311,7 @@ function truplexy_chat_route(WP_REST_Request $request) {
         if ($action === 'live' && $e->api_code === 'REALTIME_NOT_CONFIGURED') {
             return new stdClass();
         }
-        error_log('[truplexy-chat] ' . $e->api_code . ($e->request_id ? ' request_id=' . $e->request_id : ''));
+        truplexy_chat_log($e->api_code . ($e->request_id ? ' request_id=' . $e->request_id : ''));
         return truplexy_chat_error($e->api_code, $e->request_id);
     }
 }
@@ -376,6 +383,7 @@ add_action('admin_init', function () {
     }
     delete_transient('truplexy_chat_welcome');
     // Not for bulk activations, where several plugins are switched on at once.
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- only asks whether WordPress is bulk-activating; nothing is read or saved.
     if (wp_doing_ajax() || isset($_GET['activate-multi']) || !current_user_can('manage_options')) {
         return;
     }
