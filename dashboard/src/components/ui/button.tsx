@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { Slot } from 'radix-ui';
-import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { Loader } from '@/components/ui/loader';
 
 export type ButtonVariant = 'primary' | 'accent' | 'ghost' | 'soft' | 'quiet' | 'danger' | 'danger-ghost';
 export type ButtonSize = 'xs' | 'sm' | 'md';
@@ -66,7 +66,7 @@ export function Button({
   }
   return (
     <button type={type} className={cls} disabled={disabled || loading} aria-busy={loading || undefined} {...rest}>
-      {loading ? <Loader2 className="animate-spin" aria-hidden /> : leading}
+      {loading ? <Loader label={null} /> : leading}
       {children}
     </button>
   );

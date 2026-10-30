@@ -1,7 +1,8 @@
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUp, Loader2, Minus } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUp, Minus } from 'lucide-react';
 import type { DocumentStatus, ReplyStatus, Role, TicketPriority, TicketStatus } from '@/lib/api/types';
 import { ROLE_LABEL } from '@/lib/permissions';
 import { Badge, type Tone } from '@/components/ui';
+import { Loader } from '@/components/ui/loader';
 
 export const TICKET_STATUS: Record<TicketStatus, { label: string; tone: Tone }> = {
   open: { label: 'Open', tone: 'accent' },
@@ -51,7 +52,7 @@ export function DocStatusBadge({ status }: { status: DocumentStatus }) {
   const s = DOC_STATUS[status];
   return (
     <Badge tone={s.tone}>
-      {status === 'processing' && <Loader2 className="size-3 animate-spin" />}
+      {status === 'processing' && <Loader size={12} label={null} />}
       {status === 'failed' && <AlertTriangle className="size-3" />}
       {status !== 'processing' && status !== 'failed' && <span className="size-1.5 rounded-full bg-current" />}
       {s.label}

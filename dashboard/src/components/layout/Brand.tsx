@@ -1,18 +1,35 @@
-import wordmarkDark from '@/assets/brand/wordmark-dark.webp';
-import wordmarkLight from '@/assets/brand/wordmark-light.webp';
-import mark from '@/assets/brand/mark.webp';
+import { LOGO_HEIGHT, LOGO_INNER, LOGO_WIDTH, MARK_BARS, MARK_VIEWBOX } from '@/assets/brand/brand-paths';
+import bubbly from '@/assets/brand/bubbly-avatar.png';
 import { cn } from '@/lib/cn';
 
-/** The wordmark: dark ink on the light theme, light on the dark theme. */
+/** The Soft Triplex logo (mark and wordmark), drawn in the text colour, so it follows the theme. */
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <span className={cn('inline-block', className)}>
-      <img src={wordmarkDark} alt="Truplexy" width={219} height={56} className="h-full w-auto dark:hidden" />
-      <img src={wordmarkLight} alt="Truplexy" width={212} height={56} className="hidden h-full w-auto dark:block" />
+    <span className={cn('inline-block text-ink', className)}>
+      <svg
+        viewBox={`0 0 ${LOGO_WIDTH} ${LOGO_HEIGHT}`}
+        fill="currentColor"
+        role="img"
+        aria-label="Truplexy"
+        className="h-full w-auto"
+        dangerouslySetInnerHTML={{ __html: LOGO_INNER }}
+      />
     </span>
   );
 }
 
+/** The mark alone, in the text colour. */
 export function LogoMark({ className }: { className?: string }) {
-  return <img src={mark} alt="Truplexy" width={90} height={96} className={cn('h-7 w-auto', className)} />;
+  return (
+    <svg viewBox={MARK_VIEWBOX} fill="currentColor" role="img" aria-label="Truplexy" className={cn('h-7 w-auto text-ink', className)}>
+      {MARK_BARS.map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+}
+
+/** Bubbly, the assistant: the avatar for anything the AI says or does. */
+export function AssistantAvatar({ size = 24, className }: { size?: number; className?: string }) {
+  return <img src={bubbly} alt="" width={size} height={size} className={cn('inline-block shrink-0 rounded-full', className)} style={{ width: size, height: size }} />;
 }

@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useBlocker } from 'react-router';
-import { Loader2, Save, Undo2 } from 'lucide-react';
+import { Save, Undo2 } from 'lucide-react';
 import { hasCode } from '@/lib/api/client';
 import { useSaveWorkspace, useWorkspace } from '@/lib/api/endpoints/bot';
 import type { BotConfig, Workspace } from '@/lib/api/types';
 import { switchesScope, useScopeCtx } from '@/lib/session/scope-context';
 import { Button, Card, ErrorState, Page, Skeleton, SkeletonRows, useConfirm } from '@/components/ui';
+import { Loader } from '@/components/ui/loader';
 
 export interface Draft {
   name: string;
@@ -156,7 +157,7 @@ function DraftScope() {
           <div className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-6" style={{ paddingLeft: 'calc(var(--shell-sidebar) + 12px)' }}>
             <div className="mx-auto flex max-w-[860px] flex-wrap items-center gap-3 rounded-[16px] border border-line bg-surface/95 px-4 py-3 shadow-lg backdrop-blur animate-pop-in">
               <span className="flex items-center gap-2 text-[0.8125rem] font-semibold text-ink">
-                {save.isPending ? <Loader2 className="size-4 animate-spin text-accent" /> : <span className="size-2 rounded-full bg-warn" />}
+                {save.isPending ? <Loader label="Saving" className="size-4 text-accent" /> : <span className="size-2 rounded-full bg-warn" />}
                 Unsaved changes
               </span>
               <span className="hidden text-xs text-ink-faint md:inline">Try them in the Playground first; customers get them when you save.</span>

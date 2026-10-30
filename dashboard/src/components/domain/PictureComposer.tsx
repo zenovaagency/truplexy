@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent } from 'react';
 import { Link } from 'react-router';
-import { AlertCircle, ImagePlus, Loader2, RefreshCw, X } from 'lucide-react';
+import { AlertCircle, ImagePlus, RefreshCw, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { canAttach, lacksVisionModel, needsUpgrade, type PictureFeature } from '@/lib/images/feature';
 import type { Picture, PictureSet } from '@/lib/images/pictures';
 import { Button, Tip } from '@/components/ui';
+import { Loader } from '@/components/ui/loader';
 
 /**
  * The composer's picture controls. Everything here renders nothing unless the
@@ -138,7 +139,7 @@ export function PictureTray({ pictures, set, disabled }: { pictures: readonly Pi
             </button>
           </div>
           <p className="mt-1 truncate text-[0.68rem] text-ink-faint" title={p.name}>
-            {p.phase === 'ready' ? p.name : p.phase === 'failed' ? <span className="font-medium text-danger">{p.problem?.title ?? 'Upload failed'}</span> : <span className="inline-flex items-center gap-1"><Loader2 className="size-3 animate-spin" aria-hidden />{p.phase === 'uploading' ? `${Math.round(p.progress * 100)}%` : 'Preparing'}</span>}
+            {p.phase === 'ready' ? p.name : p.phase === 'failed' ? <span className="font-medium text-danger">{p.problem?.title ?? 'Upload failed'}</span> : <span className="inline-flex items-center gap-1"><Loader size={12} label={null} />{p.phase === 'uploading' ? `${Math.round(p.progress * 100)}%` : 'Preparing'}</span>}
           </p>
           {p.phase === 'failed' && (
             <div role="alert" className="grid gap-0.5 text-[0.68rem] leading-snug text-ink-muted">

@@ -440,7 +440,6 @@ export function OnboardingPage() {
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-paper">
-      <div className="aurora" />
       <div className="relative mx-auto grid max-w-[1040px] gap-8 px-4 py-8 sm:px-8 sm:py-12">
         <div className="flex items-center justify-between">
           <BrandMark className="h-7" />

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import wordmarkLight from '@/assets/brand/wordmark-light.webp';
-import { BrandMark } from '@/components/layout/Brand';
+import { AssistantAvatar, BrandMark } from '@/components/layout/Brand';
 import { cn } from '@/lib/cn';
 
 /** The public site. The dashboard host rewrites every path to this app, so legal pages need absolute links. */
@@ -24,18 +23,9 @@ export function AuthFrame({ children, aside = true }: { children: ReactNode; asi
   return (
     <div className={cn('grid min-h-dvh bg-paper', aside && 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]')}>
       {aside && (
-        <aside className="relative hidden overflow-hidden bg-[#0b0f24] p-12 text-white lg:flex lg:flex-col">
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(60% 50% at 10% 0%, rgb(69 212 255 / 0.28), transparent 70%), radial-gradient(50% 60% at 100% 100%, rgb(106 43 255 / 0.35), transparent 70%)',
-            }}
-          />
+        <aside className="relative hidden overflow-hidden bg-[#0a0a0a] p-12 text-white lg:flex lg:flex-col">
           <div className="relative">
-            <span className="inline-block h-7 [&_img]:h-full">
-              <img src={wordmarkLight} alt="Truplexy" />
-            </span>
+            <BrandMark className="h-7 !text-white" />
           </div>
           <div className="relative mt-auto grid max-w-md gap-8">
             <h2 className="text-[2rem] font-bold leading-[1.15] tracking-tight">
@@ -51,17 +41,19 @@ export function AuthFrame({ children, aside = true }: { children: ReactNode; asi
                 </li>
               ))}
             </ul>
-            <div className="grid gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
+            <div className="grid gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.04] p-4">
               <div className="max-w-[80%] self-start rounded-[14px] rounded-bl-[5px] bg-white/10 px-3 py-2 text-sm">Where's my order #4471?</div>
-              <div className="ml-auto max-w-[85%] rounded-[14px] rounded-br-[5px] bg-[#2338e6] px-3 py-2 text-sm">
-                It shipped this morning with DHL, arriving Thursday. Want the tracking link?
+              <div className="ml-auto flex max-w-[90%] items-end gap-2">
+                <div className="rounded-[14px] rounded-br-[5px] bg-white px-3 py-2 text-sm text-[#0a0a0a]">
+                  It shipped this morning with DHL, arriving Thursday. Want the tracking link?
+                </div>
+                <AssistantAvatar size={28} />
               </div>
             </div>
           </div>
         </aside>
       )}
       <main className="relative flex flex-col overflow-hidden px-4 py-8 sm:px-8">
-        <div className={cn('aurora', aside && 'lg:hidden')} />
         <div className={cn('relative', aside && 'lg:hidden')}>
           <BrandMark className="h-7" />
         </div>
