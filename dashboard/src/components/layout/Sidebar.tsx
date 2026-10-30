@@ -133,7 +133,7 @@ function NavItemLink({
         active ? 'bg-surface text-ink shadow-sm ring-1 ring-line [&>svg]:text-accent' : 'text-ink-muted hover:bg-surface-2 hover:text-ink [&>svg]:text-ink-faint',
       )}
     >
-      {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[image:var(--gradient-brand)]" aria-hidden />}
+      {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-ink" aria-hidden />}
       {icon}
       {!collapsed && <span className="flex-1 truncate">{label}</span>}
       {!collapsed && <Count n={count} tone="accent" />}

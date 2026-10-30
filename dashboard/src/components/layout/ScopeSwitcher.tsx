@@ -40,7 +40,7 @@ export function ScopeSwitcher() {
           {logoUrl ? (
             <Avatar name={businessName} src={logoUrl} size={24} className="rounded-[7px]" />
           ) : (
-            <span className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-[image:var(--gradient-brand)] text-[0.65rem] font-bold text-white">
+            <span className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-btn text-[0.65rem] font-bold text-btn-ink">
               {businessName.slice(0, 1).toUpperCase()}
             </span>
           )}

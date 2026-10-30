@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Bot, ClipboardList, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, ClipboardList, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useTenant } from '@/lib/api/endpoints/business';
 import { useCreateQueryType, useDeleteQueryType, useQueryTypePresets, useQueryTypes, useUpdateQueryType } from '@/lib/api/endpoints/queries';
@@ -12,6 +12,7 @@ import { isRouteMissing } from '@/lib/performance';
 import { useScope, useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Callout, Card, Checkbox, Dialog, EmptyState, ErrorState, Field, Input, Select, SkeletonRows, Switch, Textarea, Tip, useConfirm } from '@/components/ui';
 import { PropertiesEditor } from './PropertiesTab';
+import { AssistantAvatar } from '@/components/layout/Brand';
 
 /** Settings → Query types: the kinds of request the business handles, their statuses, forms and who sees them. */
 export function QueryTypesTab() {
@@ -88,7 +89,7 @@ export function QueryTypesTab() {
                       {t.archived && <Badge tone="outline">Archived</Badge>}
                       {t.bot_enabled && (
                         <Badge tone="violet">
-                          <Bot className="size-3" /> Assistant
+                          <AssistantAvatar size={14} className="-ml-1" /> Assistant
                         </Badge>
                       )}
                     </span>

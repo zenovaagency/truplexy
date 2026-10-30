@@ -68,7 +68,7 @@ function Count({ n, accent }: { n?: number; accent?: boolean }) {
   return <span className={cn('d-count', accent && 'accent')}>{n}</span>;
 }
 
-const AVATAR_BG = ['#2338e6', '#6a2bff', '#0b6e86', '#15803d', '#9a4b00', '#c026d3', '#1f7bff', '#be123c'];
+const AVATAR_BG = ['#3d3a35', '#6a2bff', '#0e7f6e', '#15803d', '#9a4b00', '#c026d3', '#7c56f0', '#be123c'];
 
 const initialsOf = (name: string) =>
   name

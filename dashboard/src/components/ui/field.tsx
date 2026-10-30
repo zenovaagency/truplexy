@@ -127,7 +127,7 @@ export function Switch({
         '[@media(pointer:coarse)]:min-h-0',
       )}
     >
-      <RSwitch.Thumb className="block size-[18px] translate-x-[1px] rounded-full bg-white shadow-sm transition-transform duration-200 ease-[var(--ease-out-expo)] data-[state=checked]:translate-x-[17px]" />
+      <RSwitch.Thumb className="block size-[18px] translate-x-[1px] rounded-full bg-white shadow-sm data-[state=checked]:bg-btn-ink transition-transform duration-200 ease-[var(--ease-out-expo)] data-[state=checked]:translate-x-[17px]" />
     </RSwitch.Root>
   );
   if (!label) return control;

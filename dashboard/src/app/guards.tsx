@@ -22,19 +22,14 @@ import {
   type ScopeState,
 } from '@/lib/session/scope-context';
 import { ErrorState } from '@/components/ui';
-import { LogoMark } from '@/components/layout/Brand';
+import { Loader } from '@/components/ui/loader';
 import { AppShell } from './layouts/AppShell';
 import { FullPage, NotFound } from './errors';
 
 export function Splash() {
   return (
-    <div className="grid min-h-dvh place-items-center bg-paper" aria-busy aria-label="Loading">
-      <div className="grid justify-items-center gap-4">
-        <LogoMark className="h-9 animate-pulse" />
-        <div className="relative h-0.5 w-28 overflow-hidden rounded-full bg-surface-3">
-          <div className="thread-h absolute inset-y-0 w-1/2 animate-route-bar" />
-        </div>
-      </div>
+    <div className="grid min-h-dvh place-items-center bg-paper" aria-busy>
+      <Loader size={44} className="text-ink" />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Bot, ClipboardList, Lock, Plus, Search, Settings2, Trash2 } from 'lucide-react';
+import { ClipboardList, Lock, Plus, Search, Settings2, Trash2 } from 'lucide-react';
 import { useCustomerQuery, useDeleteQuery, useQueries, useQueryEvents, useQueryTypes, useUpdateQuery } from '@/lib/api/endpoints/queries';
 import { useProperties } from '@/lib/api/endpoints/properties';
 import type { CustomerQuery, QueryType } from '@/lib/api/types';
@@ -33,6 +33,7 @@ import {
 import { PropertyFields } from '@/components/domain/Properties';
 import { AssigneePicker } from '@/features/tickets/shared';
 import { NewQueryDialog, type QueryPrefill } from './NewQueryDialog';
+import { AssistantAvatar } from '@/components/layout/Brand';
 
 type View = 'active' | 'open' | 'pending' | 'done' | 'all';
 
@@ -100,7 +101,7 @@ export default function QueriesPage() {
       cell: (r) =>
         r.source === 'assistant' ? (
           <Badge tone="violet">
-            <Bot className="size-3" /> Assistant
+            <AssistantAvatar size={14} className="-ml-1" /> Assistant
           </Badge>
         ) : null,
     },

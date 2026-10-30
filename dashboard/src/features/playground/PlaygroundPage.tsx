@@ -20,6 +20,7 @@ import { ReplyStatusBadge } from '@/components/domain/badges';
 import { LocalImages, MessageImages } from '@/components/domain/MessageImages';
 import { AttachButton, PictureHint, PictureTray, usePictureInput } from '@/components/domain/PictureComposer';
 import { useBotDraft } from '@/features/llm/draft';
+import { AssistantAvatar } from '@/components/layout/Brand';
 
 /** "https://docs.example.com/a" → "docs.example.com". */
 const hostOf = (url: string) => {
@@ -182,9 +183,7 @@ export default function PlaygroundPage() {
             </div>
           )}
           <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-            <span className="grid size-8 place-items-center rounded-[10px] bg-[image:var(--gradient-brand)] text-white">
-              <Sparkles className="size-4" />
-            </span>
+            <AssistantAvatar size={32} />
             <div className="grid min-w-0 flex-1">
               <span className="truncate text-[0.875rem] font-bold text-ink">{b.name}</span>
               <span className="truncate text-xs text-ink-faint">
