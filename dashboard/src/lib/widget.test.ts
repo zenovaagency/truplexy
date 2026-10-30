@@ -18,7 +18,7 @@ describe('the chat widget settings', () => {
   });
 
   it('compares what would be saved, ignoring spaces and case', () => {
-    expect(sameWidget({ ...WIDGET_DEFAULTS, heading: ' Hi ', accent: '#2338E6' }, { ...WIDGET_DEFAULTS, heading: 'Hi' })).toBe(true);
+    expect(sameWidget({ ...WIDGET_DEFAULTS, heading: ' Hi ', accent: '#0A0A0A' }, { ...WIDGET_DEFAULTS, heading: 'Hi' })).toBe(true);
     expect(sameWidget({ ...WIDGET_DEFAULTS, heading: 'Hi' }, WIDGET_DEFAULTS)).toBe(false);
   });
 

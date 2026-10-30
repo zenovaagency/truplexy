@@ -8,7 +8,7 @@ export const WIDGET_DEFAULTS: WidgetSettings = {
   subtitle: '',
   greeting: '',
   placeholder: '',
-  accent: '#2338e6',
+  accent: '#0a0a0a',
   theme: 'light',
   position: 'right',
   show_sources: false,
@@ -21,6 +21,7 @@ export const WIDGET_DEFAULTS: WidgetSettings = {
  * colour, so each of these keeps white text readable (4.5:1 or better). The first is the default.
  */
 export const WIDGET_COLOURS = [
+  { id: 'black', name: 'Black', hex: '#0a0a0a' },
   { id: 'indigo', name: 'Indigo', hex: '#2338e6' },
   { id: 'ocean', name: 'Ocean', hex: '#0369a1' },
   { id: 'teal', name: 'Teal', hex: '#0f766e' },
@@ -28,7 +29,6 @@ export const WIDGET_COLOURS = [
   { id: 'amber', name: 'Amber', hex: '#b45309' },
   { id: 'rose', name: 'Rose', hex: '#be123c' },
   { id: 'plum', name: 'Plum', hex: '#7e22ce' },
-  { id: 'graphite', name: 'Graphite', hex: '#1f2937' },
 ] as const;
 
 /** The ready-made colour this code is, if it is one. */
@@ -76,7 +76,7 @@ export function widgetErrors(s: WidgetSettings): Partial<Record<keyof WidgetSett
   for (const [key, max] of Object.entries(WIDGET_LIMITS) as [keyof typeof WIDGET_LIMITS, number][]) {
     if ([...s[key].trim()].length > max) out[key] = `Keep this to ${max} characters.`;
   }
-  if (!/^#[0-9a-fA-F]{6}$/.test(s.accent.trim())) out.accent = 'Pick a colour, such as #2338e6.';
+  if (!/^#[0-9a-fA-F]{6}$/.test(s.accent.trim())) out.accent = 'Pick a colour, such as #0a0a0a.';
   const questions = cleanSuggestions(s.suggestions);
   if (questions.some((q) => [...q].length > SUGGESTION_LIMIT)) out.suggestions = `Keep each question to ${SUGGESTION_LIMIT} characters.`;
   else if (questions.length > MAX_SUGGESTIONS) out.suggestions = `Keep to ${MAX_SUGGESTIONS} questions.`;
