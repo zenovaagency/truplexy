@@ -7,8 +7,12 @@
  * (the inline logo), come from the brand kit generator:
  * brand/soft-logo-concepts/source/build-kit.mjs.
  *
- * src/assets/brand/wordmark-*.png are no longer written here; the SDK's
- * "powered by" line (sdk/scripts/brand-assets.mjs) still reads them.
+ * Every page of the site and the dashboard uses the same favicon: the black
+ * rounded tile. The SVG, the .ico and the PNGs are all that one tile, and the
+ * set is copied into dashboard/public too, so the two apps can't drift.
+ *
+ * src/assets/brand/wordmark-*.png are no longer written here; only the launch
+ * video's notes still mention them.
  *
  * Re-run it whenever a file in /logo/soft-triplex changes. The outputs are
  * committed, so the build itself never depends on this script.
@@ -21,6 +25,7 @@ import sharp from 'sharp';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const src = (f) => path.join(root, 'logo', 'soft-triplex', f);
 const pub = (f) => path.join(root, 'public', f);
+const dash = (f) => path.join(root, 'dashboard', 'public', f);
 
 /** Renders an SVG source to a square PNG of `size` px. */
 async function png(file, size) {
@@ -30,12 +35,12 @@ async function png(file, size) {
 }
 
 // Favicons: a black rounded tile, so the mark reads on light and dark tab bars.
-// favicon.svg is the vector one; it switches black/white with the system theme.
+// favicon.svg is the same tile as a vector, so every browser shows one icon.
 const fav = {};
 for (const size of [16, 32, 48]) fav[size] = await png('favicon-tile.svg', size);
 await writeFile(pub('favicon-16.png'), fav[16]);
 await writeFile(pub('favicon-32.png'), fav[32]);
-await copyFile(src('favicon.svg'), pub('favicon.svg'));
+await copyFile(src('favicon-tile.svg'), pub('favicon.svg'));
 
 /**
  * Packs PNG buffers into a .ico. Browsers and crawlers request /favicon.ico
@@ -67,6 +72,11 @@ await writeFile(pub('apple-touch-icon.png'), await png('app-square.svg', 180));
 await writeFile(pub('icon-192.png'), await png('app-square.svg', 192));
 await writeFile(pub('icon-512.png'), await png('app-square.svg', 512));
 await writeFile(pub('icon-maskable-512.png'), await png('app-maskable.svg', 512));
+
+// The dashboard (app.truplexy.com) serves the same icons from its own public/.
+for (const f of ['favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png', 'icon-192.png']) {
+  await copyFile(pub(f), dash(f));
+}
 
 // The OG card (public/og-card.png) is rendered from scripts/og-card.html: `npm run og`.
 
