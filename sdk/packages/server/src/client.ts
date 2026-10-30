@@ -65,10 +65,16 @@ export interface Message {
 export interface Conversation {
   id: string; status: 'open' | 'handoff'; escalated: boolean; channel_id?: string; customer_id?: string;
   created_at: string; updated_at: string; messages: Message[];
-  /** The current ticket: the open one, else the latest, which is closed. Only `getConversation` returns it; absent before the conversation has one. */
+  /** The current ticket: the open one, else the latest, which is closed. `getConversation` returns it, and `createConversation` the one its `ticket` opened; absent before the conversation has one. */
   ticket?: Ticket;
 }
-export interface ConversationInput { channel_id?: string; customer_id?: string }
+export interface ConversationInput {
+  channel_id?: string; customer_id?: string;
+  /** Background for the assistant, up to 4000 characters, stored as a `[Context only]` message that gets no reply. Best effort. */
+  context?: string;
+  /** Opens the conversation's ticket in the same call, as `createTicket` does. Best effort: check the result's `ticket`. */
+  ticket?: TicketInput;
+}
 export type ReplyStatus = 'answered' | 'clarification_required' | 'no_answer' | 'handoff_offered' | 'handoff' | 'escalated' | 'context';
 export interface Source {
   /** Web results have kind "web" and a url instead of a document. */
