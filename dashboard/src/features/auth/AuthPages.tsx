@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Building2, CheckCircle2, FlaskConical, LifeBuoy, Lightbulb, Link2Off as LinkIcon, Mail, MailCheck, ShieldOff, Wrench } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Eye, EyeOff, FlaskConical, LifeBuoy, Lightbulb, Link2Off as LinkIcon, Mail, MailCheck, ShieldOff, Wrench } from 'lucide-react';
 import { fetchMe, previewInvite, useAcceptInvite, useBusinessTypes, useCreateTenant, useMe } from '@/lib/api/endpoints/account';
 import { hasCode } from '@/lib/api/client';
 import type { BusinessTypeId } from '@/lib/api/types';
@@ -72,6 +72,7 @@ export function SignInPage() {
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [google, setGoogle] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [endedBy] = useState(signOutReason);
   const nav = useNavigate();
 
@@ -209,21 +210,37 @@ export function SignInPage() {
           </Field>
           {mode !== 'magic' && (
             <Field label="Password" error={errs.password}>
-              <Input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} {...field('password')} />
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  className="w-full pr-10"
+                  {...field('password')}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 grid w-10 place-items-center text-ink-faint hover:text-ink [&_svg]:size-4"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((x) => !x)}
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </button>
+              </div>
             </Field>
           )}
           {error && <p className="rounded-[10px] bg-danger-soft px-3 py-2 text-[0.8125rem] font-medium text-danger">{error}</p>}
           <Button type="submit" size="md" variant="accent" className="w-full" loading={submitting} disabled={!authConfigured}>
             {mode === 'signup' ? 'Create account' : mode === 'magic' ? 'Email me a sign-in link' : 'Sign in'}
           </Button>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-1.5 text-[0.8125rem] font-semibold text-accent hover:underline"
-            onClick={() => setMode(mode === 'magic' ? 'signin' : 'magic')}
-          >
-            <Mail className="size-3.5" />
-            {mode === 'magic' ? 'Use a password instead' : 'Email me a sign-in link instead'}
-          </button>
+          <div className="flex items-center gap-3 text-xs text-ink-faint">
+            <span className="h-px flex-1 bg-line" />
+            or
+            <span className="h-px flex-1 bg-line" />
+          </div>
+          <Button size="md" variant="ghost" className="w-full" leading={<Mail />} onClick={() => setMode(mode === 'magic' ? 'signin' : 'magic')}>
+            {mode === 'magic' ? 'Use a password instead' : 'Email me a sign-in link'}
+          </Button>
         </form>
 
         {mode === 'signup' && (
