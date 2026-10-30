@@ -40,18 +40,18 @@
 
       .rows { flex: none; }
       .row { position: relative; display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 14px; height: 62px; padding: 0 22px; border-bottom: 1px solid var(--line); }
-      .row.sel { background: #f6f7ff; }
+      .row.sel { background: var(--tint); }
       .row.sel::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
       .who { min-width: 0; }
-      .who .top { display: flex; align-items: center; gap: 7px; font-size: 14.5px; font-weight: 650; }
+      .who .top { display: flex; align-items: center; gap: 7px; font-size: 14.5px; font-weight: 600; }
       .who .ch { font-size: 12px; font-weight: 500; color: var(--ink-faint); }
       .who .msg { margin-top: 3px; font-size: 13.5px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .meta { display: flex; align-items: center; gap: 12px; }
       .meta time { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--ink-faint); width: 28px; text-align: right; }
 
-      .detail { padding: 16px 22px 18px; background: #fbfbfe; display: grid; grid-template-columns: 1fr 210px; gap: 18px; align-items: center; }
-      .summary { padding: 14px 16px; border-radius: 14px; background: var(--accent-soft); }
-      .summary .label { display: flex; align-items: center; gap: 6px; font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+      .detail { padding: 16px 22px 18px; background: var(--tint); display: grid; grid-template-columns: 1fr 210px; gap: 18px; align-items: center; }
+      .summary { padding: 14px 16px; border-radius: 14px; background: var(--ai-soft); }
+      .summary .label { display: flex; align-items: center; gap: 6px; font-family: 'Geist Mono', monospace; font-size: 11.5px; font-weight: 500; letter-spacing: 0.02em; color: var(--ai); }
       .summary p { margin-top: 7px; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
       .props { display: grid; grid-template-columns: 62px 1fr; row-gap: 9px; align-content: center; font-size: 13px; }
       .props dt { color: var(--ink-faint); }
@@ -60,29 +60,11 @@
   </head>
   <body>
     <section class="copy">
-      <img class="wordmark" src="../../src/assets/brand/wordmark-dark.png" alt="Truplexy" />
+      <img class="wordmark" src="../../logo/soft-triplex/logo-black.svg" alt="Truplexy" />
       <p class="eyebrow">Unified inbox</p>
       <h1 class="headline">
         Every<br />conversation.<br />
-        <span class="one">
-          <span class="one-text">One inbox.</span>
-          <svg class="one-thread" viewBox="0 0 640 60" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="m" gradientUnits="userSpaceOnUse" x1="270" y1="0" x2="632" y2="0"><stop offset="0" stop-color="#1f7bff" /><stop offset="0.45" stop-color="#2338e6" /><stop offset="1" stop-color="#6a2bff" /></linearGradient>
-              <linearGradient id="f" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="170" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0" /><stop offset="1" stop-color="#fff" /></linearGradient>
-              <mask id="k" maskUnits="userSpaceOnUse" x="0" y="-10" width="640" height="80"><rect x="0" y="-10" width="640" height="80" fill="url(#f)" /></mask>
-            </defs>
-            <g mask="url(#k)">
-              <path class="strand" d="M0 4 C 120 4, 170 30, 272 30" stroke="#45d4ff" />
-              <path class="strand" d="M0 17 C 120 17, 170 30, 272 30" stroke="#1f7bff" />
-              <path class="strand" d="M0 30 C 120 30, 170 30, 272 30" stroke="#2338e6" />
-              <path class="strand" d="M0 43 C 120 43, 170 30, 272 30" stroke="#6a2bff" />
-              <path class="strand" d="M0 56 C 120 56, 170 30, 272 30" stroke="#d9b8ff" />
-            </g>
-            <path class="merged" d="M270 30 C 380 30, 440 38, 530 33 S 610 26, 632 28" stroke="url(#m)" />
-          </svg>
-          <span class="one-node"></span>
-        </span>
+        <span class="tone-2">One inbox.</span>
       </h1>
       <p class="lede">See what the AI already handled, what each customer needs, and what’s waiting for your team — all from one place.</p>
       <p class="url">truplexy.com</p>
@@ -105,7 +87,7 @@
         <div class="row">
           <span class="avatar" style="background:#0b6e86">SR</span>
           <div class="who">
-            <div class="top">Sofia Reyes <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="#2338e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19M12 2.5a14.5 14.5 0 0 0 0 19"/></svg><span class="ch">Website chat</span></div>
+            <div class="top">Sofia Reyes <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19M12 2.5a14.5 14.5 0 0 0 0 19"/></svg><span class="ch">Website chat</span></div>
             <div class="msg">Do you ship to Canada?</div>
           </div>
           <div class="meta"><span class="badge resolved">Resolved</span><time>1m</time></div>
@@ -127,7 +109,7 @@
           <div class="meta"><span class="badge resolved">Resolved</span><time>4m</time></div>
         </div>
         <div class="row sel">
-          <span class="avatar" style="background:#1d4ed8">LK</span>
+          <span class="avatar" style="background:#3d3a35">LK</span>
           <div class="who">
             <div class="top">Leo Kim <img class="glyph" src="../../public/brands/telegram.svg" alt="" /><span class="ch">Telegram</span></div>
             <div class="msg">I was charged twice for my order.</div>
@@ -145,7 +127,7 @@
         <div class="row">
           <span class="avatar" style="background:#9a4b00">RC</span>
           <div class="who">
-            <div class="top">Ryan Cole <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="#0e1222" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="m3.5 6.5 8.5 6 8.5-6"/></svg><span class="ch">Email</span></div>
+            <div class="top">Ryan Cole <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="m3.5 6.5 8.5 6 8.5-6"/></svg><span class="ch">Email</span></div>
             <div class="msg">Can I get an invoice for March?</div>
           </div>
           <div class="meta"><span class="badge ai">AI handling</span><time>12m</time></div>

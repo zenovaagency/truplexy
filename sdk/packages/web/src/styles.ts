@@ -9,16 +9,22 @@
  *
  * The message box is one rounded field with the send button inside it. Focus draws an accent ring on the field's
  * border, with no glow. A team member's reply uses the same card as the assistant's; only its name line differs.
+ *
+ * The default look is monochrome: a black accent on neutral greys. Dark themes lift the accent toward the ink
+ * wherever it is text or an outline (--tx-accent-fg), and give accent fills a faint light edge (--tx-ring), so a
+ * black or other dark accent still shows on the dark window.
  */
 export const STYLES = /* css */ `
 :host {
-  --tx-accent: var(--truplexy-accent, #2338e6);
+  --tx-accent: var(--truplexy-accent, #0a0a0a);
   --tx-accent-ink: var(--truplexy-accent-ink, #ffffff);
   --tx-bg: var(--truplexy-background, #ffffff);
-  --tx-surface: var(--truplexy-surface, #f4f5fa);
-  --tx-ink: var(--truplexy-ink, #0e1222);
-  --tx-muted: var(--truplexy-muted, #5a6080);
-  --tx-line: var(--truplexy-line, #e3e6f0);
+  --tx-surface: var(--truplexy-surface, #f4f4f4);
+  --tx-ink: var(--truplexy-ink, #0a0a0a);
+  --tx-muted: var(--truplexy-muted, #5e5e5e);
+  --tx-line: var(--truplexy-line, #e6e6e6);
+  --tx-accent-fg: var(--tx-accent);
+  --tx-ring: transparent;
   --tx-danger: var(--truplexy-danger, #c2410c);
   --tx-radius: var(--truplexy-radius, 18px);
   --tx-font: var(--truplexy-font, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
@@ -27,7 +33,7 @@ export const STYLES = /* css */ `
   --tx-x: var(--truplexy-offset-x, 20px);
   --tx-y: var(--truplexy-offset-y, 20px);
   --tx-z: var(--truplexy-z-index, 2147483000);
-  --tx-shadow: 0 24px 60px -12px rgb(14 18 34 / 0.28), 0 4px 14px rgb(14 18 34 / 0.08);
+  --tx-shadow: 0 24px 60px -12px rgb(10 10 10 / 0.28), 0 4px 14px rgb(10 10 10 / 0.08);
   --tx-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --tx-out: cubic-bezier(0.16, 1, 0.3, 1);
   all: initial;
@@ -40,27 +46,31 @@ export const STYLES = /* css */ `
 /* Held back until the profile (with the business's look) arrives, so the window doesn't jump. */
 :host([data-tx-pending]) .launcher { display: none; }
 :host([data-tx-theme='dark']) {
-  --tx-bg: var(--truplexy-background, #121624);
-  --tx-surface: var(--truplexy-surface, #1d2234);
-  --tx-ink: var(--truplexy-ink, #eef0f8);
-  --tx-muted: var(--truplexy-muted, #a2a8c3);
-  --tx-line: var(--truplexy-line, #2b3148);
+  --tx-bg: var(--truplexy-background, #121212);
+  --tx-surface: var(--truplexy-surface, #1e1e1e);
+  --tx-ink: var(--truplexy-ink, #f2f2f2);
+  --tx-muted: var(--truplexy-muted, #a3a3a3);
+  --tx-line: var(--truplexy-line, #2e2e2e);
+  --tx-accent-fg: color-mix(in oklab, var(--tx-accent), var(--tx-ink) 50%);
+  --tx-ring: rgb(255 255 255 / 0.14);
   --tx-danger: var(--truplexy-danger, #fb923c);
 }
 @media (prefers-color-scheme: dark) {
   :host([data-tx-theme='auto']) {
-    --tx-bg: var(--truplexy-background, #121624);
-    --tx-surface: var(--truplexy-surface, #1d2234);
-    --tx-ink: var(--truplexy-ink, #eef0f8);
-    --tx-muted: var(--truplexy-muted, #a2a8c3);
-    --tx-line: var(--truplexy-line, #2b3148);
+    --tx-bg: var(--truplexy-background, #121212);
+    --tx-surface: var(--truplexy-surface, #1e1e1e);
+    --tx-ink: var(--truplexy-ink, #f2f2f2);
+    --tx-muted: var(--truplexy-muted, #a3a3a3);
+    --tx-line: var(--truplexy-line, #2e2e2e);
+    --tx-accent-fg: color-mix(in oklab, var(--tx-accent), var(--tx-ink) 50%);
+    --tx-ring: rgb(255 255 255 / 0.14);
     --tx-danger: var(--truplexy-danger, #fb923c);
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
 button, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
-:focus-visible { outline: 2px solid var(--tx-accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--tx-accent-fg); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
 .launcher {
@@ -68,13 +78,13 @@ button { cursor: pointer; }
   width: 58px; height: 58px; border-radius: 50%; border: 0; padding: 0;
   display: grid; place-items: center;
   background: var(--tx-accent); color: var(--tx-accent-ink);
-  box-shadow: var(--tx-shadow);
+  box-shadow: inset 0 0 0 1px var(--tx-ring), var(--tx-shadow);
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.35s var(--tx-spring), box-shadow 0.25s ease;
   animation: tx-pop 0.45s var(--tx-spring) backwards;
 }
 @media (hover: hover) {
-  .launcher:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 28px 64px -12px rgb(14 18 34 / 0.34), 0 6px 18px rgb(14 18 34 / 0.12); }
+  .launcher:hover { transform: translateY(-2px) scale(1.05); box-shadow: inset 0 0 0 1px var(--tx-ring), 0 28px 64px -12px rgb(10 10 10 / 0.34), 0 6px 18px rgb(10 10 10 / 0.12); }
 }
 .launcher:active { transform: scale(0.92); transition-duration: 0.08s; }
 .launcher svg { width: 26px; height: 26px; grid-area: 1 / 1; transition: opacity 0.2s ease 0.04s, transform 0.4s var(--tx-spring) 0.04s; }
@@ -151,7 +161,7 @@ header {
   padding: 10px 14px; border-radius: 16px; overflow-wrap: anywhere;
   background: var(--tx-surface); color: var(--tx-ink);
 }
-.user .bubble { background: var(--tx-accent); color: var(--tx-accent-ink); border-bottom-right-radius: 6px; white-space: pre-wrap; }
+.user .bubble { background: var(--tx-accent); color: var(--tx-accent-ink); box-shadow: inset 0 0 0 1px var(--tx-ring); border-bottom-right-radius: 6px; white-space: pre-wrap; }
 .assistant .bubble { border-bottom-left-radius: 6px; }
 .msg.notice-line { align-self: center; max-width: 92%; padding: 2px 8px; font-size: 12px; text-align: center; color: var(--tx-muted); }
 .pending .bubble { opacity: 0.65; }
@@ -177,7 +187,7 @@ header {
 .notice { margin: 0 16px 8px; padding: 9px 12px; border-radius: 12px; font-size: 13px; color: var(--tx-muted); background: var(--tx-surface); text-align: center; }
 .actions { display: flex; justify-content: center; padding: 0 16px 8px; }
 .handoff {
-  border: 1px solid var(--tx-accent); color: var(--tx-accent); background: transparent;
+  border: 1px solid var(--tx-accent-fg); color: var(--tx-accent-fg); background: transparent;
   border-radius: 999px; padding: 7px 16px; font-size: 14px; font-weight: 600;
 }
 .handoff:hover { background: var(--tx-accent); color: var(--tx-accent-ink); }
@@ -188,10 +198,10 @@ header {
 .closed { display: grid; gap: 10px; justify-items: center; padding: 12px 16px 10px; border-top: 1px solid var(--tx-line); }
 .closed p { margin: 0; font-size: 13px; color: var(--tx-muted); text-align: center; }
 .closed-new {
-  border: 0; background: var(--tx-accent); color: var(--tx-accent-ink); cursor: pointer;
+  border: 0; background: var(--tx-accent); color: var(--tx-accent-ink); cursor: pointer; box-shadow: inset 0 0 0 1px var(--tx-ring);
   border-radius: 999px; padding: 9px 18px; min-height: 40px; font-size: 14px; font-weight: 600;
 }
-.closed-new:hover { filter: brightness(1.08); }
+.closed-new:hover { opacity: 0.86; }
 .details p { margin: 0; }
 .details-title { font-weight: 600; }
 .details-hint { font-size: 13px; color: var(--tx-muted); }
@@ -200,13 +210,13 @@ header {
   font: inherit; color: inherit; background: var(--tx-bg); outline: none;
   transition: border-color 0.2s ease;
 }
-.details input:focus { border-color: var(--tx-accent); }
+.details input:focus { border-color: var(--tx-accent-fg); }
 .details input::placeholder { color: var(--tx-muted); }
 .details-error { font-size: 13px; color: #c0362c; }
 .details-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 .details-buttons button { border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .details-cancel { border: 1px solid var(--tx-line); background: transparent; color: var(--tx-muted); }
-.details-start { border: 0; background: var(--tx-accent); color: var(--tx-accent-ink); }
+.details-start { border: 0; background: var(--tx-accent); color: var(--tx-accent-ink); box-shadow: inset 0 0 0 1px var(--tx-ring); }
 .composer { padding: 6px 12px 8px; }
 .brand {
   display: flex; align-items: center; justify-content: center; gap: 5px;
@@ -232,7 +242,7 @@ header {
 }
 .field:focus-within {
   background: var(--tx-bg);
-  box-shadow: inset 0 0 0 1.5px var(--tx-accent);
+  box-shadow: inset 0 0 0 1.5px var(--tx-accent-fg);
 }
 .field textarea {
   flex: 1; min-width: 0; resize: none; border: 0; margin: 0; padding: 8px 0;
@@ -243,17 +253,17 @@ textarea::placeholder { color: var(--tx-muted); }
 .send {
   flex: none; width: 38px; height: 38px; border: 0; border-radius: 50%; padding: 0;
   display: grid; place-items: center; background: var(--tx-accent); color: var(--tx-accent-ink);
-  box-shadow: 0 2px 8px -2px rgb(14 18 34 / 0.3);
+  box-shadow: inset 0 0 0 1px var(--tx-ring), 0 2px 8px -2px rgb(10 10 10 / 0.3);
   transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.35s var(--tx-spring);
 }
-@media (hover: hover) { .send:not(:disabled):hover { filter: brightness(1.1); } }
+@media (hover: hover) { .send:not(:disabled):hover { opacity: 0.86; } }
 .send:not(:disabled):active { transform: scale(0.9); transition-duration: 0.08s; }
 .send:disabled { background: var(--tx-line); color: var(--tx-muted); box-shadow: none; transform: scale(0.9); cursor: default; }
 .send svg { width: 18px; height: 18px; }
 .suggestions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding: 2px 14px 6px; }
 .chip {
   max-width: 100%; border: 1px solid var(--tx-line); border-radius: 999px; padding: 7px 13px;
-  border-color: color-mix(in srgb, var(--tx-accent) 30%, var(--tx-line));
+  border-color: color-mix(in srgb, var(--tx-accent-fg) 30%, var(--tx-line));
   background: var(--tx-bg); background: color-mix(in srgb, var(--tx-accent) 6%, var(--tx-bg));
   font-size: 13.5px; font-weight: 500; line-height: 1.3; text-align: left;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.3s var(--tx-spring);

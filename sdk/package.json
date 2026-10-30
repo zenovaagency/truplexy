@@ -22,7 +22,8 @@
     "playground": "node playground/server.mjs",
     "version:sdk": "node scripts/release.mjs version",
     "publish:check": "node scripts/release.mjs check",
-    "release": "node scripts/release.mjs publish"
+    "release": "node scripts/release.mjs publish",
+    "wordpress:assets": "node scripts/wordpress-assets.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-10-30',
+    title: 'A new look for the chat widget',
+    tag: 'SDK',
+    items: [
+      'The chat widget’s default colour is now black, on neutral greys, and “Powered by” shows the new Truplexy logo. A colour you already picked in the dashboard is kept.',
+      'Black is the first ready-made colour under Integrations → Chat widget, and the default for new bots. Graphite is gone; a widget already set to it keeps it and shows it as Custom.',
+      'On a dark window, a dark colour such as black stays visible: its outlines and focus rings are lifted and its buttons get a faint light edge.',
+      'Released as 0.4.13 of the web, React, Vue and server packages, WordPress plugin 1.0.4 and the Shopify app.',
+    ],
+  },
+  {
     date: '2026-10-27',
     title: 'Your assistant learns from your team’s answers',
     tag: 'Dashboard',

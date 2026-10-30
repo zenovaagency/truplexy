@@ -20,16 +20,16 @@
       .head .online::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgb(34 197 94 / 0.18); }
       .head .clock { margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--ink-faint); text-align: right; line-height: 1.4; }
 
-      .thread { display: flex; flex-direction: column; gap: 10px; padding: 18px 18px 16px; background: #fbfbfe; }
+      .thread { display: flex; flex-direction: column; gap: 10px; padding: 18px 18px 16px; background: var(--tint); }
       .msg { max-width: 82%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.45; }
       .msg.customer { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 6px; }
       .ai-row, .agent-row { display: flex; align-items: flex-end; gap: 8px; }
-      .ai-row .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #fff; border: 1px solid var(--line); flex: none; }
-      .ai-row .av img { width: 16px; height: auto; display: block; }
-      .msg.ai { background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 6px; box-shadow: 0 2px 8px rgb(14 18 34 / 0.04); }
+      .ai-row .av { width: 28px; height: 28px; flex: none; }
+      .ai-row .av img { width: 28px; height: 28px; display: block; }
+      .msg.ai { background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 6px; box-shadow: 0 2px 8px rgb(30 24 16 / 0.04); }
       .msg.agent { background: var(--human-soft); border-bottom-left-radius: 6px; }
       .msg .author { display: block; font-size: 11.5px; font-weight: 700; color: var(--human); margin-bottom: 2px; }
-      .source { display: inline-flex; align-items: center; gap: 6px; margin: -2px 0 0 36px; height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); align-self: flex-start; }
+      .source { display: inline-flex; align-items: center; gap: 6px; margin: -2px 0 0 36px; height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--ink-muted); background: var(--surface-2); align-self: flex-start; }
       .event { align-self: center; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--human); background: #fff; border: 1px solid #f3d9b5; }
       .agent-row .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #0b6e86; color: #fff; font-size: 11px; font-weight: 700; flex: none; }
 
@@ -39,7 +39,7 @@
 
       .packet { position: absolute; left: 452px; top: 470px; width: 262px; padding: 16px 16px 14px; border-radius: 18px; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
       .packet .top { display: flex; align-items: center; justify-content: space-between; }
-      .packet .title { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+      .packet .title { font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 500; color: var(--ink-faint); }
       .packet dl { margin-top: 12px; display: grid; grid-template-columns: 70px 1fr; row-gap: 8px; font-size: 12.5px; }
       .packet dt { color: var(--ink-faint); }
       .packet dd { font-weight: 600; }
@@ -70,7 +70,7 @@
       <div class="thread">
         <p class="msg customer">What’s your return policy?</p>
         <div class="ai-row">
-          <span class="av"><img src="../../src/assets/brand/mark.png" alt="" /></span>
+          <span class="av"><img src="../../src/assets/brand/bubbly-avatar.png" alt="" /></span>
           <p class="msg ai">You have 30 days from delivery to return anything unworn with the tags on. Returns are free anywhere in the US.</p>
         </div>
         <span class="source">
@@ -79,7 +79,7 @@
         </span>
         <p class="msg customer">I need help with a special refund request.</p>
         <div class="ai-row">
-          <span class="av"><img src="../../src/assets/brand/mark.png" alt="" /></span>
+          <span class="av"><img src="../../src/assets/brand/bubbly-avatar.png" alt="" /></span>
           <p class="msg ai">Let me connect you with our support team.</p>
         </div>
         <span class="event">
@@ -110,29 +110,11 @@
     </aside>
 
     <section class="copy">
-      <img class="wordmark" src="../../src/assets/brand/wordmark-dark.png" alt="Truplexy" />
+      <img class="wordmark" src="../../logo/soft-triplex/logo-black.svg" alt="Truplexy" />
       <p class="eyebrow">Answers + human handoff</p>
       <h1 class="headline">
         No repeating.<br />No starting over.<br />
-        <span class="one">
-          <span class="one-text">Just real help.</span>
-          <svg class="one-thread" viewBox="0 0 640 60" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="m" gradientUnits="userSpaceOnUse" x1="270" y1="0" x2="632" y2="0"><stop offset="0" stop-color="#1f7bff" /><stop offset="0.45" stop-color="#2338e6" /><stop offset="1" stop-color="#6a2bff" /></linearGradient>
-              <linearGradient id="f" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="170" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0" /><stop offset="1" stop-color="#fff" /></linearGradient>
-              <mask id="k" maskUnits="userSpaceOnUse" x="0" y="-10" width="640" height="80"><rect x="0" y="-10" width="640" height="80" fill="url(#f)" /></mask>
-            </defs>
-            <g mask="url(#k)">
-              <path class="strand" d="M0 4 C 120 4, 170 30, 272 30" stroke="#45d4ff" />
-              <path class="strand" d="M0 17 C 120 17, 170 30, 272 30" stroke="#1f7bff" />
-              <path class="strand" d="M0 30 C 120 30, 170 30, 272 30" stroke="#2338e6" />
-              <path class="strand" d="M0 43 C 120 43, 170 30, 272 30" stroke="#6a2bff" />
-              <path class="strand" d="M0 56 C 120 56, 170 30, 272 30" stroke="#d9b8ff" />
-            </g>
-            <path class="merged" d="M270 30 C 380 30, 440 38, 530 33 S 610 26, 632 28" stroke="url(#m)" />
-          </svg>
-          <span class="one-node"></span>
-        </span>
+        <span class="tone-2">Just real help.</span>
       </h1>
       <p class="lede">Answers from your own knowledge, with the source right there, 24/7. When a human touch matters, your team steps in with the conversation and context already there.</p>
       <p class="url">truplexy.com</p>

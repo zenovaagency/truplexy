@@ -41,7 +41,7 @@ React and Vue have wrappers: [`@truplexy/react`](https://www.npmjs.com/package/@
 | `heading`, `subtitle` | Header text | your business name (read from Truplexy), "Ask us anything…" |
 | `greeting` | First message (Markdown); empty hides it | "Hi there! How can we help you today?" |
 | `placeholder` | Message box hint | "Write a message…" |
-| `accent` | Any CSS colour | `#2338e6` |
+| `accent` | Any CSS colour | `#0a0a0a` |
 | `avatar` | Header image URL | your business logo (read from Truplexy), else a bot icon |
 | `theme` | `light`, `dark`, `auto` | `light` |
 | `position` | `right`, `left` | `right` |

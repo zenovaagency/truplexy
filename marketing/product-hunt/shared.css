@@ -1,9 +1,10 @@
 /* Shared by the Product Hunt gallery images (1270×760). Tokens are the
-   site's (src/styles/tokens.css); type is the site's own fonts. */
+   site's (src/styles/tokens.css): Soft Triplex, monochrome ink on cream with
+   no gradients; type is the site's own fonts. */
 @font-face {
-  font-family: 'Plus Jakarta Sans';
-  font-weight: 200 800;
-  src: url('../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2') format('woff2');
+  font-family: 'Geist';
+  font-weight: 100 900;
+  src: url('../../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Geist Mono';
@@ -12,22 +13,26 @@
 }
 
 :root {
-  --ink: #0e1222;
-  --ink-muted: #4a5068;
-  --ink-faint: #61688a;
-  --line: #e3e6f0;
-  --line-strong: #cbd0e0;
+  --paper: #f6f3ee;
+  --ink: #0a0a0a;
+  --ink-muted: #55514b;
+  --ink-faint: #6b665e;
+  --tone-2: #857f76;
+  --line: #e7e2d9;
+  --line-strong: #d4cdc1;
   --surface: #ffffff;
-  --surface-2: #f1f3fa;
-  --accent: #2338e6;
-  --accent-soft: #eef0ff;
+  --surface-2: #f3efe8;
+  --tint: #faf8f4;
+  --accent: #0a0a0a;
+  --accent-soft: #f0ece5;
+  --ai: #5b3bd6;
+  --ai-soft: #f1ecff;
   --live: #15803d;
   --live-soft: #e6f6eb;
   --human: #9a4b00;
   --human-soft: #fff1dd;
-  --gradient-text: linear-gradient(95deg, #1f7bff 0%, #2338e6 45%, #6a2bff 100%);
-  --shadow-lg: 0 4px 10px rgb(14 18 34 / 0.05), 0 28px 64px rgb(35 56 230 / 0.12);
-  --shadow-md: 0 2px 4px rgb(14 18 34 / 0.04), 0 14px 32px rgb(35 56 230 / 0.09);
+  --shadow-lg: 0 4px 10px rgb(30 24 16 / 0.05), 0 28px 64px rgb(30 24 16 / 0.12);
+  --shadow-md: 0 2px 4px rgb(30 24 16 / 0.04), 0 12px 32px rgb(30 24 16 / 0.08);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -36,76 +41,38 @@ html, body { width: 1270px; height: 760px; overflow: hidden; }
 
 body {
   position: relative;
-  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  font-family: 'Geist', 'Segoe UI', sans-serif;
   color: var(--ink);
-  background:
-    radial-gradient(55% 70% at 6% 6%, rgb(207 239 255 / 0.95), transparent 70%),
-    radial-gradient(55% 70% at 96% 98%, rgb(234 217 255 / 0.95), transparent 70%),
-    #f7f8fc;
+  background: var(--paper);
   -webkit-font-smoothing: antialiased;
 }
 
 .mono { font-family: 'Geist Mono', monospace; }
 
-.wordmark { height: 32px; width: auto; display: block; }
+.wordmark { height: 30px; width: auto; display: block; }
 
 .eyebrow {
-  font-family: 'Geist Mono', monospace;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink-faint);
 }
 
 .headline {
   font-size: 60px;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.045em;
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.035em;
 }
 
 .lede {
   font-size: 20px;
   line-height: 1.5;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink-muted);
 }
 
-/* "One …" in the brand gradient, with the hero's braided thread under it. */
-.one { position: relative; display: inline-block; }
-.one-text {
-  display: inline-block;
-  padding-bottom: 0.08em;
-  background: var(--gradient-text);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.one-thread {
-  position: absolute;
-  left: -40%;
-  width: 140%;
-  top: calc(100% - 0.03em);
-  height: 0.46em;
-  overflow: visible;
-  fill: none;
-  stroke-linecap: round;
-}
-.one-thread path { vector-effect: non-scaling-stroke; }
-.one-thread .strand { stroke-width: 1.75; }
-.one-thread .merged { stroke-width: 3.5; }
-.one-node {
-  position: absolute;
-  right: 0;
-  top: calc(100% - 0.03em + 0.46em * 28 / 60);
-  width: 0.15em;
-  height: 0.15em;
-  border-radius: 50%;
-  background: #6a2bff;
-  box-shadow: 0 0 0 0.06em rgb(106 43 255 / 0.18), 0 0 0.3em rgb(106 43 255 / 0.55);
-  transform: translate(10%, -50%);
-}
+/* The last line in the site's second tone, as in the hero. */
+.tone-2 { color: var(--tone-2); }
 
 .window {
   background: var(--surface);
@@ -127,7 +94,7 @@ body {
   white-space: nowrap;
 }
 .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.badge.ai { color: var(--accent); background: var(--accent-soft); }
+.badge.ai { color: var(--ai); background: var(--ai-soft); }
 .badge.resolved { color: var(--live); background: var(--live-soft); }
 .badge.human { color: var(--human); background: var(--human-soft); }
 
@@ -153,8 +120,7 @@ body {
 .sample {
   font-family: 'Geist Mono', monospace;
   font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--ink-faint);
 }
 
@@ -162,6 +128,6 @@ body {
   font-family: 'Geist Mono', monospace;
   font-size: 15px;
   font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--accent);
+  letter-spacing: 0.02em;
+  color: var(--ink-muted);
 }

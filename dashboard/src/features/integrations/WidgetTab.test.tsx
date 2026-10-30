@@ -74,7 +74,7 @@ describe('Integrations → Chat widget', () => {
     await click(radio('Custom'));
     await type(colourCode(), 'red');
     await click(button('Save'));
-    expect(text()).toContain('Pick a colour, such as #2338e6.');
+    expect(text()).toContain('Pick a colour, such as #0a0a0a.');
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
     await type(colourCode(), '#112233');
     await type(field('Title'), 'refused');
@@ -86,7 +86,7 @@ describe('Integrations → Chat widget', () => {
 
   it('picks a ready-made colour, with the code box only for Custom', async () => {
     const { calls } = await mount();
-    expect(radio('Indigo')?.getAttribute('aria-checked')).toBe('true');
+    expect(radio('Black')?.getAttribute('aria-checked')).toBe('true');
     expect(colourCode()).toBeNull();
     await click(radio('Teal'));
     expect(radio('Teal')?.getAttribute('aria-checked')).toBe('true');
@@ -111,7 +111,7 @@ describe('Integrations → Chat widget', () => {
     await click(radio('Custom'));
     await click(button('Reset to defaults'));
     expect((field('Title') as HTMLInputElement).value).toBe('');
-    expect(radio('Indigo')?.getAttribute('aria-checked')).toBe('true');
+    expect(radio('Black')?.getAttribute('aria-checked')).toBe('true');
     expect(colourCode()).toBeNull();
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
     expect(text()).toContain('Unsaved changes');

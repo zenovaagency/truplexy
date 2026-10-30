@@ -7753,7 +7753,7 @@ components:
         accent:
           type: string
           pattern: '^#[0-9a-fA-F]{6}$'
-          default: '#2338e6'
+          default: '#0a0a0a'
         theme:
           type: string
           enum: [light, dark, auto]

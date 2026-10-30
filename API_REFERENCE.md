@@ -1327,7 +1327,7 @@ When the app is uninstalled from the store, the store's channels are turned off 
 | `subtitle` | Up to 100 characters. Empty uses "Ask us anything…". |
 | `greeting` | Up to 300 characters, Markdown. Empty uses the window's own. |
 | `placeholder` | Up to 80 characters. Empty uses "Write a message…". |
-| `accent` | `#rrggbb`. Empty is `#2338e6`. |
+| `accent` | `#rrggbb`. Empty is `#0a0a0a`. |
 | `theme` | `light` (default), `dark` or `auto`. |
 | `position` | `right` (default) or `left`. |
 | `show_sources` | Link the pages answers came from. Default `false`. |
