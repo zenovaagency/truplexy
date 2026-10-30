@@ -142,10 +142,8 @@ const core = [
 
 <style>
   .eco-halo {
-    background: conic-gradient(from 0deg, var(--color-cyan), var(--color-blue), var(--color-indigo), var(--color-violet), var(--color-lilac), var(--color-cyan));
-    filter: blur(28px);
-    opacity: 0.35;
-    animation: halo 16s linear infinite;
+    border: 1px dashed var(--color-line-strong);
+    opacity: 0.8;
   }
 
   @keyframes halo {
@@ -211,7 +209,7 @@ const core = [
 
       const defs = el('defs', {});
       const grad = el('linearGradient', { id: 'eco-grad', gradientUnits: 'userSpaceOnUse', x1: 0, y1: 0, x2: box.width, y2: 0 });
-      [['0', '#72c4ff'], ['0.4', '#8fb3ff'], ['0.6', '#c5a6ff'], ['1', '#f6a3ff']].forEach(([o, c]) =>
+      [['0', '#b8b1a6'], ['0.5', '#0a0a0a'], ['1', '#b8b1a6']].forEach(([o, c]) =>
         grad.appendChild(el('stop', { offset: o, 'stop-color': c })),
       );
       defs.appendChild(grad);

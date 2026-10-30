@@ -8,7 +8,6 @@ import { SITE } from '../../data/site';
      Behind the copy, the mark at full size in outline: its bars sit apart
      until the band scrolls into view, then lock together. -->
 <section class="cta relative isolate overflow-hidden bg-ink text-white" aria-labelledby="cta-title" data-cta>
-  <div class="cta-glow pointer-events-none absolute -z-10" aria-hidden="true"></div>
   <Mark class="cta-mark pointer-events-none absolute -z-10" />
 
   <div class="container-t pb-[clamp(48px,6vw,88px)] pt-[clamp(72px,10vw,152px)]">
@@ -36,22 +35,9 @@ import { SITE } from '../../data/site';
 </section>
 
 <style>
-  /* Bubbly's colours, legible on ink. */
+  /* The headline's second tone on ink. */
   .gradient-text-on-dark {
-    background: var(--gradient-bubbly);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    padding-bottom: 0.08em;
-  }
-
-  .cta-glow {
-    right: -10%;
-    top: -30%;
-    width: 70%;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background: radial-gradient(closest-side, rgb(197 166 255 / 0.22), rgb(114 196 255 / 0.1) 55%, transparent);
+    color: rgb(255 255 255 / 0.45);
   }
 
   /* The outlined mark: oversized, off the right edge. */

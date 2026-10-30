@@ -136,11 +136,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
 
 <style>
   .footer-gradient {
-    background: var(--gradient-bubbly);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    padding-bottom: 0.08em;
+    color: rgb(255 255 255 / 0.45);
   }
 
   /* ---------------------------------------------------------------- *
@@ -198,8 +194,8 @@ const link = 'text-white/60 transition-colors hover:text-white';
 
   /* ---------------------------------------------------------------- *
    * The oversized logo. Bars carry --mx/--my (mark units) from the
-   * script; leaving springs them home, and the lock flashes Bubbly's
-   * colours behind the mark.
+   * script; leaving springs them home, and the lock flashes softly
+   * behind the mark.
    * ---------------------------------------------------------------- */
   .lockup {
     position: relative;
@@ -244,14 +240,14 @@ const link = 'text-white/60 transition-colors hover:text-white';
     width: 17%;
     aspect-ratio: 1;
     border-radius: 50%;
-    background: var(--gradient-bubbly);
-    filter: blur(40px);
+    background: #fff;
+    filter: blur(60px);
     opacity: 0;
     transform: scale(0.7);
     transition: opacity 600ms var(--ease-out-expo), transform 700ms var(--ease-out-expo);
   }
-  .lockup.is-near .lockup-glow { opacity: 0.35; transform: scale(0.9); }
-  .lockup.is-locked .lockup-glow { opacity: 0.85; transform: scale(1.15); transition-duration: 160ms; }
+  .lockup.is-near .lockup-glow { opacity: 0.08; transform: scale(0.9); }
+  .lockup.is-locked .lockup-glow { opacity: 0.22; transform: scale(1.15); transition-duration: 160ms; }
 
   .to-top {
     display: inline-flex;
@@ -321,7 +317,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
       lockup.classList.remove('is-scatter', 'is-near');
       lockup.classList.add('is-home');
       bars.forEach((b) => set(b, 0, 0));
-      // the lock: a flash of Bubbly's colours once the bars have landed
+      // the lock: a soft flash once the bars have landed
       window.setTimeout(() => {
         lockup.classList.add('is-locked');
         window.setTimeout(() => lockup.classList.remove('is-locked', 'is-home'), 260);

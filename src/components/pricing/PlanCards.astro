@@ -207,18 +207,14 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
 </div>
 
 <style>
-  /* The featured card: a 1.5px brand-gradient border (the gradient is painted
-     under a white padding-box fill) and a soft indigo glow. No lift, so its
-     button stays level with the others. */
+  /* The featured card: a 1.5px ink border and a deeper shadow. No lift, so
+     its button stays level with the others. */
   .plan-featured {
-    border: 1.5px solid transparent !important;
-    background:
-      linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
-      var(--gradient-brand) border-box !important;
+    border: 1.5px solid var(--color-ink) !important;
+    background: var(--color-surface) !important;
     box-shadow:
-      0 0 0 6px color-mix(in oklab, var(--color-accent) 6%, transparent),
-      0 24px 60px -12px var(--glow-a),
-      0 18px 44px -14px color-mix(in oklab, var(--color-violet) 40%, transparent) !important;
+      0 0 0 6px rgb(10 10 10 / 0.04),
+      var(--shadow-lg) !important;
   }
 
   /* "Most popular": a pill sitting on the top border, centred. */
@@ -229,13 +225,12 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
     translate: -50% -50%;
     gap: 0.35rem;
     padding: 0.3rem 0.8rem;
-    /* No cyan stop: white text needs the darker end of the ramp (AA). */
-    background: linear-gradient(95deg, var(--color-indigo), var(--color-violet));
+    background: var(--color-ink);
     color: #fff;
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.02em;
-    box-shadow: 0 6px 16px -4px color-mix(in oklab, var(--color-violet) 55%, transparent);
+    box-shadow: var(--shadow-md);
   }
 
   /* Toggle thumb. The script measures the pressed button into --l/--t/--r/--b;

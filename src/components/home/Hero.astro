@@ -1,8 +1,7 @@
 ---
 import Button from '../ui/Button.astro';
 import ChannelIcon from '../ui/ChannelIcon';
-import HeroOrbit from './HeroOrbit.astro';
-import Mark from '../brand/Mark.astro';
+import HeroStage from './HeroStage.astro';
 import { channel, channelsIn } from '../../data/channels';
 import { SITE } from '../../data/site';
 
@@ -11,163 +10,67 @@ import { SITE } from '../../data/site';
 // Both read the registry.
 const heroLive = channelsIn('messaging').filter((c) => c.status === 'live');
 const upcoming = (['whatsapp', 'messenger', 'instagram'] as const).map(channel).filter((c) => c.status === 'soon');
-
 ---
 
-<!-- Fills the first screen (capped on tall monitors): the copy centres in the
-     space between the nav and the channel strip, which sits at the bottom. -->
-<section class="relative isolate flex min-h-[min(100svh,1000px)] flex-col overflow-hidden border-b border-line bg-surface">
-  <div class="container-t relative flex flex-1 flex-col pt-[var(--nav-h)]">
-    <!-- Copy block. The orbit centres itself on this block, so its padding
-         stays symmetric. -->
-    <div class="relative mx-auto my-auto flex w-full max-w-[980px] flex-col items-center py-[clamp(40px,5vh,64px)] text-center">
-      <HeroOrbit />
+<!-- Fills the first screen (capped on tall monitors). Copy on the left; on
+     the right, the stage shows the tagline happening: questions from every
+     channel reach the assistant and land in one inbox. -->
+<section class="hero relative isolate overflow-hidden border-b border-line bg-surface">
+  <div class="grid-fade -z-10" aria-hidden="true"></div>
+  <div class="container-t relative grid min-h-[min(100svh,960px)] items-center gap-14 pb-16 pt-[calc(var(--nav-h)+40px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-10 lg:pb-14">
+    <div class="flex flex-col items-center text-center lg:items-start lg:text-left">
+      <p class="eyebrow">Your customers have questions. Anytime. Everywhere.</p>
 
-      <!-- The tagline, drawn: three bars fly in from the channels and lock
-           into the mark. Its resting state is the still mark. -->
-      <span class="hero-lock" aria-hidden="true">
-        <span class="hero-lock-glow"></span>
-        <Mark size={64} class="hero-mark relative text-ink" />
-      </span>
-
-      <p class="mt-7 flex flex-col items-center gap-2.5 text-[0.875rem] text-ink-muted sm:flex-row sm:gap-3">
-        <span class="flex items-center" aria-hidden="true">
-          {heroLive.map((c, i) => (
-            <span class:list={['grid h-8 w-8 place-items-center rounded-full border border-line bg-surface shadow-[var(--shadow-sm)] ring-2 ring-surface', i > 0 && '-ml-2']}>
-              <ChannelIcon id={c.id} size={16} strokeWidth={2.25} />
-            </span>
-          ))}
-        </span>
-        <span>Your customers have questions. Anytime. Everywhere.</span>
-      </p>
-
-      <h1
-        class="display mt-6 text-[clamp(2.9rem,1.2rem+5.4vw,5.75rem)] !font-bold !leading-[0.98] !tracking-[-0.05em]"
-      >
+      <h1 class="display mt-6 text-[clamp(2.9rem,1.4rem+4.6vw,5.4rem)] !font-bold !leading-[0.98] !tracking-[-0.05em]">
         Every channel.
-        <span class="block">
-          <span class="one">
-            <span class="one-text">One platform.</span>
-          </span>
-        </span>
+        <span class="tone-2 block">One platform.</span>
       </h1>
 
-      <p class="lede mt-8 max-w-[640px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] sm:mt-10">
+      <p class="lede mt-7 max-w-[540px] !text-[clamp(1rem,0.95rem+0.25vw,1.125rem)]">
         Truplexy puts a human-like AI assistant on every channel you already use, and gives your team
         one platform to manage every conversation.
       </p>
 
-      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:mt-10 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:justify-center">
+      <div class="mt-8 flex w-full max-w-[340px] flex-col items-stretch gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-center">
         <Button href={SITE.signupUrl}>Start free trial</Button>
         <Button href="#demo" variant="ghost" arrow={false}>See it in action</Button>
       </div>
 
-      <p class="mono mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.68rem] text-ink-faint">
+      <p class="mono mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[0.68rem] text-ink-faint lg:justify-start">
         <span>AI on every channel</span><span aria-hidden="true" class="text-line-strong">·</span>
         <span>One inbox for your team</span><span aria-hidden="true" class="text-line-strong">·</span>
         <span>Human when it matters</span>
       </p>
-    </div>
 
-    <!-- Where Truplexy runs today. Stands in for a customer-logo strip. -->
-    <div class="channel-strip border-t border-line py-8 sm:py-10">
-      <p class="text-center text-[0.875rem] text-ink-faint">Live today on the channels your customers already use</p>
-      <div class="mt-5 flex flex-col items-center gap-x-10 gap-y-4 xl:flex-row xl:justify-center">
-        <ul class="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:gap-x-10">
-          {heroLive.map((c) => (
-            <li class="flex items-center gap-2 text-[1.0625rem] font-semibold tracking-tight text-ink-muted">
-              <ChannelIcon id={c.id} size={20} />
-              {c.name}
+      <!-- Where Truplexy runs today. Stands in for a customer-logo strip. -->
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-3 border-t border-line pt-7 lg:justify-start">
+        <ul class="flex items-center" aria-label={`Live on ${heroLive.map((c) => c.name).join(', ')}`}>
+          {heroLive.map((c, i) => (
+            <li class:list={['grid h-9 w-9 place-items-center rounded-full border border-line bg-surface shadow-[var(--shadow-sm)] ring-2 ring-surface', i > 0 && '-ml-2']} title={c.name}>
+              <ChannelIcon id={c.id} size={17} strokeWidth={2.25} />
             </li>
           ))}
         </ul>
+        <p class="text-[0.9rem] text-ink-muted">
+          <span class="font-semibold text-ink">Live on {heroLive.length} channels</span> your customers already use
+        </p>
         {upcoming.length > 0 && (
-          <p class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 xl:border-l xl:border-line xl:pl-10">
-            {upcoming.map((c) => (
-              <span class="flex items-center gap-2 text-[1.0625rem] font-semibold tracking-tight text-ink-faint opacity-60">
-                <ChannelIcon id={c.id} size={18} />
-                {c.name}
-              </span>
-            ))}
+          <p class="flex items-center gap-2 text-[0.85rem] text-ink-faint">
+            {upcoming.map((c) => c.name).join(', ')}
             <span class="soon-tag">Coming soon</span>
           </p>
         )}
       </div>
     </div>
+
+    <div class="relative">
+      <HeroStage />
+      <p class="mt-5 text-center text-[0.85rem] text-ink-faint">
+        Sample conversations.{' '}
+        <button type="button" class="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" data-open-chat>
+          Ask the assistant yourself →
+        </button>
+      </p>
+    </div>
   </div>
 </section>
-
-<style>
-  /* The mark locks in: each bar slides along its own direction from far
-     out (where the orbiting channels are), lands, and the mark pulses once
-     in Bubbly's colours. */
-  .hero-lock {
-    position: relative;
-    display: grid;
-    place-items: center;
-  }
-
-  /* Bar offsets are in the mark's own units: 384 across, drawn at 64px. */
-  .hero-lock :global(.bar) {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: hero-bar 1.2s var(--ease-out-expo) both;
-  }
-  .hero-lock :global(.bar-0) { animation-delay: 0.15s; }
-  .hero-lock :global(.bar-1) { animation-delay: 0.3s; }
-  .hero-lock :global(.bar-2) { animation-delay: 0.45s; }
-
-  @keyframes hero-bar {
-    from {
-      transform: translate(calc(var(--dx) * -2400px + var(--dy) * 900px), calc(var(--dy) * -2400px - var(--dx) * 900px)) rotate(-30deg);
-      opacity: 0;
-    }
-    35% { opacity: 1; }
-  }
-
-  .hero-lock-glow {
-    position: absolute;
-    inset: -18px;
-    border-radius: 50%;
-    background: var(--gradient-bubbly);
-    filter: blur(22px);
-    opacity: 0;
-    animation: hero-glow 1.6s var(--ease-out-expo) 1.25s both;
-  }
-
-  @keyframes hero-glow {
-    0% { opacity: 0; transform: scale(0.6); }
-    25% { opacity: 0.75; transform: scale(1.05); }
-    100% { opacity: 0.28; transform: scale(1); }
-  }
-
-  /* "One platform.": the second tone of the headline, warm grey, with a
-     glint of Bubbly's colours that sweeps across once the mark has locked. */
-  .one {
-    position: relative;
-    display: inline-block;
-  }
-
-  .one-text {
-    background:
-      linear-gradient(100deg, transparent 44%, #5aa9f0 50%, #8b6cf0 56%, #d36be0 62%, transparent 68%) no-repeat,
-      linear-gradient(#857f76, #857f76);
-    background-size: 300% 100%, 100% 100%;
-    background-position: 0% 0, 0 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    padding-bottom: 0.08em;
-    animation: one-glint 1.6s cubic-bezier(0.45, 0, 0.25, 1) 1.3s both;
-  }
-
-  @keyframes one-glint {
-    from { background-position: 100% 0, 0 0; }
-    to { background-position: 0% 0, 0 0; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .hero-lock :global(.bar), .one-text { animation: none; }
-    .hero-lock-glow { animation: none; opacity: 0.28; }
-  }
-</style>

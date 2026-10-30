@@ -50,22 +50,9 @@ import Bubbly from '../brand/Bubbly.astro';
     background: var(--color-ink);
     color: #fff;
     box-shadow: 0 18px 40px -14px rgb(30 24 16 / 0.55), 0 4px 12px rgb(30 24 16 / 0.18);
-    transition: transform 420ms var(--ease-spring), box-shadow 300ms var(--ease-out-expo);
+    transition: transform 420ms var(--ease-spring), box-shadow 300ms var(--ease-out-expo), opacity 260ms, visibility 0s;
     animation: bc-pop 600ms var(--ease-spring) 400ms backwards;
     -webkit-tap-highlight-color: transparent;
-  }
-
-  /* An iridescent rim: Bubbly's colours, just showing round the edge. */
-  .bc-launch::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    z-index: -1;
-    border-radius: inherit;
-    background: var(--gradient-bubbly);
-    opacity: 0.7;
-    filter: blur(6px);
-    transition: opacity 300ms;
   }
 
   .bc-launch > * { grid-area: 1 / 1; }
@@ -85,7 +72,6 @@ import Bubbly from '../brand/Bubbly.astro';
 
   .bc-launch[aria-expanded='true'] .bc-face { opacity: 0; transform: rotate(90deg) scale(0.4); }
   .bc-launch[aria-expanded='true'] .bc-x { opacity: 1; transform: none; }
-  .bc-launch[aria-expanded='true']::before { opacity: 0; }
 
   @media (hover: hover) and (pointer: fine) {
     .bc-launch:hover { transform: translateY(-3px) scale(1.05); }
@@ -124,6 +110,17 @@ import Bubbly from '../brand/Bubbly.astro';
     color: var(--color-ink-faint);
   }
   .bc-nudge-x:hover { background: var(--color-surface-2); color: var(--color-ink); }
+
+  /* On the home page the hero already has a Bubbly: the launcher waits in
+     the wings until the hero's stage has scrolled away. */
+  .bc.is-tucked .bc-launch {
+    opacity: 0;
+    transform: translateY(16px) scale(0.5);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 300ms var(--ease-out-expo), opacity 200ms, visibility 0s 300ms;
+  }
+  :global(body:has([data-hero-stage])) .bc:not([data-dock-ready]) .bc-launch { visibility: hidden; }
 
   /* On phones the panel fills the screen and has its own close button. */
   @media (max-width: 480px) {
@@ -214,10 +211,22 @@ import Bubbly from '../brand/Bubbly.astro';
     return loading;
   }
 
+  // Tucked away while the hero's own Bubbly is on screen (never while the chat is open).
+  let tucked = false;
+  let nudgeDue = false;
+  const isOpen = () => launch?.getAttribute('aria-expanded') === 'true';
+  const showTuck = () => root?.classList.toggle('is-tucked', tucked && !isOpen());
+  const maybeNudge = () => {
+    if (!nudge || !nudgeDue || tucked || isOpen() || seen()) return;
+    nudge.hidden = false;
+    markSeen();
+  };
+
   function sync(open: boolean) {
     launch?.setAttribute('aria-expanded', String(open));
     launch?.setAttribute('aria-label', open ? 'Close chat' : 'Open chat');
     root?.classList.toggle('is-open', open);
+    showTuck();
   }
 
   if (root && launch) {
@@ -240,13 +249,23 @@ import Bubbly from '../brand/Bubbly.astro';
       void load().then((api) => api?.open());
     });
 
+    const heroStage = document.querySelector('[data-hero-stage]');
+    if (heroStage) {
+      tucked = true;
+      showTuck();
+      new IntersectionObserver(([e]) => {
+        tucked = e.isIntersecting;
+        showTuck();
+        maybeNudge();
+      }).observe(heroStage);
+    }
+    root.dataset.dockReady = '';
+
     nudge?.querySelector('[data-nudge-close]')?.addEventListener('click', hideNudge);
     if (nudge && !seen()) {
       window.setTimeout(() => {
-        if (!seen() && launch.getAttribute('aria-expanded') !== 'true') {
-          nudge.hidden = false;
-          markSeen();
-        }
+        nudgeDue = true;
+        maybeNudge();
       }, 5000);
     }
 
