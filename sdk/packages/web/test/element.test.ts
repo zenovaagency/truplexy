@@ -15,6 +15,19 @@ describe('<truplexy-chat>', () => {
     el.remove();
   });
 
+  it('draws Bubbly on the launcher, and in the header when there is no picture', async () => {
+    const el = mount({ demo: true, avatar: 'https://broken.test/a.png' });
+    const root = el.shadowRoot!;
+    const body = root.querySelector('.launcher .bubbly image')!.getAttribute('href')!;
+    expect(body).toMatch(/^data:image\/webp;base64,/);
+    expect(root.querySelectorAll('.launcher .bubbly .eye')).toHaveLength(2);
+    expect(root.querySelector('.launcher .i-close')).not.toBeNull();
+    // A picture that fails to load falls back to Bubbly.
+    root.querySelector<HTMLImageElement>('.avatar img')!.dispatchEvent(new Event('error'));
+    expect(root.querySelector('.avatar .bubbly image')!.getAttribute('href')).toBe(body);
+    el.remove();
+  });
+
   it('takes the header name and logo from the profile unless you set your own', async () => {
     const el = mount({ demo: true });
     await tick(5);

@@ -15,6 +15,16 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    title: 'Bubbly is the chat button',
+    tag: 'SDK',
+    items: [
+      'The chat widget’s button is now Bubbly, the Truplexy assistant, on your widget colour. It blinks and glances around, and turns into a close button while the chat is open. With reduced motion it keeps still.',
+      'When there is no header picture or business logo, the chat window’s header shows Bubbly instead of a robot icon.',
+      'Released as 0.4.14 of the web, React, Vue and server packages, WordPress plugin 1.0.5 and the Shopify app.',
+    ],
+  },
+  {
+    date: '2026-10-30',
     title: 'A new look for the chat widget',
     tag: 'SDK',
     items: [

@@ -2,7 +2,9 @@
  * Shadow DOM styles. Every colour and size is a custom property the host page can override on `truplexy-chat`.
  *
  * Motion (described here because comments inside the stylesheet ship in the bundle): the launcher pops in whenever
- * it is shown, springs when pressed, and swaps its icons by spinning the old one out fast and the new one in. The
+ * it is shown, springs when pressed, and swaps Bubbly and the close icon by spinning the old one out fast and the new
+ * one in. Bubbly bobs, blinks and glances aside in the launcher (only the small eye group moves inside the SVG; the
+ * body is an image) and sits still in the header. The
  * window is closed by default and grows out of the launcher's centre (29px in from the side, 43px below the window)
  * when `data-state="open"` is set; element.ts hides it once it has faded out. Suggested questions rise in one after
  * another. Reduced motion keeps only the fades.
@@ -87,9 +89,21 @@ button { cursor: pointer; }
   .launcher:hover { transform: translateY(-2px) scale(1.05); box-shadow: inset 0 0 0 1px var(--tx-ring), 0 28px 64px -12px rgb(10 10 10 / 0.34), 0 6px 18px rgb(10 10 10 / 0.12); }
 }
 .launcher:active { transform: scale(0.92); transition-duration: 0.08s; }
-.launcher svg { width: 26px; height: 26px; grid-area: 1 / 1; transition: opacity 0.2s ease 0.04s, transform 0.4s var(--tx-spring) 0.04s; }
-:host(:not([open])) .launcher .i-close, :host([open]) .launcher .i-chat { opacity: 0; transform: rotate(-90deg) scale(0.4); transition: opacity 0.12s ease-in, transform 0.15s ease-in; }
-:host([open]) .launcher .i-chat { transform: rotate(90deg) scale(0.4); }
+.launcher > svg, .launcher > .bubbly { grid-area: 1 / 1; transition: opacity 0.2s ease 0.04s, transform 0.4s var(--tx-spring) 0.04s; }
+.launcher > svg { width: 26px; height: 26px; }
+.launcher .bubbly { width: 36px; height: 40px; margin: 4px 0 0 4px; }
+.launcher .bubbly svg { animation: tx-bob 3.4s ease-in-out infinite; }
+.launcher .eyes { animation: tx-look 6s ease-in-out infinite; }
+.launcher .eye { animation: tx-blink 4.6s infinite; }
+@media (hover: hover) { :host(:not([open])) .launcher:hover .bubbly { transform: rotate(-6deg); } }
+:host(:not([open])) .launcher .i-close, :host([open]) .launcher .bubbly { opacity: 0; transform: rotate(-90deg) scale(0.4); transition: opacity 0.12s ease-in, transform 0.15s ease-in; }
+:host([open]) .launcher .bubbly { transform: rotate(90deg) scale(0.4); }
+.bubbly { display: block; }
+.bubbly svg { display: block; width: 100%; height: 100%; }
+.eyes, .eye { transform-box: fill-box; transform-origin: center; }
+@keyframes tx-bob { 50% { transform: translateY(-2.3%); } }
+@keyframes tx-look { 0%, 22%, 60%, 100% { transform: none; } 30%, 52% { transform: translate(-40px, 6px); } }
+@keyframes tx-blink { 0%, 87%, 93%, 100% { transform: none; } 90% { transform: scaleY(0.08); } }
 :host([data-tx-position='left']) .launcher { right: auto; left: var(--tx-x); }
 .badge {
   position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 6px;
@@ -134,7 +148,7 @@ header {
   display: grid; place-items: center; background: rgb(255 255 255 / 0.18);
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
-.avatar svg { width: 20px; height: 20px; }
+.avatar .bubbly { width: 26px; height: 29px; margin: 3px 0 0 3px; }
 .heading { flex: 1; min-width: 0; }
 .title { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subtitle { margin: 2px 0 0; font-size: 13px; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -283,7 +297,7 @@ textarea::placeholder { color: var(--tx-muted); }
   textarea, .details input { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .launcher, .launcher svg, .badge, .panel, .log, .send, .chip { transform: none !important; }
-  .dots i { animation: none !important; }
+  .launcher, .launcher > *, .badge, .panel, .log, .send, .chip { transform: none !important; }
+  .dots i, .bubbly * { animation: none !important; }
 }
 `;
