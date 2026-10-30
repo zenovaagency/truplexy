@@ -160,7 +160,7 @@ import Bubbly from '../brand/Bubbly.astro';
   const root = document.querySelector<HTMLElement>('[data-bubbly-chat]');
   const launch = root?.querySelector<HTMLButtonElement>('[data-launch]');
   const nudge = root?.querySelector<HTMLElement>('[data-nudge]');
-  const bubbly = root?.querySelector<SVGElement>('.bubbly');
+  const bubbly = root?.querySelector<HTMLElement>('.bubbly');
 
   const NUDGE_KEY = 'tpx-nudge-seen';
   const seen = () => {

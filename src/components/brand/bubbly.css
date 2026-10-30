@@ -1,9 +1,31 @@
-/* Bubbly's motion, lifted out of bubbly-animated.svg so it ships once per
-   page however many Bubblys there are. Only the named groups get
-   fill-box origins: applying it to everything breaks the rotate()
-   attributes on the eyes. */
-.tpx-bubbly .float,
-.tpx-bubbly .breathe,
+/* Bubbly's motion. The body is an image and the face a small SVG over it
+   (see Bubbly.astro), so the bob is a composited transform on the wrapper
+   and only the eyes ever repaint. Only the named SVG groups get fill-box
+   origins: applying it to everything breaks the rotate() attributes on the
+   eyes. */
+.bubbly {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+
+.bubbly-bob {
+  position: absolute;
+  inset: 0;
+  animation: tpx-bubbly-bob 3.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.bubbly-bob > img,
+.bubbly-bob > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  user-select: none;
+}
+
 .tpx-bubbly .face,
 .tpx-bubbly .eyes,
 .tpx-bubbly .eye {
@@ -11,13 +33,6 @@
   transform-origin: center;
 }
 
-.bubbly {
-  height: auto;
-  overflow: visible;
-}
-
-.tpx-bubbly .float { animation: tpx-bubbly-bob 3.4s ease-in-out infinite; }
-.tpx-bubbly .halo { animation: tpx-bubbly-glow 3.4s ease-in-out infinite; }
 .tpx-bubbly .eyes { animation: tpx-bubbly-look 6s ease-in-out infinite; }
 .tpx-bubbly .eye { animation: tpx-bubbly-blink 4.6s infinite; }
 
@@ -31,16 +46,12 @@
 /* A wink on demand (the footer Bubbly). */
 .bubbly.is-winking .eye:last-child { animation: tpx-bubbly-wink 520ms ease-in-out; }
 
-.bubbly.is-still .tpx-bubbly *,
-.bubbly.is-still .tpx-bubbly { animation: none !important; }
+.bubbly.is-still .bubbly-bob,
+.bubbly.is-still .tpx-bubbly * { animation: none !important; }
 
 @keyframes tpx-bubbly-bob {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(0, -16px); }
-}
-@keyframes tpx-bubbly-glow {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.3%); }
 }
 @keyframes tpx-bubbly-look {
   0%, 22% { transform: translate(0, 0); }
@@ -57,6 +68,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .bubbly-bob,
   .tpx-bubbly *,
   .bubbly .face { animation: none !important; transition: none !important; }
 }

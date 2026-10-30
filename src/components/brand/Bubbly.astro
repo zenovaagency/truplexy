@@ -1,44 +1,57 @@
 ---
 /**
- * Bubbly, the Truplexy assistant: the glossy animated mascot, inlined so its
- * CSS motion runs and a script can steer its gaze.
+ * Bubbly, the Truplexy assistant: the glossy animated mascot.
  *
- * Motion (bubbly.css): a gentle bob, a glow, a blink and a glance aside.
+ * The glossy body is built from large blur filters, which are far too
+ * costly to redraw every frame. So the body is a pre-rendered image
+ * (bubbly-body.png, from bubbly-animated.svg without its face) and only the
+ * eyes are live SVG on top. The bob moves the whole wrapper (a composited
+ * transform, no repaint); blinking and glancing redraw just the small eye
+ * layer.
+ *
+ * Motion (bubbly.css): a gentle bob, a blink and a glance aside.
  * `look` adds the `.look` hook: a script sets --look-x / --look-y (in the
  * SVG's units, about ±30) on the root to turn the face toward the pointer,
  * which pauses the idle glance. Reduced motion keeps it still.
- *
- * Each copy gets its own ids, since the clip, mask and filters are
- * referenced by id and several Bubblys can share a page.
  */
-import raw from '../../assets/brand/bubbly-animated.svg?raw';
+import { getImage } from 'astro:assets';
+import body from '../../assets/brand/bubbly-body.png';
 import './bubbly.css';
 
 interface Props {
-  size?: number | string;
+  size?: number;
   class?: string;
   /** No motion (avatars, thumbnails). */
   still?: boolean;
   /** Face can follow the pointer (set --look-x / --look-y). */
   look?: boolean;
 }
-const { size, class: className = '', still = false, look = false } = Astro.props;
-
-const uid = Math.random().toString(36).slice(2, 8);
-const inner = raw
-  .replace(/^<svg[^>]*>/, '')
-  .replace(/<\/svg>\s*$/, '')
-  .replace(/<title>[^<]*<\/title>/, '')
-  .replace(/<style>[\s\S]*?<\/style>/, '')
-  .replace(/id="([^"]+)"/g, `id="$1-${uid}"`)
-  .replace(/url\(#([^)]+)\)/g, `url(#$1-${uid})`);
+const { size = 96, class: className = '', still = false, look = false } = Astro.props;
+const img = await getImage({ src: body, width: 256, format: 'webp' });
+// The art's box (viewBox 636 × 707).
+const height = Math.round((size * 707) / 636);
 ---
 
-<svg
-  viewBox="0 0 636 707"
-  width={size}
-  class:list={['bubbly', still && 'is-still', look && 'look', className]}
-  aria-hidden="true"
-  focusable="false"
-  set:html={inner}
-/>
+<span class:list={['bubbly', still && 'is-still', look && 'look', className]} style={`width: ${size}px; height: ${height}px;`} aria-hidden="true">
+  <span class="bubbly-bob">
+    <img src={img.src} alt="" width={size} height={height} decoding="async" draggable="false" />
+    <svg viewBox="0 0 636 707" focusable="false">
+      <g transform="translate(-194 -144)">
+        <g class="tpx-bubbly">
+          <g class="face">
+            <g class="eyes">
+              <g class="eye">
+                <ellipse cx="586" cy="470" rx="35" ry="52" fill="#1d1631" transform="rotate(8 586 470)" />
+                <circle cx="597.2" cy="448.2" r="10.5" fill="#fff" />
+              </g>
+              <g class="eye">
+                <ellipse cx="690" cy="460" rx="35" ry="52" fill="#1d1631" transform="rotate(8 690 460)" />
+                <circle cx="701.2" cy="438.2" r="10.5" fill="#fff" />
+              </g>
+            </g>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </span>
+</span>

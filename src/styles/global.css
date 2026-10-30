@@ -69,7 +69,7 @@
 
   html {
     -webkit-text-size-adjust: 100%;
-    scroll-behavior: auto; /* Lenis owns scrolling; see lib/scroll.ts */
+    scroll-behavior: auto; /* in-page jumps are smoothed in lib/scroll.ts */
     scroll-padding-top: calc(var(--nav-h) + 8px);
   }
 
@@ -129,6 +129,21 @@
 }
 
 @layer components {
+  /* Flat buttons for the site: no sheen and no hover glow (buttons.css is
+     shared with the dashboard, which keeps them). The lift, press and label
+     roll stay. */
+  .btn-primary,
+  .btn-ghost,
+  .btn-soft,
+  .btn-light,
+  .btn-on-dark {
+    --btn-glow: none;
+    background-image: none;
+    box-shadow: none;
+  }
+  .btn-ghost { background-color: var(--color-surface); }
+  .btn-light { color: var(--color-ink); }
+
   .container-t {
     width: 100%;
     max-width: calc(var(--container) + var(--gutter) * 2);

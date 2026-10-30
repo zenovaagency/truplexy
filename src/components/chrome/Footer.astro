@@ -268,7 +268,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
 </style>
 
 <script>
-  import { getLenis } from '../../lib/scroll';
+  import { scrollToTop } from '../../lib/scroll';
 
   const footer = document.querySelector<HTMLElement>('[data-footer]');
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -278,7 +278,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
     const peek = footer.querySelector<HTMLElement>('[data-peek]')!;
     const peekBtn = footer.querySelector<HTMLButtonElement>('[data-peek-btn]')!;
     const say = footer.querySelector<HTMLElement>('[data-say]')!;
-    const bubbly = peek.querySelector<SVGElement>('.bubbly');
+    const bubbly = peek.querySelector<HTMLElement>('.bubbly');
     const lockup = footer.querySelector<HTMLElement>('.lockup')!;
     const mark = lockup.querySelector<SVGGElement>('[data-lockup] g')!;
     const bars = [...lockup.querySelectorAll<SVGPathElement>('[data-bar]')];
@@ -409,9 +409,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
     footer.querySelector('[data-to-top]')?.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const lenis = getLenis();
-      if (lenis) lenis.scrollTo(0);
-      else window.scrollTo({ top: 0, behavior: still ? 'auto' : 'smooth' });
+      scrollToTop();
     });
   }
 </script>

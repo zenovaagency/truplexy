@@ -649,7 +649,7 @@ export default function UnifiedInbox({ markSrc }: { markSrc: string }) {
                 </div>
               </div>
 
-              <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto" data-lenis-prevent aria-label="Tickets">
+              <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto" aria-label="Tickets">
                 {rows.length === 0 && (
                   <li className="px-5 py-12 text-center">
                     <p className="text-[0.875rem] font-semibold text-ink">{query ? 'No tickets match' : 'No tickets here'}</p>
@@ -706,7 +706,7 @@ export default function UnifiedInbox({ markSrc }: { markSrc: string }) {
 
               <div className="min-h-0 flex-1 xl:grid xl:grid-cols-[minmax(0,1fr)_280px]">
                 <div className="flex min-h-0 min-w-0 flex-col">
-                  <div className="min-h-0 flex-1 overflow-y-auto" data-lenis-prevent>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
                     <Transcript t={selected} />
                     {/* Below xl the properties follow the transcript, as the dashboard's side sheet does. */}
                     <div className="border-t border-line bg-surface p-4 sm:p-5 xl:hidden">
@@ -715,7 +715,7 @@ export default function UnifiedInbox({ markSrc }: { markSrc: string }) {
                   </div>
                   <Composer t={selected} />
                 </div>
-                <aside className="hidden overflow-y-auto border-l border-line bg-surface p-5 xl:block" data-lenis-prevent aria-label="Ticket details">
+                <aside className="hidden overflow-y-auto border-l border-line bg-surface p-5 xl:block" aria-label="Ticket details">
                   <Properties t={selected} />
                 </aside>
               </div>

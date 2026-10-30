@@ -175,14 +175,8 @@ const jsonLd = {
     {chat && <BubblyChat />}
 
     <script>
-      import { motion } from '../lib/scroll';
-
-      // Smooth scrolling boots after first paint so it never blocks the initial render.
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => void motion(), { timeout: 900 });
-      } else {
-        setTimeout(() => void motion(), 1);
-      }
+      // Smooth in-page jumps for #anchor links; scrolling itself stays native.
+      import '../lib/scroll';
     </script>
   </body>
 </html>
