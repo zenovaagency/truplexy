@@ -15,6 +15,16 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-10-30',
+    title: 'Faster replies to greetings',
+    tag: 'SDK',
+    items: [
+      'A hello, thanks, okay or goodbye in English gets its reply straight away, without waiting for the AI. Greetings in other languages are still answered by the AI, in the customer’s language. These replies don’t count against your plan’s replies.',
+      'The first message of a website chat is sent sooner: the conversation, its background and its ticket now start in one step. The chat API’s POST /conversations takes context and ticket for the same.',
+      'Released as 0.4.15 of the web, React, Vue and server packages and WordPress plugin 1.0.6. The Shopify app speeds up with no update.',
+    ],
+  },
+  {
+    date: '2026-10-30',
     title: 'Bubbly is the chat button',
     tag: 'SDK',
     items: [
