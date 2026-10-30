@@ -27,12 +27,14 @@
   --rail-w: 72px;
   --topbar-h: 60px;
   --page-x: clamp(16px, 3vw, 32px);
-  /* Categorical chart slots, in fixed order. Validated for CVD separation and
-     3:1 contrast on the surface (dataviz validate_palette.js), per theme. */
-  --chart-1: #2338e6;
-  --chart-2: #0b8fb0;
-  --chart-3: #d97706;
-  --chart-4: #8b5cf6;
+  /* Categorical chart slots, in fixed order. No blue: slot 1 is Bubbly's
+     violet, then teal, amber and Bubbly's pink. Validated for lightness band,
+     chroma, CVD separation and 3:1 contrast on the surface (dataviz
+     validate_palette.js), per theme. */
+  --chart-1: #7c56f0;
+  --chart-2: #0e9f8a;
+  --chart-3: #d9730d;
+  --chart-4: #d6409f;
   --chart-grid: var(--color-line);
   --overlay: rgb(10 10 10 / 0.42);
   /* Code panels stay dark in both themes, like a terminal. */
@@ -94,10 +96,10 @@
   --code-bg: #0a0a0a;
   --code-line: #2e2e2e;
   --code-ink: #e5e5e5;
-  --chart-1: #6474ff;
-  --chart-2: #13a3a8;
-  --chart-3: #c97f0a;
-  --chart-4: #a46ae6;
+  --chart-1: #8a6ef0;
+  --chart-2: #14a08b;
+  --chart-3: #cf7a1c;
+  --chart-4: #d2509f;
 }
 
 @layer base {

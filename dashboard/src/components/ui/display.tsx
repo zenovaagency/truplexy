@@ -173,7 +173,7 @@ export function Spinner({ className }: { className?: string }) {
 /* People                                                              */
 /* ------------------------------------------------------------------ */
 
-const AVATAR_BG = ['#2338e6', '#6a2bff', '#0b6e86', '#15803d', '#9a4b00', '#c026d3', '#1f7bff', '#be123c'];
+const AVATAR_BG = ['#3d3a35', '#6a2bff', '#0e7f6e', '#15803d', '#9a4b00', '#c026d3', '#7c56f0', '#be123c'];
 
 export function Avatar({ name, email, src, size = 28, className }: { name?: string | null; email?: string | null; src?: string | null; size?: number; className?: string }) {
   const seed = (email || name || '?').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
