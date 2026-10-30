@@ -4,7 +4,7 @@ Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 License: MIT
 
 AI customer support that keeps one conversation going, with handoff to your team. Your chat key stays on your server.
@@ -81,6 +81,10 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 
 == Changelog ==
 
+= 1.0.5 =
+* The chat button is Bubbly, the Truplexy assistant, on your chosen colour. It blinks and glances around, and turns into a close button while the chat is open.
+* When you haven't set a header picture or logo, the chat window's header shows Bubbly too.
+
 = 1.0.4 =
 * The widget script is always served from your site; the plugin never loads it from a CDN.
 * Failed Truplexy calls are written to the PHP error log only when WP_DEBUG_LOG is on.
@@ -120,6 +124,9 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 * First release.
 
 == Upgrade Notice ==
+
+= 1.0.5 =
+The chat button is now Bubbly, the Truplexy assistant, on your chosen colour.
 
 = 1.0.4 =
 The new Truplexy look: a black default colour and the new logo. A colour you chose is kept.

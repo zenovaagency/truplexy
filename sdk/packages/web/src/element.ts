@@ -1,6 +1,6 @@
 import { TruplexyClient } from './client';
 import { demoTransport } from './demo';
-import { WORDMARK_ON_DARK, WORDMARK_ON_LIGHT } from './brand';
+import { BUBBLY_BODY, WORDMARK_ON_DARK, WORDMARK_ON_LIGHT } from './brand';
 import { DEFAULT_LABELS, type Labels } from './labels';
 import { renderMarkdown } from './markdown';
 import { STYLES } from './styles';
@@ -15,12 +15,19 @@ export const BRAND_URL = 'https://truplexy.com/?utm_source=chat-widget&utm_mediu
 const CLOSE_MS = 200;
 
 const ICONS = {
-  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3 21l1.5-5.2A8.5 8.5 0 1 1 21 12z"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   restart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
-  bot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><rect x="4" y="7" width="16" height="12" rx="4"/><path d="M9 13h.01M15 13h.01"/></svg>',
 };
+
+/**
+ * Bubbly, the Truplexy assistant: the launcher, and the header picture when there is no other. The glossy body is a
+ * pre-rendered image (its blur filters are too costly to draw live) in the art's 636 × 707 box; only the eyes are
+ * vector, so they can blink and glance (styles.ts).
+ */
+const eye = (x: number, y: number) =>
+  `<g class="eye"><ellipse cx="${x}" cy="${y}" rx="35" ry="52" fill="#1d1631" transform="rotate(8 ${x} ${y})"/><circle cx="${x + 11.2}" cy="${y - 21.8}" r="10.5" fill="#fff"/></g>`;
+const BUBBLY = `<span class="bubbly"><svg viewBox="0 0 636 707" aria-hidden="true" focusable="false"><image href="${BUBBLY_BODY}" width="636" height="707"/><g transform="translate(-194 -144)"><g class="eyes">${eye(586, 470)}${eye(690, 460)}</g></g></svg></span>`;
 
 /** Attributes the element reads. Everything is optional. */
 export const ATTRIBUTES = [
@@ -308,7 +315,7 @@ export class TruplexyChatElement extends Base {
   private build() {
     const root = this.attachShadow({ mode: 'open' });
     root.innerHTML = `<style>${STYLES}</style>
-<button class="launcher" part="launcher" type="button" aria-expanded="false" aria-controls="panel">${ICONS.chat.replace('<svg', '<svg class="i-chat"')}${ICONS.close.replace('<svg', '<svg class="i-close"')}<span class="badge" hidden></span></button>
+<button class="launcher" part="launcher" type="button" aria-expanded="false" aria-controls="panel">${BUBBLY}${ICONS.close.replace('<svg', '<svg class="i-close"')}<span class="badge" hidden></span></button>
 <section class="panel" id="panel" part="panel" role="dialog" aria-labelledby="title" hidden>
   <header part="header">
     <div class="avatar" aria-hidden="true"></div>
@@ -509,9 +516,9 @@ export class TruplexyChatElement extends Base {
       const img = document.createElement('img');
       img.src = avatar;
       img.alt = '';
-      img.onerror = () => ($.avatar.innerHTML = ICONS.bot);
+      img.onerror = () => ($.avatar.innerHTML = BUBBLY);
       $.avatar.replaceChildren(img);
-    } else $.avatar.innerHTML = ICONS.bot;
+    } else $.avatar.innerHTML = BUBBLY;
     const greeting = this.label('greeting');
     $.greeting.hidden = !greeting;
     $.greeting.firstElementChild!.innerHTML = renderMarkdown(greeting);
