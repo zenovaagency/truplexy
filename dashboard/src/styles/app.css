@@ -27,14 +27,16 @@
   --rail-w: 72px;
   --topbar-h: 60px;
   --page-x: clamp(16px, 3vw, 32px);
-  /* Categorical chart slots, in fixed order. No blue: slot 1 is Bubbly's
-     violet, then teal, amber and Bubbly's pink. Validated for lightness band,
-     chroma, CVD separation and 3:1 contrast on the surface (dataviz
-     validate_palette.js), per theme. */
-  --chart-1: #7c56f0;
-  --chart-2: #0e9f8a;
-  --chart-3: #d9730d;
-  --chart-4: #d6409f;
+  /* Chart slots, in fixed order: black and white shades only, like the
+     brand. Ink first, then greys that step apart in lightness; every slot
+     clears 3:1 on the card surface. Since shade alone is a weak cue, lines
+     add a dash per slot (--chart-dash-*) and every multi-series chart keeps
+     its legend. Status colours (deltas, priorities, errors) stay coloured:
+     they carry meaning, not identity. */
+  --chart-1: #0a0a0a;
+  --chart-2: #6f6a62;
+  --chart-3: #969087;
+  --chart-4: #4f4b45;
   --chart-grid: var(--color-line);
   --overlay: rgb(10 10 10 / 0.42);
   /* Code panels stay dark in both themes, like a terminal. */
@@ -96,10 +98,10 @@
   --code-bg: #0a0a0a;
   --code-line: #2e2e2e;
   --code-ink: #e5e5e5;
-  --chart-1: #8a6ef0;
-  --chart-2: #14a08b;
-  --chart-3: #cf7a1c;
-  --chart-4: #d2509f;
+  --chart-1: #fafafa;
+  --chart-2: #a3a3a3;
+  --chart-3: #6b6b6b;
+  --chart-4: #d4d4d4;
 }
 
 @layer base {

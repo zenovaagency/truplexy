@@ -60,6 +60,7 @@ export default function RequestsChart({ data, height = 260 }: { data: RequestsCh
             name="p95 latency"
             stroke="var(--chart-2)"
             strokeWidth={2}
+            strokeDasharray="6 4"
             connectNulls={false}
             dot={{ r: 2.5, strokeWidth: 0, fill: 'var(--chart-2)' }}
             activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--color-surface)' }}

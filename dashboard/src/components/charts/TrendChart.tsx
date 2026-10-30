@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from 'recharts';
 import { formatDay } from '@/lib/format';
 
@@ -21,6 +20,8 @@ export interface TrendChartProps {
 }
 
 const color = (slot: number) => `var(--chart-${slot})`;
+/** Shade alone is a weak cue, so each line slot also has its own stroke. */
+const DASH: Record<number, string | undefined> = { 1: undefined, 2: '6 4', 3: '2 3', 4: '10 4' };
 
 function ChartTooltip({ active, payload, label, series, format }: TooltipContentProps & { series: Series[]; format: (n: number) => string }) {
   if (!active || !payload?.length) return null;
@@ -48,7 +49,6 @@ function ChartTooltip({ active, payload, label, series, format }: TooltipContent
 
 /** A daily trend on one y-axis. Hover shows every series for that day. */
 export default function TrendChart({ data, series, x = 'date', format = (n) => n.toLocaleString(), height = 240, kind = 'area', stacked }: TrendChartProps) {
-  const gid = useId().replace(/:/g, '');
   const axis = { stroke: 'var(--color-ink-faint)', fontSize: 11, tickLine: false, axisLine: false } as const;
   // Small values (a few cents a day) need fractional ticks in their own format.
   const max = Math.max(0, ...data.flatMap((d) => series.map((s) => Number((d as Record<string, unknown>)[s.key]) || 0)));
@@ -87,14 +87,6 @@ export default function TrendChart({ data, series, x = 'date', format = (n) => n
           </BarChart>
         ) : (
           <AreaChart data={data as object[]} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
-            <defs>
-              {series.map((s) => (
-                <linearGradient key={s.key} id={`${gid}-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color(s.slot)} stopOpacity={0.22} />
-                  <stop offset="100%" stopColor={color(s.slot)} stopOpacity={0} />
-                </linearGradient>
-              ))}
-            </defs>
             {common}
             {series.map((s) => (
               <Area
@@ -105,7 +97,9 @@ export default function TrendChart({ data, series, x = 'date', format = (n) => n
                 stackId={stacked ? 'a' : undefined}
                 stroke={color(s.slot)}
                 strokeWidth={2}
-                fill={`url(#${gid}-${s.key})`}
+                strokeDasharray={DASH[s.slot]}
+                fill={color(s.slot)}
+                fillOpacity={stacked ? 0.12 : s.slot === 1 ? 0.05 : 0}
                 activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--color-surface)' }}
                 dot={false}
                 isAnimationActive={false}
