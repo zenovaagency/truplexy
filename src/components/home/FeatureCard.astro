@@ -1,7 +1,6 @@
 ---
 /**
- * One tile of the features bento: a decorative illustration on a faint grid,
- * then the title and a short description. The illustration is aria-hidden —
+ * One tile of the features bento: a decorative illustration, then the title and a short description. The illustration is aria-hidden —
  * the text carries the meaning.
  */
 interface Props {
@@ -13,10 +12,9 @@ const { title, body, class: className = '' } = Astro.props;
 ---
 
 <article
-  class:list={['flex flex-col overflow-hidden rounded-[20px] border border-line bg-surface', className]}
+  class:list={['flex flex-col overflow-hidden rounded-[20px] border border-line bg-ground-cream', className]}
 >
   <div class="relative grid h-[230px] place-items-center overflow-hidden" aria-hidden="true">
-    <div class="grid-fade [background-size:44px_44px] !opacity-80"></div>
     <div class="relative">
       <slot />
     </div>
