@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Check } from 'lucide-react';
-import { AssistantAvatar, BrandMark } from '@/components/layout/Brand';
+import { BrandMark, Bubbly } from '@/components/layout/Brand';
 import { cn } from '@/lib/cn';
 
 /** The public site. The dashboard host rewrites every path to this app, so legal pages need absolute links. */
@@ -12,48 +11,29 @@ const LEGAL_LINKS = [
   ['Refunds', '/refunds'],
 ] as const;
 
-const POINTS = [
-  'One assistant for web chat, WhatsApp, Telegram, Discord, Shopify and more',
-  'Answers from your own knowledge base, in a human voice',
-  'Hands off to your team the moment a person is needed',
-];
-
-/** Split screen: the form on the right, a brand panel on the left from 1024px. Without the aside, one centered column. */
+/** Split screen: the form on white at the right, a cream panel with Bubbly on the left from 1024px. Without the aside, one centered column. */
 export function AuthFrame({ children, aside = true }: { children: ReactNode; aside?: boolean }) {
   return (
     <div className={cn('grid min-h-dvh bg-paper', aside && 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]')}>
       {aside && (
-        <aside className="relative hidden overflow-hidden bg-[#0a0a0a] p-12 text-white lg:flex lg:flex-col">
-          <div className="relative">
-            <BrandMark className="h-7 !text-white" />
-          </div>
-          <div className="relative mt-auto grid max-w-md gap-8">
-            <h2 className="text-[2rem] font-bold leading-[1.15] tracking-tight">
-              Support that sounds like your best person on their best day.
-            </h2>
-            <ul className="grid gap-3.5">
-              {POINTS.map((p) => (
-                <li key={p} className="flex gap-3 text-[0.9375rem] text-white/75">
-                  <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-white/10">
-                    <Check className="size-3" />
-                  </span>
-                  {p}
-                </li>
-              ))}
-            </ul>
-            <div className="grid gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.04] p-4">
-              <div className="max-w-[80%] self-start rounded-[14px] rounded-bl-[5px] bg-white/10 px-3 py-2 text-sm">Where's my order #4471?</div>
-              <div className="ml-auto flex max-w-[90%] items-end gap-2">
-                <div className="rounded-[14px] rounded-br-[5px] bg-white px-3 py-2 text-sm text-[#0a0a0a]">
-                  It shipped this morning with DHL, arriving Thursday. Want the tracking link?
-                </div>
-                <AssistantAvatar size={28} />
-              </div>
+        <aside className="relative hidden border-r border-line bg-paper p-12 lg:flex lg:flex-col">
+          <BrandMark className="h-7" />
+          <div className="mx-auto my-auto grid max-w-md justify-items-center gap-10 py-10 text-center">
+            <Bubbly size={240} />
+            <div className="grid gap-3">
+              <h2 className="text-[2.25rem] font-bold leading-[1.1] tracking-tight text-ink">
+                Every channel.
+                <br />
+                <span className="text-ink-faint">One platform.</span>
+              </h2>
+              <p className="text-[0.9375rem] leading-relaxed text-ink-muted">
+                One assistant answers on your site, WhatsApp, Shopify and more, and hands off to your team when a person is needed.
+              </p>
             </div>
           </div>
         </aside>
       )}
-      <main className="relative flex flex-col overflow-hidden px-4 py-8 sm:px-8">
+      <main className="relative flex flex-col overflow-hidden bg-surface px-4 py-8 sm:px-8">
         <div className={cn('relative', aside && 'lg:hidden')}>
           <BrandMark className="h-7" />
         </div>
