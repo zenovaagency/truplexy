@@ -11,9 +11,12 @@
  * position in the stack) with CSS transitions. It pauses off screen and in
  * background tabs.
  *
- * Bubbly opens the real chat (BubblyChat listens for [data-open-chat]).
+ * Bubbly wears the Truplexy mark (a badge and a name tag) so the assistant
+ * reads as Truplexy's, and opens the real chat (BubblyChat listens for
+ * [data-open-chat]).
  */
 import Bubbly from '../brand/Bubbly.astro';
+import Mark from '../brand/Mark.astro';
 import ChannelIcon from '../ui/ChannelIcon';
 import { channel } from '../../data/channels';
 import { STAGE_ITEMS, STAGE_STORE, outcomeLabel } from '../../data/hero-stage';
@@ -53,10 +56,14 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
 
   <!-- The assistant -->
   <div class="hub">
-    <button type="button" class="hub-btn" data-open-chat aria-label="Chat with the Truplexy assistant">
-      <span class="hub-glow" aria-hidden="true"></span>
-      <Bubbly size={84} look class="hub-bubbly" />
-    </button>
+    <div class="hub-col">
+      <button type="button" class="hub-btn" data-open-chat aria-label="Chat with the Truplexy assistant">
+        <span class="hub-glow" aria-hidden="true"></span>
+        <Bubbly size={84} look class="hub-bubbly" />
+        <span class="hub-badge" aria-hidden="true"><Mark size={15} /></span>
+      </button>
+      <span class="hub-tag" aria-hidden="true"><Mark size={13} />Truplexy AI</span>
+    </div>
     <div class="say" data-say="reply" aria-hidden="true">
       <span class="typing"><span></span><span></span><span></span></span>
       <span class="say-text" data-say-text>{last.reply}</span>
@@ -159,10 +166,7 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
   }
   .chip-m.is-enter { transform: translateY(-24px) scale(0.96); opacity: 0; }
   .chip-m.is-leave { opacity: 0; }
-  .chip-m.is-active {
-    border-color: var(--color-ink);
-    box-shadow: 0 0 0 4px rgb(10 10 10 / 0.06), var(--shadow-md);
-  }
+  .chip-m.is-active { border-color: var(--color-ink); }
 
   .chip-ico, .row-ico {
     display: grid;
@@ -226,6 +230,14 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
     width: 100%;
   }
 
+  .hub-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Ink, like the mark and the corner launcher: Bubbly sits on the brand. */
   .hub-btn {
     position: relative;
     display: grid;
@@ -233,9 +245,8 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
     width: 112px;
     height: 112px;
     border-radius: 50%;
-    background: var(--color-surface);
-    border: 1px solid var(--color-line);
-    box-shadow: var(--shadow-md);
+    background: var(--color-ink);
+    box-shadow: 0 18px 40px -14px rgb(30 24 16 / 0.55), 0 4px 12px rgb(30 24 16 / 0.18);
     transition: transform 420ms var(--ease-spring);
     -webkit-tap-highlight-color: transparent;
   }
@@ -244,6 +255,35 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
   }
   .hub-btn:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 4px; border-radius: 50%; }
   .hub-btn :global(.hub-bubbly) { position: relative; margin: 6px 0 0 6px; }
+
+  /* The mark, as a badge on Bubbly's circle. */
+  .hub-badge {
+    position: absolute;
+    right: -2px;
+    bottom: 4px;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: 0 0 0 3px var(--color-paper), var(--shadow-sm);
+  }
+
+  .hub-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px 5px 9px;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 
   .hub-glow {
     position: absolute;
@@ -260,7 +300,7 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
   .say {
     position: absolute;
     left: calc(50% + 70px);
-    top: 50%;
+    top: 56px;
     width: max-content;
     max-width: min(200px, calc(50% - 74px));
     padding: 9px 12px;
@@ -340,9 +380,11 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
     .rows { height: calc(var(--row-h) * 3); }
     /* Bubbly moves left so the reply has room; the wires follow it. */
     .hub { justify-content: flex-start; padding-left: 16px; }
-    .wire { align-self: flex-start; margin-left: 63px; }
-    .say { left: 128px; max-width: calc(100% - 132px); font-size: 0.78rem; }
+    .hub-col { width: 112px; }
+    .wire { align-self: flex-start; margin-left: 71px; }
+    .say { left: 136px; top: 48px; max-width: calc(100% - 140px); font-size: 0.78rem; }
     .hub-btn { width: 96px; height: 96px; }
+    .hub-badge { width: 30px; height: 30px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
