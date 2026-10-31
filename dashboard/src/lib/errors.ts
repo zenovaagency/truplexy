@@ -135,6 +135,7 @@ export function describeError(e: unknown): Described {
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'tokens_per_month') detail = "This month's tokens are used up and the balance is empty. Buy extra tokens in Settings → Billing.";
     else if (e.code === 'SOLE_OWNER' && e.tenants?.length) detail = `Make someone else an owner of ${e.tenants.map((t) => t.name).join(', ')} first.`;
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'web_search') detail = "This business's plan doesn't include web search. See Settings → Plan & usage.";
+    else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'no_plan') detail = "This business has no plan, so its bots don't reply. Start one in Settings → Plan & usage.";
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit === 'image_input') detail = "This business's plan doesn't include pictures. See Settings → Plan & usage.";
     else if (e.code === 'PLAN_LIMIT_REACHED' && e.limit) detail = `Your plan has no room for more ${LIMIT_LABEL[e.limit] ?? e.limit}. See Settings → Plan & usage.`;
     return { title: c?.title ?? 'Request failed', detail, code: e.code, requestId: e.requestId };

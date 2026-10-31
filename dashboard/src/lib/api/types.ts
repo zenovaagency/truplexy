@@ -58,7 +58,8 @@ export type BusinessTypeId =
   | 'professional_services'
   | 'other';
 
-export type PlanId = 'free' | 'starter' | 'pro' | 'enterprise' | (string & {});
+/** 'none' is a business without a plan: its bots don't reply until a trial or subscription starts. */
+export type PlanId = 'none' | 'starter' | 'pro' | 'enterprise' | (string & {});
 
 export interface BotRef {
   id: string;
@@ -105,7 +106,7 @@ export interface Limits {
   web_search?: boolean;
   /** Web searches a month; 0 = unlimited (v2). */
   web_searches_per_month?: number;
-  /** Whether customers may attach pictures to a message (image input). Plans don't list it; a business's limits always do. Free has none. */
+  /** Whether customers may attach pictures to a message (image input). Plans don't list it; a business's limits always do. A business without a plan has none. */
   image_input?: boolean;
 }
 
@@ -1386,7 +1387,8 @@ export interface Source {
 }
 
 /** The limit an error names. */
-export type LimitName = keyof Limits;
+/** What `limit` names on PLAN_LIMIT_REACHED: a limit, or `no_plan` for a business without a plan, whose bots don't reply. */
+export type LimitName = keyof Limits | 'no_plan';
 
 /* ------------------------------------------------------------------ */
 /* Image input (planned, 2026-10-19). Not served until the API ships.   */

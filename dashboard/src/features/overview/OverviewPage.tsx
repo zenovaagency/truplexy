@@ -16,7 +16,7 @@ import { useAudit, useMembers, useTenant } from '@/lib/api/endpoints/business';
 import { useSupportStats, useUsageSummary } from '@/lib/api/endpoints/stats';
 import { useRecentTickets } from '@/lib/api/endpoints/tickets';
 import { describeAudit } from '@/lib/audit';
-import { planUsage } from '@/lib/billing';
+import { hasNoPlan, planUsage } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import {
   dayRange,
@@ -194,16 +194,18 @@ export default function OverviewPage() {
             label="Plan usage"
             icon={<Gauge />}
             loading={!t}
-            value={t ? (plan ? formatPercent(plan.share) : 'Unlimited') : '—'}
+            value={t ? (hasNoPlan(t.plan) ? 'Off' : plan ? formatPercent(plan.share) : 'Unlimited') : '—'}
             sub={
               t &&
-              (plan
-                ? `${formatCompact(plan.used)} of ${formatCompact(plan.limit)} ${plan.unit} this month · resets ${formatDate(nextMonthStart(), { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
-                : `No monthly limit on the ${t.plan} plan`)
+              (hasNoPlan(t.plan)
+                ? "No plan, so your bots don't reply. Start a trial on the Plan page."
+                : plan
+                  ? `${formatCompact(plan.used)} of ${formatCompact(plan.limit)} ${plan.unit} this month · resets ${formatDate(nextMonthStart(), { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
+                  : `No monthly limit on the ${t.plan} plan`)
             }
             // Unlimited plans get an empty bar so the card keeps the same footer as its neighbours.
             meter={t ? (plan?.share ?? 0) : undefined}
-            tone={plan && plan.share >= 1 ? 'danger' : plan && plan.share >= 0.9 ? 'warn' : undefined}
+            tone={(t && hasNoPlan(t.plan)) || (plan && plan.share >= 1) ? 'danger' : plan && plan.share >= 0.9 ? 'warn' : undefined}
             info="This month's replies and tokens across every bot, against your plan. Shows whichever is closer to its limit."
           />
         </div>

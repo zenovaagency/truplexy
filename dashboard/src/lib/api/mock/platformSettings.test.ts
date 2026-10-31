@@ -88,19 +88,20 @@ describe('models', () => {
 describe('the image_input limit', () => {
   const limitsOf = (id: string) => (call('GET', `/platform/tenants/${id}/detail`).body as any).limits ?? (call('GET', '/platform/tenants').body as any).data.find((t: any) => t.id === id).limits;
 
-  it('is off for Free and on for paid plans', () => {
+  it('is off without a plan and on for paid plans', () => {
     const tenants = (call('GET', '/platform/tenants').body as any).data as { id: string; plan: string; limits: { image_input?: boolean } }[];
-    for (const t of tenants) expect(t.limits.image_input, `${t.id} (${t.plan})`).toBe(t.plan !== 'free');
+    expect(tenants.some((t) => t.plan === 'none')).toBe(true);
+    for (const t of tenants) expect(t.limits.image_input, `${t.id} (${t.plan})`).toBe(t.plan !== 'none');
   });
 
   it('can be overridden for one business, and cleared again', () => {
-    const free = (call('GET', '/platform/tenants').body as any).data.find((t: any) => t.plan === 'free') ?? null;
-    const id = free?.id ?? (call('GET', '/platform/tenants').body as any).data[0].id;
+    const unpaid = (call('GET', '/platform/tenants').body as any).data.find((t: any) => t.plan === 'none') ?? null;
+    const id = unpaid?.id ?? (call('GET', '/platform/tenants').body as any).data[0].id;
     call('PATCH', `/platform/tenants/${id}`, { limits: { image_input: true } });
     expect(limitsOf(id).image_input).toBe(true);
     call('PATCH', `/platform/tenants/${id}`, { limits: {} });
     const plan = (call('GET', '/platform/tenants').body as any).data.find((t: any) => t.id === id).plan;
-    expect(limitsOf(id).image_input).toBe(plan !== 'free');
+    expect(limitsOf(id).image_input).toBe(plan !== 'none');
   });
 
   it('must be true or false', () => {

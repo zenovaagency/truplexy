@@ -158,6 +158,7 @@ export function ScopeLayout() {
       membership,
       businessName: membership?.name ?? visitBusiness.data?.name ?? tenant,
       businessStatus: membership?.status ?? visitBusiness.data?.status ?? 'active',
+      businessPlan: membership?.plan ?? visitBusiness.data?.plan ?? '',
       bot: currentBot,
       bots,
       role,

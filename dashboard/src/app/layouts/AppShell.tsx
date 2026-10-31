@@ -1,10 +1,12 @@
 import { useContext, useState } from 'react';
 import { Link, Outlet, useNavigate, useNavigation } from 'react-router';
 import { Dialog as D } from 'radix-ui';
-import { ArrowLeft, FlaskConical, Menu as MenuIcon, PauseCircle, Search, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FlaskConical, Menu as MenuIcon, PauseCircle, PowerOff, Search, ShieldCheck } from 'lucide-react';
 import { useHealth } from '@/lib/api/endpoints/account';
+import { useTrialEligible } from '@/lib/api/endpoints/billing';
 import { useTenant } from '@/lib/api/endpoints/business';
 import { useTicketCounts } from '@/lib/api/endpoints/tickets';
+import { hasNoPlan, planLabel, TRIAL_DAYS } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { formatCompact } from '@/lib/format';
 import { usePerformanceNav } from '@/lib/performance';
@@ -126,6 +128,7 @@ export function AppShell({ variant }: { variant: 'business' | 'platform' }) {
         </header>
 
         {variant === 'business' && <SuspendedBanner />}
+        {variant === 'business' && <NoPlanBanner />}
 
         <main id="main" className="flex-1" key={scope ? `${scope.tenant}/${scope.bot}` : 'platform'}>
           <Outlet />
@@ -156,7 +159,7 @@ function BusinessSidebar({ collapsed, onNavigate, onToggleCollapsed }: { collaps
       onNavigate={onNavigate}
       onToggleCollapsed={onToggleCollapsed}
       homeHref={href('overview')}
-      badge={plan && <Badge tone="accent" className="ml-auto capitalize">{plan}</Badge>}
+      badge={plan && <Badge tone={hasNoPlan(plan) ? 'warn' : 'accent'} className={cn('ml-auto', !hasNoPlan(plan) && 'capitalize')}>{planLabel(plan)}</Badge>}
       footer={
         <div className="grid gap-2">
           {!collapsed && can('members.read') && <PlanUsage />}
@@ -188,13 +191,15 @@ function PlanUsage() {
   if (!t.data) return null;
   const used = t.data.usage.replies_this_month;
   const limit = t.data.limits.replies_per_month;
-  const ratio = limit ? used / limit : 0;
+  // Without a plan the bots don't reply: a limit of 0 there isn't unlimited.
+  const off = hasNoPlan(t.data.plan);
+  const ratio = limit && !off ? used / limit : 0;
   return (
     <Link to={href('settings/plan')} className="grid gap-2 rounded-[12px] border border-line bg-surface p-3 transition-colors hover:border-line-strong">
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className="font-semibold text-ink">AI replies</span>
         <span className="tabular-nums text-ink-faint">
-          {formatCompact(used)} / {limit > 0 ? formatCompact(limit) : '∞'}
+          {off ? 'Off' : `${formatCompact(used)} / ${limit > 0 ? formatCompact(limit) : '∞'}`}
         </span>
       </div>
       <Progress value={ratio} tone={ratio >= 1 ? 'danger' : ratio >= 0.8 ? 'warn' : 'accent'} label="AI replies this month" />
@@ -267,6 +272,29 @@ function ApiStatusDot() {
         <span className="size-1.5 rounded-full bg-danger" /> API down
       </span>
     </Tip>
+  );
+}
+
+function NoPlanBanner() {
+  const { businessPlan, businessStatus, can, href } = useScopeCtx();
+  const off = hasNoPlan(businessPlan) && businessStatus !== 'suspended';
+  // Promise a trial only when the API says one would be sold, as the Plan tab does.
+  const trial = useTrialEligible(off && can('usage.read')).data !== false;
+  // A suspended business has its own banner.
+  if (!off) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-warn/30 bg-warn-soft px-[var(--page-x)] py-2.5 text-[0.8125rem] text-ink" role="status">
+      <PowerOff className="size-4 shrink-0 text-warn" />
+      <p className="min-w-0 flex-1">
+        <span className="font-semibold">Your bots are off.</span>{' '}
+        <span className="text-ink-muted">
+          This business has no plan, so customers get no AI replies. {trial ? `Start your ${TRIAL_DAYS}-day free trial to turn them on.` : 'Choose a plan to turn them on.'}
+        </span>
+      </p>
+      <Link to={href('settings/plan')} className="inline-flex shrink-0 items-center gap-1 font-medium text-accent hover:underline">
+        {trial ? 'Start free trial' : 'Choose a plan'} <ArrowRight className="size-3.5" />
+      </Link>
+    </div>
   );
 }
 

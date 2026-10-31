@@ -45,7 +45,6 @@ const addon = (price: number, max: number): Plan['token_addon'] => ({
 });
 
 export const PLANS: Plan[] = [
-  { id: 'free', name: 'Free', limits: { bots: 1, documents_per_bot: 50, members: 3, replies_per_month: 500, tokens_per_month: 1_000_000 }, token_addon: null },
   { id: 'starter', name: 'Starter', limits: { bots: 2, documents_per_bot: 250, members: 6, replies_per_month: 5000, tokens_per_month: 10_000_000 }, token_addon: addon(8, 5) },
   { id: 'pro', name: 'Pro', limits: { bots: 5, documents_per_bot: 1000, members: 15, replies_per_month: 25000, tokens_per_month: 50_000_000 }, token_addon: addon(6, 30) },
   { id: 'enterprise', name: 'Enterprise', limits: { bots: 0, documents_per_bot: 0, members: 0, replies_per_month: 0, tokens_per_month: 0 }, token_addon: null },
@@ -773,10 +772,10 @@ export function seedDb(): MockDb {
       ]) },
     { id: 'northwind', name: 'Northwind Boards', business_type: 'saas', plan: 'starter', status: 'active', created_at: ago(64 * DAY), reply_target_hours: 8, limit_overrides: {}, replies_this_month: 1288, tokens_this_month: 2_640_000,
       ...billingHistory(br, [{ days: 20, kind: 'credit', amount: 50, actor: ops!.email, note: 'Bank transfer INV-1077' }]) },
-    { id: 'bloom-clinic', name: 'Bloom Clinic', business_type: 'healthcare', plan: 'free', status: 'active', created_at: ago(30 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 214, tokens_this_month: 940_000, ...billingHistory(br, []) },
+    { id: 'bloom-clinic', name: 'Bloom Clinic', business_type: 'healthcare', plan: 'none', status: 'active', created_at: ago(30 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 214, tokens_this_month: 940_000, ...billingHistory(br, []) },
     { id: 'harbor-realty', name: 'Harbor Realty', business_type: 'real_estate', plan: 'starter', status: 'suspended', created_at: ago(51 * DAY), reply_target_hours: 12, limit_overrides: { replies_per_month: 8000 }, replies_this_month: 0, tokens_this_month: 0, ...billingHistory(br, []) },
     // Deleted 6 days ago: restorable from the platform console.
-    { id: 'old-bakery', name: 'Old Town Bakery', business_type: 'hospitality', plan: 'free', status: 'active', created_at: ago(140 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 0, tokens_this_month: 0, balance: 0, addons: [], ledger: [], deleted_at: ago(6 * DAY) },
+    { id: 'old-bakery', name: 'Old Town Bakery', business_type: 'hospitality', plan: 'none', status: 'active', created_at: ago(140 * DAY), reply_target_hours: 24, limit_overrides: {}, replies_this_month: 0, tokens_this_month: 0, balance: 0, addons: [], ledger: [], deleted_at: ago(6 * DAY) },
   ];
 
   const memberships: MockDb['memberships'] = [

@@ -4,6 +4,7 @@ import { Check, Clock, Mail, MailPlus, Minus, RotateCw, Shield, Trash2, UserMinu
 import { useMe } from '@/lib/api/endpoints/account';
 import { useCreateInvite, useInvites, useMembers, useRemoveMember, useRevokeInvite, useTenant, useUpdateMember } from '@/lib/api/endpoints/business';
 import type { Invite, Member, Permission, Role } from '@/lib/api/types';
+import { planLabel } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { env } from '@/lib/env';
 import { formatDate, formatRelative } from '@/lib/format';
@@ -58,7 +59,7 @@ export default function TeamPage() {
       {t && (
         <div className="panel max-w-md p-4">
           <LimitBar label="Seats used" used={t.usage.members} limit={t.limits.members} />
-          <p className="mt-2 text-xs text-ink-faint">Pending invitations count toward seats. Plan: {t.plan}.</p>
+          <p className="mt-2 text-xs text-ink-faint">Pending invitations count toward seats. Plan: {planLabel(t.plan)}.</p>
         </div>
       )}
       <SubNav

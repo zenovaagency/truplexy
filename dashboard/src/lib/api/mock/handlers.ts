@@ -34,7 +34,7 @@ import type {
   UsageDay,
   UsageSummary,
 } from '@/lib/api/types';
-import { quoteTokens } from '@/lib/billing';
+import { hasNoPlan, NO_PLAN, quoteTokens } from '@/lib/billing';
 import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
 import { emit, topicFor } from './bus';
 import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockSuggestion, type MockTenant, type MockTicket, type MockUser } from './db';
@@ -113,12 +113,22 @@ const memberOf = (db: MockDb, tenant: string, user: string) => db.memberships.fi
 const permsFor = (role: Role | null, platform: boolean): Set<Permission> =>
   new Set(platform ? DEFAULT_ROLE_PERMISSIONS.owner : role ? DEFAULT_ROLE_PERMISSIONS[role] : []);
 
-/** Web search by plan: plans don't list it, so the mock decides (Free has none). */
+/** Web search by plan: plans don't list it, so the mock decides (a business without a plan has none). */
 const WEB_SEARCHES: Record<string, number> = { starter: 500, pro: 3000 };
 
+/** A business without a plan (or on an unknown one) can set up one bot; its bots don't reply. */
+const NO_PLAN_LIMITS = { bots: 1, documents_per_bot: 50, members: 3, replies_per_month: 0, tokens_per_month: 0 };
+
+const planOf = (t: MockTenant) => PLANS.find((p) => p.id === t.plan);
+
 function limitsOf(t: MockTenant): Limits {
-  const plan = PLANS.find((p) => p.id === t.plan) ?? PLANS[0]!;
-  return { ...plan.limits, web_search: t.plan !== 'free', web_searches_per_month: WEB_SEARCHES[t.plan] ?? 0, image_input: t.plan !== 'free', ...t.limit_overrides };
+  const plan = planOf(t);
+  return { ...(plan?.limits ?? NO_PLAN_LIMITS), web_search: Boolean(plan), web_searches_per_month: WEB_SEARCHES[t.plan] ?? 0, image_input: Boolean(plan), ...t.limit_overrides };
+}
+
+/** Refuses a reply when the business has no plan, as the API does. */
+function requirePlan(t: MockTenant) {
+  if (!planOf(t)) throw err(403, 'PLAN_LIMIT_REACHED', 'This business has no plan. Start a 7-day trial on the Plan page to turn its bots on.', { limit: 'no_plan' });
 }
 
 const MAX_AUTO_CLOSE = 2160;
@@ -191,11 +201,23 @@ function pricing(m: MockModel) {
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
 function billingOf(t: MockTenant): Billing {
-  const plan = PLANS.find((p) => p.id === t.plan) ?? PLANS[0]!;
-  const planAllowance = limitsOf(t).tokens_per_month;
-  const unlimited = planAllowance === 0;
+  const plan = planOf(t);
   const addons = t.addons.filter((a) => a.month === thisMonth());
   const extra = addons.reduce((n, a) => n + a.tokens, 0);
+  if (!plan) {
+    // Without a plan there are no tokens, rather than unlimited ones.
+    return {
+      currency: 'USD',
+      balance: t.balance,
+      month: thisMonth(),
+      plan: { id: NO_PLAN, name: 'No plan' },
+      tokens: { unlimited: false, plan_allowance: 0, addons: extra, allowance: 0, used: t.tokens_this_month, remaining: 0 },
+      token_addon: null,
+      addons,
+    };
+  }
+  const planAllowance = limitsOf(t).tokens_per_month;
+  const unlimited = planAllowance === 0;
   const allowance = unlimited ? 0 : planAllowance + extra;
   return {
     currency: 'USD',
@@ -454,7 +476,7 @@ route('POST', '/tenants', 'account', (c) => {
   const base = id;
   while (c.db.tenants.some((t) => t.id === id)) id = `${base}-${n++}`;
   const now = nowIso();
-  const t: MockTenant = { id, name, business_type: type.id, plan: 'free', status: 'active', created_at: now, reply_target_hours: 24, limit_overrides: {}, replies_this_month: 0, tokens_this_month: 0, balance: 0, addons: [], ledger: [] };
+  const t: MockTenant = { id, name, business_type: type.id, plan: NO_PLAN, status: 'active', created_at: now, reply_target_hours: 24, limit_overrides: {}, replies_this_month: 0, tokens_this_month: 0, balance: 0, addons: [], ledger: [] };
   c.db.tenants.push(t);
   c.db.memberships.push({ tenant_id: id, user_id: c.user.id, role: 'owner', joined_at: now });
   c.db.bots.push({ tenant_id: id, id: 'support', name: type.assistant_name, kb_version: 0, created_at: now });
@@ -2591,6 +2613,7 @@ route('POST', '/tickets/:id/summary', 'tickets.write', (c) => {
   const t = findTicket(c);
   const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
   if (!t.conversation_id || !conv) throw err(400, 'NO_CONVERSATION', "This ticket wasn't opened from a conversation, so there's nothing to summarize.");
+  requirePlan(c.tenant);
   const max = limitsOf(c.tenant).replies_per_month;
   if (max > 0 && c.tenant.replies_this_month >= max && c.tenant.balance <= 0) {
     throw err(429, 'PLAN_LIMIT_REACHED', "This month's AI replies are used up.", { limit: 'replies_per_month' });
@@ -3093,6 +3116,7 @@ route('POST', '/playground/run', 'playground.run', (c): PlaygroundRunResult => {
   if (!b.max_output_tokens || b.max_output_tokens < 1 || b.max_output_tokens > 32768) throw invalid('max_output_tokens is required (1–32768).');
   const ws = workspaceOf(c);
   if (b.tools_enabled && !(b.tools ?? []).length) throw invalid('tools is required with tools_enabled.');
+  requirePlan(c.tenant);
   // `model` is ignored; `temperature` and `rag_top_k` are honoured only for platform admins.
   const temperature: number | undefined = c.user.platform_admin ? b.temperature : undefined;
   const topK: number = c.user.platform_admin && b.rag_top_k ? b.rag_top_k : 4;
@@ -3267,7 +3291,7 @@ route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
   const t = liveTenant(c.db, c.params.id!);
   const b = c.body ?? {};
   if (b.plan !== undefined) {
-    if (!PLANS.some((p) => p.id === b.plan)) throw invalid('Unknown plan.');
+    if (!hasNoPlan(b.plan) && !PLANS.some((p) => p.id === b.plan)) throw invalid('Unknown plan.');
     audit({ ...c, tenant: t }, 'plan.changed', t.id, { from: t.plan, to: b.plan });
     t.plan = b.plan;
   }
