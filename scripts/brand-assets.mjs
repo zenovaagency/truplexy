@@ -7,9 +7,9 @@
  * (the inline logo), come from the brand kit generator:
  * brand/soft-logo-concepts/source/build-kit.mjs.
  *
- * Every page of the site and the dashboard uses the same favicon: the bare mark
- * on a transparent background. The SVG and the .ico are both that one mark, and
- * the set is copied into dashboard/public too, so the two apps can't drift.
+ * Every page of the site and the dashboard uses the same favicons, copied into
+ * dashboard/public too, so the two apps can't drift: favicon.svg is the bare
+ * mark on a transparent background, and favicon.ico is the black rounded tile.
  *
  * Re-run it whenever a file in /logo/soft-triplex changes. The outputs are
  * committed, so the build itself never depends on this script.
@@ -31,10 +31,12 @@ async function png(file, size) {
   return sharp(svg, { density: (72 * size) / viewW }).resize(size, size).png().toBuffer();
 }
 
-// Favicons: the mark with no background. favicon.svg turns white on dark tab
-// bars; the .ico fallback can't, so it stays a black mark.
+// Favicons. Browsers that read SVG favicons (Chrome, Edge, Firefox) show the
+// mark with no background, black on light tab bars and white on dark ones.
+// Everything else reads the .ico (Safari, search results, bookmarks, crawlers)
+// and can't follow the theme, so it gets the tile, which reads on any ground.
 const fav = {};
-for (const size of [16, 32, 48]) fav[size] = await png('favicon.svg', size);
+for (const size of [16, 32, 48]) fav[size] = await png('favicon-tile.svg', size);
 await copyFile(src('favicon.svg'), pub('favicon.svg'));
 
 /**
