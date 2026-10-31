@@ -145,7 +145,7 @@ function BusinessSidebar({ collapsed, onNavigate, onToggleCollapsed }: { collaps
   const counts = useTicketCounts(can('tickets.read'));
   const served = usePerformanceNav();
   const featured = useFeatureNav();
-  const sections = BUSINESS_NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.permission || can(i.permission)) && served(i) && featured(i)) }));
+  const sections = BUSINESS_NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.permission || can(i.permission)) && (!i.platformAdmin || isPlatformAdmin) && served(i) && featured(i)) }));
   const plan = membership?.plan;
   return (
     <Sidebar
@@ -285,13 +285,13 @@ function SuspendedBanner() {
 
 /** "g t" → Tickets, "g k" → Knowledge, and so on, for the tabs this role can open. */
 function GoShortcuts() {
-  const { can, href } = useScopeCtx();
+  const { can, href, isPlatformAdmin } = useScopeCtx();
   const nav = useNavigate();
   const served = usePerformanceNav();
   const featured = useFeatureNav();
   const bindings: Record<string, () => void> = {};
   for (const item of BUSINESS_NAV.flatMap((s) => s.items)) {
-    if (item.key && (!item.permission || can(item.permission)) && served(item) && featured(item)) bindings[`g ${item.key}`] = () => nav(href(item.path));
+    if (item.key && (!item.permission || can(item.permission)) && (!item.platformAdmin || isPlatformAdmin) && served(item) && featured(item)) bindings[`g ${item.key}`] = () => nav(href(item.path));
   }
   useHotkeys(bindings);
   return null;
