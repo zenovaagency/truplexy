@@ -68,7 +68,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const pages: Entry[] = ctx
     ? [
         ...BUSINESS_NAV.flatMap((s) => s.items)
-          .filter((i) => served(i) && featured(i))
+          .filter((i) => served(i) && featured(i) && (!i.platformAdmin || ctx.isPlatformAdmin))
           .map((i) => ({
           id: i.id,
           label: i.label,
