@@ -7,12 +7,9 @@
  * (the inline logo), come from the brand kit generator:
  * brand/soft-logo-concepts/source/build-kit.mjs.
  *
- * Every page of the site and the dashboard uses the same favicon: the black
- * rounded tile. The SVG, the .ico and the PNGs are all that one tile, and the
- * set is copied into dashboard/public too, so the two apps can't drift.
- *
- * src/assets/brand/wordmark-*.png are no longer written here; only the launch
- * video's notes still mention them.
+ * Every page of the site and the dashboard uses the same favicon: the bare mark
+ * on a transparent background. The SVG and the .ico are both that one mark, and
+ * the set is copied into dashboard/public too, so the two apps can't drift.
  *
  * Re-run it whenever a file in /logo/soft-triplex changes. The outputs are
  * committed, so the build itself never depends on this script.
@@ -34,13 +31,11 @@ async function png(file, size) {
   return sharp(svg, { density: (72 * size) / viewW }).resize(size, size).png().toBuffer();
 }
 
-// Favicons: a black rounded tile, so the mark reads on light and dark tab bars.
-// favicon.svg is the same tile as a vector, so every browser shows one icon.
+// Favicons: the mark with no background. favicon.svg turns white on dark tab
+// bars; the .ico fallback can't, so it stays a black mark.
 const fav = {};
-for (const size of [16, 32, 48]) fav[size] = await png('favicon-tile.svg', size);
-await writeFile(pub('favicon-16.png'), fav[16]);
-await writeFile(pub('favicon-32.png'), fav[32]);
-await copyFile(src('favicon-tile.svg'), pub('favicon.svg'));
+for (const size of [16, 32, 48]) fav[size] = await png('favicon.svg', size);
+await copyFile(src('favicon.svg'), pub('favicon.svg'));
 
 /**
  * Packs PNG buffers into a .ico. Browsers and crawlers request /favicon.ico
@@ -74,7 +69,7 @@ await writeFile(pub('icon-512.png'), await png('app-square.svg', 512));
 await writeFile(pub('icon-maskable-512.png'), await png('app-maskable.svg', 512));
 
 // The dashboard (app.truplexy.com) serves the same icons from its own public/.
-for (const f of ['favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png', 'icon-192.png']) {
+for (const f of ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png']) {
   await copyFile(pub(f), dash(f));
 }
 
