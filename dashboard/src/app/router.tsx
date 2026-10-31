@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import type { Permission } from '@/lib/api/types';
 import { pages } from './nav';
-import { LegacyScopeRedirect, RequireAuth, RequirePermission, RequirePlatformAdmin, RequireScopePlatformAdmin, ScopeLayout } from './guards';
+import { LegacyScopeRedirect, RequireAuth, RequirePermission, RequirePlatformAdmin, ScopeLayout } from './guards';
 import { NotFound, RouteError } from './errors';
 import { PlatformLayout } from './layouts/PlatformLayout';
 
@@ -26,7 +26,6 @@ const businessRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="overview" replace /> },
   gated('usage.read', [{ path: 'overview', ...lazyRoute(pages.overview, (m) => m.default) }]),
   gated('usage.read', [{ path: 'usage', ...lazyRoute(pages.usage, (m) => m.default) }]),
-  { element: <RequireScopePlatformAdmin />, children: [{ path: 'performance', ...lazyRoute(pages.performance, (m) => m.default) }] },
   // The LLM page is gone: its usage moved to Usage, and the rest is no longer configurable.
   { path: 'llm/usage', element: <Navigate to="../usage" replace /> },
   { path: 'llm/*', element: <Navigate to="../tools" replace /> },

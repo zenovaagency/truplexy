@@ -3650,16 +3650,6 @@ route('PATCH', '/platform/tools/:id', 'platform', (c) => {
 const replyDays = (days: string[], bots: { tenant: string; bot: string }[]) =>
   days.map((date) => ({ date, replies: bots.reduce((n, b) => n + usageDay(b.tenant, b.bot, date).requests, 0) }));
 
-route('GET', '/stats/performance', 'usage.read', (c): PerformanceStats => {
-  const mode = performanceMode();
-  if (mode === 'off') throw err(404, 'NOT_FOUND', 'Route not found.');
-  const { from, to, days } = rangeOf(c.query);
-  const scope = c.query.get('scope') ?? 'bot';
-  if (scope !== 'bot' && scope !== 'business') throw invalid('scope must be bot or business.');
-  const bots = scope === 'business' ? c.db.bots.filter((b) => b.tenant_id === c.tenant.id).map((b) => b.id) : [c.botId];
-  return buildPerformance({ from, to, scope, mode, days: replyDays(days, bots.map((bot) => ({ tenant: c.tenant.id, bot }))) });
-});
-
 route('GET', '/platform/performance', 'platform', ({ db, query }): PerformanceStats => {
   const mode = performanceMode();
   if (mode === 'off') throw err(404, 'NOT_FOUND', 'Route not found.');

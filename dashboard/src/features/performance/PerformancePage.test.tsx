@@ -11,7 +11,7 @@ import { notifyError } from '@/lib/notify';
 import { resetPerformanceAvailability, usePerformanceMissing } from '@/lib/performance';
 import { ScopeContext, type ScopeContextValue } from '@/lib/session/scope-context';
 import { TooltipProvider } from '@/components/ui';
-import PerformancePage, { PlatformPerformance } from './PerformancePage';
+import { PlatformPerformance } from './PerformancePage';
 
 // The first test pays for loading the chart library.
 vi.setConfig({ testTimeout: 30_000 });
@@ -27,7 +27,7 @@ const failure = (status: number, code: string, message = code) => json(status, {
 
 const DAYS = ['2026-10-17', '2026-10-18', '2026-10-19'];
 
-function stats(mode: PerformanceMode, over: (s: PerformanceStats) => PerformanceStats = (s) => s, platform = false) {
+function stats(mode: PerformanceMode, over: (s: PerformanceStats) => PerformanceStats = (s) => s, platform = true) {
   const s = buildPerformance({
     from: DAYS[0]!,
     to: DAYS[2]!,
@@ -62,7 +62,7 @@ let container: HTMLDivElement;
 
 const tick = (ms = 0) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
-async function mount(node: 'business' | 'platform', server: ReturnType<typeof fakeApi>, opts: { bots?: number } = {}) {
+async function mount(node: 'platform', server: ReturnType<typeof fakeApi>, opts: { bots?: number } = {}) {
   configureApi({ transport: server.api, getToken: async () => 'tok-secret' });
   const bots = Array.from({ length: opts.bots ?? 2 }, (_, i) => ({ id: i ? `bot${i}` : 'support', name: i ? `Bot ${i}` : 'Aria' }));
   const ctx = { scope, bot: bots[0], bots, businessName: 'Acme', href: (p = '') => `/${p}`, isPlatformAdmin: node === 'platform', can: () => true } as unknown as ScopeContextValue;
@@ -81,7 +81,7 @@ async function mount(node: 'business' | 'platform', server: ReturnType<typeof fa
           <ScopeContext.Provider value={ctx}>
             <TooltipProvider>
               <Probe />
-              {node === 'business' ? <PerformancePage /> : <PlatformPerformance />}
+              <PlatformPerformance />
             </TooltipProvider>
           </ScopeContext.Provider>
         </QueryClientProvider>
@@ -108,34 +108,9 @@ afterEach(async () => {
   container?.remove();
 });
 
-describe('the business Performance page', () => {
-  it('asks once, for the bot, with the range and the usual headers, and shows every section', async () => {
-    const server = fakeApi(() => json(200, stats('on')));
-    await mount('business', server);
-    expect(server.hits()).toBe(1);
-    const url = server.urls[0]!;
-    expect(url.pathname.endsWith('/stats/performance')).toBe(true);
-    expect(url.searchParams.get('scope')).toBe('bot');
-    expect(url.searchParams.get('from')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(url.searchParams.get('to')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    for (const h of ['Requests over time', 'Latency by route', "Where a reply's time goes", 'Retrieval breakdown', 'Retrieval quality', 'Models']) expect(heading(h), h).toBeTruthy();
-    expect(heading('Busiest businesses')).toBeFalsy();
-    expect(text()).toContain('Stages overlap');
-    expect(text()).toContain('The 50 busiest routes');
-    expect(text()).not.toMatch(/NaN|undefined|Infinity/);
-  });
-
-  it('sends scope=business when the toggle says all bots, and refetches once', async () => {
-    const server = fakeApi(() => json(200, stats('on')));
-    await mount('business', server);
-    await act(async () => button('All bots').click());
-    await tick(30);
-    expect(server.hits()).toBe(2);
-    expect(server.urls[1]!.searchParams.get('scope')).toBe('business');
-  });
-
+describe('the shared Performance sections', () => {
   it('1. recording.http false: the request sections become a notice; the pipeline and retrieval still show', async () => {
-    await mount('business', fakeApi(() => json(200, stats('no_http'))));
+    await mount('platform', fakeApi(() => json(200, stats('no_http'))));
     expect(text()).toContain('Request statistics are off on this server');
     expect(heading('Requests over time')).toBeFalsy();
     expect(heading('Latency by route')).toBeFalsy();
@@ -144,30 +119,30 @@ describe('the business Performance page', () => {
     expect(heading('Retrieval quality')).toBeTruthy();
     // zero is "not recorded", never "fast"
     const cards = container.querySelectorAll('.panel');
-    const requestCards = [...cards].filter((c) => /^(Requests|Error rate|p50 latency|p95 latency)/.test(c.textContent ?? ''));
+    const requestCards = [...cards].filter((c) => /^(Requests|Server error rate|p50 latency|p95 latency)/.test(c.textContent ?? ''));
     expect(requestCards).toHaveLength(4);
     for (const c of requestCards) expect(c.textContent).toContain('—');
   });
 
   it('2. a sample below 1 adds the sample note', async () => {
-    await mount('business', fakeApi(() => json(200, stats('sampled'))));
+    await mount('platform', fakeApi(() => json(200, stats('sampled'))));
     expect(text()).toContain('based on a 25% sample');
   });
 
   it('3. recording.model_attempts false: says model statistics are off instead of an empty table', async () => {
-    await mount('business', fakeApi(() => json(200, stats('no_models'))));
+    await mount('platform', fakeApi(() => json(200, stats('no_models'))));
     expect(text()).toContain('Model call statistics are off');
     expect(text()).not.toContain('No model calls in this range');
   });
 
   it('with model statistics on but no calls, says there are none', async () => {
-    await mount('business', fakeApi(() => json(200, stats('on', (s) => ({ ...s, models: [] })))));
+    await mount('platform', fakeApi(() => json(200, stats('on', (s) => ({ ...s, models: [] })))));
     expect(text()).toContain('No model calls in this range');
     expect(text()).not.toContain('Model call statistics are off');
   });
 
   it('4. a range with requests but no replies: every stage shows 0 replies and nothing is NaN', async () => {
-    await mount('business', fakeApi(() => json(200, stats('noreplies'))));
+    await mount('platform', fakeApi(() => json(200, stats('noreplies'))));
     expect(heading("Where a reply's time goes")).toBeTruthy();
     const rows = [...container.querySelectorAll('tbody tr')].filter((r) => /Prepare|Quota|Retrieval|Web search|Model|Post-processing|Other/.test(r.textContent ?? ''));
     expect(rows.length).toBeGreaterThanOrEqual(7);
@@ -177,7 +152,7 @@ describe('the business Performance page', () => {
   });
 
   it('shows "No activity" when there are neither requests nor replies', async () => {
-    await mount('business', fakeApi(() => json(200, stats('empty'))));
+    await mount('platform', fakeApi(() => json(200, stats('empty'))));
     expect(text()).toContain('No activity in this range');
     expect(heading('Latency by route')).toBeFalsy();
   });
@@ -187,7 +162,7 @@ describe('the business Performance page', () => {
       ...s,
       requests: { ...s.requests, by_day: s.requests.by_day.map((d, i) => (i === 1 ? { ...d, requests: 0, errors: 0, server_errors: 0, p50_ms: 0, p95_ms: 0 } : d)) },
     });
-    await mount('business', fakeApi(() => json(200, stats('on', withGap))));
+    await mount('platform', fakeApi(() => json(200, stats('on', withGap))));
     const rows = [...container.querySelectorAll('details tbody tr')];
     expect(rows).toHaveLength(3);
     expect(rows[1]!.textContent).toContain('No requests');
@@ -196,38 +171,38 @@ describe('the business Performance page', () => {
   });
 
   it('explains "other" when it is over a third of reply time, and leaves it out otherwise', async () => {
-    await mount('business', fakeApi(() => json(200, stats('old'))));
+    await mount('platform', fakeApi(() => json(200, stats('old'))));
     expect(text()).toMatch(/of reply time isn't itemised/);
     expect(text()).toContain('Other / not itemised');
     await act(async () => root!.unmount());
     root = null;
     container.remove();
-    await mount('business', fakeApi(() => json(200, stats('on'))));
+    await mount('platform', fakeApi(() => json(200, stats('on'))));
     expect(text()).not.toMatch(/of reply time isn't itemised/);
     expect(text()).toContain('Other / not itemised'); // never hidden
   });
 
   it('shows "Ran for" beside every stage average', async () => {
-    await mount('business', fakeApi(() => json(200, stats('on'))));
+    await mount('platform', fakeApi(() => json(200, stats('on'))));
     const web = [...container.querySelectorAll('tbody tr')].find((r) => r.textContent?.startsWith('Web search'));
     expect(web?.textContent).toMatch(/\d+ repl(y|ies)/);
   });
 
-  it('colours the error rate only past 5%, and says "High" in words too', async () => {
-    await mount('business', fakeApi(() => json(200, stats('on', (s) => ({ ...s, requests: { ...s.requests, error_rate: 0.049 } })))));
-    const card = () => [...container.querySelectorAll('.panel')].find((c) => c.textContent?.startsWith('Error rate'))!;
+  it('colours the server error rate only past 1%, and says "High" in words too', async () => {
+    await mount('platform', fakeApi(() => json(200, stats('on', (s) => ({ ...s, requests: { ...s.requests, server_error_rate: 0.0099 } })))));
+    const card = () => [...container.querySelectorAll('.panel')].find((c) => c.textContent?.startsWith('Server error rate'))!;
     expect(card().textContent).not.toContain('High');
     expect(card().querySelector('.text-warn')).toBeNull();
     await act(async () => root!.unmount());
     root = null;
     container.remove();
-    await mount('business', fakeApi(() => json(200, stats('on', (s) => ({ ...s, requests: { ...s.requests, error_rate: 0.05 } })))));
+    await mount('platform', fakeApi(() => json(200, stats('on', (s) => ({ ...s, requests: { ...s.requests, server_error_rate: 0.01 } })))));
     expect(card().textContent).toContain('High');
     expect(card().querySelector('.text-warn')).not.toBeNull();
   });
 
   it('sorts routes by requests, then by p95', async () => {
-    await mount('business', fakeApi(() => json(200, stats('on'))));
+    await mount('platform', fakeApi(() => json(200, stats('on'))));
     const routes = () => [...container.querySelectorAll('tbody tr')].map((r) => r.querySelector('td:nth-child(2)')?.textContent).filter((t) => t?.startsWith('/'));
     const byRequests = routes();
     expect(byRequests[0]).toBe('/conversations/{id}/messages');
@@ -240,7 +215,7 @@ describe('the business Performance page', () => {
   it('keeps the numbers and offers a retry when a refresh fails', async () => {
     let fail = false;
     const server = fakeApi(() => (fail ? failure(500, 'INTERNAL_ERROR') : json(200, stats('on'))));
-    await mount('business', server);
+    await mount('platform', server);
     expect(heading('Latency by route')).toBeTruthy();
     fail = true;
     await act(async () => button('7d').click());
@@ -256,7 +231,7 @@ describe('the business Performance page', () => {
 
   it('6. 404: no page, no toast, and the menu is told', async () => {
     const server = fakeApi(() => failure(404, 'NOT_FOUND', 'No such route.'));
-    await mount('business', server);
+    await mount('platform', server);
     expect(server.hits()).toBe(1);
     expect(heading('Latency by route')).toBeFalsy();
     expect(text()).not.toContain('Try again');
@@ -266,7 +241,7 @@ describe('the business Performance page', () => {
 
   it('403: no page, no toast, no retry', async () => {
     const server = fakeApi(() => failure(403, 'FORBIDDEN'));
-    await mount('business', server);
+    await mount('platform', server);
     await tick(50);
     expect(server.hits()).toBe(1);
     expect(heading('Latency by route')).toBeFalsy();
@@ -275,7 +250,7 @@ describe('the business Performance page', () => {
   });
 
   it('a server error with nothing to show yet gets an inline retry', async () => {
-    await mount('business', fakeApi(() => failure(500, 'INTERNAL_ERROR')));
+    await mount('platform', fakeApi(() => failure(500, 'INTERNAL_ERROR')));
     expect(button('Try again')).toBeTruthy();
     expect(text()).toContain('req_perf');
   });
