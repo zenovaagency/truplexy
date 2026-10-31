@@ -4,13 +4,23 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## No Free plan (2026-10-31)
+
+The Free plan is gone. Every plan starts with the 7-day trial that comes with a [Paddle subscription](#billing-plan-subscription-paddle), and a business without a plan can be set up but doesn't reply. Apply migration `0050_remove_free_plan.sql`, which moves every business on `free` to `none`.
+
+- A new business (`POST /tenants`) starts with `plan: "none"`, as does one whose subscription ends (`.canceled`). It can have 1 bot, 50 documents and 3 members, without web search or image input.
+- Its bots don't reply: chat, the playground and integrations answer `403 PLAN_LIMIT_REACHED` with `limit: "no_plan"`, and the message is stored unanswered. The storefront widget answers `503 CHANNEL_DISABLED` ("Chat is turned off right now.").
+- `GET /plans` no longer lists Free, and doesn't list `none`. `GET /billing` reports `plan: {id: "none", name: "No plan"}`, with no tokens (`remaining: 0`, not unlimited).
+- A platform admin can take a plan away with `PATCH /platform/tenants/{id}` `{plan: "none"}`; `free` is refused.
+- **What a dashboard does:** when the business's `plan` is `none`, say its bots are off and link to the Plan page, where the trial starts.
 
 ## Suggested questions (2026-10-27)
 
@@ -632,7 +642,7 @@ Records the person's email and name from their token. **200**:
   "memberships": [
     {
       "tenant_id": "acme", "name": "Acme", "business_type": "saas",
-      "plan": "free", "status": "active", "role": "owner",
+      "plan": "none", "status": "active", "role": "owner",
       "bots": [{"id": "support", "name": "Support assistant"}]
     }
   ],
@@ -646,14 +656,14 @@ Records the person's email and name from their token. **200**:
 
 #### `GET /plans`
 
-**200** `{data: [{id, name, limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month}, token_addon}]}`. A limit of 0 means unlimited. The plans are Free, Starter, Pro and Enterprise, assigned by platform admins. `token_addon` prices the extra tokens a plan sells, or is `null`; see [Billing](#billing-balance-and-extra-tokens).
+**200** `{data: [{id, name, limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month}, token_addon}]}`. A limit of 0 means unlimited. The plans are Starter, Pro and Enterprise: Starter and Pro by [subscription](#billing-plan-subscription-paddle), Enterprise by platform admins. A business without one has `plan: "none"`, which this list doesn't include: its bots don't reply (`403 PLAN_LIMIT_REACHED`, `limit: "no_plan"`) until a trial or subscription starts. `token_addon` prices the extra tokens a plan sells, or is `null`; see [Billing](#billing-balance-and-extra-tokens).
 
 #### `POST /tenants`
 
 Creates a business: `{name, business_type}`. `name` is 1–80 characters, and `business_type` is an `id` from `GET /business-types`.
 - The caller becomes the owner.
 - The business ID comes from the name, with a suffix if it is taken.
-- The plan is Free.
+- The business has no plan (`none`) until a trial starts: it can be set up, but its bots don't reply.
 - The first bot, `support`, starts from the type's assistant.
 
 **201** `{tenant: Business, bot_id: "support"}`. **Errors:** `403 BUSINESS_LIMIT_REACHED`: the person already owns 3 businesses (platform admins aren't limited).
@@ -2026,7 +2036,7 @@ Percentiles are nearest-rank and in whole milliseconds. Every list is present, e
 
 ### Billing: balance and extra tokens
 
-Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; Free sells none, and Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. Balances are not paid through Paddle: a platform admin credits them (`POST /platform/tenants/{id}/balance`). The plan itself is paid by subscription, below.
+Each plan includes `tokens_per_month` (every bot's replies together, counted from their tokens). Starter and Pro also sell **extra tokens** for the current month, which a dashboard shows as a slider under the plan; a business without a plan has no tokens, and Enterprise's tokens are unlimited. Each business has a **balance** in USD that pays for extra tokens and, once the month's tokens and extra tokens are used up, for each further reply at its billed cost (OpenRouter's price plus fee and commission, as in `GET /models`). When the balance reaches zero, replies past the tokens stop with `429 PLAN_LIMIT_REACHED` (`limit: "tokens_per_month"`) until the month ends, more tokens are bought, or the balance is topped up. Balances are not paid through Paddle: a platform admin credits them (`POST /platform/tenants/{id}/balance`). The plan itself is paid by subscription, below.
 
 **Pricing.** Extra tokens cost a flat price per million, up to a monthly maximum:
 
@@ -2093,7 +2103,7 @@ Offer `min_millions` to `max_millions` in steps of `step_millions`. For the pric
 
 **Errors:**
 - `400 INVALID_REQUEST`: `millions` isn't on the slider.
-- `400 ADDON_NOT_AVAILABLE`: the plan sells no extra tokens (Free), or the business's tokens are unlimited (Enterprise, or an override of 0), so it needs none.
+- `400 ADDON_NOT_AVAILABLE`: the plan sells no extra tokens (or the business has none), or the business's tokens are unlimited (Enterprise, or an override of 0), so it needs none.
 - `402 INSUFFICIENT_BALANCE`: the balance is below the price; nothing changes.
 
 ### Billing: plan subscription (Paddle)
@@ -2177,11 +2187,11 @@ v2 only. No token and no scope: Paddle calls it, and the signature on the raw bo
 | Event | Effect |
 | --- | --- |
 | `subscription.created`, `.activated`, `.trialing`, `.updated`, `.resumed`, `.past_due`, `.paused` | The business is found from `data.custom_data.tenant_id`, else from the subscription it already has. The row is written from the event: `status`, plan and interval from the price ID, `trial_ends_at` from `items[0].trial_dates.ends_at`, `current_period_end` from `next_billed_at`, `cancel_at` from a `scheduled_change` with `action: "cancel"`. The business moves to that plan (`past_due` and `paused` keep it; Paddle retries a failed payment). |
-| `.canceled` | The row becomes `canceled` and the business returns to `free`. Paddle sends it when access has ended; a cancellation scheduled for the end of the period arrives earlier as `.updated` with `cancel_at`. |
+| `.canceled` | The row becomes `canceled` and the business is left without a plan (`none`): its bots stop replying until it subscribes again. Paddle sends it when access has ended; a cancellation scheduled for the end of the period arrives earlier as `.updated` with `cancel_at`. |
 
 An event is ignored, but still marked handled, when its price isn't one of the four configured, its business doesn't exist, another live subscription already belongs to the business, or it is older than what is stored (`updated_at`). A business on `enterprise` is never moved by an event. Each applied event adds an entry to the business's activity log (`GET /audit`), with actor `paddle`.
 
-**Deleting a business** (`DELETE /platform/tenants/{id}` or approving a deletion request) cancels its subscription in Paddle at once, so it is not billed again. The cancellation webhook returns the business to `free`, so a restored business comes back on Free. The subscription row is erased with the rest of the business when it is purged.
+**Deleting a business** (`DELETE /platform/tenants/{id}` or approving a deletion request) cancels its subscription in Paddle at once, so it is not billed again. The cancellation webhook leaves the business without a plan, so a restored business comes back with none. The subscription row is erased with the rest of the business when it is purged.
 
 **Testing in the sandbox.** Create the notification destination (`https://<api>/v3/webhooks/paddle`, the `subscription.*` events), then use Paddle's simulations (`subscription.created`, `.canceled`, `.past_due`) against it and read the deliveries under Notifications. Pay in the overlay with the test card `4242 4242 4242 4242`.
 
@@ -2324,7 +2334,7 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 `{plan?, status?, limits?}`; leave out what doesn't change.
 - `plan`: a plan `id` from `GET /plans`.
 - `status`: `active` or `suspended`. Suspending blocks the business's members and chat keys.
-- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?, tokens_per_month?, web_search?, web_searches_per_month?, image_input?}`, each 0 (unlimited) to 10,000,000 (`tokens_per_month` to 100,000,000,000); `web_search` and `image_input` are `true` or `false`, turning web search or image input on or off whatever the plan says (Free has no image input; Starter, Pro and Enterprise do). It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
+- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?, tokens_per_month?, web_search?, web_searches_per_month?, image_input?}`, each 0 (unlimited) to 10,000,000 (`tokens_per_month` to 100,000,000,000); `web_search` and `image_input` are `true` or `false`, turning web search or image input on or off whatever the plan says (Starter, Pro and Enterprise have image input; a business without a plan doesn't). It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
 
 **200** the Business.
 
@@ -2868,7 +2878,7 @@ Every error has its HTTP status and this body:
 }
 ```
 
-`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month`, `tokens_per_month`, `web_search` or `image_input`. `SOLE_OWNER` adds `tenants`.
+`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month`, `tokens_per_month`, `web_search`, `image_input` or `no_plan`. `SOLE_OWNER` adds `tenants`.
 
 | HTTP | Codes | What to do |
 | --- | --- | --- |
@@ -2882,7 +2892,7 @@ Every error has its HTTP status and this body:
 | 400 | `FEATURE_UNAVAILABLE`, `WEB_SEARCH_NOT_CONFIGURED` | The server lacks the service this needs. For image input it means no active model can read pictures: hide the attach control. |
 | 400 | `UNSUPPORTED_IMAGE_TYPE` | Image input. The file isn't a JPEG, PNG or WebP picture. Ask for another file. |
 | 400 | `INVALID_IMAGE` | Image input. The file can't be read, is under 8 px or over 16,384 px on a side, or is too big to open safely. Ask for another file; `message` says why. |
-| 400 | `ADDON_NOT_AVAILABLE` | The plan sells no extra tokens (Free), or the business's tokens are unlimited and it needs none. |
+| 400 | `ADDON_NOT_AVAILABLE` | The plan sells no extra tokens (or the business has none), or the business's tokens are unlimited and it needs none. |
 | 401 | `UNAUTHORIZED` | Refresh the session or sign in again. |
 | 402 | `INSUFFICIENT_BALANCE` | The balance is too low; ask a platform admin for a top-up or buy less. |
 | 403 | `FORBIDDEN` | The role lacks the permission; hide the action. |
@@ -2890,7 +2900,7 @@ Every error has its HTTP status and this body:
 | 403 | `ACCOUNT_DISABLED` | A platform admin disabled the person's account; sign them out. |
 | 403 | `CHANNEL_DISABLED` | The chat key's channel, or the one named, is turned off; turn it on, or ask a platform admin. |
 | 403 | `INVITE_EMAIL_MISMATCH` | Sign in with the invited address. |
-| 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. |
+| 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. With `limit: "no_plan"` the business has no plan and its bots don't reply: link to the Plan page to start the trial. |
 | 404 | `NOT_FOUND` | No such route. |
 | 404 | `ATTACHMENT_NOT_FOUND` | Image input. The attachment doesn't exist, was already sent, belongs to another conversation or bot, or expired after an hour. Register it again. |
 | 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND`, `PROPERTY_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `IMPORT_NOT_FOUND`, `QUERY_NOT_FOUND`, `QUERY_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |

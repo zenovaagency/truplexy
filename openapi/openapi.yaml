@@ -41,7 +41,7 @@ paths:
     post:
       operationId: runPlayground
       summary: Run an LLM test through OpenRouter
-      description: The playground key runs for the default bot; a member token runs for the bot its X-Truplexy-Tenant and X-Truplexy-Bot headers name, with playground.run. A business whose AI replies this month reached its plan gets 429 PLAN_LIMIT_REACHED. With conversation_id, the message and reply are stored and the conversation's latest RAG_HISTORY_TURNS exchanges (up to 16000 characters) are sent as history; without it, send earlier turns in history and nothing is stored. Each reply's model, token counts, cost, and latency are recorded in usage_records (a failed write does not fail the reply). With rag_enabled, the backend retrieves knowledge itself - follow-ups rewritten into standalone queries, Vectorize and D1 FTS5 search fused with Reciprocal Rank Fusion, reranked, deduplicated and cut to RAG_CONTEXT_TOKENS - and sends the passages as numbered sources; the reply quotes them in their own words and reports a status and the sources it used. Small talk sends nothing; when retrieval fails or finds no usable evidence and tools are off, the reply is no_answer without a model call. With tools_enabled, the model may call the named tools; the backend validates each call's arguments, runs it, records it in tool_runs (when D1 is configured), and returns the result to the model, for at most 4 rounds of up to 5 calls, all within the reply's time limit (CHAT_REPLY_TIMEOUT_MS, 45 seconds by default). No automatic retries.
+      description: The playground key runs for the default bot; a member token runs for the bot its X-Truplexy-Tenant and X-Truplexy-Bot headers name, with playground.run. A business whose AI replies this month reached its plan gets 429 PLAN_LIMIT_REACHED, and one without a plan 403 PLAN_LIMIT_REACHED with limit no_plan. With conversation_id, the message and reply are stored and the conversation's latest RAG_HISTORY_TURNS exchanges (up to 16000 characters) are sent as history; without it, send earlier turns in history and nothing is stored. Each reply's model, token counts, cost, and latency are recorded in usage_records (a failed write does not fail the reply). With rag_enabled, the backend retrieves knowledge itself - follow-ups rewritten into standalone queries, Vectorize and D1 FTS5 search fused with Reciprocal Rank Fusion, reranked, deduplicated and cut to RAG_CONTEXT_TOKENS - and sends the passages as numbered sources; the reply quotes them in their own words and reports a status and the sources it used. Small talk sends nothing; when retrieval fails or finds no usable evidence and tools are off, the reply is no_answer without a model call. With tools_enabled, the model may call the named tools; the backend validates each call's arguments, runs it, records it in tool_runs (when D1 is configured), and returns the result to the model, for at most 4 rounds of up to 5 calls, all within the reply's time limit (CHAT_REPLY_TIMEOUT_MS, 45 seconds by default). No automatic retries.
       security:
         - PlaygroundKey: []
         - MemberToken: []
@@ -5062,7 +5062,7 @@ paths:
     post:
       operationId: createBusiness
       summary: Create a business
-      description: The signed-in person becomes its owner. Its ID comes from its name (with a short suffix when taken), its plan is free, and its first bot, support, starts from the business type's assistant. A person may own up to 3 businesses (403 BUSINESS_LIMIT_REACHED); platform admins aren't limited.
+      description: The signed-in person becomes its owner. Its ID comes from its name (with a short suffix when taken), it has no plan (none) until a trial starts, and its first bot, support, starts from the business type's assistant. A person may own up to 3 businesses (403 BUSINESS_LIMIT_REACHED); platform admins aren't limited.
       security:
         - MemberToken: []
       requestBody:
@@ -6487,7 +6487,7 @@ components:
           description: Web searches that ran in a calendar month, UTC (v2).
         image_input:
           type: boolean
-          description: Whether customers may attach pictures to a message (image input). Free has none.
+          description: Whether customers may attach pictures to a message (image input). A business without a plan has none.
     LimitOverrides:
       type: object
       additionalProperties: false
@@ -6541,7 +6541,7 @@ components:
     TokenAddon:
       type: object
       nullable: true
-      description: Extra tokens a plan sells for the current month, as a slider from min_millions to max_millions in steps of step_millions. They cost a flat price per million - Starter 8 USD (1-5M), Pro 6 USD (1-30M); Free sells none. Every plan has a single tier today; more would be graduated - each million costs its own tier's price, so buying more never costs less. GET /billing/token-addons/quote prices an amount.
+      description: Extra tokens a plan sells for the current month, as a slider from min_millions to max_millions in steps of step_millions. They cost a flat price per million - Starter 8 USD (1-5M), Pro 6 USD (1-30M); Enterprise and a business without a plan buy none. Every plan has a single tier today; more would be graduated - each million costs its own tier's price, so buying more never costs less. GET /billing/token-addons/quote prices an amount.
       required: [price_per_million, min_millions, max_millions, step_millions, currency, tiers]
       properties:
         price_per_million:
@@ -9109,4 +9109,4 @@ components:
               description: With DUPLICATE_DOCUMENT, the document already holding this content.
             limit:
               type: string
-              description: With PLAN_LIMIT_REACHED, the limit reached - bots, documents_per_bot, members, replies_per_month, tokens_per_month, web_search or image_input.
+              description: With PLAN_LIMIT_REACHED, the limit reached - bots, documents_per_bot, members, replies_per_month, tokens_per_month, web_search, image_input, or no_plan for a business without a plan, whose bots don't reply.

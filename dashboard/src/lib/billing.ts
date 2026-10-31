@@ -45,6 +45,14 @@ export const LEDGER_KIND: Record<LedgerKind, { label: string; tone: 'live' | 'wa
   overage: { label: 'Reply past tokens', tone: 'neutral' },
 };
 
+/** The plan of a business without one: it can be set up, but its bots don't reply until a trial starts. */
+export const NO_PLAN = 'none';
+
+export const hasNoPlan = (plan: string | undefined) => plan === NO_PLAN;
+
+/** A plan's name where only its ID is at hand. */
+export const planLabel = (plan: string) => (hasNoPlan(plan) ? 'No plan' : plan);
+
 /** Days of free trial on every self-serve plan. Keep in step with the Paddle price and the site's TRIAL_DAYS. */
 export const TRIAL_DAYS = 7;
 

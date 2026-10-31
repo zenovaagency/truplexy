@@ -28,7 +28,7 @@ import { useAddonQuote, useBilling, useBillingLedger, useBuyTokens } from '@/lib
 import { useWorkspace } from '@/lib/api/endpoints/bot';
 import { useDocuments } from '@/lib/api/endpoints/knowledge';
 import type { Billing, BotConfig, BusinessTypeId, DocumentList, KnowledgeDocument, LedgerEntry } from '@/lib/api/types';
-import { formatMonth, LEDGER_KIND, ordinal, quoteTokens } from '@/lib/billing';
+import { formatMonth, hasNoPlan, LEDGER_KIND, ordinal, planLabel, quoteTokens } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { downloadBlob } from '@/lib/export';
 import { formatCompact, formatCurrency, formatDate, formatDateTime, formatNumber, formatPerM, isoDay } from '@/lib/format';
@@ -221,25 +221,36 @@ export function PlanTab() {
   const repliesOut = b.limits.replies_per_month > 0 && b.usage.replies_this_month >= b.limits.replies_per_month;
   const tokensOut = tokenAllowance > 0 && b.usage.tokens_this_month >= tokenAllowance && b.balance <= 0;
   const currentPlan = plans.data?.find((p) => p.id === b.plan);
+  const noPlan = hasNoPlan(b.plan);
 
   return (
     <div className="grid gap-5">
       <Card
         title={
           <span className="flex items-center gap-2">
-            Current plan <Badge tone="accent" className="capitalize">{b.plan}</Badge>
+            Current plan <Badge tone={noPlan ? 'warn' : 'accent'} className={cn(!noPlan && 'capitalize')}>{planLabel(b.plan)}</Badge>
           </span>
         }
         description={overrides ? 'Some limits on this business were adjusted by Truplexy.' : 'Usage resets on the 1st of each month (UTC).'}
       >
+        {noPlan && (
+          <Callout tone="danger" icon={<AlertTriangle />} title="Your bots are off" className="mb-5">
+            This business has no plan, so customers get no AI answer. You can still set up your bot and its knowledge. Start a plan below to turn replies on.
+          </Callout>
+        )}
         <div className="grid gap-6 md:grid-cols-2">
-          <LimitBar label="AI replies this month" used={b.usage.replies_this_month} limit={b.limits.replies_per_month} format={formatCompact} />
-          <LimitBar
-            label={billing?.tokens.addons ? `Tokens this month (incl. ${formatCompact(billing.tokens.addons)} extra)` : 'Tokens this month'}
-            used={b.usage.tokens_this_month}
-            limit={tokenAllowance}
-            format={formatCompact}
-          />
+          {/* Without a plan there are no replies or tokens to count: a limit of 0 would read as unlimited. */}
+          {!noPlan && (
+            <>
+              <LimitBar label="AI replies this month" used={b.usage.replies_this_month} limit={b.limits.replies_per_month} format={formatCompact} />
+              <LimitBar
+                label={billing?.tokens.addons ? `Tokens this month (incl. ${formatCompact(billing.tokens.addons)} extra)` : 'Tokens this month'}
+                used={b.usage.tokens_this_month}
+                limit={tokenAllowance}
+                format={formatCompact}
+              />
+            </>
+          )}
           <LimitBar label="Team members" used={b.usage.members} limit={b.limits.members} />
           <LimitBar label="Bots" used={b.usage.bots} limit={b.limits.bots} />
           <LimitBar label="Documents in this bot" used={docs?.pages[0]?.total ?? 0} limit={b.limits.documents_per_bot} />

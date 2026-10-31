@@ -90,7 +90,7 @@ import type {
   TicketPriority,
   TicketStatus,
 } from '@/lib/api/types';
-import { planUsage } from '@/lib/billing';
+import { NO_PLAN, planLabel, planUsage } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { isUnsupportedError } from '@/lib/errors';
 import { contactOf, customerLabel } from '@/lib/customers';
@@ -143,7 +143,7 @@ import { PRIORITIES, PRIORITY, PriorityBadge, RoleBadge, TICKET_STATUS, TICKET_S
 const STATUS_TONE: Record<CatalogStatus | PlatformChannelType['status'], Tone> = { active: 'live', hidden: 'warn', retired: 'neutral', upcoming: 'accent' };
 
 /** Known plans cheapest first; any other plan sorts after them. */
-const PLAN_ORDER = ['free', 'starter', 'pro', 'enterprise'];
+const PLAN_ORDER = [NO_PLAN, 'starter', 'pro', 'enterprise'];
 const planRank = (plan: string) => (PLAN_ORDER.includes(plan) ? PLAN_ORDER.indexOf(plan) : PLAN_ORDER.length);
 
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
@@ -180,7 +180,7 @@ export function PlatformOverview() {
       newThisMonth: live.filter((b) => b.created_at.slice(0, 7) === month).length,
       planMix: [...plans]
         .sort(([a], [b]) => planRank(a) - planRank(b))
-        .map(([plan, n]) => `${n} ${plan}`)
+        .map(([plan, n]) => `${n} ${planLabel(plan)}`)
         .join(' · '),
       nearLimit: shares.filter((s) => s >= 0.8).length,
       atLimit: shares.filter((s) => s >= 1).length,
@@ -328,7 +328,7 @@ export function PlatformBusinesses() {
       ),
     },
     { key: 'owner', header: 'Owner', hideBelowLg: true, cell: (b) => <span className="text-ink-muted">{b.owner_email}</span> },
-    { key: 'plan', header: 'Plan', cell: (b) => <Badge tone="accent" className="capitalize">{b.plan}</Badge> },
+    { key: 'plan', header: 'Plan', cell: (b) => <Badge tone={b.plan === NO_PLAN ? 'warn' : 'accent'} className={cn(b.plan !== NO_PLAN && 'capitalize')}>{planLabel(b.plan)}</Badge> },
     { key: 'status', header: 'Status', cell: (b) => <BusinessStatusBadge business={b} /> },
     {
       key: 'replies',
@@ -336,7 +336,7 @@ export function PlatformBusinesses() {
       align: 'right',
       cell: (b) => (
         <span className="tabular-nums text-ink-muted">
-          {formatCompact(b.usage.replies_this_month)} <span className="text-ink-faint">/ {b.limits.replies_per_month > 0 ? formatCompact(b.limits.replies_per_month) : '∞'}</span>
+          {formatCompact(b.usage.replies_this_month)} <span className="text-ink-faint">/ {b.plan === NO_PLAN ? 'off' : b.limits.replies_per_month > 0 ? formatCompact(b.limits.replies_per_month) : '∞'}</span>
         </span>
       ),
     },
@@ -347,7 +347,7 @@ export function PlatformBusinesses() {
       hideBelowLg: true,
       cell: (b) => (
         <span className="tabular-nums text-ink-muted">
-          {formatCompact(b.usage.tokens_this_month)} <span className="text-ink-faint">/ {b.limits.tokens_per_month > 0 ? formatCompact(b.limits.tokens_per_month) : '∞'}</span>
+          {formatCompact(b.usage.tokens_this_month)} <span className="text-ink-faint">/ {b.plan === NO_PLAN ? 'off' : b.limits.tokens_per_month > 0 ? formatCompact(b.limits.tokens_per_month) : '∞'}</span>
         </span>
       ),
     },
@@ -487,7 +487,7 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
           <p className="mono text-ink-faint">Plan</p>
           <div className="flex flex-wrap items-end gap-2">
             <Field label="Plan" className="min-w-[180px] flex-1">
-              <Select value={plan} onChange={(e) => setPlan(e.target.value)} options={(plans.data ?? []).map((p) => ({ value: p.id, label: p.name }))} />
+              <Select value={plan} onChange={(e) => setPlan(e.target.value)} options={[{ value: NO_PLAN, label: 'No plan (bots off)' }, ...(plans.data ?? []).map((p) => ({ value: p.id, label: p.name }))]} />
             </Field>
             <Button variant="accent" size="sm" disabled={plan === b.plan} loading={update.isPending && update.variables?.body.plan !== undefined} onClick={() => update.mutate({ id: b.id, body: { plan } })}>
               Change plan
@@ -668,7 +668,7 @@ function DeletedBusinessSheet({ business: b, onClose }: { business: PlatformBusi
           <dl className="grid gap-3 text-[0.8125rem] sm:grid-cols-3">
             <div>
               <dt className="text-ink-faint">Plan</dt>
-              <dd className="capitalize text-ink">{b.plan}</dd>
+              <dd className={cn('text-ink', b.plan !== NO_PLAN && 'capitalize')}>{planLabel(b.plan)}</dd>
             </div>
             <div>
               <dt className="text-ink-faint">Team · bots</dt>

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { AlertTriangle, CreditCard } from 'lucide-react';
 import { useBillingPortal, useChangePlan, useRefreshPlan, useStartCheckout, useSubscription, useTrialEligible } from '@/lib/api/endpoints/billing';
 import type { BillingInterval, CheckoutPlan, PlanId, Subscription } from '@/lib/api/types';
-import { CHECKOUT_PLANS, TRIAL_DAYS } from '@/lib/billing';
+import { CHECKOUT_PLANS, NO_PLAN, TRIAL_DAYS } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { describeError } from '@/lib/errors';
 import { formatDate } from '@/lib/format';
@@ -86,7 +86,7 @@ export function SubscriptionCard({ plan }: { plan: PlanId }) {
   if (sub.isPending) return <Card title="Subscription"><SkeletonRows rows={2} /></Card>;
 
   // A plan set by hand (Enterprise, a grandfathered account) has nothing to start or manage here.
-  if (!subscription && (plan === 'enterprise' || !['free', 'starter', 'pro'].includes(plan))) {
+  if (!subscription && (plan === 'enterprise' || ![NO_PLAN, 'starter', 'pro'].includes(plan))) {
     return (
       <Card title="Subscription" description="Your plan is arranged directly with Truplexy.">
         <p className="text-[0.8125rem] text-ink-muted">

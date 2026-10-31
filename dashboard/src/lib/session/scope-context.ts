@@ -9,6 +9,8 @@ export interface ScopeContextValue {
   membership?: Membership;
   businessName: string;
   businessStatus: 'active' | 'suspended';
+  /** The business's plan; 'none' when it has none and its bots don't reply. */
+  businessPlan: string;
   bot: BotRef;
   bots: BotRef[];
   role: Role | null;

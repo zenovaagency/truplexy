@@ -448,7 +448,8 @@ export function OnboardingPage() {
             nav(`${link.to}?${q}`, { state: link.state, replace: true });
             return;
           }
-          const link = scopeLink({ tenant: tenant.id, bot: bot_id });
+          // A new business has no plan, so its bots are off: start on the Plan tab, where the trial starts.
+          const link = scopeLink({ tenant: tenant.id, bot: bot_id }, 'settings/plan');
           nav(link.to, { state: link.state, replace: true });
         },
       },

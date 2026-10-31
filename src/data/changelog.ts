@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-10-31',
+    title: 'Every plan starts with a free trial',
+    tag: 'Pricing',
+    items: [
+      'The Free plan is retired. Starter and Pro each start with a 7-day free trial; add a card to start, and cancel before it ends to pay nothing.',
+      'A business without a plan keeps its bots, knowledge and history, and you can keep setting it up, but its bots don’t reply until a trial or subscription starts. The dashboard shows a banner with a link to start the trial.',
+    ],
+  },
+  {
     date: '2026-10-30',
     title: 'Faster replies to greetings',
     tag: 'SDK',
