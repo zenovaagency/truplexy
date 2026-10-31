@@ -62,10 +62,8 @@ export interface NavItem {
   key?: string;
   prefetch?: () => Promise<unknown>;
   keywords?: string[];
-  /** The Performance page: hidden once this server has answered 404 for its endpoint (business or platform). */
-  needs?: 'business' | 'platform';
-  /** Shown to platform admins only, even inside a business. */
-  platformAdmin?: boolean;
+  /** The platform Performance page: hidden once this server has answered 404 for its endpoint. */
+  needs?: 'platform';
   /** Shown once the API serves this feature (lib/features.ts). */
   feature?: Feature;
 }
@@ -81,7 +79,6 @@ export const BUSINESS_NAV: NavSection[] = [
     items: [
       { id: 'overview', label: 'Overview', path: 'overview', icon: LayoutDashboard, permission: 'usage.read', key: 'o', prefetch: pages.overview, keywords: ['dashboard', 'stats', 'usage', 'metrics'] },
       { id: 'usage', label: 'Usage', path: 'usage', icon: BarChart3, permission: 'usage.read', key: 'u', prefetch: pages.usage, keywords: ['costs', 'tokens', 'replies', 'spend', 'limits', 'plan', 'model', 'billing'] },
-      { id: 'performance', label: 'Performance', path: 'performance', icon: Gauge, permission: 'usage.read', key: 'f', prefetch: pages.performance, needs: 'business', platformAdmin: true, keywords: ['latency', 'speed', 'errors', 'requests', 'slow', 'retrieval', 'p95', 'stats'] },
       { id: 'tickets', label: 'Tickets', path: 'tickets', icon: Inbox, permission: 'tickets.read', key: 't', prefetch: pages.tickets, keywords: ['inbox', 'support', 'conversations', 'handoffs'] },
       { id: 'customers', label: 'Customers', path: 'customers', icon: UserRound, permission: 'customers.read', key: 'c', prefetch: pages.customers, keywords: ['people', 'contacts', 'visitors', 'email', 'users'] },
       { id: 'products', label: 'Products', path: 'products', icon: Package, permission: 'products.read', key: 'r', prefetch: pages.products, feature: 'products', keywords: ['catalog', 'inventory', 'prices', 'stock', 'import', 'csv', 'shop'] },

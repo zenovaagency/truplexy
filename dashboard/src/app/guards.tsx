@@ -210,13 +210,6 @@ export function RequirePermission({ permission }: { permission: Permission }) {
   return can(permission) ? <Outlet context={ctx} /> : <NotFound variant="inline" />;
 }
 
-/** A business page for platform admins only: a 404 to everyone else, and the nav never shows it. */
-export function RequireScopePlatformAdmin() {
-  const { isPlatformAdmin } = useScopeCtx();
-  const ctx = useOutletContext();
-  return isPlatformAdmin ? <Outlet context={ctx} /> : <NotFound variant="inline" />;
-}
-
 /** The platform console is a 404 to everyone but platform admins. */
 export function RequirePlatformAdmin() {
   const me = useMe();

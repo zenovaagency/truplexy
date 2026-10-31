@@ -95,7 +95,7 @@ export const countRows = (counts: Record<string, number> | undefined) =>
  * A server that predates the stats answers 404 NOT_FOUND. That is "not available here", not a failure:
  * the page learns it on first open and then drops out of the menu, with no toast.
  */
-type Where = 'business' | 'platform';
+type Where = 'platform';
 const missing = new Set<Where>();
 const listeners = new Set<() => void>();
 let snapshot = '';
@@ -144,7 +144,6 @@ export async function trackAvailability<T>(where: Where, run: () => Promise<T>):
 
 /** Menu entries (sidebar, shortcuts, command palette) drop the Performance page once its endpoint is known to be missing. */
 export function usePerformanceNav() {
-  const business = usePerformanceMissing('business');
   const platform = usePerformanceMissing('platform');
-  return (item: { needs?: 'business' | 'platform' }) => !(item.needs === 'business' ? business : item.needs === 'platform' ? platform : false);
+  return (item: { needs?: 'platform' }) => !(item.needs === 'platform' && platform);
 }

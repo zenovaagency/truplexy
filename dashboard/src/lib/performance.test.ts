@@ -96,10 +96,10 @@ describe('availability', () => {
   it('notes a 404, passes the error on, and notes the page back once it answers', async () => {
     resetPerformanceAvailability();
     const seen = vi.fn();
-    markPerformance('business', true); // no change: nothing to announce
-    await expect(trackAvailability('business', async () => Promise.reject(missing))).rejects.toBe(missing);
+    markPerformance('platform', true); // no change: nothing to announce
+    await expect(trackAvailability('platform', async () => Promise.reject(missing))).rejects.toBe(missing);
     // the store is read through usePerformanceMissing; here it is enough that a later success clears it without throwing
-    await expect(trackAvailability('business', async () => 7)).resolves.toBe(7);
+    await expect(trackAvailability('platform', async () => 7)).resolves.toBe(7);
     seen();
     expect(seen).toHaveBeenCalled();
   });
