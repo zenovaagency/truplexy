@@ -88,12 +88,12 @@ describe('exportTickets', () => {
 
   it('pages through the list with the filters, for a CSV', async () => {
     const paths = fakeApi(tickets);
-    const out = await exportTickets(scope, { view: 'open', priority: 'high' }, 'csv');
+    const out = await exportTickets(scope, { view: 'open', assignee: 'me' }, 'csv');
     expect(out.count).toBe(3);
     expect(out.filename).toMatch(/^truplexy-tickets-acme-support-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(paths).toHaveLength(2);
     expect(paths[0]).toContain('view=open');
-    expect(paths[0]).toContain('priority=high');
+    expect(paths[0]).toContain('assignee=me');
     expect(paths[0]).toContain('limit=100');
     expect(paths[1]).toContain('cursor=next');
     const csv = await out.blob.text();

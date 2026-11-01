@@ -413,12 +413,10 @@ export const STATUS_LABEL: Record<InboxStatus, string> = {
 
 /** The dashboard's ticket vocabulary, mirrored here for the Tickets recreation. */
 export type TicketStatus = 'open' | 'closed';
-export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type TicketFlag = 'escalated' | 'overdue' | 'handed_off' | 'reopened';
+export type TicketFlag = 'escalated' | 'handed_off' | 'reopened';
 
 export const FLAG_LABEL: Record<TicketFlag, string> = {
   escalated: 'Escalated',
-  overdue: 'Overdue',
   handed_off: 'Handed off',
   reopened: 'Reopened',
 };
@@ -431,7 +429,6 @@ export interface InboxThread {
   /** The ticket's subject line, as it reads in the dashboard's list. */
   subject: string;
   ticketStatus: TicketStatus;
-  priority: TicketPriority;
   flags: TicketFlag[];
   /** Who owns the ticket; absent when unassigned. */
   assignee?: string;
@@ -462,7 +459,6 @@ export const INBOX: InboxThread[] = [
     email: 'sarah.miller@example.com',
     subject: 'Change delivery address for #4821',
     ticketStatus: 'closed',
-    priority: 'normal',
     flags: [],
     needsReply: false,
     paused: false,
@@ -499,7 +495,6 @@ export const INBOX: InboxThread[] = [
     email: 'james.wong@example.com',
     subject: 'Which plan fits a team of three?',
     ticketStatus: 'open',
-    priority: 'normal',
     flags: ['handed_off'],
     needsReply: true,
     paused: false,
@@ -537,7 +532,6 @@ export const INBOX: InboxThread[] = [
     email: 'emma.rossi@example.com',
     subject: 'Shorten the sleeves on the Atlas Jacket',
     ticketStatus: 'open',
-    priority: 'normal',
     flags: ['handed_off'],
     assignee: 'Maya Rahman',
     needsReply: false,
@@ -574,8 +568,7 @@ export const INBOX: InboxThread[] = [
     email: 'daniel.park@example.com',
     subject: 'Charged twice for September',
     ticketStatus: 'open',
-    priority: 'high',
-    flags: ['escalated', 'overdue'],
+    flags: ['escalated'],
     assignee: 'Priya Nair',
     needsReply: true,
     paused: true,
@@ -619,7 +612,6 @@ export const INBOX: InboxThread[] = [
     email: 'ryan.cooper@example.com',
     subject: 'Move renewal date to the 15th',
     ticketStatus: 'closed',
-    priority: 'low',
     flags: [],
     needsReply: false,
     paused: false,

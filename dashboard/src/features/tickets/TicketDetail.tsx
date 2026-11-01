@@ -27,7 +27,7 @@ import { useCustomer } from '@/lib/api/endpoints/customers';
 import { contactOf, customerLabel } from '@/lib/customers';
 import { useLearnFromTicket } from '@/lib/api/endpoints/knowledge';
 import { useDeleteTicket, useReplyToTicket, useSummarizeTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
-import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketPriority, TicketReply, TicketStatus } from '@/lib/api/types';
+import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketReply, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime, pluralize } from '@/lib/format';
 import { notifyInfo, notifySuccess } from '@/lib/notify';
@@ -59,7 +59,7 @@ import {
   Tip,
   useConfirm,
 } from '@/components/ui';
-import { PRIORITIES, PRIORITY, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
+import { TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 import { AssigneePicker, TicketFlags } from './shared';
 import { OpenQueryLink } from '@/features/queries/CustomerQueries';
 import { AssistantAvatar } from '@/components/layout/Brand';
@@ -218,7 +218,6 @@ function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?
         )}
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
           <TicketStatusBadge status={t.status} />
-          {t.priority !== 'normal' && <Badge tone={PRIORITY[t.priority].tone}>{PRIORITY[t.priority].label}</Badge>}
           <TicketFlags ticket={t} />
           <span>
             {t.source === 'customer' ? 'From the customer' : 'Opened in the dashboard'} · {formatRelative(t.created_at)}
@@ -703,16 +702,6 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
             disabled={!writable}
             onChange={(e) => patch({ status: e.target.value as TicketStatus })}
             options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))}
-          />
-        </label>
-        <label className="grid gap-1.5">
-          <span className="mono text-ink-faint">Priority</span>
-          <Select
-            size="sm"
-            value={t.priority}
-            disabled={!writable}
-            onChange={(e) => patch({ priority: e.target.value as TicketPriority })}
-            options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY[p].label }))}
           />
         </label>
         <div className="grid gap-1.5">

@@ -1,5 +1,5 @@
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUp, Minus } from 'lucide-react';
-import type { DocumentStatus, ReplyStatus, Role, TicketPriority, TicketStatus } from '@/lib/api/types';
+import { AlertTriangle } from 'lucide-react';
+import type { DocumentStatus, ReplyStatus, Role, TicketStatus } from '@/lib/api/types';
 import { ROLE_LABEL } from '@/lib/permissions';
 import { Badge, type Tone } from '@/components/ui';
 import { Loader } from '@/components/ui/loader';
@@ -16,27 +16,6 @@ export function TicketStatusBadge({ status }: { status: TicketStatus }) {
   return (
     <Badge tone={s.tone} dot>
       {s.label}
-    </Badge>
-  );
-}
-
-export const PRIORITY: Record<TicketPriority, { label: string; tone: Tone; icon: typeof ArrowUp }> = {
-  low: { label: 'Low', tone: 'neutral', icon: ArrowDown },
-  normal: { label: 'Normal', tone: 'outline', icon: Minus },
-  high: { label: 'High', tone: 'warn', icon: ArrowUp },
-  urgent: { label: 'Urgent', tone: 'danger', icon: ChevronsUp },
-};
-
-export const PRIORITIES = Object.keys(PRIORITY) as TicketPriority[];
-
-export function PriorityBadge({ priority, compact }: { priority: TicketPriority; compact?: boolean }) {
-  const p = PRIORITY[priority];
-  const Icon = p.icon;
-  if (compact && priority === 'normal') return <span className="text-xs text-ink-faint">Normal</span>;
-  return (
-    <Badge tone={p.tone}>
-      <Icon className="size-3" />
-      {p.label}
     </Badge>
   );
 }
