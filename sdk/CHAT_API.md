@@ -108,7 +108,11 @@ An identified conversation must not silently become anonymous if customer saving
 
 `TruplexyApiError` exposes `status`, `code`, `requestId`, `details` (additional API error fields such as `limit`), and `retryAfter`. Its message is server data: log or handle it on the server, never forward it directly to visitors. Network/invalid JSON failures become `UPSTREAM_ERROR`. The only automatic retry is the single customer contact-race retry; messages and other mutations are not replayed automatically.
 
-Handle `CUSTOMER_NOT_FOUND` and `CHANNEL_NOT_FOUND` by correcting the new-conversation input. `TICKET_NOT_FOUND` on closure means the conversation never had a ticket. `PLAN_LIMIT_REACHED`, `CHANNEL_DISABLED`, and model errors need explicit handling, with the request ID retained for support.
+Handle `CUSTOMER_NOT_FOUND` and `CHANNEL_NOT_FOUND` by correcting the new-conversation input. `TICKET_NOT_FOUND` on closure means the conversation never had a ticket. `PLAN_LIMIT_REACHED`, `CHANNEL_DISABLED`, and model errors need explicit handling, with the request ID retained for support. `PLAN_LIMIT_REACHED` with `limit: "no_plan"` (403) means the business has no active plan or trial, so no message is answered until it subscribes; it is not a rate limit, so don't retry.
+
+`TICKET_CLOSED` (409) happens only when you pass `ifTicketClosed: 'reject'`. Start a new conversation and send the message there; the Node, Python, Go and C# setup guides do this.
+
+`Message.author` is `customer`, `assistant`, `agent` or `system`. A `system` message is a notice the platform wrote when a team member joined, the conversation was handed back to the assistant, or it was escalated. It has `role: 'assistant'`, is never sent as a webhook or realtime event, and shows up only when you read `getConversation`. If you relay messages to your platform, relay only `assistant` and `agent` ones, and render or skip `system`. `POST /tickets/{id}/replies` (staff scope, not the chat key) answers `409 TAKE_OVER_REQUIRED` until the conversation is taken over; `sendReply` is not affected.
 
 For `answered`, `clarification_required`, and `no_answer`, show `reply`. For `handoff_offered`, also offer the handoff action. `handoff` means the team was notified but the AI can continue. `escalated` and `context` have `reply: null`; render no reply. Sources contain `{document_id, title, section?, url?, score}` and are populated only for `answered`.
 

@@ -58,7 +58,8 @@ export interface WidgetLook {
 }
 export interface Message {
   id: string; role: 'user' | 'assistant'; content: string;
-  author?: 'customer' | 'assistant' | 'agent'; agent?: string; created_at: string;
+  /** `system` is a notice, such as "Sam has joined" or "handed back to the assistant": show it as a line, not as a reply. It has `role: 'assistant'`. */
+  author?: 'customer' | 'assistant' | 'agent' | 'system'; agent?: string; created_at: string;
   /** The pictures a customer message carried (image input, planned). Their `url` is signed for 1 hour. */
   attachments?: Attachment[];
 }

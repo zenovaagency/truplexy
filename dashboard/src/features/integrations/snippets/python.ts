@@ -68,10 +68,17 @@ async def conversation_for(thread: str, customer=None, channel_id=None) -> str:
 
 
 # attachments: IDs of pictures you registered and uploaded (optional).
-async def ask(thread: str, text: str, customer=None, channel_id=None, attachments=None) -> dict:
+async def ask(thread: str, text: str, customer=None, channel_id=None, attachments=None, _retried=False) -> dict:
     conv = await conversation_for(thread, customer, channel_id)
-    body = {"message": text[:4000], **({"attachments": attachments} if attachments else {})}
-    r = await call(f"/conversations/{conv}/messages", body)
+    # if_ticket_closed: a closed ticket is refused (409) instead of answered into the void.
+    body = {"message": text[:4000], "if_ticket_closed": "reject", **({"attachments": attachments} if attachments else {})}
+    try:
+        r = await call(f"/conversations/{conv}/messages", body)
+    except TruplexyApiError as e:
+        if e.code != "TICKET_CLOSED" or _retried:
+            raise
+        threads.pop(thread, None)   # the team closed it: start a new conversation
+        return await ask(thread, text, customer, channel_id, None, True)   # pictures belonged to the old one
     # "escalated" (a person has it) and "context" have no reply: send nothing.
     return {"reply": r.get("reply"), "status": r["status"], "conversation_id": conv}
 

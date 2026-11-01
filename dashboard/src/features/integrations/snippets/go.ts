@@ -151,12 +151,25 @@ func ask(thread, text string, options ...ConversationOptions) (Answer, error) {
 
 // attachments: IDs of pictures you registered and uploaded (optional).
 func askWithPictures(thread, text string, attachments []string, options ...ConversationOptions) (Answer, error) {
+	a, err := send(thread, text, attachments, options...)
+	if e, ok := err.(*APIError); ok && e.Code == "TICKET_CLOSED" {
+		// The team closed it: start a new conversation. Pictures belonged to the old one.
+		mu.Lock()
+		delete(threads, thread)
+		mu.Unlock()
+		return send(thread, text, nil, options...)
+	}
+	return a, err
+}
+
+func send(thread, text string, attachments []string, options ...ConversationOptions) (Answer, error) {
 	id, err := conversationFor(thread, options...)
 	if err != nil { return Answer{}, err }
 	if r := []rune(text); len(r) > 4000 {
 		text = string(r[:4000])
 	}
-	body := map[string]any{"message": text}
+	// if_ticket_closed: a closed ticket is refused (409) instead of answered into the void.
+	body := map[string]any{"message": text, "if_ticket_closed": "reject"}
 	if len(attachments) > 0 {
 		body["attachments"] = attachments
 	}

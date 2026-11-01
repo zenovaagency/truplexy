@@ -67,13 +67,22 @@ public static class Truplexy
         return id;
     }
     /// <summary>attachments: IDs of pictures you registered and uploaded (optional).</summary>
-    public static async Task<Answer> Ask(string thread, string text, object? customer = null, string? channelId = null, string[]? attachments = null)
+    public static async Task<Answer> Ask(string thread, string text, object? customer = null, string? channelId = null, string[]? attachments = null, bool retried = false)
     {
         var id = await ConversationFor(thread, customer, channelId);
-        var body = new Dictionary<string, object> { ["message"] = text.Length > 4000 ? text[..4000] : text };
+        // if_ticket_closed: a closed ticket is refused (409) instead of answered into the void.
+        var body = new Dictionary<string, object> { ["message"] = text.Length > 4000 ? text[..4000] : text, ["if_ticket_closed"] = "reject" };
         if (attachments is { Length: > 0 }) body["attachments"] = attachments;
-        var r = await Call($"/conversations/{id}/messages", body);
-        return new Answer(r.GetProperty("reply").GetString(), r.GetProperty("status").GetString()!, id);
+        try
+        {
+            var r = await Call($"/conversations/{id}/messages", body);
+            return new Answer(r.GetProperty("reply").GetString(), r.GetProperty("status").GetString()!, id);
+        }
+        catch (ApiError e) when (e.Code == "TICKET_CLOSED" && !retried)
+        {
+            Threads.TryRemove(thread, out _);   // the team closed it: start a new conversation
+            return await Ask(thread, text, customer, channelId, null, true);   // pictures belonged to the old one
+        }
     }
 
     public static string? ThreadFor(string conversationId) =>

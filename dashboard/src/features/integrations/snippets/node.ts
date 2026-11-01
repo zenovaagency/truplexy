@@ -50,11 +50,18 @@ export async function conversationFor(thread, customer, channelId) {
 }
 
 // attachments: IDs of pictures you registered and uploaded (optional).
-export async function ask(thread, text, customer, channelId, attachments = []) {
+export async function ask(thread, text, customer, channelId, attachments = [], retried = false) {
   const id = await conversationFor(thread, customer, channelId);
-  const r = await call(\`/conversations/\${id}/messages\`, { message: text.slice(0, 4000), ...(attachments.length && { attachments }) });
-  // "escalated" (a person has it) and "context" have no reply: send nothing.
-  return { reply: r.reply, status: r.status, conversationId: id };
+  try {
+    // if_ticket_closed: a closed ticket is refused (409) instead of answered into the void.
+    const r = await call(\`/conversations/\${id}/messages\`, { message: text.slice(0, 4000), if_ticket_closed: "reject", ...(attachments.length && { attachments }) });
+    // "escalated" (a person has it) and "context" have no reply: send nothing.
+    return { reply: r.reply, status: r.status, conversationId: id };
+  } catch (e) {
+    if (e.code !== "TICKET_CLOSED" || retried) throw e;
+    threads.delete(thread);                              // the team closed it: start a new conversation
+    return ask(thread, text, customer, channelId, [], true); // pictures belonged to the old one
+  }
 }
 
 export const handoff = (id) => call(\`/conversations/\${id}/handoff\`);`,
