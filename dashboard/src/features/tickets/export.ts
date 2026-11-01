@@ -24,14 +24,14 @@ const PAGE = 100;
 const PARALLEL = 4;
 
 const HEAD = [
-  'id', 'subject', 'status', 'priority', 'assignee', 'channel', 'channel_type', 'customer_id', 'conversation_id',
+  'id', 'subject', 'status', 'assignee', 'channel', 'channel_type', 'customer_id', 'conversation_id',
   'escalated', 'source', 'reopen_count', 'created_at', 'first_response_at', 'closed_at', 'updated_at',
 ];
 const DETAIL_HEAD = ['messages', 'replies', 'notes', 'total_tokens', 'cost'];
 
 function row(t: Ticket) {
   return [
-    t.id, t.subject, t.status, t.priority, t.assignee_name ?? t.assignee ?? '', t.channel_name ?? '', t.channel_type ?? '', t.customer_id ?? '', t.conversation_id ?? '',
+    t.id, t.subject, t.status, t.assignee_name ?? t.assignee ?? '', t.channel_name ?? '', t.channel_type ?? '', t.customer_id ?? '', t.conversation_id ?? '',
     t.escalated, t.source, t.reopen_count, t.created_at, t.first_response_at ?? '', t.closed_at ?? '', t.updated_at,
   ];
 }
@@ -69,7 +69,6 @@ export function transcriptMarkdown(t: TicketDetail) {
     '',
     `- **Ticket:** ${t.id}`,
     `- **Status:** ${t.status}${t.closed_at ? ` (closed ${when(t.closed_at)})` : ''}`,
-    `- **Priority:** ${t.priority}`,
     `- **Assignee:** ${t.assignee_name ?? t.assignee ?? 'Unassigned'}`,
     t.channel_name && `- **Channel:** ${t.channel_name}${t.channel_type ? ` (${t.channel_type})` : ''}`,
     t.customer_id && `- **Customer:** ${t.customer_id}`,

@@ -1,13 +1,10 @@
 import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   BookOpen,
   Bot,
   Building2,
   ChevronDown,
-  ChevronsUp,
   ChevronsUpDown,
   FlaskConical,
   Hand,
@@ -15,7 +12,6 @@ import {
   KeyRound,
   LayoutDashboard,
   Lock,
-  Minus,
   Plug,
   Plus,
   ScrollText,
@@ -31,7 +27,7 @@ import {
 } from 'lucide-react';
 import ChannelIcon from '@/components/ui/ChannelIcon';
 import { cn } from '@/lib/utils';
-import { FLAG_LABEL, INBOX, STORE_CHAT, type InboxThread, type Msg, type TicketFlag, type TicketPriority } from '@/data/demo';
+import { FLAG_LABEL, INBOX, STORE_CHAT, type InboxThread, type Msg, type TicketFlag } from '@/data/demo';
 import { channel } from '@/data/channels';
 
 /**
@@ -91,25 +87,7 @@ function Avatar({ name, size = 28 }: { name: string; size?: number }) {
   );
 }
 
-const PRIORITY: Record<TicketPriority, { label: string; tone: Tone; icon: LucideIcon }> = {
-  low: { label: 'Low', tone: 'neutral', icon: ArrowDown },
-  normal: { label: 'Normal', tone: 'outline', icon: Minus },
-  high: { label: 'High', tone: 'warn', icon: ArrowUp },
-  urgent: { label: 'Urgent', tone: 'danger', icon: ChevronsUp },
-};
-
-const FLAG_TONE: Record<TicketFlag, Tone> = { escalated: 'danger', overdue: 'warn', handed_off: 'violet', reopened: 'accent' };
-
-function PriorityBadge({ priority }: { priority: TicketPriority }) {
-  const p = PRIORITY[priority];
-  const Icon = p.icon;
-  return (
-    <Badge tone={p.tone}>
-      <Icon size={12} aria-hidden="true" />
-      {p.label}
-    </Badge>
-  );
-}
+const FLAG_TONE: Record<TicketFlag, Tone> = { escalated: 'danger', handed_off: 'violet', reopened: 'accent' };
 
 function StatusBadge({ t }: { t: InboxThread }) {
   return (
@@ -295,7 +273,6 @@ function TicketRow({
         </span>
         <span className="flex flex-wrap items-center gap-1.5 pl-4">
           <StatusBadge t={t} />
-          {t.priority !== 'normal' && <PriorityBadge priority={t.priority} />}
           <Flags t={t} />
           <span className="inline-flex max-w-[140px] items-center gap-1 truncate text-[0.7rem] text-ink-faint">
             <ChannelIcon id={t.channels[t.channels.length - 1]} size={12} />
@@ -491,7 +468,6 @@ function Properties({ t }: { t: InboxThread }) {
       <section className="grid gap-3" aria-label="Ticket properties">
         <dl className="grid gap-3">
           <Field label="Status">{t.ticketStatus === 'open' ? 'Open' : 'Closed'}</Field>
-          <Field label="Priority">{PRIORITY[t.priority].label}</Field>
           <Field label="Assignee">
             {t.assignee ? (
               <span className="flex items-center gap-2">
@@ -547,7 +523,6 @@ export default function UnifiedInbox({ markSrc }: { markSrc: string }) {
   const counts = useMemo(
     () => ({
       open: INBOX.filter((t) => t.ticketStatus === 'open').length,
-      overdue: INBOX.filter((t) => t.ticketStatus === 'open' && t.flags.includes('overdue')).length,
       unassigned: INBOX.filter((t) => t.ticketStatus === 'open' && !t.assignee).length,
       handoffs: INBOX.filter((t) => t.ticketStatus === 'open' && t.flags.includes('handed_off') && !t.assignee).length,
     }),
@@ -608,7 +583,7 @@ export default function UnifiedInbox({ markSrc }: { markSrc: string }) {
             <div className="flex min-w-0 items-baseline gap-3">
               <h2 className="text-xl font-bold text-ink">Tickets</h2>
               <span className="hidden truncate text-[0.8125rem] text-ink-faint sm:inline">
-                {counts.open} open · {counts.overdue} overdue · {counts.unassigned} unassigned
+                {counts.open} open · {counts.unassigned} unassigned
               </span>
             </div>
             <div className="flex items-center gap-2" aria-hidden="true">
@@ -692,7 +667,6 @@ export default function UnifiedInbox({ markSrc }: { markSrc: string }) {
                   </h3>
                   <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
                     <StatusBadge t={selected} />
-                    {selected.priority !== 'normal' && <PriorityBadge priority={selected.priority} />}
                     <Flags t={selected} />
                     <span>From the customer · {selected.timeline[0].value}</span>
                   </div>

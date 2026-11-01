@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowRightLeft, Download, Filter, Hand, Inbox, MessagesSquare, Plus, Search, X } from 'lucide-react';
 import { useChannelIcon, useChannels } from '@/lib/api/endpoints/channels';
 import { useCreateTicket, useHandoffs, usePrefetchTicket, useTickets } from '@/lib/api/endpoints/tickets';
-import type { TicketCounts, TicketFlag, TicketPriority, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
+import type { TicketCounts, TicketFlag, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatRelative } from '@/lib/format';
 import { downloadBlob } from '@/lib/export';
@@ -29,7 +29,7 @@ import {
   Switch,
   Tip,
 } from '@/components/ui';
-import { PRIORITIES, PRIORITY, PriorityBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
+import { TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 import { ChannelBadge } from '@/components/domain/ChannelBadge';
 import { useCustomer } from '@/lib/api/endpoints/customers';
 import { customerLabel } from '@/lib/customers';
@@ -53,7 +53,6 @@ function useTicketFilters() {
   const filters: TicketQuery = {
     view: (params.get('view') as TicketView) || 'open',
     status: status && TICKET_STATUSES.includes(status) ? status : undefined,
-    priority: (params.get('priority') as TicketPriority) || undefined,
     assignee: params.get('assignee') || undefined,
     flag: (params.get('flag') as TicketFlag) || undefined,
     channel: params.get('channel') || undefined,
@@ -80,7 +79,7 @@ export default function TicketsPage() {
   const { filters, set, params, setParams } = useTicketFilters();
   const [search, setSearch] = useState(filters.q ?? '');
   const q = useDebounce(search, 350);
-  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.priority || filters.assignee || filters.flag || filters.channel || filters.customer));
+  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.assignee || filters.flag || filters.channel || filters.customer));
   const assignees = useAssignees();
   const handoffs = useHandoffs();
   const channels = useChannels();
@@ -93,7 +92,7 @@ export default function TicketsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.priority, filters.assignee, filters.flag, filters.channel, filters.customer, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.assignee, filters.flag, filters.channel, filters.customer, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = useTickets(query);
   const prefetch = usePrefetchTicket();
   const tickets = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
@@ -101,7 +100,7 @@ export default function TicketsPage() {
   const qs = params.toString() ? `?${params.toString()}` : '';
   const open = (id: string) => nav(href(`tickets/${id}`) + qs);
 
-  const extraFilters = [filters.status, filters.priority, filters.assignee, filters.flag, filters.channel, filters.customer].filter(Boolean).length;
+  const extraFilters = [filters.status, filters.assignee, filters.flag, filters.channel, filters.customer].filter(Boolean).length;
   const newOpen = params.get('new') === '1';
   const [exportOpen, setExportOpen] = useState(false);
   // Without search or extra filters, the view's own count is the export's size.
@@ -166,12 +165,10 @@ export default function TicketsPage() {
           <div className="grid grid-cols-2 gap-2 animate-fade-in">
             <Select size="sm" aria-label="Status" value={filters.status ?? ''} onChange={(e) => set({ status: e.target.value || undefined })} placeholder="Any status"
               options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))} />
-            <Select size="sm" aria-label="Priority" value={filters.priority ?? ''} onChange={(e) => set({ priority: e.target.value || undefined })} placeholder="Any priority"
-              options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY[p].label }))} />
             <Select size="sm" aria-label="Assignee" value={filters.assignee ?? ''} onChange={(e) => set({ assignee: e.target.value || undefined })} placeholder="Anyone"
               options={[{ value: 'me', label: 'Assigned to me' }, { value: 'none', label: 'Unassigned' }, ...assignees.map((m) => ({ value: m.user_id, label: m.name }))]} />
             <Select size="sm" aria-label="Flag" value={filters.flag ?? ''} onChange={(e) => set({ flag: e.target.value || undefined })} placeholder="Any flag"
-              options={(Object.keys(FLAG_LABEL) as TicketFlag[]).map((f) => ({ value: f, label: FLAG_LABEL[f] }))} />
+              options={(Object.keys(FLAG_LABEL) as TicketFlag[]).filter((f) => f !== 'overdue').map((f) => ({ value: f, label: FLAG_LABEL[f] }))} />
             {Boolean(channels.data?.length || filters.channel) && (
               <Select size="sm" className="col-span-2" aria-label="Channel" value={filters.channel ?? ''} onChange={(e) => set({ channel: e.target.value || undefined })} placeholder="Any channel"
                 options={[{ value: 'none', label: 'No channel' }, ...(channels.data ?? []).map((c) => ({ value: c.id, label: `${c.name} · ${c.type_label}` }))]} />
@@ -187,7 +184,7 @@ export default function TicketsPage() {
             )}
             {extraFilters > 0 && (
               <button type="button" className="col-span-2 inline-flex items-center gap-1 justify-self-start text-xs font-semibold text-accent hover:underline"
-                onClick={() => set({ status: undefined, priority: undefined, assignee: undefined, flag: undefined, channel: undefined, customer: undefined })}>
+                onClick={() => set({ status: undefined, assignee: undefined, flag: undefined, channel: undefined, customer: undefined })}>
                 <X className="size-3" /> Clear filters
               </button>
             )}
@@ -229,7 +226,6 @@ export default function TicketsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pl-4">
                       <TicketStatusBadge status={t.status} />
-                      {t.priority !== 'normal' && <PriorityBadge priority={t.priority} />}
                       <TicketFlags ticket={t} />
                       {t.channel_name && <ChannelBadge name={t.channel_name} icon={iconOf(t.channel_type)} className="max-w-[140px] text-[0.7rem] text-ink-faint" />}
                       <span className="ml-auto flex items-center gap-1.5 text-[0.7rem] text-ink-faint">
@@ -306,7 +302,7 @@ export default function TicketsPage() {
       <div className="flex items-center justify-between gap-4 border-b border-line px-[var(--page-x)] py-3.5">
         <div className="flex items-baseline gap-3">
           <h1 className="text-xl font-bold text-ink">Tickets</h1>
-          {counts && <span className="text-[0.8125rem] text-ink-faint">{counts.open} open · {counts.overdue} overdue · {counts.unassigned} unassigned</span>}
+          {counts && <span className="text-[0.8125rem] text-ink-faint">{counts.open} open · {counts.unassigned} unassigned</span>}
         </div>
         <div className="flex items-center gap-2">{headerActions}</div>
       </div>
@@ -347,14 +343,12 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
   const create = useCreateTicket();
   const channels = useChannels(undefined, open && !conversationId);
   const [subject, setSubject] = useState(defaultSubject ?? '');
-  const [priority, setPriority] = useState<TicketPriority>('normal');
   const [channel, setChannel] = useState('');
   const [escalated, setEscalated] = useState(Boolean(conversationId));
   const [keepOpen, setKeepOpen] = useState(false);
   useEffect(() => {
     if (open) {
       setSubject(defaultSubject ?? '');
-      setPriority('normal');
       setChannel('');
       setEscalated(Boolean(conversationId));
       setKeepOpen(false);
@@ -366,7 +360,6 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
     create.mutate(
       {
         subject: subject.trim() || undefined,
-        priority,
         conversation_id: conversationId,
         escalated: conversationId ? escalated : undefined,
         channel_id: channel || undefined,
@@ -394,9 +387,6 @@ function NewTicketDialog({ open, onOpenChange, onCreated, conversationId, defaul
       <form id="new-ticket" onSubmit={submit} className="grid gap-4">
         <Field label="Subject" optional={Boolean(conversationId)} hint={conversationId ? "Defaults to the conversation's title." : undefined} aside={`${subject.length}/200`}>
           <Input value={subject} onChange={(e) => setSubject(e.target.value.slice(0, 200))} autoFocus placeholder="What's the case about?" />
-        </Field>
-        <Field label="Priority">
-          <Select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY[p].label }))} />
         </Field>
         {!conversationId && Boolean(channels.data?.length) && (
           <Field label="Channel" optional hint="Where the customer reached you, if it's one of this bot's channels.">
@@ -513,7 +503,7 @@ function ExportDialog({ open, onOpenChange, query, viewCount, allCount }: {
         <p className="text-[0.8125rem] text-ink-muted">
           {format === 'zip'
             ? 'A spreadsheet of the tickets, every ticket in full as JSON, and a readable transcript of each with its replies and internal notes.'
-            : 'One row per ticket: subject, status, priority, assignee, channel and dates. No messages.'}
+            : 'One row per ticket: subject, status, assignee, channel and dates. No messages.'}
         </p>
       </div>
     </Dialog>

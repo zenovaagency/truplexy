@@ -87,7 +87,6 @@ import type {
   Role,
   TemplateVariable,
   TenantDeletion,
-  TicketPriority,
   TicketStatus,
 } from '@/lib/api/types';
 import { NO_PLAN, planLabel, planUsage } from '@/lib/billing';
@@ -138,7 +137,7 @@ import { ChannelBadge, ChannelStatusBadge, ChannelTypeIcon } from '@/components/
 import { StatCard } from '@/components/domain/StatCard';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { AutoCloseField, formatAutoClose } from '@/components/domain/AutoCloseField';
-import { PRIORITIES, PRIORITY, PriorityBadge, RoleBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
+import { RoleBadge, TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 
 const STATUS_TONE: Record<CatalogStatus | PlatformChannelType['status'], Tone> = { active: 'live', hidden: 'warn', retired: 'neutral', upcoming: 'accent' };
 
@@ -1460,7 +1459,6 @@ export function PlatformTickets() {
           <Segmented size="xs" label="View" value={f.view ?? 'all'} onChange={(v) => setF({ ...f, view: v })} options={[{ value: 'open', label: 'Open' }, { value: 'needs_reply', label: 'Needs reply' }, { value: 'escalated', label: 'Escalated' }, { value: 'all', label: 'All' }]} />
           <Select size="sm" className="w-44" aria-label="Business" value={f.tenant ?? ''} onChange={(e) => setF({ ...f, tenant: e.target.value || undefined })} placeholder="All businesses" options={liveBusinesses(tenants.data).map((t) => ({ value: t.id, label: t.name }))} />
           <Select size="sm" className="w-40" aria-label="Status" value={f.status ?? ''} onChange={(e) => setF({ ...f, status: (e.target.value as TicketStatus) || undefined })} placeholder="Any status" options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))} />
-          <Select size="sm" className="w-36" aria-label="Priority" value={f.priority ?? ''} onChange={(e) => setF({ ...f, priority: (e.target.value as TicketPriority) || undefined })} placeholder="Any priority" options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY[p].label }))} />
           <Select size="sm" className="w-40" aria-label="Channel type" value={f.channel_type ?? ''} onChange={(e) => setF({ ...f, channel_type: e.target.value || undefined })} placeholder="Any channel" options={(types.data ?? []).map((t) => ({ value: t.id, label: t.label }))} />
         </div>
         {q.isPending ? (
@@ -1497,7 +1495,6 @@ export function PlatformTickets() {
                 ),
               },
               { key: 'status', header: 'Status', cell: (t) => <TicketStatusBadge status={t.status} /> },
-              { key: 'priority', header: 'Priority', hideBelowLg: true, cell: (t) => <PriorityBadge priority={t.priority} compact /> },
               { key: 'updated', header: 'Updated', align: 'right', cell: (t) => <span className="whitespace-nowrap text-ink-muted">{formatRelative(t.updated_at)}</span> },
               {
                 key: 'open',

@@ -18,14 +18,13 @@ export const FLAG_LABEL: Record<TicketFlag, string> = {
 
 const FLAG_TONE: Partial<Record<TicketFlag, Tone>> = {
   escalated: 'danger',
-  overdue: 'warn',
   handed_off: 'violet',
   reopened: 'cyan',
 };
 
-/** The flags worth a badge (needs_reply and unassigned show elsewhere). */
+/** The flags worth a badge (needs_reply and unassigned show elsewhere; overdue is not shown at all). */
 export function TicketFlags({ ticket, className }: { ticket: Ticket; className?: string }) {
-  const shown = (['escalated', 'overdue', 'handed_off', 'reopened'] as const).filter((f) => ticket.flags?.[f]);
+  const shown = (['escalated', 'handed_off', 'reopened'] as const).filter((f) => ticket.flags?.[f]);
   if (!shown.length) return null;
   return (
     <span className={cn('flex flex-wrap gap-1', className)}>

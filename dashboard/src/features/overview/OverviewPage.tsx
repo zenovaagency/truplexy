@@ -35,7 +35,7 @@ import { useStoredState } from '@/hooks';
 import { Avatar, Card, EmptyState, ErrorState, Page, PageHeader, Segmented, Skeleton, SkeletonRows } from '@/components/ui';
 import { BarList, Legend, TrendChart, type Series } from '@/components/charts';
 import { compareStat, StatCard } from '@/components/domain/StatCard';
-import { PriorityBadge, TicketStatusBadge } from '@/components/domain/badges';
+import { TicketStatusBadge } from '@/components/domain/badges';
 
 type Days = '7' | '30' | '90';
 type Metric = 'requests' | 'total_tokens' | 'estimated_cost';
@@ -92,7 +92,6 @@ export default function OverviewPage() {
   const backlogCounts = s
     ? [
         { key: 'open', label: 'Open', value: s.backlog.total, to: 'tickets' },
-        { key: 'overdue', label: 'Overdue', value: s.backlog.overdue, to: 'tickets?flag=overdue' },
         { key: 'unassigned', label: 'Unassigned', value: s.backlog.unassigned, to: 'tickets?flag=unassigned' },
       ]
     : [];
@@ -215,10 +214,10 @@ export default function OverviewPage() {
         <Card title="Conversations and tickets" description="Per day, in UTC." actions={<Legend series={SUPPORT_SERIES} />}>
           {s ? <TrendChart data={s.by_day} series={SUPPORT_SERIES} height={260} /> : <Skeleton className="h-[260px]" />}
         </Card>
-        <Card title="Backlog" description="Open tickets right now, by priority.">
+        <Card title="Backlog" description="Open tickets right now.">
           {s ? (
             <div className="grid gap-6">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {backlogCounts.map((b) => (
                   <Link
                     key={b.key}
@@ -229,21 +228,6 @@ export default function OverviewPage() {
                     <span className="text-sm font-semibold tabular-nums text-ink">{formatNumber(b.value)}</span>
                   </Link>
                 ))}
-              </div>
-              <div className="grid gap-2">
-                <p className="mono text-ink-faint">By priority</p>
-                <div className="flex flex-wrap gap-2">
-                  {(['urgent', 'high', 'normal', 'low'] as const).map((p) => (
-                    <Link
-                      key={p}
-                      to={href(`tickets?priority=${p}`)}
-                      className="flex items-center gap-2 rounded-[10px] border border-line bg-surface px-2.5 py-1.5 transition-colors hover:border-line-strong"
-                    >
-                      <PriorityBadge priority={p} />
-                      <span className="text-xs tabular-nums text-ink">{s.backlog.by_priority[p] ?? 0}</span>
-                    </Link>
-                  ))}
-                </div>
               </div>
               <div className="grid grid-cols-2 gap-3 border-t border-line pt-4 text-[0.8125rem]">
                 <div>
@@ -385,7 +369,6 @@ function RecentTickets() {
                   </p>
                 </div>
                 <div className="hidden shrink-0 items-center gap-2 sm:flex">
-                  {t.priority !== 'normal' && <PriorityBadge priority={t.priority} />}
                   <TicketStatusBadge status={t.status} />
                 </div>
               </Link>
