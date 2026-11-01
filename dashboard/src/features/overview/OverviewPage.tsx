@@ -158,7 +158,7 @@ export default function OverviewPage() {
             delta={compareStat(s?.conversations.deflection_rate, p?.conversations.deflection_rate, { kind: 'points', title: vs })}
             sub={s && `${formatNumber(s.conversations.ai_only)} conversations answered without a person`}
             meter={s?.conversations.deflection_rate ?? 0}
-            info="Share of conversations the assistant answered at least once and handled alone: no handoff, no escalation, no ticket."
+            info="Share of conversations the assistant answered at least once and handled alone: no handoff to your team, no takeover and no reply from a person."
           />
           <StatCard
             label="AI replies"
