@@ -11,7 +11,7 @@ import { notifySuccess } from '@/lib/notify';
 import { isRouteMissing } from '@/lib/performance';
 import { useScope, useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Callout, Card, Checkbox, Dialog, EmptyState, ErrorState, Field, Input, Select, SkeletonRows, Switch, Textarea, Tip, useConfirm } from '@/components/ui';
-import { PropertiesEditor } from './PropertiesTab';
+import { PropertiesEditor } from '../properties/PropertiesPage';
 import { AssistantAvatar } from '@/components/layout/Brand';
 
 /** Settings → Query types: the kinds of request the business handles, their statuses, forms and who sees them. */

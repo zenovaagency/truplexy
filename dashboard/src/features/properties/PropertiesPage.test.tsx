@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PropertyDefinition } from '@/lib/api/types';
 import { button, choose, cleanup, click, field, json, renderPage, text, type } from '@/test-utils';
-import { PropertiesTab } from './PropertiesTab';
+import PropertiesPage from './PropertiesPage';
 
 vi.mock('@/lib/notify', () => ({ notifySuccess: vi.fn(), notifyError: vi.fn(), notifyInfo: vi.fn() }));
 
@@ -22,11 +22,11 @@ const tier: PropertyDefinition = {
   updated_at: '',
 };
 
-const routes = [{ path: '/settings/properties', element: <PropertiesTab /> }];
+const routes = [{ path: '/properties', element: <PropertiesPage /> }];
 
-describe('Settings → Properties', () => {
+describe('Properties page', () => {
   it('lists properties with their type and rules', async () => {
-    await renderPage(routes, '/settings/properties', ({ path }) => (path === '/properties' ? json(200, { data: [tier] }) : undefined));
+    await renderPage(routes, '/properties', ({ path }) => (path === '/properties' ? json(200, { data: [tier] }) : undefined));
     expect(text()).toContain('Loyalty tier');
     expect(text()).toContain('loyalty_tier');
     expect(text()).toContain('Single choice · 1 option');
@@ -34,7 +34,7 @@ describe('Settings → Properties', () => {
   });
 
   it('adds a property with a key made from its label', async () => {
-    const { calls } = await renderPage(routes, '/settings/properties', ({ method, path, body }) => {
+    const { calls } = await renderPage(routes, '/properties', ({ method, path, body }) => {
       if (path === '/properties' && method === 'GET') return json(200, { data: [] });
       if (path === '/properties' && method === 'POST') return json(201, { ...tier, ...(body as object), id: 'prp_new' });
       return undefined;
@@ -48,13 +48,13 @@ describe('Settings → Properties', () => {
   });
 
   it("doesn't let a viewer change anything", async () => {
-    await renderPage(routes, '/settings/properties', ({ path }) => (path === '/properties' ? json(200, { data: [tier] }) : undefined), ['properties.read']);
+    await renderPage(routes, '/properties', ({ path }) => (path === '/properties' ? json(200, { data: [tier] }) : undefined), ['properties.read']);
     expect(button('Add property')).toBeUndefined();
     expect(document.querySelector('button[aria-label="Delete Loyalty tier"]')).toBeNull();
   });
 
   it('says so when the server has no properties yet', async () => {
-    await renderPage(routes, '/settings/properties', () => undefined);
+    await renderPage(routes, '/properties', () => undefined);
     expect(text()).toContain("Custom properties aren't available on this server yet");
   });
 });

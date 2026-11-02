@@ -23,6 +23,7 @@ import {
   Gauge,
   Package,
   ClipboardList,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { Permission } from '@/lib/api/types';
 import type { Feature } from '@/lib/features';
@@ -37,6 +38,7 @@ export const pages = {
   customers: () => import('@/features/customers/CustomersPage'),
   products: () => import('@/features/products/ProductsPage'),
   queries: () => import('@/features/queries/QueriesPage'),
+  properties: () => import('@/features/properties/PropertiesPage'),
   knowledge: () => import('@/features/knowledge/KnowledgePage'),
   draft: () => import('@/features/llm/draft'),
   usage: () => import('@/features/usage/UsagePage'),
@@ -83,6 +85,7 @@ export const BUSINESS_NAV: NavSection[] = [
       { id: 'customers', label: 'Customers', path: 'customers', icon: UserRound, permission: 'customers.read', key: 'c', prefetch: pages.customers, keywords: ['people', 'contacts', 'visitors', 'email', 'users'] },
       { id: 'products', label: 'Products', path: 'products', icon: Package, permission: 'products.read', key: 'r', prefetch: pages.products, feature: 'products', keywords: ['catalog', 'inventory', 'prices', 'stock', 'import', 'csv', 'shop'] },
       { id: 'queries', label: 'Queries', path: 'queries', icon: ClipboardList, permission: 'queries.read', key: 'q', prefetch: pages.queries, feature: 'queries', keywords: ['requests', 'payments', 'orders', 'delivery', 'refunds', 'cases', 'forms'] },
+      { id: 'properties', label: 'Properties', path: 'properties', icon: SlidersHorizontal, permission: 'properties.read', key: 'f', prefetch: pages.properties, feature: 'properties', keywords: ['custom fields', 'fields', 'attributes', 'customer data'] },
       { id: 'knowledge', label: 'Knowledge base', path: 'knowledge', icon: BookOpen, permission: 'knowledge.read', key: 'k', prefetch: pages.knowledge, keywords: ['documents', 'articles', 'upload', 'rag'] },
     ],
   },
@@ -105,7 +108,7 @@ export const BUSINESS_NAV: NavSection[] = [
     items: [
       { id: 'team', label: 'Team', path: 'team', icon: Users, permission: 'members.read', key: 'm', prefetch: pages.team, keywords: ['members', 'invite', 'roles'] },
       { id: 'logs', label: 'Logs', path: 'logs', icon: ScrollText, permission: 'audit.read', key: 'h', prefetch: pages.logs, keywords: ['audit', 'activity', 'history'] },
-      { id: 'settings', label: 'Settings', path: 'settings', icon: Settings, permission: 'members.read', key: 's', prefetch: pages.settings, keywords: ['business', 'plan', 'bots', 'backup', 'properties', 'custom fields', 'query types'] },
+      { id: 'settings', label: 'Settings', path: 'settings', icon: Settings, permission: 'members.read', key: 's', prefetch: pages.settings, keywords: ['business', 'plan', 'bots', 'backup'] },
     ],
   },
 ];

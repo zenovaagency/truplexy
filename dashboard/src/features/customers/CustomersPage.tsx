@@ -401,7 +401,7 @@ function CustomerDetailSheet({
             <section className="grid gap-2">
               <div className="flex items-center justify-between">
                 <p className="mono text-ink-faint">Properties</p>
-                <Link to={href('settings/properties')} className="text-xs font-semibold text-accent hover:underline">
+                <Link to={href('properties')} className="text-xs font-semibold text-accent hover:underline">
                   Manage
                 </Link>
               </div>
