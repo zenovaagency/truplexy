@@ -117,7 +117,7 @@ export default function QueriesPage() {
           <>
             {can('queries.manage') && (
               <Button asChild size="sm" leading={<Settings2 />}>
-                <Link to={href('settings/query-types')}>Query types</Link>
+                <Link to={href('query-types')}>Query types</Link>
               </Button>
             )}
             {writable && live.length > 0 && (
@@ -180,7 +180,7 @@ export default function QueriesPage() {
                   action={
                     can('queries.manage') && (
                       <Button asChild variant="accent">
-                        <Link to={href('settings/query-types')}>Set up query types</Link>
+                        <Link to={href('query-types')}>Set up query types</Link>
                       </Button>
                     )
                   }

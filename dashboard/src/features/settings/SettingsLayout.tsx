@@ -13,7 +13,6 @@ import {
   LogOut,
   Lock,
   Plus,
-  ClipboardList,
   Trash2,
   Undo2,
   Upload,
@@ -35,7 +34,6 @@ import { AUTO_CLOSE_MAX_HOURS, AutoCloseField } from '@/components/domain/AutoCl
 import { ImageUploader } from '@/components/domain/ImageUploader';
 import { ReasonDialog } from '@/components/domain/ReasonDialog';
 import { SubscriptionCard } from './SubscriptionCard';
-import { useFeature } from '@/lib/features';
 import { useDebounce } from '@/hooks';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { qk } from '@/lib/query-keys';
@@ -62,11 +60,8 @@ import {
   useConfirm,
 } from '@/components/ui';
 
-export { QueryTypesTab } from './QueryTypesTab';
-
 export default function SettingsLayout() {
   const { href, businessName, can } = useScopeCtx();
-  const queries = useFeature('queries');
   return (
     <Page>
       <PageHeader title="Settings" description={`Business details, plan, billing, bots and backups for ${businessName}.`} />
@@ -76,7 +71,6 @@ export default function SettingsLayout() {
           { to: href('settings/plan'), label: 'Plan & usage', icon: <CreditCard /> },
           { to: href('settings/billing'), label: 'Billing', icon: <Wallet />, hidden: !can('usage.read') },
           { to: href('settings/bots'), label: 'Bots', icon: <Bot /> },
-          { to: href('settings/query-types'), label: 'Query types', icon: <ClipboardList />, hidden: queries !== 'on' },
           { to: href('settings/backup'), label: 'Backup', icon: <DatabaseBackup /> },
           { to: href('settings/danger'), label: 'Danger zone', icon: <AlertTriangle /> },
         ]}

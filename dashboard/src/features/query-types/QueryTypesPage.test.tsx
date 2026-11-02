@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { QueryType } from '@/lib/api/types';
 import { button, cleanup, click, json, renderPage, text, type } from '@/test-utils';
-import { QueryTypesTab } from './QueryTypesTab';
+import QueryTypesPage from './QueryTypesPage';
 import { audience, statusesProblem } from '@/lib/queries';
 
 vi.mock('@/lib/notify', () => ({ notifySuccess: vi.fn(), notifyError: vi.fn(), notifyInfo: vi.fn() }));
@@ -27,11 +27,11 @@ const payment: QueryType = {
   updated_at: '',
 };
 
-const routes = [{ path: '/settings/query-types', element: <QueryTypesTab /> }];
+const routes = [{ path: '/query-types', element: <QueryTypesPage /> }];
 
-describe('Settings → Query types', () => {
+describe('Query types page', () => {
   it('lists types with their statuses, audience and assistant, and shows the form of the first', async () => {
-    await renderPage(routes, '/settings/query-types', ({ path }) => {
+    await renderPage(routes, '/query-types', ({ path }) => {
       if (path === '/query-types') return json(200, { data: [payment] });
       if (path === '/properties') return json(200, { data: [] });
       return undefined;
@@ -44,7 +44,7 @@ describe('Settings → Query types', () => {
   });
 
   it('adds a type with a key from its name and the default statuses', async () => {
-    const { calls } = await renderPage(routes, '/settings/query-types', ({ method, path, body }) => {
+    const { calls } = await renderPage(routes, '/query-types', ({ method, path, body }) => {
       if (path === '/query-types' && method === 'GET') return json(200, { data: [] });
       if (path === '/query-types' && method === 'POST') return json(201, { ...payment, ...(body as object), id: 'qtp_new' });
       if (path === '/properties') return json(200, { data: [] });
