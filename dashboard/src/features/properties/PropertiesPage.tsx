@@ -32,6 +32,8 @@ import {
   Segmented,
   Select,
   SkeletonRows,
+  Page,
+  PageHeader,
   Switch,
   Textarea,
   Tip,
@@ -40,8 +42,8 @@ import {
 } from '@/components/ui';
 import { SensitiveMark } from '@/components/domain/Properties';
 
-/** Settings → Properties: the typed fields a business adds to its bot's records. */
-export function PropertiesTab() {
+/** Properties: the typed fields a business adds to its bot's records. */
+export default function PropertiesPage() {
   const { bot } = useScopeCtx();
   const [params, setParams] = useSearchParams();
   // Products have properties once the API serves the catalog.
@@ -50,30 +52,38 @@ export function PropertiesTab() {
   const entity = (ENTITIES as string[]).includes(params.get('entity') ?? '') ? (params.get('entity') as PropertyEntity) : ENTITIES[0]!;
   const probe = useProperties(entity);
 
+  const header = <PageHeader title="Properties" description={`The fields ${bot.name} keeps on its customers${products ? ' and products' : ''}.`} />;
+
   if (probe.isError && isRouteMissing(probe.error)) {
     return (
-      <Callout tone="neutral" title="Custom properties aren't available on this server yet">
-        Once the API adds them, you can define your own fields for {bot.name}'s records here.
-      </Callout>
+      <Page>
+        {header}
+        <Callout tone="neutral" title="Custom properties aren't available on this server yet">
+          Once the API adds them, you can define your own fields for {bot.name}'s records here.
+        </Callout>
+      </Page>
     );
   }
 
   return (
-    <div className="grid gap-4">
-      {ENTITIES.length > 1 && (
-        <Segmented
-          label="Record"
-          value={entity}
-          onChange={(v) => setParams((p) => (p.set('entity', v), p), { replace: true })}
-          options={ENTITIES.map((e) => ({ value: e, label: ENTITY_LABEL[e].many }))}
-        />
-      )}
-      <PropertiesEditor entity={entity} />
-      <p className="text-xs text-ink-faint">
-        A property's key and type can't change once it exists, because records store their values under them. Sensitive values are hidden from people who can't edit the record and are never given to the
-        assistant.
-      </p>
-    </div>
+    <Page>
+      {header}
+      <div className="grid gap-4">
+        {ENTITIES.length > 1 && (
+          <Segmented
+            label="Record"
+            value={entity}
+            onChange={(v) => setParams((p) => (p.set('entity', v), p), { replace: true })}
+            options={ENTITIES.map((e) => ({ value: e, label: ENTITY_LABEL[e].many }))}
+          />
+        )}
+        <PropertiesEditor entity={entity} />
+        <p className="text-xs text-ink-faint">
+          A property's key and type can't change once it exists, because records store their values under them. Sensitive values are hidden from people who can't edit the record and are never given to the
+          assistant.
+        </p>
+      </div>
+    </Page>
   );
 }
 
