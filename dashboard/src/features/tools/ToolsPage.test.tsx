@@ -90,17 +90,48 @@ async function openMenu(el: HTMLElement) {
   await tick();
 }
 
+const brokenTool: Tool = { ...apiTool, name: 'reset_hwid', available: false, unavailable_reason: 'A platform admin turned this tool off.' };
+
 describe('built-in tools', () => {
-  it('are badged and say why they are unavailable, with a way to connect', async () => {
-    await render([builtIn('shopify_order_status', false), builtIn('shopify_product_search', true), apiTool]);
-    const row = rowOf('shopify_order_status');
+  it('are badged, with no method or URL', async () => {
+    await render([builtIn('shopify_product_search', true), apiTool]);
+    const row = rowOf('shopify_product_search');
     expect(row.textContent).toContain('Built-in · Shopify');
-    expect(row.textContent).toContain('Connect a Shopify store to this bot.');
-    expect(row.querySelector('a[href="/integrations/guides"]')).not.toBeNull();
-    // No method/URL block for a built-in.
     expect(row.textContent).toContain('Built in');
     expect(rowOf('lookup_order').textContent).toContain('https://api.example.com/orders');
   });
+
+  it('are hidden until they are set up, in the library and the picker', async () => {
+    await render([builtIn('shopify_order_status', false), builtIn('shopify_product_search', true), apiTool], ['lookup_order']);
+    expect(page()).not.toContain('shopify_order_status');
+    expect(page()).not.toContain('Connect a Shopify store');
+    expect(page()).toContain('shopify_product_search');
+  });
+
+  it('stay in the picker when the bot already has one chosen, so it can be unticked', async () => {
+    await render([builtIn('shopify_order_status', false), apiTool], ['shopify_order_status']);
+    expect(container.querySelectorAll('tr').length).toBeGreaterThan(0);
+    expect([...container.querySelectorAll('tr')].some((r) => r.textContent?.includes('shopify_order_status'))).toBe(false);
+    const li = [...container.querySelectorAll('li')].find((l) => l.textContent?.includes('shopify_order_status'))!;
+    expect(li.textContent).toContain('Skipped');
+    expect(picked('shopify_order_status')).toBe(true);
+  });
+});
+
+describe('API tools that are unavailable', () => {
+  it('still show, with the reason, so they can be fixed or deleted', async () => {
+    await render([brokenTool, apiTool]);
+    const row = rowOf('reset_hwid');
+    expect(row.textContent).toContain('Unavailable');
+    expect(row.textContent).toContain('A platform admin turned this tool off.');
+    await openMenu(row.querySelector<HTMLElement>('button[aria-label="Actions for reset_hwid"]')!);
+    const items = [...document.body.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent?.trim());
+    expect(items).toContain('Edit');
+    expect(items).toContain('Delete');
+  });
+});
+
+describe('built-in tool actions', () => {
 
   it('offer no edit or delete', async () => {
     await render([builtIn('shopify_product_search', true), apiTool]);
@@ -157,17 +188,18 @@ describe('tools a reply skips', () => {
     await tick();
     expect(page()).not.toContain('skipped in replies');
     expect(page()).not.toContain('reset_hwid');
-    expect(picked('shopify_order_status')).toBe(false);
+    // Unticked and not set up, so it drops out of the picker.
+    expect(page()).not.toContain('shopify_order_status');
     expect(picked('lookup_order')).toBe(true);
   });
 
   it('can be taken off the bot from the library', async () => {
-    await render([builtIn('shopify_order_status', false), apiTool], ['shopify_order_status']);
-    await openMenu(rowOf('shopify_order_status').querySelector<HTMLElement>('button[aria-label="Actions for shopify_order_status"]')!);
+    await render([brokenTool, apiTool], ['reset_hwid']);
+    await openMenu(rowOf('reset_hwid').querySelector<HTMLElement>('button[aria-label="Actions for reset_hwid"]')!);
     const item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent?.includes('Remove from Aria'))!;
     await act(async () => item.click());
     await tick();
-    expect(picked('shopify_order_status')).toBe(false);
+    expect(picked('reset_hwid')).toBe(false);
     // A tool the bot hasn't chosen offers no remove.
     await openMenu(rowOf('lookup_order').querySelector<HTMLElement>('button[aria-label="Actions for lookup_order"]')!);
     expect(document.body.textContent).not.toContain('Remove from Aria');
