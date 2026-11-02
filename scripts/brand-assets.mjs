@@ -2,7 +2,7 @@
  * Brand asset pipeline. Run with `npm run brand`.
  *
  * Renders the fixed-size files that must live in /public (favicons, the touch
- * icon, the manifest icons and the manifest itself) from the Soft Triplex SVG
+ * icon, the manifest icons, the email logos and the manifest itself) from the Soft Triplex SVG
  * sources in /logo/soft-triplex. Those sources, and src/assets/brand/brand-paths.ts
  * (the inline logo), come from the brand kit generator:
  * brand/soft-logo-concepts/source/build-kit.mjs.
@@ -69,6 +69,16 @@ await writeFile(pub('apple-touch-icon.png'), await png('app-square.svg', 180));
 await writeFile(pub('icon-192.png'), await png('app-square.svg', 192));
 await writeFile(pub('icon-512.png'), await png('app-square.svg', 512));
 await writeFile(pub('icon-maskable-512.png'), await png('app-maskable.svg', 512));
+
+// Email logos: the full wordmark as transparent PNGs, since most mail clients
+// don't render SVG. Rendered at 2x the SVG's 504px width so they stay sharp on
+// retina screens; set width="252" on the <img>. Black for light emails, white
+// for dark ones.
+for (const tone of ['black', 'white']) {
+  const svg = await readFile(src(`logo-${tone}.svg`));
+  const out = await sharp(svg, { density: 144 }).resize({ width: 1008 }).png().toBuffer();
+  await writeFile(pub(`logo-${tone}.png`), out);
+}
 
 // The dashboard (app.truplexy.com) serves the same icons from its own public/.
 for (const f of ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png']) {
