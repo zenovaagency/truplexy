@@ -3,12 +3,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { EmailOtpType, Session } from '@supabase/supabase-js';
 import { configureApi, type SignOutReason } from '@/lib/api/client';
 import { env } from '@/lib/env';
+import { qk } from '@/lib/query-keys';
 import { getSupabase } from './supabase';
 
 export interface AuthUser {
   id: string;
   email: string;
   name?: string;
+  /** An email change waiting for its confirmation link. */
+  pendingEmail?: string;
 }
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
@@ -23,9 +26,17 @@ interface AuthValue {
   /** Finishes a magic-link, confirmation or OAuth redirect on /auth/callback. */
   completeSignIn: (url: URL) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Changes the display name. */
+  updateProfile: (profile: { name: string }) => Promise<void>;
+  /** Asks Supabase to email a confirmation link; the address only changes once it is opened. */
+  changeEmail: (email: string) => Promise<void>;
+  /** Sets the password of the signed-in person: a first one for magic-link accounts, or a new one. */
+  setPassword: (password: string) => Promise<void>;
+  /** Emails a link that signs the person in and lands on the Account page to choose a new password. */
+  sendPasswordReset: (email: string) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthValue | null>(null);
+export const AuthContext = createContext<AuthValue | null>(null);
 
 export function useAuth() {
   const v = useContext(AuthContext);
@@ -87,7 +98,14 @@ const callbackUrl = (next?: string) =>
   `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`;
 
 const toUser = (s: Session | null): AuthUser | null =>
-  s ? { id: s.user.id, email: s.user.email ?? '', name: (s.user.user_metadata?.full_name ?? s.user.user_metadata?.name) as string | undefined } : null;
+  s
+    ? {
+        id: s.user.id,
+        email: s.user.email ?? '',
+        name: (s.user.user_metadata?.full_name ?? s.user.user_metadata?.name) as string | undefined,
+        pendingEmail: s.user.new_email || undefined,
+      }
+    : null;
 
 /* ------------------------------------------------------------------ */
 /* Mock mode: a local session flag; the mock API decides who you are.  */
@@ -203,6 +221,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setStatus('signedOut');
         },
+        updateProfile: async ({ name }) => setUser((u) => (u ? { ...u, name } : u)),
+        changeEmail: async (email) => setUser((u) => (u ? { ...u, pendingEmail: email } : u)),
+        setPassword: async () => {},
+        sendPasswordReset: async () => {},
       };
     }
 
@@ -264,6 +286,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sb = await getSupabase();
         await sb.auth.signOut();
         qc.clear();
+      },
+      updateProfile: async ({ name }) => {
+        const sb = await getSupabase();
+        fail((await sb.auth.updateUser({ data: { full_name: name } })).error);
+        // The API reads the name from the token, so take a fresh one before asking it who we are.
+        fail((await sb.auth.refreshSession()).error);
+        await qc.invalidateQueries({ queryKey: qk.me });
+      },
+      changeEmail: async (email) => {
+        const sb = await getSupabase();
+        fail((await sb.auth.updateUser({ email }, { emailRedirectTo: callbackUrl('/account?changed=email') })).error);
+      },
+      setPassword: async (password) => {
+        const sb = await getSupabase();
+        fail((await sb.auth.updateUser({ password })).error);
+      },
+      sendPasswordReset: async (email) => {
+        const sb = await getSupabase();
+        fail((await sb.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl('/account?recovery=1') })).error);
       },
     };
   }, [status, user, qc]);

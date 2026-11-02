@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, ImagePlus, LogOut, Monitor, Moon, RotateCcw, Shield, ShieldCheck, Sun, UserCog } from 'lucide-react';
+import { FlaskConical, ImagePlus, LogOut, UserRound, RotateCcw, Shield, ShieldCheck, UserCog } from 'lucide-react';
 import { useMe, useRemoveMyAvatar, useSetMyAvatar } from '@/lib/api/endpoints/account';
 import { ImageUploader } from '@/components/domain/ImageUploader';
 import type { Role } from '@/lib/api/types';
@@ -10,7 +10,6 @@ import { notifyInfo } from '@/lib/notify';
 import { ROLE_DESCRIPTION, ROLE_LABEL, ROLES } from '@/lib/permissions';
 import { qk } from '@/lib/query-keys';
 import { ScopeContext } from '@/lib/session/scope-context';
-import { useTheme, type ThemePref } from '@/lib/theme';
 import {
   Avatar,
   Button,
@@ -37,7 +36,6 @@ export function UserMenu() {
   const me = useMe();
   const { user, signOut } = useAuth();
   const scopeCtx = useContext(ScopeContext);
-  const { pref, setPref } = useTheme();
   const nav = useNavigate();
   const qc = useQueryClient();
   const confirm = useConfirm();
@@ -97,30 +95,14 @@ export function UserMenu() {
         )}
         <MenuSeparator />
 
+        <MenuItem onSelect={() => nav('/account')}>
+          <UserRound />
+          Account settings
+        </MenuItem>
         <MenuItem onSelect={() => setPictureOpen(true)}>
           <ImagePlus />
           Profile picture
         </MenuItem>
-
-        <MenuSub>
-          <MenuSubTrigger>
-            {pref === 'dark' ? <Moon /> : pref === 'light' ? <Sun /> : <Monitor />}
-            <span className="flex-1">Theme</span>
-          </MenuSubTrigger>
-          <MenuSubContent>
-            <MenuRadioGroup value={pref} onValueChange={(v) => setPref(v as ThemePref)}>
-              <MenuRadioItem value="light">
-                <Sun /> Light
-              </MenuRadioItem>
-              <MenuRadioItem value="dark">
-                <Moon /> Dark
-              </MenuRadioItem>
-              <MenuRadioItem value="system">
-                <Monitor /> System
-              </MenuRadioItem>
-            </MenuRadioGroup>
-          </MenuSubContent>
-        </MenuSub>
 
         {me.data?.platform_admin && (
           <MenuItem onSelect={() => nav('/platform')}>

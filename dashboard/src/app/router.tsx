@@ -24,6 +24,8 @@ const auth = () => import('@/features/auth/AuthPages');
 
 const businessRoutes: RouteObject[] = [
   { index: true, element: <Navigate to="overview" replace /> },
+  // About the signed-in person, so open to every role; it sits here to share the sidebar and top bar.
+  { path: 'account', ...lazyRoute(pages.account, (m) => m.default) },
   gated('usage.read', [{ path: 'overview', ...lazyRoute(pages.overview, (m) => m.default) }]),
   gated('usage.read', [{ path: 'usage', ...lazyRoute(pages.usage, (m) => m.default) }]),
   // The LLM page is gone: its usage moved to Usage, and the rest is no longer configurable.

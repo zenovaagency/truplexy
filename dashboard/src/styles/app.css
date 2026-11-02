@@ -570,6 +570,33 @@
   animation: route-bar 1s ease-in-out infinite;
 }
 
+/* Theme change. With View Transitions the new theme is revealed by a growing circle (lib/theme.ts), so the two
+ * snapshots must not cross-fade on their own. Elsewhere, html.theme-fade eases the colours for a moment. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 0;
+}
+::view-transition-new(root) {
+  z-index: 1;
+}
+
+html.theme-fade,
+html.theme-fade *,
+html.theme-fade *::before,
+html.theme-fade *::after {
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    color 300ms ease,
+    fill 300ms ease,
+    stroke 300ms ease,
+    box-shadow 300ms ease !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
