@@ -42,6 +42,9 @@ const businessRoutes: RouteObject[] = [
   gated('properties.read', [{ path: 'properties', ...lazyRoute(pages.properties, (m) => m.default) }]),
   // Properties moved out of Settings.
   { path: 'settings/properties', element: <Navigate to="../properties" replace /> },
+  gated('queries.read', [{ path: 'query-types', ...lazyRoute(pages.queryTypes, (m) => m.default) }]),
+  // Query types moved out of Settings.
+  { path: 'settings/query-types', element: <Navigate to="../query-types" replace /> },
   gated('customers.read', [{ path: 'customers/:customerId?', ...lazyRoute(pages.customers, (m) => m.default) }]),
   gated('knowledge.read', [
     {
@@ -100,7 +103,6 @@ const businessRoutes: RouteObject[] = [
         { path: 'plan', ...lazyRoute(pages.settings, (m) => m.PlanTab) },
         gated('usage.read', [{ path: 'billing', ...lazyRoute(pages.settings, (m) => m.BillingTab) }]),
         { path: 'bots', ...lazyRoute(pages.settings, (m) => m.BotsTab) },
-        gated('queries.read', [{ path: 'query-types', ...lazyRoute(pages.settings, (m) => m.QueryTypesTab) }]),
         { path: 'backup', ...lazyRoute(pages.settings, (m) => m.BackupTab) },
         { path: 'danger', ...lazyRoute(pages.settings, (m) => m.DangerTab) },
         missing,

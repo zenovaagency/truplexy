@@ -10,12 +10,12 @@ import { CATEGORY, DEFAULT_STATUSES, LIMITABLE_ROLES, audience, statusesProblem 
 import { notifySuccess } from '@/lib/notify';
 import { isRouteMissing } from '@/lib/performance';
 import { useScope, useScopeCtx } from '@/lib/session/scope-context';
-import { Badge, Button, Callout, Card, Checkbox, Dialog, EmptyState, ErrorState, Field, Input, Select, SkeletonRows, Switch, Textarea, Tip, useConfirm } from '@/components/ui';
+import { Badge, Button, Callout, Card, Checkbox, Dialog, EmptyState, ErrorState, Field, Input, Page, PageHeader, Select, SkeletonRows, Switch, Textarea, Tip, useConfirm } from '@/components/ui';
 import { PropertiesEditor } from '../properties/PropertiesPage';
 import { AssistantAvatar } from '@/components/layout/Brand';
 
-/** Settings → Query types: the kinds of request the business handles, their statuses, forms and who sees them. */
-export function QueryTypesTab() {
+/** Query types: the kinds of request the business handles, their statuses, forms and who sees them. */
+export default function QueryTypesPage() {
   const { can } = useScopeCtx();
   const manage = can('queries.manage');
   const types = useQueryTypes({ archived: true });
@@ -29,7 +29,12 @@ export function QueryTypesTab() {
   const current = list.find((t) => t.id === selected) ?? list.find((t) => !t.archived);
 
   if (types.isError && isRouteMissing(types.error)) {
-    return <Callout tone="neutral" title="Queries aren't available on this server yet" />;
+    return (
+      <Page>
+        <PageHeader title="Query types" description="The kinds of request this business handles, with their statuses, forms and who sees them." />
+        <Callout tone="neutral" title="Queries aren't available on this server yet" />
+      </Page>
+    );
   }
 
   const onDelete = (t: QueryType) =>
@@ -42,10 +47,11 @@ export function QueryTypesTab() {
     });
 
   return (
-    <div className="grid gap-4">
+    <Page>
+      <PageHeader title="Query types" description="The kinds of request this business handles, with their statuses, forms and who sees them." />
       <Card
         flush
-        title="Query types"
+        title="Types"
         description="Each kind of request gets its own form and statuses. Turn on the assistant for a type to let it open queries in conversations and tell customers how theirs stand."
         actions={
           manage && (
@@ -133,7 +139,7 @@ export function QueryTypesTab() {
       )}
       {edit && <TypeDialog editing={edit === 'new' ? undefined : edit} onClose={() => setEdit(null)} onCreated={(t) => setSelected(t.id)} />}
       {presets && <PresetsDialog existing={list} onClose={() => setPresets(false)} onCreated={(t) => setSelected(t.id)} />}
-    </div>
+    </Page>
   );
 }
 

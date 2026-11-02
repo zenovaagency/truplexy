@@ -24,6 +24,7 @@ import {
   Package,
   ClipboardList,
   SlidersHorizontal,
+  ListChecks,
 } from 'lucide-react';
 import type { Permission } from '@/lib/api/types';
 import type { Feature } from '@/lib/features';
@@ -39,6 +40,7 @@ export const pages = {
   products: () => import('@/features/products/ProductsPage'),
   queries: () => import('@/features/queries/QueriesPage'),
   properties: () => import('@/features/properties/PropertiesPage'),
+  queryTypes: () => import('@/features/query-types/QueryTypesPage'),
   knowledge: () => import('@/features/knowledge/KnowledgePage'),
   draft: () => import('@/features/llm/draft'),
   usage: () => import('@/features/usage/UsagePage'),
@@ -86,6 +88,7 @@ export const BUSINESS_NAV: NavSection[] = [
       { id: 'products', label: 'Products', path: 'products', icon: Package, permission: 'products.read', key: 'r', prefetch: pages.products, feature: 'products', keywords: ['catalog', 'inventory', 'prices', 'stock', 'import', 'csv', 'shop'] },
       { id: 'queries', label: 'Queries', path: 'queries', icon: ClipboardList, permission: 'queries.read', key: 'q', prefetch: pages.queries, feature: 'queries', keywords: ['requests', 'payments', 'orders', 'delivery', 'refunds', 'cases', 'forms'] },
       { id: 'properties', label: 'Properties', path: 'properties', icon: SlidersHorizontal, permission: 'properties.read', key: 'f', prefetch: pages.properties, feature: 'properties', keywords: ['custom fields', 'fields', 'attributes', 'customer data'] },
+      { id: 'query-types', label: 'Query types', path: 'query-types', icon: ListChecks, permission: 'queries.read', key: 'y', prefetch: pages.queryTypes, feature: 'queries', keywords: ['forms', 'statuses', 'request types', 'payments', 'deliveries'] },
       { id: 'knowledge', label: 'Knowledge base', path: 'knowledge', icon: BookOpen, permission: 'knowledge.read', key: 'k', prefetch: pages.knowledge, keywords: ['documents', 'articles', 'upload', 'rag'] },
     ],
   },
