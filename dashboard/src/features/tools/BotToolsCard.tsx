@@ -5,6 +5,7 @@ import { useScopeCtx } from '@/lib/session/scope-context';
 import { storeToolPlatform } from '@/lib/woocommerce';
 import { Badge, Button, Callout, Card, Checkbox, ErrorState, SkeletonRows, Switch } from '@/components/ui';
 import { useBotDraft } from '@/features/llm/draft';
+import { isShown } from './visible';
 
 /** Which tools this bot may call. Part of the bot's draft, saved with the save bar. */
 export function BotToolsCard() {
@@ -24,6 +25,8 @@ export function BotToolsCard() {
   const library = tools.data?.data ?? [];
   const deleted = [...selected].filter((name) => !library.some((t) => t.name === name));
   const skipped = new Set([...library.filter((t) => selected.has(t.name) && !t.available).map((t) => t.name), ...(tools.data ? deleted : [])]);
+  // Built-in tools that aren't set up stay hidden, unless this bot already has one chosen so it can be unticked.
+  const shown = library.filter((t) => isShown(t) || selected.has(t.name));
 
   return (
     <Card
@@ -63,11 +66,11 @@ export function BotToolsCard() {
             <SkeletonRows rows={2} />
           ) : tools.isError ? (
             <ErrorState compact error={tools.error} />
-          ) : !library.length && !deleted.length ? (
+          ) : !shown.length && !deleted.length ? (
             <p className="text-[0.8125rem] text-ink-faint">No tools yet. Add one to the library below.</p>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {library.map((t) => (
+              {shown.map((t) => (
                 <li key={t.name} className={cn('rounded-[12px] border border-line p-3', !t.available && 'opacity-60')}>
                   <Checkbox
                     checked={selected.has(t.name)}

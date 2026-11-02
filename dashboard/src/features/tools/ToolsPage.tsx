@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
 import { AlertTriangle, CheckCircle2, Lock, MinusCircle, MoreHorizontal, Pencil, Play, Plus, Trash2, Wrench, XCircle } from 'lucide-react';
 import { hasCode } from '@/lib/api/client';
 import { useDeleteTool, useSaveTool, useTestTool, useTools } from '@/lib/api/endpoints/bot';
@@ -39,6 +38,7 @@ import {
 } from '@/components/ui';
 import { useBotDraft } from '@/features/llm/draft';
 import { BotToolsCard } from './BotToolsCard';
+import { isShown } from './visible';
 import { MAX_PARAMS, ParamsForm, newRow, rowsToSchema, schemaToRows, validateRows, type ParamRow } from './ParamsEditor';
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
@@ -63,22 +63,9 @@ export function BuiltInBadge({ tool }: { tool: Tool }) {
   return tool.built_in ? <Badge tone="accent">{storeToolPlatform(tool) ? `Built-in · ${storeToolPlatform(tool)}` : 'Built-in'}</Badge> : null;
 }
 
-/** Why a tool can't be called, with the way to fix it for the Shopify and WooCommerce tools. */
-export function UnavailableReason({ tool }: { tool: Tool }) {
-  const { href } = useScopeCtx();
-  return (
-    <>
-      {tool.unavailable_reason || tool.description}
-      {storeToolPlatform(tool) && (
-        <>
-          {' '}
-          <Link to={href('integrations/guides')} className="font-semibold text-accent hover:underline" onClick={(e) => e.stopPropagation()}>
-            Connect a {storeToolPlatform(tool)} store
-          </Link>
-        </>
-      )}
-    </>
-  );
+/** Why a tool can't be called. Built-in tools that aren't set up are hidden, so this is mostly the business's own tools. */
+function UnavailableReason({ tool }: { tool: Tool }) {
+  return <>{tool.unavailable_reason || tool.description}</>;
 }
 
 const paramCount = (t: Tool) => Object.keys(t.parameters.properties ?? {}).length;
@@ -93,8 +80,9 @@ export default function ToolsPage() {
   const [testing, setTesting] = useState<Tool | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const writable = can('tools.write');
+  const rows = useMemo(() => tools.data?.data.filter(isShown) ?? [], [tools.data]);
   // Read from the list so the view stays current after an edit.
-  const viewed = tools.data?.data.find((t) => t.name === viewing) ?? null;
+  const viewed = rows.find((t) => t.name === viewing) ?? null;
 
   // Taking a tool off this bot is a draft change, saved with the save bar.
   const chosen = draft.bot.tools ?? [];
@@ -224,7 +212,7 @@ export default function ToolsPage() {
           <SkeletonRows rows={3} className="p-4" />
         ) : tools.isError ? (
           <ErrorState error={tools.error} onRetry={() => tools.refetch()} />
-        ) : !tools.data.data.length ? (
+        ) : !rows.length ? (
           <EmptyState
             icon={<Wrench />}
             title="No tools yet"
@@ -234,7 +222,7 @@ export default function ToolsPage() {
         ) : (
           <DataTable
             columns={columns}
-            rows={tools.data.data}
+            rows={rows}
             getKey={(t) => t.name}
             onRowClick={(t) => setViewing(t.name)}
             selectedKey={viewed?.name}
@@ -262,7 +250,7 @@ export default function ToolsPage() {
         )}
       </Card>
 
-      {!writable && tools.data?.data.length ? (
+      {!writable && rows.length ? (
         <p className="flex items-center gap-2 text-xs text-ink-faint">
           <Lock className="size-3.5" /> Your role can see tools but not change or run them.
         </p>
