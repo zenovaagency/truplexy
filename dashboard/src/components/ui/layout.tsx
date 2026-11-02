@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink, useLocation } from 'react-router';
 import { cn } from '@/lib/cn';
 import { Count } from './display';
 
@@ -91,10 +91,13 @@ export interface TabItem {
   count?: number;
   end?: boolean;
   hidden?: boolean;
+  /** Overrides when the tab counts as current, for a tab whose pages live under another tab's URL. */
+  active?: (pathname: string) => boolean;
 }
 
 /** Route-backed sub-navigation: each tab is a URL, so it can be linked and reloaded. */
 export function SubNav({ items, className }: { items: TabItem[]; className?: string }) {
+  const { pathname } = useLocation();
   return (
     <nav
       className={cn('-mx-[var(--page-x)] overflow-x-auto px-[var(--page-x)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
@@ -108,10 +111,12 @@ export function SubNav({ items, className }: { items: TabItem[]; className?: str
               key={i.to}
               to={i.to}
               end={i.end}
+              // NavLink marks a tab current by URL prefix; a tab with its own rule must say so for assistive tech too.
+              aria-current={i.active ? (i.active(pathname) ? 'page' : 'false') : undefined}
               className={({ isActive }) =>
                 cn(
                   'relative -mb-px inline-flex h-10 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-[0.8125rem] font-semibold transition-colors [&_svg]:size-4',
-                  isActive ? 'border-accent text-ink' : 'border-transparent text-ink-faint hover:text-ink',
+                  (i.active ? i.active(pathname) : isActive) ? 'border-accent text-ink' : 'border-transparent text-ink-faint hover:text-ink',
                 )
               }
             >

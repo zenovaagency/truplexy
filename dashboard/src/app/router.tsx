@@ -44,9 +44,11 @@ const businessRoutes: RouteObject[] = [
   gated('properties.read', [{ path: 'properties', ...lazyRoute(pages.properties, (m) => m.default) }]),
   // Properties moved out of Settings.
   { path: 'settings/properties', element: <Navigate to="../properties" replace /> },
-  gated('queries.read', [{ path: 'query-types', ...lazyRoute(pages.queryTypes, (m) => m.default) }]),
-  // Query types moved out of Settings.
-  { path: 'settings/query-types', element: <Navigate to="../query-types" replace /> },
+  // Query types are a tab of Queries now; the static path wins over :queryId.
+  gated('queries.read', [{ path: 'queries/types', ...lazyRoute(pages.queryTypes, (m) => m.default) }]),
+  { path: 'query-types', element: <Navigate to="/queries/types" replace /> },
+  // Earlier addresses of Query types.
+  { path: 'settings/query-types', element: <Navigate to="/queries/types" replace /> },
   gated('customers.read', [{ path: 'customers/:customerId?', ...lazyRoute(pages.customers, (m) => m.default) }]),
   gated('knowledge.read', [
     {
