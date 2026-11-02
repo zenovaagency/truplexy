@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { ClipboardList, Lock, Plus, Search, Settings2, Trash2 } from 'lucide-react';
+import { ClipboardList, Lock, Plus, Search, Trash2 } from 'lucide-react';
 import { useCustomerQuery, useDeleteQuery, useQueries, useQueryEvents, useQueryTypes, useUpdateQuery } from '@/lib/api/endpoints/queries';
 import { useProperties } from '@/lib/api/endpoints/properties';
 import type { CustomerQuery, QueryType } from '@/lib/api/types';
@@ -33,6 +33,7 @@ import {
 import { PropertyFields } from '@/components/domain/Properties';
 import { AssigneePicker } from '@/features/tickets/shared';
 import { NewQueryDialog, type QueryPrefill } from './NewQueryDialog';
+import { QueriesTabs } from './QueriesTabs';
 import { AssistantAvatar } from '@/components/layout/Brand';
 
 type View = 'active' | 'open' | 'pending' | 'done' | 'all';
@@ -114,20 +115,15 @@ export default function QueriesPage() {
         title="Queries"
         description="Payments, orders, deliveries and other requests, each with its own form and statuses. The assistant can open them in a conversation and tell customers how theirs stand."
         actions={
-          <>
-            {can('queries.manage') && (
-              <Button asChild size="sm" leading={<Settings2 />}>
-                <Link to={href('query-types')}>Query types</Link>
-              </Button>
-            )}
-            {writable && live.length > 0 && (
-              <Button variant="accent" size="sm" leading={<Plus />} onClick={() => setCreating(true)}>
-                New query
-              </Button>
-            )}
-          </>
+          writable &&
+          live.length > 0 && (
+            <Button variant="accent" size="sm" leading={<Plus />} onClick={() => setCreating(true)}>
+              New query
+            </Button>
+          )
         }
       />
+      <QueriesTabs />
       <Card flush>
         <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
           <Segmented
@@ -180,7 +176,7 @@ export default function QueriesPage() {
                   action={
                     can('queries.manage') && (
                       <Button asChild variant="accent">
-                        <Link to={href('query-types')}>Set up query types</Link>
+                        <Link to={href('queries/types')}>Set up query types</Link>
                       </Button>
                     )
                   }

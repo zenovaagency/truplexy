@@ -13,6 +13,7 @@ import { useScope, useScopeCtx } from '@/lib/session/scope-context';
 import { Badge, Button, Callout, Card, Checkbox, Dialog, EmptyState, ErrorState, Field, Input, Page, PageHeader, Select, SkeletonRows, Switch, Textarea, Tip, useConfirm } from '@/components/ui';
 import { PropertiesEditor } from '../properties/PropertiesPage';
 import { AssistantAvatar } from '@/components/layout/Brand';
+import { QueriesTabs } from '../queries/QueriesTabs';
 
 /** Query types: the kinds of request the business handles, their statuses, forms and who sees them. */
 export default function QueryTypesPage() {
@@ -31,7 +32,8 @@ export default function QueryTypesPage() {
   if (types.isError && isRouteMissing(types.error)) {
     return (
       <Page>
-        <PageHeader title="Query types" description="The kinds of request this business handles, with their statuses, forms and who sees them." />
+        <PageHeader title="Queries" description="The kinds of request this business handles, with their statuses, forms and who sees them." />
+        <QueriesTabs />
         <Callout tone="neutral" title="Queries aren't available on this server yet" />
       </Page>
     );
@@ -48,7 +50,8 @@ export default function QueryTypesPage() {
 
   return (
     <Page>
-      <PageHeader title="Query types" description="The kinds of request this business handles, with their statuses, forms and who sees them." />
+      <PageHeader title="Queries" description="The kinds of request this business handles, with their statuses, forms and who sees them." />
+        <QueriesTabs />
       <Card
         flush
         title="Types"

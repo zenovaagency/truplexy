@@ -27,11 +27,11 @@ const payment: QueryType = {
   updated_at: '',
 };
 
-const routes = [{ path: '/query-types', element: <QueryTypesPage /> }];
+const routes = [{ path: '/queries/types', element: <QueryTypesPage /> }];
 
 describe('Query types page', () => {
   it('lists types with their statuses, audience and assistant, and shows the form of the first', async () => {
-    await renderPage(routes, '/query-types', ({ path }) => {
+    await renderPage(routes, '/queries/types', ({ path }) => {
       if (path === '/query-types') return json(200, { data: [payment] });
       if (path === '/properties') return json(200, { data: [] });
       return undefined;
@@ -43,8 +43,17 @@ describe('Query types page', () => {
     expect(text()).toContain('Payment issue: form');
   });
 
+  it('sits beside Queries as a tab of the same section', async () => {
+    await renderPage(routes, '/queries/types', ({ path }) => (path === '/query-types' ? json(200, { data: [payment] }) : path === '/properties' ? json(200, { data: [] }) : undefined));
+    const links = [...document.querySelectorAll('nav[aria-label="Sections"] a')];
+    expect(links.map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('aria-current')])).toEqual([
+      ['Queries', '/queries', 'false'],
+      ['Types', '/queries/types', 'page'],
+    ]);
+  });
+
   it('adds a type with a key from its name and the default statuses', async () => {
-    const { calls } = await renderPage(routes, '/query-types', ({ method, path, body }) => {
+    const { calls } = await renderPage(routes, '/queries/types', ({ method, path, body }) => {
       if (path === '/query-types' && method === 'GET') return json(200, { data: [] });
       if (path === '/query-types' && method === 'POST') return json(201, { ...payment, ...(body as object), id: 'qtp_new' });
       if (path === '/properties') return json(200, { data: [] });
