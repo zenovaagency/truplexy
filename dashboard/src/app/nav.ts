@@ -13,6 +13,7 @@ import {
   Shapes,
   ScrollText,
   Settings,
+  CircleUserRound,
   Ticket,
   UserRound,
   Users,
@@ -52,6 +53,7 @@ export const pages = {
   logs: () => import('@/features/logs/LogsPage'),
   team: () => import('@/features/team/TeamPage'),
   settings: () => import('@/features/settings/SettingsLayout'),
+  account: () => import('@/features/account/AccountPage'),
   platform: () => import('@/features/platform/PlatformPages'),
 };
 
@@ -112,6 +114,7 @@ export const BUSINESS_NAV: NavSection[] = [
       { id: 'team', label: 'Team', path: 'team', icon: Users, permission: 'members.read', key: 'm', prefetch: pages.team, keywords: ['members', 'invite', 'roles'] },
       { id: 'logs', label: 'Logs', path: 'logs', icon: ScrollText, permission: 'audit.read', key: 'h', prefetch: pages.logs, keywords: ['audit', 'activity', 'history'] },
       { id: 'settings', label: 'Settings', path: 'settings', icon: Settings, permission: 'members.read', key: 's', prefetch: pages.settings, keywords: ['business', 'plan', 'bots', 'backup'] },
+      { id: 'account', label: 'Account', path: 'account', icon: CircleUserRound, key: 'e', prefetch: pages.account, keywords: ['profile', 'email', 'password', 'name', 'reset password', 'sign in', 'login'] },
     ],
   },
 ];

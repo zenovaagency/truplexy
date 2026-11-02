@@ -46,11 +46,11 @@ interface Creds {
   password: string;
 }
 
-function validate(v: Creds, mode: 'signin' | 'signup' | 'magic') {
+function validate(v: Creds, mode: 'signin' | 'signup' | 'magic' | 'reset') {
   const errs: Partial<Record<keyof Creds, string>> = {};
   if (mode === 'signup' && !v.name.trim()) errs.name = 'Enter your name';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) errs.email = 'Enter a valid email address';
-  if (mode !== 'magic' && v.password.length < 8) errs.password = 'At least 8 characters';
+  if (mode !== 'magic' && mode !== 'reset' && v.password.length < 8) errs.password = 'At least 8 characters';
   return errs;
 }
 
@@ -65,9 +65,9 @@ export function SignInPage() {
   const auth = useAuth();
   const [params] = useSearchParams();
   const next = safeNext(params.get('next'));
-  const [mode, setMode] = useState<'signin' | 'signup' | 'magic'>(() => {
+  const [mode, setMode] = useState<'signin' | 'signup' | 'magic' | 'reset'>(() => {
     const m = params.get('mode');
-    return m === 'signup' || m === 'magic' ? m : 'signin';
+    return m === 'signup' || m === 'magic' || m === 'reset' ? m : 'signin';
   });
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,15 +101,18 @@ export function SignInPage() {
       if (mode === 'magic') {
         await auth.sendMagicLink(v.email, next);
         if (!env.useMocks) setSent(v.email);
+      } else if (mode === 'reset') {
+        await auth.sendPasswordReset(v.email.trim());
+        setSent(v.email.trim());
       } else if (mode === 'signup') {
         const r = await auth.signUp(v.email, v.password, v.name.trim(), next);
         if (r.needsConfirmation) setSent(v.email);
       } else {
         await auth.signInWithPassword(v.email, v.password);
       }
-      if (env.useMocks) nav(next, { replace: true });
+      if (env.useMocks && mode !== 'reset') nav(next, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      setError(err instanceof Error ? err.message : mode === 'reset' ? "Couldn't send the reset email." : 'Sign-in failed.');
     } finally {
       setSubmitting(false);
     }
@@ -124,7 +127,15 @@ export function SignInPage() {
           </span>
           <h1 className="text-2xl font-bold text-ink">Check your inbox</h1>
           <p className="text-ink-muted">
-            We sent a link to <span className="font-semibold text-ink">{sent}</span>. Open it on this device to continue.
+            {mode === 'reset' ? (
+              <>
+                If <span className="font-semibold text-ink">{sent}</span> has a Truplexy account, we sent a link to choose a new password. Open it on this device.
+              </>
+            ) : (
+              <>
+                We sent a link to <span className="font-semibold text-ink">{sent}</span>. Open it on this device to continue.
+              </>
+            )}
           </p>
           <Button variant="ghost" onClick={() => setSent(null)} leading={<ArrowLeft />}>
             Use a different email
@@ -134,7 +145,7 @@ export function SignInPage() {
     );
   }
 
-  const title = mode === 'signup' ? 'Create your account' : 'Welcome back';
+  const title = mode === 'signup' ? 'Create your account' : mode === 'reset' ? 'Reset your password' : 'Welcome back';
 
   return (
     <AuthFrame>
@@ -142,7 +153,11 @@ export function SignInPage() {
         <div className="grid gap-2">
           <h1 className="text-[1.75rem] font-bold leading-tight text-ink">{title}</h1>
           <p className="text-ink-muted">
-            {mode === 'signup' ? 'Set up your assistant in a few minutes.' : 'Sign in to run your Truplexy assistant.'}
+            {mode === 'signup'
+              ? 'Set up your assistant in a few minutes.'
+              : mode === 'reset'
+                ? "Enter your email and we'll send you a link to choose a new one."
+                : 'Sign in to run your Truplexy assistant.'}
           </p>
         </div>
 
@@ -208,8 +223,18 @@ export function SignInPage() {
           <Field label="Work email" error={errs.email}>
             <Input type="email" autoComplete="email" inputMode="email" {...field('email')} />
           </Field>
-          {mode !== 'magic' && (
-            <Field label="Password" error={errs.password}>
+          {mode !== 'magic' && mode !== 'reset' && (
+            <Field
+              label="Password"
+              error={errs.password}
+              aside={
+                mode === 'signin' ? (
+                  <button type="button" className="font-semibold text-accent hover:underline" onClick={() => (setError(null), setMode('reset'))}>
+                    Forgot password?
+                  </button>
+                ) : undefined
+              }
+            >
               <div className="relative">
                 <Input
                   type={showPassword ? 'text' : 'password'}
@@ -231,16 +256,22 @@ export function SignInPage() {
           )}
           {error && <p className="rounded-[10px] bg-danger-soft px-3 py-2 text-[0.8125rem] font-medium text-danger">{error}</p>}
           <Button type="submit" size="md" variant="accent" className="w-full" loading={submitting} disabled={!authConfigured}>
-            {mode === 'signup' ? 'Create account' : mode === 'magic' ? 'Email me a sign-in link' : 'Sign in'}
+            {mode === 'signup' ? 'Create account' : mode === 'magic' ? 'Email me a sign-in link' : mode === 'reset' ? 'Email me a reset link' : 'Sign in'}
           </Button>
           <div className="flex items-center gap-3 text-xs text-ink-faint">
             <span className="h-px flex-1 bg-line" />
             or
             <span className="h-px flex-1 bg-line" />
           </div>
-          <Button size="md" variant="ghost" className="w-full" leading={<Mail />} onClick={() => setMode(mode === 'magic' ? 'signin' : 'magic')}>
-            {mode === 'magic' ? 'Use a password instead' : 'Email me a sign-in link'}
-          </Button>
+          {mode === 'reset' ? (
+            <Button size="md" variant="ghost" className="w-full" leading={<ArrowLeft />} onClick={() => (setError(null), setMode('signin'))}>
+              Back to sign in
+            </Button>
+          ) : (
+            <Button size="md" variant="ghost" className="w-full" leading={<Mail />} onClick={() => setMode(mode === 'magic' ? 'signin' : 'magic')}>
+              {mode === 'magic' ? 'Use a password instead' : 'Email me a sign-in link'}
+            </Button>
+          )}
         </form>
 
         {mode === 'signup' && (
@@ -257,12 +288,14 @@ export function SignInPage() {
           </p>
         )}
 
-        <p className="text-center text-[0.8125rem] text-ink-muted">
-          {mode === 'signup' ? 'Already have an account? ' : 'New to Truplexy? '}
-          <button type="button" className="font-semibold text-accent hover:underline" onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}>
-            {mode === 'signup' ? 'Sign in' : 'Create an account'}
-          </button>
-        </p>
+        {mode !== 'reset' && (
+          <p className="text-center text-[0.8125rem] text-ink-muted">
+            {mode === 'signup' ? 'Already have an account? ' : 'New to Truplexy? '}
+            <button type="button" className="font-semibold text-accent hover:underline" onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}>
+              {mode === 'signup' ? 'Sign in' : 'Create an account'}
+            </button>
+          </p>
+        )}
       </div>
     </AuthFrame>
   );

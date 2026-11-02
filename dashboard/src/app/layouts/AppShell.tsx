@@ -11,13 +11,14 @@ import { cn } from '@/lib/cn';
 import { formatCompact } from '@/lib/format';
 import { usePerformanceNav } from '@/lib/performance';
 import { useFeatureNav } from '@/lib/features';
-import { useLiveUpdates, type LiveStatus } from '@/lib/realtime';
+import { useLiveUpdates } from '@/lib/realtime';
 import { ScopeContext, useScopeCtx } from '@/lib/session/scope-context';
 import { useHotkeys, useIsDesktop, useIsTablet, useStoredState } from '@/hooks';
 import { BUSINESS_NAV, PLATFORM_NAV, type NavItem } from '@/app/nav';
 import { Badge, Button, Kbd, MOD, Progress, Tip } from '@/components/ui';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ScopeSwitcher } from '@/components/layout/ScopeSwitcher';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { UserMenu } from '@/components/layout/UserMenu';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 
@@ -121,7 +122,8 @@ export function AppShell({ variant }: { variant: 'business' | 'platform' }) {
             <Button icon variant="quiet" className="lg:hidden" onClick={() => setPalette(true)} aria-label="Search">
               <Search />
             </Button>
-            {variant === 'business' && <LiveIndicator />}
+            {variant === 'business' && <LiveUpdates />}
+            <ThemeToggle />
             <ApiStatusDot />
             <UserMenu />
           </div>
@@ -238,28 +240,10 @@ function PlatformSidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavi
 
 /* ------------------------------------------------------------------ */
 
-const LIVE_COPY: Record<LiveStatus, { label: string; tip: string }> = {
-  live: { label: 'Live', tip: 'Tickets update the moment customers write.' },
-  connecting: { label: 'Connecting', tip: 'Connecting to live updates…' },
-  polling: { label: 'Polling', tip: "Live updates aren't available, so tickets refresh every 2 minutes." },
-  off: { label: 'Off', tip: '' },
-};
-
-function LiveIndicator() {
-  const status = useLiveUpdates();
-  if (status === 'off') return null;
-  const c = LIVE_COPY[status];
-  return (
-    <Tip content={c.tip}>
-      <span className="hidden h-8 items-center gap-2 rounded-full border border-line bg-surface px-2.5 text-xs font-semibold text-ink-muted md:inline-flex">
-        <span
-          className={cn('live-dot', status !== 'live' && 'bg-ink-faint shadow-none')}
-          data-pulse={status === 'live' ? '' : undefined}
-        />
-        {c.label}
-      </span>
-    </Tip>
-  );
+/** Keeps the bot's live connection open so tickets refresh the moment customers write. Shows nothing. */
+function LiveUpdates() {
+  useLiveUpdates();
+  return null;
 }
 
 function ApiStatusDot() {
