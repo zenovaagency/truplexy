@@ -133,11 +133,11 @@ export function Switch({
   if (!label) return control;
   return (
     <div className={cn('flex items-start justify-between gap-4', className)}>
-      <label htmlFor={sid} className="grid gap-0.5">
+      <label htmlFor={sid} className="grid min-w-0 gap-0.5">
         <span className="text-[0.8125rem] font-semibold text-ink">{label}</span>
         {description && <span className="text-xs text-ink-faint">{description}</span>}
       </label>
-      <div className="pt-0.5">{control}</div>
+      <div className="shrink-0 pt-0.5">{control}</div>
     </div>
   );
 }

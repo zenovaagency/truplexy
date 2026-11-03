@@ -2166,7 +2166,7 @@ function ModelSheet({ model, onClose }: { model: PlatformModel | 'new' | null; o
         </>
       }
     >
-      <div className="grid gap-4">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
         {!existing && (
           <Field label="Start from OpenRouter" optional hint="Fills the ID, name, prices, context and tool support. You can change any of it.">
             <OpenRouterPicker onPick={fill} />
