@@ -1133,7 +1133,7 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
               ? `Default (now ${formatAutoClose(existing.effective_auto_close_hours).toLowerCase()})`
               : "The channel type's or business's time"
           }
-          hint="Open tickets from this channel close after this long without activity. Tickets marked keep open, and ones waiting on your team, never close on their own."
+          hint="Open tickets from this channel close after this long without activity. Tickets marked keep open never close on their own."
         />
         <button type="submit" hidden />
       </form>
