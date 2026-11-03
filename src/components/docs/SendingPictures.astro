@@ -18,7 +18,8 @@ curl --fail-with-body ${PUBLIC_API}/profile -H "Authorization: Bearer $TRUPLEXY_
 # The answer may be cached for 60 seconds (Cache-Control: private, max-age=60).`;
 ---
 
-<h2 id="pictures">Send pictures</h2>
+<h2 id="pictures">Send pictures <span class="soon-tag">Coming soon</span></h2>
+<p><strong>Not switched on yet.</strong> Until it is, <code>GET /profile</code> has no <code>attachments</code> and the steps below are refused, so build against the check below and your attach button appears on its own once pictures are on.</p>
 <p>A customer can attach 1 to 3 pictures to a message and the assistant reads them. Pictures never pass through the JSON bodies: they go straight to storage, and the message names them by ID. Each one takes three steps, and the third is the message itself:</p>
 <ol>
   <li><strong>Register</strong> the picture: <code>POST /conversations/{'{id}'}/attachments</code> with <code>{'{filename, content_type, size, sha256}'}</code>. The answer has a presigned <code>url</code>, the <code>headers</code> to send and an attachment <code>id</code>.</li>

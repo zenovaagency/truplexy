@@ -2,7 +2,7 @@
 export const CHAT_API_ENDPOINTS = [
   ['GET', '/profile', 'getProfile()', 'Business and bot names and pictures.'],
   ['PUT', '/customer', 'upsertCustomer(input)', 'Find or create a customer by contacts; 200 existing, 201 new.'],
-  ['POST', '/conversations', 'createConversation(input?)', 'Start a conversation with optional customer_id and channel_id.'],
+  ['POST', '/conversations', 'createConversation(input?)', 'Start a conversation with optional customer_id, channel_id, context and ticket.'],
   ['GET', '/conversations/{id}', 'getConversation(id)', 'Read the latest 200 messages, oldest first.'],
   ['POST', '/conversations/{id}/messages', 'sendMessage(id, text)', 'Send 1–4000 characters; inspect status and nullable reply.'],
   ['POST', '/conversations/{id}/handoff', 'handoff(id)', 'Flag for the team; the AI keeps replying.'],

@@ -301,9 +301,26 @@ paths:
                   type: string
                   pattern: '^cus_[0-9a-f]{32}$'
                   description: One of the bot's customers (v2), from PUT /customer; the conversation and its tickets are theirs. 404 CUSTOMER_NOT_FOUND for one the bot doesn't have.
+                context:
+                  type: string
+                  maxLength: 4000
+                  description: Background for the assistant, stored as a "[Context only] …" message that gets no reply. Best effort, done at the same time as the ticket.
+                ticket:
+                  type: object
+                  additionalProperties: false
+                  description: Opens the conversation's ticket, as POST /conversations/{id}/ticket does, and returns it as ticket. Best effort; 400 FEATURE_UNAVAILABLE without tickets.
+                  properties:
+                    subject:
+                      type: string
+                      maxLength: 200
+                    priority:
+                      type: string
+                      enum: [low, normal, high, urgent]
+                    keep_open:
+                      type: boolean
       responses:
         '201':
-          description: The new, empty conversation.
+          description: The new conversation, with the ticket the body asked for when it was opened.
           content:
             application/json:
               schema:
@@ -362,6 +379,10 @@ paths:
                   description: The customer's message, trimmed before it is checked. 1-4000 characters, or empty when attachments is set.
                 attachments:
                   $ref: '#/components/schemas/AttachmentIDs'
+                if_ticket_closed:
+                  type: string
+                  enum: [reject]
+                  description: By default a message to a conversation whose ticket is closed is answered like any other. With reject it is refused with 409 TICKET_CLOSED before anything is stored, so a customer-facing widget can't continue a closed chat. A conversation without a ticket is never refused.
       responses:
         '200':
           description: The stored customer message and the reply.
@@ -1596,11 +1617,12 @@ paths:
   /channels/connect:
     post:
       operationId: connectChannel
-      summary: Start connecting a channel through its platform, such as a Shopify store (v2)
+      summary: Start connecting a channel through its platform, such as a Shopify or WooCommerce store (v2)
       description: >-
         Needs channels.write. Answers the platform page to send the browser to. After the owner approves, the API's
         callback adds the channel and sends the browser to return_to with connected=shopify&channel_id=… or
-        connect_error=denied|expired|invalid|store_connected_elsewhere|scopes_missing|failed, plus type=shopify.
+        connect_error=denied|expired|invalid|store_connected_elsewhere|scopes_missing|failed, plus type=shopify or
+        type=woocommerce.
         400 CHANNEL_CONNECT_UNSUPPORTED for a type added with POST /channels; 400 CHANNEL_TYPE_NOT_ALLOWED for a type
         that isn't offered; 503 CHANNEL_CONNECT_UNAVAILABLE when the server has no app for the platform.
       security:
@@ -1616,10 +1638,12 @@ paths:
               properties:
                 type:
                   type: string
-                  enum: [shopify]
+                  enum: [shopify, woocommerce]
                 account:
                   type: string
-                  description: The store, as your-store, your-store.myshopify.com or https://admin.shopify.com/store/your-store.
+                  description: >-
+                    The store. Shopify: your-store, your-store.myshopify.com or https://admin.shopify.com/store/your-store.
+                    WooCommerce: the https address of the store, such as https://shop.example.com.
                 return_to:
                   type: string
                   format: uri
@@ -1927,6 +1951,11 @@ paths:
           schema:
             type: string
           description: Matches titles and file names.
+        - name: source_name
+          in: query
+          schema:
+            type: string
+          description: Only the uploaded file with this name, ignoring case.
         - name: status
           in: query
           schema:
@@ -2096,6 +2125,42 @@ paths:
                 $ref: '#/components/schemas/KnowledgeDocument'
         default:
           $ref: '#/components/responses/Error'
+  /knowledge/documents/{id}/replace:
+    parameters:
+      - $ref: '#/components/parameters/DocumentID'
+    post:
+      operationId: replaceKnowledgeDocument
+      summary: Register a new version of an uploaded file
+      description: PUT the file to url with exactly headers within 15 minutes, then call process. The document keeps its ID, title (unless it came from the old file's name) and metadata, and answers from its current version until process reads the new file; only passages whose text changed are embedded again. A new file that can't be read is dropped (process returns 400) and the current version stays. Articles can't be replaced (400); the same file, or another document's, is 409 DUPLICATE_DOCUMENT.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, size, sha256]
+              properties:
+                filename:
+                  type: string
+                  maxLength: 260
+                size:
+                  type: integer
+                  minimum: 1
+                sha256:
+                  type: string
+                  pattern: '^[0-9a-f]{64}$'
+      responses:
+        '201':
+          description: Where to upload the new file.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeUpload'
+        default:
+          $ref: '#/components/responses/Error'
   /knowledge/uploads:
     post:
       operationId: createKnowledgeUpload
@@ -2146,29 +2211,16 @@ paths:
                 version:
                   type: string
                   maxLength: 64
+                replace_existing:
+                  type: boolean
+                  description: Replace the bot's uploaded file with the same name, ignoring case, as replaceKnowledgeDocument does, instead of adding a document.
       responses:
         '201':
           description: Where to upload the file.
           content:
             application/json:
               schema:
-                type: object
-                required: [document, url, method, headers, expires_at]
-                properties:
-                  document:
-                    $ref: '#/components/schemas/KnowledgeDocument'
-                  url:
-                    type: string
-                  method:
-                    type: string
-                    enum: [PUT]
-                  headers:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  expires_at:
-                    type: string
-                    format: date-time
+                $ref: '#/components/schemas/KnowledgeUpload'
         default:
           $ref: '#/components/responses/Error'
   /knowledge/suggestions:
@@ -2702,42 +2754,6 @@ paths:
                           description: How long those replies took to write on average, in seconds; 0 when there were none.
         default:
           $ref: '#/components/responses/Error'
-  /stats/performance:
-    get:
-      operationId: getPerformanceStats
-      summary: Requests, latency, reply pipeline stages and RAG quality for a date range (v2)
-      description: How the API performed for the bot, or the whole business with scope=business. Counts and latency of the HTTP requests it served (stored when the server runs with PERF_HTTP_STATS; see recording), where a reply's time went stage by stage, how well retrieval worked, and each model's call latency and failures. Percentiles are nearest-rank, in whole milliseconds. Read recording first; when recording.http is false, requests and latency are all zero.
-      security:
-        - AdminKey: []
-        - MemberToken: []
-      parameters:
-        - name: to
-          in: query
-          description: Last day (UTC), inclusive. Defaults to today.
-          schema:
-            type: string
-            format: date
-        - name: from
-          in: query
-          description: First day (UTC), inclusive. Defaults to 29 days before to. The range covers at most 366 days.
-          schema:
-            type: string
-            format: date
-        - name: scope
-          in: query
-          description: bot (the default) covers the requesting bot; business covers every bot of its business.
-          schema:
-            type: string
-            enum: [bot, business]
-      responses:
-        '200':
-          description: Performance statistics.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PerformanceStats'
-        default:
-          $ref: '#/components/responses/Error'
   /bots/{id}/avatar:
     put:
       operationId: setBotAvatar
@@ -3186,7 +3202,7 @@ paths:
     post:
       operationId: replyToTicket
       summary: Reply to the customer, or add an internal note
-      description: A reply to a ticket with a conversation is added to the conversation as an assistant message with author agent, which the chat API returns and later replies take as history. A note is seen only in the dashboard.
+      description: A reply to a ticket with a conversation is added to the conversation as an assistant message with author agent, which the chat API returns and later replies take as history. A note is seen only in the dashboard. A reply needs the conversation taken over first (PATCH escalated true); while the assistant is still answering it returns 409 TAKE_OVER_REQUIRED. Notes, replies on a closed ticket and tickets without a conversation are not affected.
       security:
         - AdminKey: []
         - MemberToken: []
@@ -3226,6 +3242,8 @@ paths:
                     $ref: '#/components/schemas/TicketReply'
                   ticket:
                     $ref: '#/components/schemas/Ticket'
+        '409':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /tickets/{id}/summary:
@@ -4563,7 +4581,7 @@ paths:
     get:
       operationId: getPlatformPerformance
       summary: Requests, latency, reply pipeline stages and RAG quality across every business (v2)
-      description: The same body as getPerformanceStats, covering every business and the requests no business could be identified for, with scope platform. Adds tenants, the businesses with the most requests. Takes no scope.
+      description: The performance of the API: counts and latency of the HTTP requests it served (stored when the server runs with PERF_HTTP_STATS; see recording), where a reply's time went stage by stage, how well retrieval worked, and each model's call latency and failures. Percentiles are nearest-rank, in whole milliseconds. Covers every business and the requests no business could be identified for, with scope platform. Adds tenants, the businesses with the most requests. Takes no scope.
       security:
         - AdminKey: []
         - MemberToken: []
@@ -6139,7 +6157,7 @@ components:
           description: Present only when available is false.
         built_in:
           type: boolean
-          description: True for a built-in tool, such as shopify_order_status (v2); its api fields are empty.
+          description: True for a built-in tool, such as shopify_order_status or woocommerce_order_status (v2); its api fields are empty.
         api:
           type: object
           description: How the tool calls its endpoint.
@@ -8513,9 +8531,33 @@ components:
           type: string
         version:
           type: string
+        replace_pending:
+          type: boolean
+          description: A new version of the file is registered but not read yet; the document answers from its current version.
         content:
           type: string
           description: The Markdown text; only when reading one document.
+    KnowledgeUpload:
+      type: object
+      required: [document, url, method, headers, expires_at]
+      properties:
+        document:
+          $ref: '#/components/schemas/KnowledgeDocument'
+        url:
+          type: string
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+        replaced:
+          type: boolean
+          description: The file replaces the document's current one.
     ArticleInput:
       type: object
       additionalProperties: false
@@ -8721,6 +8763,10 @@ components:
           description: Oldest first.
           items:
             $ref: '#/components/schemas/ChatMessage'
+        ticket:
+          allOf:
+            - $ref: '#/components/schemas/ChatTicket'
+          description: The conversation's current ticket, the open one else the latest (then closed). Only GET /conversations/{id} returns it, and it is left out when the conversation never had a ticket.
     ChatReply:
       type: object
       required: [message, reply, status, sources]
@@ -8761,6 +8807,10 @@ components:
         created_at:
           type: string
           format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          description: When the ticket was closed. Left out while it is open.
     ChatPlatformReply:
       type: object
       required: [message, escalated]
@@ -9054,7 +9104,8 @@ components:
                     type: string
                   author:
                     type: string
-                    enum: [customer, assistant, agent]
+                    enum: [customer, assistant, agent, system]
+                    description: system is a notice that the conversation changed hands; agent names the person.
                   agent:
                     type: string
                   via:

@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-03',
+    title: 'Chats waiting on your team close on time',
+    tag: 'Dashboard',
+    items: [
+      'A chat waiting on your team (escalated or handed off, with the customer writing last) now closes on its own once its auto-close time passes without activity, like any other chat. Turn on Keep open for a ticket that should stay open.',
+    ],
+  },
+  {
     date: '2026-10-31',
     title: 'Every plan starts with a free trial',
     tag: 'Pricing',
