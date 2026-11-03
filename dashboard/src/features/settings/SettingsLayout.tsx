@@ -158,7 +158,7 @@ export function BusinessTab() {
             value={autoClose}
             disabled={!writable}
             onChange={(v) => setAutoClose(v ?? 0)}
-            hint="Open tickets close on their own after this long with no message and no change. Channels and channel types can set their own time; tickets marked keep open, and ones waiting on your team, never close on their own."
+            hint="Open tickets close on their own after this long with no message and no change. Channels and channel types can set their own time; tickets marked keep open never close on their own."
           />
           {writable && (
             <div className="flex justify-end gap-2 border-t border-line pt-4">
