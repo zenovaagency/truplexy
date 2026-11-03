@@ -1713,7 +1713,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 **Automatic changes:**
 - A customer message sets `needs_reply`.
 - Closing ends escalation, and the assistant answers again.
-- **Closing inactive tickets** (v2). An open ticket closes after a number of hours without activity (no change to it and no message in its conversation): its channel's `auto_close_hours`, else its channel type's, else its business's; 0 is never, and nothing closes until one is set. A ticket with `keep_open: true`, and one waiting on the team (escalated or handed off, with the customer having written last), never closes on its own. `auto_close_at` says when it will. Closing on its own ends escalation, adds the internal note "Closed automatically after N hours without activity." and sets `auto_closed_at`; reopening clears it. It sends the same `ticket.updated` events as a person closing it.
+- **Closing inactive tickets** (v2). An open ticket closes after a number of hours without activity (no change to it and no message in its conversation): its channel's `auto_close_hours`, else its channel type's, else its business's; 0 is never, and nothing closes until one is set. A ticket with `keep_open: true` never closes on its own; one waiting on the team (escalated or handed off, with the customer having written last) closes like any other. `auto_close_at` says when it will. Closing on its own ends escalation, adds the internal note "Closed automatically after N hours without activity." and sets `auto_closed_at`; reopening clears it. It sends the same `ticket.updated` events as a person closing it.
 
 **Flags**, for badges and filters:
 

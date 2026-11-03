@@ -291,11 +291,10 @@ function ticketOut(db: MockDb, t: MockTicket): Ticket {
   const overdue = needs && Date.now() - new Date(t.last_customer_at!).getTime() > tenant.reply_target_hours * 3_600_000;
   const assignee = t.assignee_user_id ? userById(db, t.assignee_user_id) : undefined;
   const ch = t.channel_id ? db.channels.find((x) => x.id === t.channel_id) : undefined;
-  // Closes after the inactivity time, unless kept open or waiting on the team.
+  // Closes after the inactivity time, unless kept open.
   const closeAfter = effectiveAutoClose(db, tenant, ch);
-  const waitingOnTeam = (t.escalated || t.handed_off) && needs;
   const lastActivity = Math.max(...[t.updated_at, t.last_customer_at, t.last_agent_at].filter(Boolean).map((d) => new Date(d!).getTime()));
-  const autoCloseAt = !done && !t.keep_open && !waitingOnTeam && closeAfter > 0 ? new Date(lastActivity + closeAfter * 3_600_000).toISOString() : undefined;
+  const autoCloseAt = !done && !t.keep_open && closeAfter > 0 ? new Date(lastActivity + closeAfter * 3_600_000).toISOString() : undefined;
   return {
     ...t,
     keep_open: t.keep_open ?? false,
