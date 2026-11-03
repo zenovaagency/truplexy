@@ -105,12 +105,13 @@ How the chat window looks is **one setting of the bot**, shared by every place t
 
 ## Performance stats (2026-10-19)
 
-Two new read-only endpoints report how the API itself performs. They add fields and routes only: nothing existing changed.
+A read-only endpoint reports how the API itself performs:
 
-- `GET /stats/performance` (`usage.read`, v2): one bot, or with `scope=business` all of a business's bots. For a business's **Performance** page.
-- `GET /platform/performance` (platform admins, v2): every business. For the platform console.
+- `GET /platform/performance` (platform admins, v2): every business together. For the platform console. Performance is system-wide, so there is no per-business route.
 
-Both return the same sections, described under [`GET /stats/performance`](#get-statsperformance): HTTP **requests** (counts, error rates, per-route and per-day), HTTP **latency** (p50/p95/p99), the reply **pipeline** (where a reply's time goes, stage by stage) and **RAG** quality (no-answer, empty retrieval, cache hits, confidence, degraded stages), plus per-**model** call latency and failures.
+> **Removed 2026-10-31:** `GET /stats/performance` (one bot, or a whole business with `scope=business`) is gone and answers `404`. Dashboards show Performance in the platform console only.
+
+It returns these sections, described under [the performance stats body](#the-performance-stats-body): HTTP **requests** (counts, error rates, per-route and per-day), HTTP **latency** (p50/p95/p99), the reply **pipeline** (where a reply's time goes, stage by stage) and **RAG** quality (no-answer, empty retrieval, cache hits, confidence, degraded stages), plus per-**model** call latency and failures.
 
 **What a dashboard must handle:**
 
@@ -120,7 +121,7 @@ Both return the same sections, described under [`GET /stats/performance`](#get-s
 
 ## Image input (2026-10-19)
 
-> **Status: served.** The endpoints, fields and error codes marked *image input* below are live on `/v3` and `/v2` (not `/v1`). A server can still turn the feature off (`IMAGE_INPUT`), and it needs a model that reads pictures and a plan that includes it, so check the feature before showing an attach control. [`openapi/openapi.yaml`](openapi/openapi.yaml) carries the same contract.
+> **Status: built, not switched on in production yet.** The API serves the endpoints, fields and error codes marked *image input* below on `/v3` and `/v2` (not `/v1`) when `IMAGE_INPUT` is on; the production API has it off for now, so `GET /profile` answers without `attachments`. Even when on, it needs a model that reads pictures and a plan that includes it, so check the feature before showing an attach control. [`openapi/openapi.yaml`](openapi/openapi.yaml) carries the same contract.
 
 Customers (and people testing in the playground) can attach pictures to a message, and the assistant reads them. Pictures never pass through the API's JSON bodies: they go straight to R2 like knowledge files, and the message names them by ID.
 
@@ -317,6 +318,7 @@ Files never pass through the API. To add one to the bot's knowledge base:
 Notes:
 - **Articles.** `POST /knowledge/documents` takes Markdown text directly and indexes it before responding. Continue with `/process` only if it comes back `processing`.
 - **Duplicates.** An upload whose content is already in the knowledge base gets `409 DUPLICATE_DOCUMENT` with `document_id`.
+- **Replacing a file.** `POST /knowledge/documents/{id}/replace` registers a new version of an uploaded file; continue with steps 3 and 4. Or send `replace_existing: true` in step 2 to replace the uploaded file with the same name, if there is one. The document keeps its ID, title and metadata, and answers from its current version until `/process` has read the new file.
 - **Abandoned work.** If the client stops mid-way, a daily background job finishes documents left `processing`. Uploads registered but never processed are marked `failed` after an hour.
 - **Bulk uploads.** Unpacking a `.zip`, or reading a manifest of titles and metadata, happens entirely in the client: register each file in turn (three at a time works well). [README → Manifest](README.md#manifest) describes the manifest format the old dashboard used.
 
@@ -526,6 +528,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `DELETE` | `/knowledge/documents/{id}` | `knowledge.write` | Delete a document |
 | `POST` | `/knowledge/documents/{id}/process` | `knowledge.write` | Index a document, step by step |
 | `POST` | `/knowledge/documents/{id}/reindex` | `knowledge.write` | Rebuild a document's passages |
+| `POST` | `/knowledge/documents/{id}/replace` | `knowledge.write` | Register a new version of an uploaded file |
 | `POST` | `/knowledge/uploads` | `knowledge.write` | Register a file upload |
 | `POST` | `/knowledge/search` | `knowledge.read` | Test retrieval for a query |
 | `GET` | `/knowledge/suggestions` | `knowledge.read` | Suggestions learned from closed tickets (v2) |
@@ -556,7 +559,6 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/webhook/deliveries/{id}/replay` | `integrations.write` | Put a queued event back in line (v2); answers `202` |
 | `GET` | `/usage/summary` | `usage.read` | Model usage, cost and answer quality |
 | `GET` | `/stats/support` | `usage.read` | Tickets, response times and cost per ticket (v2) |
-| `GET` | `/stats/performance` | `usage.read` | Requests, latency, reply pipeline stages and RAG quality (v2) |
 | `GET` | `/billing` | `usage.read` | Balance, this month's tokens and the extra-token slider (v2) |
 | `GET` | `/billing/ledger` | `usage.read` | Changes to the balance (v2) |
 | `GET` | `/billing/token-addons/quote` | `usage.read` | Price extra tokens for the slider (v2) |
@@ -1269,12 +1271,12 @@ Deleting a `shopify` channel also removes the store's access token and, unless a
 
 #### `POST /channels/connect` (v2)
 
-`channels.write`. Starts connecting a channel through its platform's own sign-in. Only `shopify` is connected this way; other types are added with `POST /channels`.
+`channels.write`. Starts connecting a channel through its platform's own sign-in. Only `shopify` and `woocommerce` are connected this way; other types are added with `POST /channels`.
 
 | Field | Rules |
 | --- | --- |
-| `type` | Required. `shopify`. |
-| `account` | Required. The store: `your-store`, `your-store.myshopify.com`, or its admin URL `https://admin.shopify.com/store/your-store`. |
+| `type` | Required. `shopify` or `woocommerce`. |
+| `account` | Required. For `shopify`: `your-store`, `your-store.myshopify.com`, or its admin URL `https://admin.shopify.com/store/your-store`. For `woocommerce`: the store's https address, such as `https://shop.example.com` (a store in a subdirectory keeps its path; pasted `/wp-admin` or `/wp-json` addresses are cut back to the store). |
 | `return_to` | Required. The dashboard page to come back to, on an origin in `DASHBOARD_URL` or `CORS_ALLOWED_ORIGINS`. Its own query is kept. |
 
 **200** `{url}`: Shopify's install page for the store. Send the browser there. The connect expires after 10 minutes and works once.
@@ -1295,13 +1297,15 @@ After the owner approves, Shopify sends the browser to the API's callback (`GET 
 
 An unknown or expired connect lands on `{DASHBOARD_URL}/integrations/guides` with `connect_error=invalid`.
 
+**WooCommerce** connects the same way, with these differences. The 200 `{url}` is the store's own authorization page (`<store>/wc-auth/v1/authorize`), where the owner approves read-only access. The store posts the new REST API keys to `POST /channels/connect/woocommerce/callback` and then sends the browser to `GET /channels/connect/woocommerce/return` (neither is called by the dashboard), which lands on `return_to` with `connected=woocommerce&channel_id=chn_…&type=woocommerce` or `connect_error=<code>&type=woocommerce`. The channel's `external_id` is the store's address. `denied` means the owner refused; `scopes_missing` means the keys can't read orders; `failed` includes keys the store rejects. There is no uninstall to hear about: if the store revokes the keys, the tools answer that the store can't be reached until it is connected again. The store must be on https and the address must be a public host.
+
 When the app is uninstalled from the store, the store's channels are turned off (`enabled: false`), and the bot's Shopify tools become unavailable until it is connected again. The activity log records `channel.connect_started`, `channel.connect` and `channel.disconnect`.
 
 **Errors:**
-- `400 INVALID_REQUEST`: a field is missing, the store address isn't a myshopify.com store, or `return_to` isn't a dashboard page.
+- `400 INVALID_REQUEST`: a field is missing, the store address isn't a myshopify.com store (or, for WooCommerce, an https address of a public host), or `return_to` isn't a dashboard page.
 - `400 CHANNEL_CONNECT_UNSUPPORTED`: the type isn't connected through its platform; use `POST /channels`.
 - `400 CHANNEL_TYPE_NOT_ALLOWED`: a platform admin marked the type upcoming or hid it.
-- `503 CHANNEL_CONNECT_UNAVAILABLE`: the server has no Shopify app configured.
+- `503 CHANNEL_CONNECT_UNAVAILABLE`: the server has no Shopify app (or WooCommerce key) configured.
 
 #### `GET /channels/{id}/widget` (v2)
 
@@ -1453,6 +1457,7 @@ Scope headers; these act on the bot. Besides the common errors, they can return:
   chunk_count, embedded_count, token_count,
   source_url?, knowledge_base_id?, locale?, product?, version?,   // filter metadata
   created_at, updated_at, indexed_at?,
+  replace_pending?,                 // a new version of the file is registered but not read yet
   content?                          // Markdown; only GET /knowledge/documents/{id}
 }
 ```
@@ -1466,6 +1471,7 @@ Progress while processing is `embedded_count / chunk_count`.
 | Query | Rules |
 | --- | --- |
 | `q` | Matches titles and file names. |
+| `source_name` | Only the uploaded file with this name, ignoring case. |
 | `status` | `pending_upload`, `processing`, `indexed` or `failed`. |
 | `limit` | 1–100, default 50. |
 | `cursor` | `next_cursor` from the previous page. |
@@ -1512,11 +1518,26 @@ Progress while processing is `embedded_count / chunk_count`.
 
 `knowledge.write`. No body. Works for up to about 40 seconds and returns the document with its progress; call it again while `status` is `processing`. If another request is processing the document, it returns the document unchanged. **200** the document.
 
+A replacement file that has been uploaded is read first. If it can't be read, it is dropped and the document keeps its current version: **400** `INVALID_REQUEST` says why.
+
 #### `POST /knowledge/documents/{id}/reindex`
 
 `knowledge.write`. No body. Rebuilds the passages from the stored text; then call `/process` while it is `processing`. **200** the document.
 - `?extract=true` reads the uploaded file again. It is `400` for an article.
 - `?force=true` re-embeds every passage.
+
+#### `POST /knowledge/documents/{id}/replace`
+
+`knowledge.write`. Registers a new version of an uploaded file and returns a presigned R2 URL for it; `PUT` the file there, then call `/process`. `{filename, size, sha256}` as for [`/uploads`](#post-knowledgeuploads); the name and type may differ from the current file's.
+
+The document keeps its ID, title (unless it came from the old file's name) and metadata, and keeps answering from its current version until `/process` reads the new file. Only passages whose text changed are embedded again. A new file that can't be read is dropped and the current version stays. A new version not processed within an hour is dropped. A file whose upload never arrived takes the new file straight away, with any `title` and metadata sent.
+
+**201** `{document, url, method: "PUT", headers, expires_at, replaced: true}`; `document.replace_pending` is `true` until the new file is read.
+
+**Errors:**
+- `400 INVALID_REQUEST` (an article, or the file's name, type or size).
+- `404 DOCUMENT_NOT_FOUND`.
+- `409 DUPLICATE_DOCUMENT` (the same file, or another document's).
 
 #### `POST /knowledge/uploads`
 
@@ -1529,8 +1550,9 @@ Progress while processing is `embedded_count / chunk_count`.
 | `sha256` | Required. 64 lowercase hex characters; the upload must match. |
 | `title` | 1–160 characters. Defaults to the file's heading or name. |
 | `source_url`, `knowledge_base_id`, `locale`, `product`, `version` | As for articles. |
+| `replace_existing` | `true` replaces the bot's uploaded file with the same name, ignoring case, as [`/replace`](#post-knowledgedocumentsidreplace) does, instead of adding a document. |
 
-**201** `{document, url, method: "PUT", headers, expires_at}`. Registering the same unfinished upload again returns a fresh URL.
+**201** `{document, url, method: "PUT", headers, expires_at, replaced?}`. Registering the same unfinished upload again returns a fresh URL. `replaced` is `true` when the file replaces `document`'s.
 
 **Errors:**
 - `409 DUPLICATE_DOCUMENT` (with `document_id`; update that document instead).
@@ -1614,6 +1636,7 @@ Scope headers. Tools belong to the business and are shared by its bots; each bot
 When the server has a Shopify app configured, `GET /tools` lists two built-in tools before the business's API tools, with `built_in: true` and `read_only: true`. They can't be changed, deleted or replaced, and API tools can't be named `shopify_…` (`400 INVALID_TOOL`). They stay `available: false` ("Connect a Shopify store to this bot.") until the bot has an active `shopify` channel; see [`POST /channels/connect`](#post-channelsconnect-v2).
 
 - `shopify_order_status {order_number, email}`: an order's payment and fulfillment status, items, total and tracking. It answers only when the email matches the order's, so a customer can't read someone else's order by guessing its number.
+- `woocommerce_order_status {order_number, email}` and `woocommerce_product_search {query}`: the same two lookups for a connected [WooCommerce store](#post-channelsconnect-v2). An order's status, items, total and (when the store uses the Shipment Tracking extension) tracking; the email must match the order's billing email, and a wrong email and a missing order get the same answer. Products are the store's published ones, with price, availability and link.
 - `shopify_product_search {query}`: up to five active products, with price, whether they are in stock, and their link.
 
 Every bot also has `truplexy_product_search {query}`, which searches the bot's own [product catalog](#products-v2): up to five active products with price, currency, stock, link, a short description and their non-sensitive properties. It is always available; with an empty catalog it says nothing matches. No API tool can take its name.
@@ -1769,7 +1792,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 
 `tickets.read`. **200** the ticket plus:
 - **`messages`:** the conversation's latest 200 messages, oldest first. Each is `{id, role, content, author, agent?, via?, status?, error?, model?, usage?, attachments?, created_at}`. `attachments` (image input) are the customer's pictures, as in [the attachment object](#the-attachment-object); a ticket page can show them inline.
-  - `author` is `customer`, `assistant` or `agent`.
+  - `author` is `customer`, `assistant`, `agent` or `system`. A `system` message is a notice that the conversation changed hands (`"Sam has joined and will reply here."`); `agent` names the person when there is one. The assistant never sees notices as history.
   - `via: "api"` marks a reply sent from the integration's platform.
   - `usage` is `{input_tokens, output_tokens, total_tokens, cost}` for generated replies.
 - **`replies`:** the ticket's replies and internal notes, `{id, kind, author, content, message_id?, created_at}`, where `kind` is `reply` or `note`.
@@ -1787,7 +1810,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | `status` | `open` or `closed`. |
 | `priority` | `low`, `normal`, `high` or `urgent`. |
 | `assignee_user_id` | A member whose role has `tickets.write` (agent or above); `""` unassigns. Use `GET /members` for the picker. |
-| `escalated` | `true` takes the conversation over (reopening a closed ticket); `false` hands it back to the AI. Can't be combined with `status: closed`. Integrations calling with a chat key use [`POST /conversations/{id}/resume`](#post-conversationsidresume) instead. |
+| `escalated` | `true` takes the conversation over (reopening a closed ticket) and adds the notice "`<name>` has joined and will reply here." to it; `false` hands it back to the AI and adds "`<name>` has handed the conversation back to the assistant." Each notice is added once, when the conversation really changes hands, and names the signed-in person (the admin key names nobody: "A team member has joined…"). Closing a taken-over ticket hands it back the same way. Can't be combined with `status: closed`. Integrations calling with a chat key use [`POST /conversations/{id}/resume`](#post-conversationsidresume) instead. |
 | `assignee` | Legacy free text, up to 64 characters. |
 | `channel_id` | One of the bot's channels; `""` clears it (v2). |
 | `keep_open` | `true` stops the ticket closing on its own; `false` lets it again (v2). |
@@ -1815,6 +1838,10 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | `status` | Optional. Also sets the ticket's status, `open` or `closed`, for example `closed` with a final reply. |
 
 The signed-in person is recorded as the author; any `author` sent is replaced. A reply is added to the conversation (`author: "agent"`), clears the handoff flag, sets `first_response_at` if unset, and goes to the bot's webhook and live topics. **201** `{reply, ticket}`.
+
+A `reply` needs the conversation taken over first (`PATCH /tickets/{id}` with `escalated: true`), so the person and the assistant don't answer side by side; otherwise it returns `409 TAKE_OVER_REQUIRED`. Notes, replies on a closed ticket and tickets without a conversation are not affected.
+
+**Errors:** `400 INVALID_REQUEST`, `404 TICKET_NOT_FOUND`, `409 TAKE_OVER_REQUIRED`.
 
 #### `POST /tickets/{id}/summary`
 
@@ -1976,11 +2003,10 @@ export function verify(rawBody, header, secret) {
 
 **Errors:** `400 INVALID_REQUEST`.
 
-#### `GET /stats/performance`
+#### The performance stats body
 
-`usage.read` (v2). How the API performed for the bot: requests served, how long they took, where a reply's time went and how well retrieval worked.
+Returned by [`GET /platform/performance`](#get-platformperformance), which is the only performance endpoint. How the API performed: requests served, how long they took, where a reply's time went and how well retrieval worked.
 - `from` and `to`: as above.
-- `scope`: `bot` (default), or `business` for every bot of the business.
 
 Percentiles are nearest-rank and in whole milliseconds. Every list is present, empty when there is no data; rates run from 0 to 1.
 
@@ -1988,7 +2014,7 @@ Percentiles are nearest-rank and in whole milliseconds. Every list is present, e
 
 ```text
 {
-  from, to, scope,                 // "bot" | "business"
+  from, to, scope,                 // "platform"
   recording: {http, sample_rate, model_attempts},
                    // http: requests are being stored (PERF_HTTP_STATS); sample_rate: the share stored
                    // model_attempts: model calls are being stored (MODEL_ATTEMPT_RECORDS)
@@ -2032,7 +2058,7 @@ Percentiles are nearest-rank and in whole milliseconds. Every list is present, e
 
 **Sampling.** With `PERF_HTTP_SAMPLE_RATE` below 1, `requests` counts are scaled back up, so they stay right; `latency` and `by_route` percentiles are over the stored sample.
 
-**Errors:** `400 INVALID_REQUEST` (a bad or reversed range, or an unknown `scope`).
+**Errors:** `400 INVALID_REQUEST` (a bad or reversed range).
 
 ### Billing: balance and extra tokens
 
@@ -2516,7 +2542,7 @@ Read only, across businesses, most recently updated first, 100 per page.
 
 #### `GET /platform/performance`
 
-The performance of every business together: the same body as [`GET /stats/performance`](#get-statsperformance) with `scope: "platform"`, covering the requests no business could be identified for as well (a rejected key, a missing route). It takes `from` and `to`, and no `scope`.
+The performance of every business together: the body described under [the performance stats body](#the-performance-stats-body) with `scope: "platform"`, covering the requests no business could be identified for as well (a rejected key, a missing route). It takes `from` and `to`, and no `scope`.
 
 It adds `tenants`, the 20 businesses with the most requests: `[{tenant_id, name, requests, server_errors, server_error_rate}]`. Use it to find who is driving load or seeing errors.
 
@@ -2715,6 +2741,7 @@ These endpoints are for websites, apps and messaging platforms, called from the 
 - Fields: `{id, status, channel_id?, customer_id?, escalated, created_at, updated_at, messages}`. `channel_id` names the bot's [channel](#channels-v2) the conversation started on; `customer_id` the [customer](#customers-v2) it was started for.
 - `status` is `open`, or `handoff` once it has been flagged for the team.
 - `messages` holds up to the latest 200, oldest first. Each is `{id, role, content, author?, agent?, attachments?, created_at}`, with `role` `user` or `assistant`. A person's reply has `author: "agent"` and `agent` naming them. `attachments` (image input) lists the pictures a customer message carried, as in [the attachment object](#the-attachment-object); their `url` is signed for 1 hour.
+- `ticket` is on `GET /conversations/{id}` only: the conversation's current ticket, `{id, subject, status, priority, escalated, channel_id?, created_at, closed_at?}`. It is the open ticket, else the latest, which is then `closed` (`closed_at` says when). It is left out when the conversation never had a ticket. A widget uses it to show a closed chat read-only.
 
 #### `GET /profile` (v2)
 
@@ -2742,7 +2769,9 @@ Finds or creates the [customer](#customers-v2) your platform knows, so their con
 
 #### `POST /conversations`
 
-No body, or `{channel_id, customer_id}` (v2). **201** an empty conversation, on the channel the body names or else the one the key is bound to, and for the customer the body names. Its tickets carry the channel and the customer.
+No body, or `{channel_id?, customer_id?, context?, ticket?}` (v2). **201** an empty conversation, on the channel the body names or else the one the key is bound to, and for the customer the body names. Its tickets carry the channel and the customer.
+
+`context` (up to 4000 characters) is background for the assistant, stored as a `[Context only] …` message that gets no reply, as if you had sent one. `ticket` (`{subject?, priority?, keep_open?}`, as for `POST /conversations/{id}/ticket`) opens the conversation's ticket, returned as `ticket`. Both are done at the same time as part of the request, so a website chat starts in one call. They are best effort: if either fails, the conversation is still created, and a failed ticket is just missing from the response. A bad `context` or `ticket` is `400 INVALID_REQUEST` before anything is stored, and `ticket` without tickets available is `400 FEATURE_UNAVAILABLE`.
 
 **Errors:**
 - `404 CHANNEL_NOT_FOUND`: the body names a channel the bot doesn't have.
@@ -2761,7 +2790,7 @@ A key bound to a channel that is turned off or deleted gets `403 CHANNEL_DISABLE
 
 #### `POST /conversations/{id}/messages`
 
-`{message, attachments?}`. `message` is 1–4000 characters, or may be empty when `attachments` is sent (image input). `attachments` is 1–3 distinct attachment IDs from `POST /conversations/{id}/attachments`, uploaded and not yet sent; the assistant reads them in this reply only. The reply is generated with the bot's saved configuration and has 45 seconds by default. A message that only carries a placeholder such as `[sent an attachment in Discord]`, with no `attachments`, is handled as before: the assistant asks the customer to describe it.
+`{message, attachments?, if_ticket_closed?}`. `message` is 1–4000 characters, or may be empty when `attachments` is sent (image input). A message to a conversation whose ticket is closed is answered like any other, and the ticket stays closed. Send `if_ticket_closed: "reject"` to refuse it instead with `409 TICKET_CLOSED`, before anything is stored; a customer-facing widget does this so a closed chat can't be continued, and starts a new conversation instead. A conversation without a ticket is never refused. `attachments` is 1–3 distinct attachment IDs from `POST /conversations/{id}/attachments`, uploaded and not yet sent; the assistant reads them in this reply only. The reply is generated with the bot's saved configuration and has 45 seconds by default. A message that only carries a placeholder such as `[sent an attachment in Discord]`, with no `attachments`, is handled as before: the assistant asks the customer to describe it.
 
 **200** `{message, reply, status, sources}`:
 - `reply` is `null` for `escalated` and `context`.
@@ -2780,6 +2809,7 @@ A key bound to a channel that is turned off or deleted gets `403 CHANNEL_DISABLE
 **Errors:**
 - `400 INVALID_REQUEST`
 - `404 CONVERSATION_NOT_FOUND`
+- `409 TICKET_CLOSED`: the message asked for `if_ticket_closed: "reject"` and the conversation's ticket is closed
 - `429 PLAN_LIMIT_REACHED`: the business's monthly replies are used up (`limit: "replies_per_month"`), or its tokens are and its balance is empty (`limit: "tokens_per_month"`)
 - Image input: `404 ATTACHMENT_NOT_FOUND`, `409 ATTACHMENT_NOT_UPLOADED`, `400 INVALID_IMAGE`, `400 UNSUPPORTED_IMAGE_TYPE`, `413 IMAGE_TOO_LARGE`, `400 FEATURE_UNAVAILABLE`, and `403 PLAN_LIMIT_REACHED` with `limit: "image_input"`
 - [Model errors](#6-errors)
@@ -2847,7 +2877,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Onboarding | `GET /business-types`, `POST /tenants` |
 | Accepting an invitation | `POST /invites/preview`, then `POST /invites/accept` |
 | Overview | `GET /usage/summary`, `GET /stats/support` (`scope=bot` or `business`), `GET /health` for an API status dot |
-| Performance | `GET /stats/performance` (`scope=bot` or `business`); read `recording` first |
+| Performance (platform console) | `GET /platform/performance`; read `recording` first |
 | Queries | `GET /queries` (filters, `assignee=me`), `GET`/`PATCH`/`DELETE /queries/{id}`, `GET /queries/{id}/events`, `POST /queries`, `GET /query-types`, `GET /properties?entity=query&scope_id=` for a type's form, `GET /members` for the assignee picker, live `query.created`/`query.updated` |
 | Settings: query types | `GET /query-types?archived=true`, `GET /query-types/presets`, `POST`/`PATCH`/`DELETE /query-types…`, `POST /properties` with `entity: "query"` and `scope_id` |
 | Products | `GET /products` (search with `q`, `status`, `property[key]=`), `POST`/`PATCH`/`DELETE /products…`, `GET /properties?entity=product` for the property fields; imports with `POST /products/imports` (then `PUT` and `…/process` for a file), `GET /products/imports/{id}` to review, `…/commit` to save |
@@ -2907,7 +2937,7 @@ Every error has its HTTP status and this body:
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |
-| 409 | `TICKET_EXISTS`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS`, `PROPERTY_EXISTS`, `PRODUCT_EXISTS`, `QUERY_TYPE_EXISTS` | Already exists. |
+| 409 | `TICKET_EXISTS`, `TAKE_OVER_REQUIRED`, `BOT_EXISTS`, `TOOL_EXISTS`, `ALREADY_MEMBER`, `DUPLICATE_DOCUMENT`, `CHANNEL_EXISTS`, `CHANNEL_TYPE_EXISTS`, `PROPERTY_EXISTS`, `PRODUCT_EXISTS`, `QUERY_TYPE_EXISTS` | Already exists. |
 | 409 | `LAST_OWNER`, `OWN_ACCESS`, `LAST_PLATFORM_ADMIN`, `SOLE_OWNER` | The change would leave a business without an owner or the platform without an admin, or change your own account's access. |
 | 409 | `EMAIL_TAKEN` | Another account has this email address. |
 | 409 | `INVITE_USED`, `DOCUMENT_BUSY`, `KNOWLEDGE_BASE_FULL`, `CHANNEL_IN_USE`, `IMPORT_STATE`, `QUERY_TYPE_IN_USE` | State conflicts. |
