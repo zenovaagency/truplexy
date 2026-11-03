@@ -8986,7 +8986,7 @@ components:
         auto_close_at:
           type: string
           format: date-time
-          description: When the open ticket closes if nothing happens before - its last activity plus its channel's, channel type's or business's auto_close_hours. Absent when kept open, waiting on the team, or nothing sets a time (v2).
+          description: When the open ticket closes if nothing happens before - its last activity plus its channel's, channel type's or business's auto_close_hours. Absent when kept open or nothing sets a time (v2).
         auto_closed_at:
           type: string
           format: date-time
