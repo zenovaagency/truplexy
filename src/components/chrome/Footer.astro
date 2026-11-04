@@ -78,7 +78,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
             {LIVE_CHANNELS.map((c) => (
               <li class="flex items-center gap-2">
                 <a href={channelHref(c.id)} class={link}>{c.name}</a>
-                {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" title="Live" aria-label="Live"></span>}
+                {SOON_CHANNELS.length > 0 && <span class="live-dot ml-1" role="img" title="Live" aria-label="Live"></span>}
               </li>
             ))}
           </ul>

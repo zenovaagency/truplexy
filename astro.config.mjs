@@ -1,7 +1,7 @@
 // @ts-check
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { rename, rm } from 'node:fs/promises';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 
@@ -107,6 +107,39 @@ const sitemapAtRoot = {
   },
 };
 
+/**
+ * The Vercel adapter deploys through the Build Output API, and Vercel then
+ * ignores the `headers` in vercel.json for this service: the site shipped
+ * without its security headers. This copies them (services.site.headers in
+ * vercel.json stays the one place they're set) into the adapter's
+ * .vercel/output/config.json as routes that add headers and carry on. Runs
+ * after the adapter, which writes that file in the same hook.
+ * @type {import('astro').AstroIntegration}
+ */
+const vercelJsonHeaders = {
+  name: 'vercel-json-headers',
+  hooks: {
+    'astro:build:done': async () => {
+      const configPath = fileURLToPath(new URL('./.vercel/output/config.json', import.meta.url));
+      if (!existsSync(configPath)) throw new Error('vercel-json-headers: the adapter wrote no .vercel/output/config.json');
+      const vercelJson = JSON.parse(await readFile(fileURLToPath(new URL('./vercel.json', import.meta.url)), 'utf8'));
+      /** @type {{ source: string, headers: { key: string, value: string }[] }[]} */
+      const rules = vercelJson.services?.site?.headers ?? [];
+      if (rules.length === 0) return;
+      const config = JSON.parse(await readFile(configPath, 'utf8'));
+      // vercel.json sources are path patterns like "/(.*)"; routes take regexes.
+      const routes = rules.map((rule) => ({
+        src: `^${rule.source}$`,
+        headers: Object.fromEntries(rule.headers.map((h) => [h.key, h.value])),
+        continue: true,
+      }));
+      // The adapter rewrites the file on every build, so prepending is safe.
+      config.routes = [...routes, ...(config.routes ?? [])];
+      await writeFile(configPath, JSON.stringify(config, null, 2));
+    },
+  },
+};
+
 // `site` feeds canonical URLs, OG URLs, robots.txt and the sitemap. It comes
 // from SITE.url in src/data/site.ts — the one place the domain is set.
 export default defineConfig({
@@ -133,6 +166,7 @@ export default defineConfig({
       },
     }),
     sitemapAtRoot,
+    vercelJsonHeaders,
   ],
 
   devToolbar: { enabled: false },
