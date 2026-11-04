@@ -20,6 +20,15 @@ export const SITE = {
   signupUrl: 'https://app.truplexy.com/sign-in?mode=signup',
   // PLACEHOLDER — swap for the real booking link (Calendly, Cal.com, …).
   demoUrl: `mailto:${email}?subject=${encodeURIComponent('Book a Truplexy demo')}`,
+  // The promo film in the section after the hero, self-hosted from public/video
+  // (the original export lives in media-src/, gitignored). Also on YouTube: qjrp1T6W1x0.
+  // The poster is drawn for it (`npm run poster`), with room for the play button in the middle.
+  promoVideo: {
+    src: '/video/truplexy-promo',
+    poster: '/video/truplexy-promo-poster.webp',
+    title: 'Introducing Truplexy',
+    duration: '0:59',
+  },
 } as const;
 
 export interface NavLink {

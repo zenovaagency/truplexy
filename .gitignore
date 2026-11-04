@@ -21,3 +21,6 @@ Thumbs.db
 
 # launch film (Remotion project): kept locally, not in the repo
 launch-video/
+
+# original video exports: too big for git; web encodes live in public/video
+media-src/

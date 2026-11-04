@@ -1,0 +1,165 @@
+<!doctype html>
+<!--
+  Source of public/video/truplexy-promo-poster.webp (1920×1080), the poster of
+  the promo film on the home page. Render it with `npm run poster`.
+
+  Built around the player's play button, which sits dead centre: the rings
+  and the channels orbiting them make the button the hub that every channel
+  leads to. Keep the middle (roughly 340px across) empty.
+
+  Look follows the film: warm stone, the blue-to-violet glow, the grid floor,
+  the logo, and the end line "Every channel. One platform." Type is the
+  site's (Geist).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Truplexy video poster</title>
+    <style>
+      @font-face {
+        font-family: 'Geist';
+        font-weight: 100 900;
+        src: url('../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body { width: 1920px; height: 1080px; overflow: hidden; }
+
+      body {
+        position: relative;
+        font-family: 'Geist', 'Segoe UI', sans-serif;
+        color: #0a0a0a;
+        background: #f4f1eb;
+      }
+
+      /* ------------------------------------------------------------ glow */
+      .glow {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(520px 420px at 880px 500px, rgb(150 205 255 / 0.55), transparent 70%),
+          radial-gradient(560px 460px at 1060px 590px, rgb(226 170 255 / 0.5), transparent 70%),
+          radial-gradient(900px 700px at 960px 540px, rgb(255 255 255 / 0.7), transparent 70%);
+      }
+
+      /* ------------------------------------------------------------ floor */
+      .floor {
+        position: absolute;
+        left: -50%;
+        right: -50%;
+        bottom: -380px;
+        height: 760px;
+        background-image:
+          linear-gradient(to right, rgb(40 32 20 / 0.09) 1.5px, transparent 1.5px),
+          linear-gradient(to bottom, rgb(40 32 20 / 0.09) 1.5px, transparent 1.5px);
+        background-size: 120px 120px;
+        background-position: center top;
+        transform: perspective(700px) rotateX(62deg);
+        transform-origin: center top;
+        -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%);
+        mask-image: linear-gradient(to bottom, transparent, #000 30%);
+      }
+
+      /* ------------------------------------------------------------ rings & wires */
+      .orbit { position: absolute; inset: 0; }
+
+      /* ------------------------------------------------------------ channels */
+      .chip {
+        position: absolute;
+        display: grid;
+        place-items: center;
+        width: var(--s, 104px);
+        height: var(--s, 104px);
+        border-radius: 30px;
+        border: 1.5px solid #e7e2d9;
+        background: #fff;
+        box-shadow: 0 24px 50px -18px rgb(30 24 16 / 0.28), 0 4px 12px rgb(30 24 16 / 0.06);
+        translate: -50% -50%;
+        rotate: var(--r, 0deg);
+      }
+      .chip img, .chip svg { width: 50%; height: 50%; object-fit: contain; }
+
+      /* ------------------------------------------------------------ type */
+      .logo {
+        position: absolute;
+        left: 50%;
+        top: 92px;
+        height: 70px;
+        translate: -50% 0;
+      }
+
+      h1 {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 120px;
+        text-align: center;
+        font-size: 78px;
+        line-height: 1;
+        font-weight: 500;
+        letter-spacing: -0.045em;
+        color: #5a554d;
+      }
+      h1 strong {
+        position: relative;
+        font-weight: 700;
+        color: #0a0a0a;
+      }
+      h1 strong::after {
+        content: '';
+        position: absolute;
+        left: 2px;
+        right: 8px;
+        bottom: -16px;
+        height: 6px;
+        border-radius: 6px;
+        background: linear-gradient(90deg, #7cc8ff, #8b5cf6 55%, #f0a3ff);
+      }
+
+      .dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; opacity: 0.6; }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div class="floor"></div>
+
+    <!-- Rings round the centre (the play button) and wires from each channel. -->
+    <svg class="orbit" viewBox="0 0 1920 1080" width="1920" height="1080" fill="none">
+      <circle cx="960" cy="540" r="150" stroke="rgb(40 32 20 / 0.10)" stroke-width="1.5" />
+      <circle cx="960" cy="540" r="300" stroke="rgb(40 32 20 / 0.09)" stroke-width="1.5" stroke-dasharray="3 9" />
+      <circle cx="960" cy="540" r="450" stroke="rgb(40 32 20 / 0.06)" stroke-width="1.5" />
+      <g stroke="rgb(110 90 200 / 0.28)" stroke-width="2" stroke-dasharray="2 10" stroke-linecap="round">
+        <line x1="700" y1="390" x2="830" y2="465" />
+        <line x1="700" y1="690" x2="830" y2="615" />
+        <line x1="1220" y1="390" x2="1090" y2="465" />
+        <line x1="1220" y1="690" x2="1090" y2="615" />
+        <line x1="510" y1="540" x2="810" y2="540" />
+        <line x1="1410" y1="540" x2="1110" y2="540" />
+      </g>
+    </svg>
+
+    <!-- Channels: inner pairs on the dashed ring, website and email further out. -->
+    <div class="chip" style="left:510px;top:540px;--s:92px;--r:-4deg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5" /><path d="M2.5 12h19M12 2.5c2.6 2.6 4 6 4 9.5s-1.4 6.9-4 9.5c-2.6-2.6-4-6-4-9.5s1.4-6.9 4-9.5Z" /></svg>
+    </div>
+    <div class="chip" style="left:700px;top:390px;--r:5deg"><img src="../public/brands/whatsapp.svg" alt="" /></div>
+    <div class="chip" style="left:700px;top:690px;--r:-6deg"><img src="../public/brands/instagram.svg" alt="" /></div>
+    <div class="chip" style="left:1220px;top:390px;--r:-5deg"><img src="../public/brands/messenger.svg" alt="" /></div>
+    <div class="chip" style="left:1220px;top:690px;--r:6deg"><img src="../public/brands/telegram.svg" alt="" /></div>
+    <div class="chip" style="left:1410px;top:540px;--s:92px;--r:4deg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="3" /><path d="m3.5 6.5 8.5 6.5 8.5-6.5" /></svg>
+    </div>
+
+    <!-- A few motes, as in the film. -->
+    <span class="dot" style="left:420px;top:300px;background:#8b5cf6"></span>
+    <span class="dot" style="left:1520px;top:330px;background:#7cc8ff"></span>
+    <span class="dot" style="left:1600px;top:760px;background:#f0a3ff"></span>
+    <span class="dot" style="left:300px;top:720px;background:#7cc8ff"></span>
+    <span class="dot" style="left:1060px;top:250px;background:#f0a3ff;width:6px;height:6px"></span>
+    <span class="dot" style="left:860px;top:820px;background:#8b5cf6;width:6px;height:6px"></span>
+
+    <img class="logo" src="../logo/soft-triplex/logo-black.svg" alt="Truplexy" />
+    <h1>Every channel. <strong>One platform.</strong></h1>
+  </body>
+</html>

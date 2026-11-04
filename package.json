@@ -14,6 +14,7 @@
     "check": "astro check",
     "brand": "node scripts/brand-assets.mjs",
     "og": "node scripts/og-card.mjs",
+    "poster": "node scripts/video-poster.mjs",
     "brand:icons": "node scripts/vendor-brand-icons.mjs",
     "astro": "astro",
     "verify": "node scripts/verify-claims.mjs",

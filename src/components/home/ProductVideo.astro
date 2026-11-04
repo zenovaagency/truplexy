@@ -1,0 +1,16 @@
+---
+import Video from '../ui/Video.astro';
+import { SITE } from '../../data/site';
+---
+
+<!-- The product video, straight after the hero. Same stone ground as the
+     hero, so it reads as the hero's continuation rather than a new section. -->
+<section id="watch" class="section scroll-mt-[calc(var(--nav-h)+24px)] bg-ground-cream !pt-0" aria-labelledby="watch-title">
+  <div class="container-t">
+    <div class="mx-auto max-w-[720px] text-center">
+      <p class="eyebrow">Watch</p>
+      <h2 id="watch-title" class="h2 mt-5">{SITE.promoVideo.title}</h2>
+    </div>
+    <Video {...SITE.promoVideo} class="mx-auto mt-10 w-full max-w-[1040px]" />
+  </div>
+</section>

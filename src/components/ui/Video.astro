@@ -1,0 +1,158 @@
+---
+/**
+ * A self-hosted video with no third-party player or branding. At rest it's a
+ * still from the film with a play button; nothing but that poster downloads
+ * until someone presses play (preload="none").
+ * Then the browser streams the file with range requests, starting before it
+ * has all of it (the MP4 is encoded fast-start), with its native controls.
+ * When the film ends, the play button comes back.
+ *
+ * Without JS it's a plain <video controls> with the poster.
+ *
+ * Encode new files from the original in media-src/ (gitignored):
+ *   ffmpeg -i in.mp4 -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k out.mp4
+ *   ffmpeg -i in.mp4 -c:v libvpx-vp9 -crf 34 -b:v 0 -row-mt 1 -c:a libopus -b:a 96k out.webm
+ *
+ * The poster is drawn, not a still from the film: scripts/video-poster.html,
+ * rendered with `npm run poster`. It leaves the middle empty for the button.
+ */
+interface Props {
+  /** Path without extension; `.webm` and `.mp4` are served side by side. */
+  src: string;
+  poster: string;
+  title: string;
+  /** Shown in the corner of the poster, e.g. "0:59". */
+  duration?: string;
+  /** How far down the poster the play button sits, so it can land in an empty part of the frame. */
+  playY?: string;
+  class?: string;
+}
+
+const { src, poster, title, duration, playY = '50%', class: className } = Astro.props;
+---
+
+<div class:list={['vid-frame', className]}>
+<div class="vid" data-video style={`--play-y: ${playY}`}>
+  <video class="vid-media" controls preload="none" playsinline poster={poster} aria-label={title} width="1920" height="1080">
+    <source src={`${src}.webm`} type="video/webm" />
+    <source src={`${src}.mp4`} type="video/mp4" />
+    <a href={`${src}.mp4`}>Download “{title}”</a>
+  </video>
+
+  <!-- Transparent over the video's own poster: the whole frame plays it. -->
+  <button type="button" class="vid-cover" aria-label={`Play video: ${title}`} hidden>
+    <span class="vid-play" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z" /></svg>
+    </span>
+    {duration && <span class="vid-time" aria-hidden="true">{duration}</span>}
+  </button>
+</div>
+</div>
+
+<style>
+  /* The frame: a padded bezel around the film, like a screen in a device. */
+  .vid-frame {
+    --bezel: clamp(6px, 1.1vw, 14px);
+    --r-out: clamp(18px, 2.4vw, 30px);
+    padding: var(--bezel);
+    border: 1px solid var(--color-line);
+    border-radius: var(--r-out);
+    background: linear-gradient(180deg, var(--color-surface), var(--color-surface-2));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), var(--shadow-lg);
+  }
+
+  .vid {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: 1px solid var(--color-line);
+    /* Concentric with the frame's corners. */
+    border-radius: calc(var(--r-out) - var(--bezel));
+    background: var(--color-surface);
+    /* The play button sizes to the video's height (cqh), so it always fits
+       the poster's gap, phone or desktop. */
+    container-type: size;
+  }
+
+  .vid-media {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .vid-cover {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .vid-cover[hidden] { display: none; }
+  .vid-cover:focus-visible { outline: none; }
+  .vid-cover:focus-visible .vid-play { outline: 2px solid var(--color-ink); outline-offset: 5px; }
+
+  /* Ink disc, like Bubbly's circle on the hero stage. */
+  .vid-play {
+    position: absolute;
+    left: 50%;
+    top: var(--play-y);
+    display: grid;
+    place-items: center;
+    width: clamp(40px, 15cqh, 88px);
+    aspect-ratio: 1;
+    padding-left: 3px;
+    border-radius: 50%;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    box-shadow: 0 18px 40px -14px rgb(30 24 16 / 0.55), 0 0 0 clamp(3px, 1cqh, 6px) rgb(255 255 255 / 0.6);
+    translate: -50% -50%;
+    transition: transform 420ms var(--ease-spring);
+  }
+  .vid-play svg { width: 36%; height: auto; }
+
+  .vid-time {
+    position: absolute;
+    right: clamp(8px, 2%, 18px);
+    bottom: clamp(8px, 3%, 18px);
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgb(10 10 10 / 0.72);
+    color: var(--color-paper);
+    font-size: clamp(0.68rem, 0.62rem + 0.2vw, 0.78rem);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .vid-cover:hover .vid-play { transform: scale(1.08); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vid-play { transition: none; }
+  }
+</style>
+
+<script>
+  for (const box of document.querySelectorAll<HTMLElement>('[data-video]')) {
+    const video = box.querySelector('video')!;
+    const cover = box.querySelector<HTMLButtonElement>('.vid-cover')!;
+
+    const rest = () => {
+      video.controls = false;
+      cover.hidden = false;
+    };
+    rest();
+
+    cover.addEventListener('click', () => {
+      cover.hidden = true;
+      video.controls = true;
+      void video.play().catch(rest);
+      video.focus();
+    });
+    video.addEventListener('ended', () => {
+      if (document.fullscreenElement === video) void document.exitFullscreen();
+      rest();
+    });
+  }
+</script>

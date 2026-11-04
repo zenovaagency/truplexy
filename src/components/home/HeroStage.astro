@@ -76,7 +76,6 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
   <div class="inbox" aria-hidden="true">
     <div class="inbox-head">
       <span class="flex items-center gap-2 font-semibold"><span class="live-dot"></span>Inbox</span>
-      <span class="mono text-[0.6rem] text-ink-faint">{STAGE_STORE} · sample store</span>
     </div>
     <div class="rows" data-rows>
       {recent(ROWS).map(({ p, i }) => {
@@ -141,6 +140,8 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
     width: 100%;
     max-width: 400px;
     height: calc(var(--chip-h) * 3 + var(--chip-gap) * 2);
+    /* Keeps a leaving chip's z-index: -1 (phones) inside the lane. */
+    isolation: isolate;
   }
 
   .chip-m {
@@ -360,6 +361,8 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
   .row.is-enter { opacity: 0; transform: translateY(-12px); }
   .row.is-leave { opacity: 0; }
   .row.is-new { background: var(--color-surface-2); }
+  /* The tile is surface-2 too; flip it so the icon keeps its tile. */
+  .row.is-new .row-ico { background: var(--color-surface); }
   .row-name { display: block; font-weight: 600; }
   .row-text { color: var(--color-ink-muted); }
   .row-status {
@@ -376,7 +379,14 @@ const names = [...new Set(STAGE_ITEMS.map((s) => channel(s.channel).name))];
   /* Phones: two chips, three rows, the reply under Bubbly. */
   @media (max-width: 639px) {
     .lane { height: calc(var(--chip-h) * 2 + var(--chip-gap)); }
-    .chip-m[data-p='2'] { opacity: 0; }
+    /* The lane only holds two chips here: the third doesn't slide down over
+       the wire and Bubbly; it tucks behind the second and fades quickly. */
+    .chip-m[data-p='2'] {
+      z-index: -1;
+      opacity: 0;
+      transform: translateY(calc(var(--chip-h) + var(--chip-gap))) scale(0.92);
+      transition: transform 600ms var(--ease-out-expo), opacity 200ms;
+    }
     .rows { height: calc(var(--row-h) * 3); }
     /* Bubbly moves left so the reply has room; the wires follow it. */
     .hub { justify-content: flex-start; padding-left: 16px; }
