@@ -54,7 +54,7 @@ const COPY: Record<string, { title: string; hint?: string; useMessage?: boolean 
   LLM_PROVIDER_ERROR: { title: 'The model provider failed', useMessage: true },
   LLM_NOT_CONFIGURED: { title: "AI isn't set up on this server" },
   WEB_SEARCH_NOT_CONFIGURED: { title: "Web search isn't set up on this server", hint: 'Ask Truplexy to add a search provider key.' },
-  NO_CONVERSATION: { title: 'This ticket has no conversation to summarize' },
+  NO_CONVERSATION: { title: 'This ticket has no conversation' },
   STORAGE_ERROR: { title: 'Storage failed', useMessage: true },
   RETRIEVAL_FAILED: { title: 'Retrieval failed', useMessage: true },
   REALTIME_NOT_CONFIGURED: { title: 'Live updates are off on this server' },

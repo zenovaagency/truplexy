@@ -2641,6 +2641,41 @@ route('POST', '/tickets/:id/summary', 'tickets.write', (c) => {
   return out;
 });
 
+route('POST', '/tickets/:id/suggested-reply', 'tickets.write', (c) => {
+  const t = findTicket(c);
+  const instructions = (str(c.body.instructions, 'instructions', 0, 500, false) ?? '').trim();
+  const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
+  if (!t.conversation_id || !conv) throw err(400, 'NO_CONVERSATION', 'This ticket has no conversation to reply to.');
+  requirePlan(c.tenant);
+  const max = limitsOf(c.tenant).replies_per_month;
+  if (max > 0 && c.tenant.replies_this_month >= max && c.tenant.balance <= 0) {
+    throw err(429, 'PLAN_LIMIT_REACHED', "This month's AI replies are used up.", { limit: 'replies_per_month' });
+  }
+
+  // A canned draft: the knowledge base's best passage for the customer's latest message, steered by the instructions.
+  const question = conv.messages.filter((m) => m.author === 'customer' && m.content).at(-1)?.content ?? t.subject;
+  const { selected } = retrieve(c.db, c.tenant.id, c.botId, question, 3);
+  const found = selected.filter((x) => x.score > 0.2);
+  const first = (s: string) => (s.replace(/\s+/g, ' ').match(/^.{20,280}?[.!?](\s|$)/)?.[0] ?? s.slice(0, 280)).trim();
+  const hint = instructions.toLowerCase();
+  const lines = [
+    hint.includes('sorry') || hint.includes('apolog') ? "I'm really sorry for the trouble." : 'Thanks for your patience.',
+    found[0] ? first(found[0].s.content) : `I'm looking into “${question.slice(0, 80)}” and will get back to you shortly. [check: what to promise]`,
+    hint.includes('refund') && 'I have started a refund for you; it should reach your original payment method within 5–10 business days. [check: refund amount]',
+    !hint.includes('short') && 'Let me know if there is anything else I can help with.',
+  ].filter(Boolean);
+  const content = lines.join(hint.includes('short') ? ' ' : '\n\n');
+  const sources: { title: string; url?: string }[] = [];
+  for (const x of found) {
+    if (sources.length < 5 && !sources.some((s) => s.title === x.s.doc.title)) sources.push({ title: x.s.doc.title, url: x.s.doc.source_url || undefined });
+  }
+
+  // Billed like an AI reply; nothing is sent or stored.
+  c.tenant.replies_this_month += 1;
+  c.tenant.tokens_this_month += 900 + conv.messages.reduce((n, m) => n + Math.ceil(m.content.length / 4), 0) + Math.ceil(content.length / 4);
+  return { content, sources };
+});
+
 route('GET', '/handoffs', 'tickets.read', (c) => ({
   data: c.db.conversations
     .filter((x) => x.tenant_id === c.tenant.id && x.bot_id === c.botId && x.status === 'handoff')

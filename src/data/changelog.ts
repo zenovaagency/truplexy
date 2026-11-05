@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-05',
+    title: 'Draft replies with AI',
+    tag: 'Dashboard',
+    items: [
+      'Once you take a ticket over, Suggest reply in the reply box drafts your answer from the conversation, your team’s notes and your knowledge base, and shows which articles it used.',
+      'Add a hint, such as “offer a refund” or “keep it short”, and Regenerate for another draft. Your own text is one Undo away.',
+      'Nothing reaches the customer until you edit the draft and press Send. Each draft counts as one AI reply.',
+      'Developers: POST /tickets/{id}/suggested-reply in the REST API.',
+    ],
+  },
+  {
     date: '2026-11-03',
     title: 'Chats waiting on your team close on time',
     tag: 'Dashboard',
