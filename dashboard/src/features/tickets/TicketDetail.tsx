@@ -19,6 +19,7 @@ import {
   Trash2,
   Undo2,
   UserRound,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { hasCode, isApiError } from '@/lib/api/client';
@@ -26,8 +27,8 @@ import { useChannels } from '@/lib/api/endpoints/channels';
 import { useCustomer } from '@/lib/api/endpoints/customers';
 import { contactOf, customerLabel } from '@/lib/customers';
 import { useLearnFromTicket } from '@/lib/api/endpoints/knowledge';
-import { useDeleteTicket, useReplyToTicket, useSummarizeTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
-import type { TicketDetail as TDetail, TicketMessage, TicketPatch, TicketReply, TicketStatus } from '@/lib/api/types';
+import { useDeleteTicket, useReplyToTicket, useSuggestReply, useSummarizeTicket, useTicket, useUpdateTicket } from '@/lib/api/endpoints/tickets';
+import type { SuggestedReply, TicketDetail as TDetail, TicketMessage, TicketPatch, TicketReply, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime, pluralize } from '@/lib/format';
 import { notifyInfo, notifySuccess } from '@/lib/notify';
@@ -505,10 +506,21 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
   const { can } = useScopeCtx();
   const reply = useReplyToTicket();
   const update = useUpdateTicket();
+  const suggest = useSuggestReply();
   const [kind, setKind] = useState<'reply' | 'note'>('reply');
   const [text, setText] = useState('');
+  // The AI draft's knowledge base articles while its text is in the box, and the hint that steers the next draft.
+  const [sources, setSources] = useState<SuggestedReply['sources'] | null>(null);
+  const [hintOpen, setHintOpen] = useState(false);
+  const [hint, setHint] = useState('');
   const area = useRef<HTMLTextAreaElement>(null);
+  const hintInput = useRef<HTMLInputElement>(null);
   const draftKey = `truplexy.draft.${t.id}`;
+  // A draft that arrives after switching tickets belongs to the old one.
+  const current = useRef(t.id);
+  current.current = t.id;
+  // The last AI draft as it arrived: replacing it untouched needs no Undo.
+  const lastDraft = useRef('');
 
   // Drafts survive switching tickets.
   useEffect(() => {
@@ -517,7 +529,13 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
     } catch {
       /* ignore */
     }
+    setSources(null);
+    setHint('');
+    setHintOpen(false);
   }, [draftKey]);
+  useEffect(() => {
+    if (!text.trim()) setSources(null);
+  }, [text]);
   useEffect(() => {
     try {
       if (text) sessionStorage.setItem(draftKey, text);
@@ -538,6 +556,8 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
   // notes don't.
   const aiActive = Boolean(t.conversation_id) && !t.escalated && t.status !== 'closed';
   const locked = aiActive && kind === 'reply';
+  // AI drafts are for the person answering: once taken over, or with no assistant to take over from.
+  const canSuggest = kind === 'reply' && !locked && Boolean(t.conversation_id) && t.status !== 'closed';
 
   // Taking over hands the cursor to the reply box.
   const wasLocked = useRef(locked);
@@ -562,11 +582,51 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
       {
         onSuccess: () => {
           setText('');
+          setSources(null);
           notifySuccess(kind === 'note' ? 'Note added' : status === 'closed' ? 'Reply sent and ticket closed' : 'Reply sent');
         },
       },
     );
   };
+
+  const draft = () => {
+    if (!canSuggest || suggest.isPending) return;
+    const id = t.id;
+    const before = text;
+    suggest.mutate(
+      { id, instructions: hint.trim() || undefined },
+      {
+        onSuccess: (d) => {
+          if (current.current !== id) return;
+          const content = d.content.slice(0, 8000);
+          setText(content);
+          setSources(d.sources);
+          const replaced = before.trim() && before !== content && before !== lastDraft.current;
+          lastDraft.current = content;
+          requestAnimationFrame(() => {
+            const el = area.current;
+            if (!el) return;
+            el.focus();
+            el.setSelectionRange(el.value.length, el.value.length);
+          });
+          // The person's own words are one click away.
+          if (replaced) {
+            toast('The AI draft replaced your text', {
+              action: {
+                label: 'Undo',
+                onClick: () => {
+                  if (current.current !== id) return;
+                  setText(before);
+                  setSources(null);
+                },
+              },
+            });
+          }
+        },
+      },
+    );
+  };
+  const busy = suggest.isPending;
 
   return (
     <div className="border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
@@ -597,11 +657,62 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
               }
             }}
             rows={2}
-            disabled={locked}
-            placeholder={kind === 'note' ? 'Write an internal note. Customers never see it.' : locked ? 'Take over the conversation to reply to the customer.' : 'Write a reply to the customer…'}
+            disabled={locked || busy}
+            aria-busy={busy || undefined}
+            placeholder={
+              kind === 'note'
+                ? 'Write an internal note. Customers never see it.'
+                : locked
+                  ? 'Take over the conversation to reply to the customer.'
+                  : busy
+                    ? 'Drafting a reply…'
+                    : 'Write a reply to the customer…'
+            }
             className="block w-full resize-none bg-transparent px-3.5 py-3 text-[0.875rem] text-ink outline-none placeholder:text-ink-faint disabled:cursor-not-allowed disabled:opacity-60"
             aria-label={kind === 'note' ? 'Internal note' : 'Reply'}
           />
+          {canSuggest && sources && sources.length > 0 && (
+            <p className="truncate px-3.5 pb-2 text-[0.7rem] text-ink-faint" data-testid="draft-sources">
+              <Sparkles className="mr-1 inline size-3 align-[-2px]" aria-hidden />
+              Drafted from{' '}
+              {sources.map((s, i) => (
+                <Fragment key={`${s.title}-${i}`}>
+                  {i > 0 && ', '}
+                  {s.url ? (
+                    <a href={s.url} target="_blank" rel="noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
+                      {s.title}
+                    </a>
+                  ) : (
+                    s.title
+                  )}
+                </Fragment>
+              ))}
+            </p>
+          )}
+          {canSuggest && hintOpen && (
+            <div className="flex items-center gap-2 border-t border-line/70 px-2 py-2">
+              <Input
+                ref={hintInput}
+                size="sm"
+                value={hint}
+                maxLength={500}
+                onChange={(e) => setHint(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    draft();
+                  }
+                  if (e.key === 'Escape') setHintOpen(false);
+                }}
+                placeholder="Hint for the AI, e.g. offer a refund, keep it short"
+                aria-label="Hint for the AI draft"
+                className="min-w-0 flex-1"
+              />
+              <Button size="xs" icon variant="quiet" aria-label="Close hint" onClick={() => setHintOpen(false)}>
+                <X />
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2 border-t border-line/70 px-2 py-2">
             <Segmented
               size="xs"
@@ -613,14 +724,42 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
                 { value: 'note', label: <span className="flex items-center gap-1"><StickyNote className="size-3" /> Note</span> },
               ]}
             />
-            <span className="ml-auto hidden text-[0.7rem] text-ink-faint sm:inline">{text.length > 7000 ? `${text.length}/8000` : 'Ctrl + Enter to send'}</span>
+            {canSuggest && (
+              <div className="flex items-center gap-1">
+                <Tip content="Drafts a reply from this conversation, your notes and the knowledge base. Nothing is sent until you press Send. Billed like an AI reply.">
+                  <Button size="xs" variant="soft" leading={sources ? <RefreshCw /> : <Sparkles />} loading={busy} onClick={draft}>
+                    {sources ? 'Regenerate' : 'Suggest reply'}
+                  </Button>
+                </Tip>
+                {!hintOpen && (
+                  <Button
+                    size="xs"
+                    variant="quiet"
+                    onClick={() => {
+                      setHintOpen(true);
+                      requestAnimationFrame(() => hintInput.current?.focus());
+                    }}
+                  >
+                    Add hint
+                  </Button>
+                )}
+              </div>
+            )}
+            {/* With the AI buttons there, the keyboard hint waits for a wide screen; the length warning always shows. */}
+            <span className="ml-auto text-[0.7rem] text-ink-faint">
+              {text.length > 7000 ? (
+                <span className="hidden sm:inline">{`${text.length}/8000`}</span>
+              ) : (
+                <span className={cn('hidden', canSuggest ? '2xl:inline' : 'sm:inline')}>Ctrl + Enter to send</span>
+              )}
+            </span>
             <div className="flex">
-              <Button size="xs" variant="accent" className="rounded-r-none" loading={reply.isPending} disabled={locked || !text.trim()} onClick={() => send()} leading={<Send />}>
+              <Button size="xs" variant="accent" className="rounded-r-none" loading={reply.isPending} disabled={locked || busy || !text.trim()} onClick={() => send()} leading={<Send />}>
                 {kind === 'note' ? 'Add note' : 'Send'}
               </Button>
               <Menu>
                 <MenuTrigger asChild>
-                  <Button size="xs" icon variant="accent" className="rounded-l-none border-l border-l-white/25" disabled={locked || !text.trim() || reply.isPending} aria-label="Send and set status">
+                  <Button size="xs" icon variant="accent" className="rounded-l-none border-l border-l-white/25" disabled={locked || busy || !text.trim() || reply.isPending} aria-label="Send and set status">
                     <ChevronDown />
                   </Button>
                 </MenuTrigger>

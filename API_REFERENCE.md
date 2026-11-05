@@ -4,13 +4,19 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Suggested replies (2026-11-05)
+
+A person answering a ticket can ask for an AI draft of their reply: [`POST /tickets/{id}/suggested-reply`](#post-ticketsidsuggested-reply-v2) returns `{content, sources}`, written from the conversation, the team's notes and the bot's knowledge base, optionally steered by `instructions` such as "offer a refund". Nothing is sent or stored; the person edits the draft and sends it with `POST /tickets/{id}/replies` as usual. Each draft is billed like an AI reply. It adds one route (`tickets.write`) and changes nothing else.
+
+- **What a dashboard does:** in the reply box of a ticket the person has taken over, show a **Suggest reply** button that puts the draft into the box, with an optional hint field, and list `sources` under it.
 
 ## No Free plan (2026-10-31)
 
@@ -548,6 +554,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `DELETE` | `/tickets/{id}` | `tickets.delete` | Delete a ticket |
 | `POST` | `/tickets/{id}/replies` | `tickets.write` | Reply to the customer, or add a note |
 | `POST` | `/tickets/{id}/summary` | `tickets.write` | Generate the ticket's AI summary (v2) |
+| `POST` | `/tickets/{id}/suggested-reply` | `tickets.write` | Draft a reply to the ticket with AI, for the person to edit and send (v2) |
 | `GET` | `/handoffs` | `tickets.read` | Conversations the assistant flagged |
 | `GET` | `/realtime` | `tickets.read` | The bot's live update topic (v2) |
 | `GET` | `/webhook` | `integrations.read` | The bot's webhook |
@@ -1859,6 +1866,41 @@ Nothing is generated automatically. The dashboard shows a **Generate summary** b
 - `429 PLAN_LIMIT_REACHED` (the month's replies or tokens are used up and the balance is empty)
 - `429 LLM_RATE_LIMITED`, `502 LLM_PROVIDER_ERROR`, `503 LLM_NOT_CONFIGURED`, `504 LLM_TIMEOUT`
 
+#### `POST /tickets/{id}/suggested-reply` (v2)
+
+`tickets.write`, v2 only. Drafts the next reply to the customer with AI, for the person answering the ticket to edit and send. **Nothing is sent or stored**: the draft is only returned, and the person sends it with [`POST /tickets/{id}/replies`](#post-ticketsidreplies), which still needs the conversation taken over.
+
+The body is optional:
+
+| Field | Rules |
+| --- | --- |
+| `instructions` | Optional. Up to 500 characters telling the AI what the reply should say or how, such as "offer a refund" or "keep it short". |
+
+The draft is written from the ticket's subject, the conversation's latest messages (system notices left out), the team's notes, and, for a bot that answers from its knowledge base, the passages found for the customer's latest message. It follows the bot's prompt for facts about the business and its tone, but is written as the team, in the customer's language. It doesn't call the bot's tools or search the web. Where something it needs is unknown, it asks the customer or leaves a placeholder such as `[check: refund date]` for the person to fill in.
+
+The dashboard shows a **Suggest reply** button in the reply box once the person has taken the ticket over (or the ticket has no live assistant), with an optional hint field to steer a new draft. Put the draft into the reply box, keeping the person's own text recoverable, and list `sources` under it.
+
+**Billing.** A draft is billed like an AI reply: its tokens count toward the month's tokens and, past them, are paid from the balance, and it counts as one reply toward `replies_per_month`. It is written by the bot's model.
+
+**200**
+
+```json
+{
+  "content": "Sorry for the wait! Your refund was sent on 3 January and reaches your card within 10 business days.",
+  "sources": [{"title": "Refund policy", "url": "https://example.com/refunds"}]
+}
+```
+
+`content` is at most 8000 characters, what a reply holds. `sources` lists the knowledge base articles the draft could draw on, at most 5; it is empty when none were found. The response isn't cached.
+
+**Errors:**
+- `400 INVALID_REQUEST` (`instructions` over 500 characters, or a body that isn't `{instructions}`)
+- `400 NO_CONVERSATION` (a ticket opened without a conversation)
+- `403 PLAN_LIMIT_REACHED` (`limit: "no_plan"`: the business has no plan)
+- `404 TICKET_NOT_FOUND`
+- `429 PLAN_LIMIT_REACHED` (the month's replies or tokens are used up and the balance is empty)
+- `429 LLM_RATE_LIMITED`, `502 LLM_PROVIDER_ERROR`, `503 LLM_NOT_CONFIGURED`, `504 LLM_TIMEOUT`
+
 #### `GET /handoffs`
 
 `tickets.read`. **200** `{data: [{conversation_id, channel, title, updated_at}]}`: the latest 50 conversations the assistant flagged for the team, most recent first, that have no open ticket. The assistant keeps replying in them until someone takes one over.
@@ -2883,7 +2925,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Products | `GET /products` (search with `q`, `status`, `property[key]=`), `POST`/`PATCH`/`DELETE /products…`, `GET /properties?entity=product` for the property fields; imports with `POST /products/imports` (then `PUT` and `…/process` for a file), `GET /products/imports/{id}` to review, `…/commit` to save |
 | Settings: properties | `GET /properties?entity=`, `GET /properties/presets` with the business's type, `POST`/`PATCH`/`DELETE /properties…` |
 | Customers | `GET /customers` (search with `q`, filter with `property[key]=`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, `PUT`/`DELETE /customers/{id}/avatar`, `GET /properties?entity=customer` for the property fields, and `GET /tickets?customer=` for all of their tickets |
-| Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
+| Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets/{id}/suggested-reply` for the reply box's AI draft, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
@@ -2957,7 +2999,7 @@ Every error has its HTTP status and this body:
 | 503 | `SIGN_IN_NOT_CONFIGURED`, `ADMIN_NOT_CONFIGURED`, `PLAYGROUND_NOT_CONFIGURED`, `CHAT_NOT_CONFIGURED`, `DATABASE_NOT_CONFIGURED`, `LLM_NOT_CONFIGURED`, `REALTIME_NOT_CONFIGURED`, `CRON_NOT_CONFIGURED`, `NOT_CONFIGURED` | The server isn't configured for this. |
 | 504 | `LLM_TIMEOUT`, `TIMEOUT` | The operation took too long; retry. |
 
-**Model errors** come from the endpoints that generate replies (`POST /playground/run`, `POST /conversations/{id}/messages`):
+**Model errors** come from the endpoints that generate replies (`POST /playground/run`, `POST /conversations/{id}/messages`) and AI drafts and summaries (`POST /tickets/{id}/suggested-reply`, `POST /tickets/{id}/summary`):
 - `REQUEST_CANCELLED`
 - `LLM_RATE_LIMITED`, `PLAN_LIMIT_REACHED`
 - `LLM_PROVIDER_ERROR`, `LLM_NOT_CONFIGURED`, `LLM_TIMEOUT`

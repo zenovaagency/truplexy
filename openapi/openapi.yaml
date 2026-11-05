@@ -2320,7 +2320,8 @@ paths:
       security:
         - AdminKey: []
         - MemberToken: []
-      description: v2. Drafts the suggestion when a person asks, whether or not the bot learns from tickets on its own and whether or not the ticket is closed. Replaces a draft waiting for review or one the team dismissed. Billed like a reply. Like the automatic drafts, it is first checked against the knowledge base's closest articles and the drafts waiting for review: 409 ALREADY_COVERED (with document_id or suggestion_id) when one already covers it, 502 KNOWLEDGE_CHECK_FAILED when the knowledge base couldn't be searched. 400 NOT_ANSWERED before anyone on the team replied; 409 SUGGESTION_HANDLED once the suggestion is in the knowledge base; 422 NOTHING_TO_LEARN when the answer only applies to the customer.
+      description: >-
+        v2. Drafts the suggestion when a person asks, whether or not the bot learns from tickets on its own and whether or not the ticket is closed. Replaces a draft waiting for review or one the team dismissed. Billed like a reply. Like the automatic drafts, it is first checked against the knowledge base's closest articles and the drafts waiting for review: 409 ALREADY_COVERED (with document_id or suggestion_id) when one already covers it, 502 KNOWLEDGE_CHECK_FAILED when the knowledge base couldn't be searched. 400 NOT_ANSWERED before anyone on the team replied; 409 SUGGESTION_HANDLED once the suggestion is in the knowledge base; 422 NOTHING_TO_LEARN when the answer only applies to the customer.
       responses:
         '200':
           description: The suggestion, waiting for review.
@@ -3269,6 +3270,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Ticket'
+        default:
+          $ref: '#/components/responses/Error'
+  /tickets/{id}/suggested-reply:
+    parameters:
+      - $ref: '#/components/parameters/TicketID'
+    post:
+      operationId: suggestTicketReply
+      summary: Draft a reply to the ticket with AI, for the person to edit and send (v2)
+      description: >-
+        Drafts the next reply to the customer from the ticket's subject, the conversation's latest messages, the team's notes and, for a bot
+        that answers from its knowledge base, the passages found for the customer's latest message, optionally steered by instructions.
+        It follows the bot's prompt but is written as the team, in the customer's language, without tools or web search. Nothing is sent
+        or stored: send the edited draft with POST /tickets/{id}/replies, which still needs the conversation taken over. It is billed like
+        an AI reply: its tokens count toward the month's tokens and the balance, and it counts as one reply toward replies_per_month.
+        Errors: 400 INVALID_REQUEST, 400 NO_CONVERSATION for a ticket without a conversation, 403 PLAN_LIMIT_REACHED (limit no_plan),
+        404 TICKET_NOT_FOUND, 429 PLAN_LIMIT_REACHED or LLM_RATE_LIMITED, 502 LLM_PROVIDER_ERROR, 503 LLM_NOT_CONFIGURED, 504 LLM_TIMEOUT.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                instructions:
+                  type: string
+                  maxLength: 500
+                  description: What the reply should say or how, such as "offer a refund" or "keep it short".
+      responses:
+        '200':
+          description: The draft. Nothing was sent or stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestedReply'
         default:
           $ref: '#/components/responses/Error'
   /handoffs:
@@ -4581,7 +4620,8 @@ paths:
     get:
       operationId: getPlatformPerformance
       summary: Requests, latency, reply pipeline stages and RAG quality across every business (v2)
-      description: The performance of the API: counts and latency of the HTTP requests it served (stored when the server runs with PERF_HTTP_STATS; see recording), where a reply's time went stage by stage, how well retrieval worked, and each model's call latency and failures. Percentiles are nearest-rank, in whole milliseconds. Covers every business and the requests no business could be identified for, with scope platform. Adds tenants, the businesses with the most requests. Takes no scope.
+      description: >-
+        The performance of the API: counts and latency of the HTTP requests it served (stored when the server runs with PERF_HTTP_STATS; see recording), where a reply's time went stage by stage, how well retrieval worked, and each model's call latency and failures. Percentiles are nearest-rank, in whole milliseconds. Covers every business and the requests no business could be identified for, with scope platform. Adds tenants, the businesses with the most requests. Takes no scope.
       security:
         - AdminKey: []
         - MemberToken: []
@@ -9082,6 +9122,26 @@ components:
         created_at:
           type: string
           format: date-time
+    SuggestedReply:
+      type: object
+      required: [content, sources]
+      properties:
+        content:
+          type: string
+          maxLength: 8000
+          description: The drafted reply, for the person to edit before sending it.
+        sources:
+          type: array
+          maxItems: 5
+          description: The knowledge base articles the draft could draw on; empty when none were found.
+          items:
+            type: object
+            required: [title]
+            properties:
+              title:
+                type: string
+              url:
+                type: string
     TicketDetail:
       allOf:
         - $ref: '#/components/schemas/Ticket'

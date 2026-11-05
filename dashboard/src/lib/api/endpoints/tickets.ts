@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Handoff, Ticket, TicketDetail, TicketList, TicketPatch, TicketPriority, TicketQuery, TicketReply, TicketStatus } from '@/lib/api/types';
+import type { Handoff, SuggestedReply, Ticket, TicketDetail, TicketList, TicketPatch, TicketPriority, TicketQuery, TicketReply, TicketStatus } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -141,6 +141,19 @@ export function useSummarizeTicket() {
   return useMutation({
     mutationFn: (id: string) => api<Ticket>(`/tickets/${id}/summary`, { method: 'POST', scope }),
     onSuccess: apply,
+  });
+}
+
+/** Drafts a reply with AI for the person to edit and send. Nothing is sent or stored; each draft is billed like a reply. */
+export function useSuggestReply() {
+  const scope = useScope();
+  return useMutation({
+    mutationFn: ({ id, instructions }: { id: string; instructions?: string }) =>
+      api<SuggestedReply>(`/tickets/${id}/suggested-reply`, {
+        method: 'POST',
+        body: instructions ? { instructions } : {},
+        scope,
+      }),
   });
 }
 

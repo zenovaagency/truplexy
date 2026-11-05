@@ -694,6 +694,13 @@ export interface TicketReply {
   created_at: string;
 }
 
+/** An AI draft of a reply, from `POST /tickets/{id}/suggested-reply`. Nothing was sent or stored. */
+export interface SuggestedReply {
+  content: string;
+  /** Knowledge base articles the draft could draw on; empty when none were found. */
+  sources: { title: string; url?: string }[];
+}
+
 export interface TicketDetail extends Ticket {
   messages: TicketMessage[];
   replies: TicketReply[];
