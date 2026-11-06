@@ -160,7 +160,15 @@ export interface Business {
   deleted_at?: string;
   /** Public URL of the logo (v2); absent when there is none. */
   logo_url?: string;
+  /** How new tickets are assigned; absent on an API without team assignment. */
+  auto_assign?: AutoAssignMode;
 }
+
+/** A kind of issue: a ticket's category and a member's support role. */
+export type SupportCategory = 'general' | 'billing' | 'technical' | 'orders' | 'returns' | 'account' | 'sales' | 'product';
+export type Availability = 'available' | 'away' | 'offline';
+/** off; category (in turn among members with the ticket's category, the default); overall (in turn across the team). */
+export type AutoAssignMode = 'off' | 'category' | 'overall';
 
 export interface Member {
   user_id: string;
@@ -169,6 +177,13 @@ export interface Member {
   avatar_url?: string;
   role: Role;
   joined_at: string;
+  /** The kinds of issue they handle; [] is general support. Absent on an API without team assignment. */
+  support_roles?: SupportCategory[];
+  availability?: Availability;
+  /** When their dashboard last said they were there. */
+  last_active_at?: string;
+  /** Available and active in the last 15 minutes: only then are tickets assigned to them automatically. */
+  online?: boolean;
 }
 
 export interface Invite {
@@ -657,6 +672,8 @@ export interface Ticket {
   auto_close_at?: string;
   /** When it last closed on its own (v2); reopening clears it. */
   auto_closed_at?: string;
+  /** The kind of issue; absent on an API without team assignment. */
+  category?: SupportCategory;
   created_at: string;
   updated_at: string;
 }
@@ -734,6 +751,7 @@ export interface TicketQuery {
   customer?: string;
   status?: TicketStatus;
   priority?: TicketPriority;
+  category?: SupportCategory;
   q?: string;
   limit?: number;
   cursor?: string;
@@ -749,6 +767,8 @@ export interface TicketPatch {
   channel_id?: string;
   /** true stops it closing on its own; false lets it again. */
   keep_open?: boolean;
+  /** An unassigned open ticket is then assigned in this category. */
+  category?: SupportCategory;
 }
 
 /* ------------------------------------------------------------------ */

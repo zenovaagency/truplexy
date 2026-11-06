@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowRightLeft, Download, Filter, Hand, Inbox, MessagesSquare, Plus, Search, X } from 'lucide-react';
 import { useChannelIcon, useChannels } from '@/lib/api/endpoints/channels';
 import { useCreateTicket, useHandoffs, usePrefetchTicket, useTickets } from '@/lib/api/endpoints/tickets';
-import type { TicketCounts, TicketFlag, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
+import type { SupportCategory, TicketCounts, TicketFlag, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
+import { SUPPORT_CATEGORIES } from '@/lib/support';
+import { CATEGORY_OPTIONS, CategoryBadge, useTeamAssignment } from '@/components/domain/support';
 import { cn } from '@/lib/cn';
 import { formatRelative } from '@/lib/format';
 import { downloadBlob } from '@/lib/export';
@@ -57,6 +59,7 @@ function useTicketFilters() {
     flag: (params.get('flag') as TicketFlag) || undefined,
     channel: params.get('channel') || undefined,
     customer: params.get('customer') || undefined,
+    category: SUPPORT_CATEGORIES.find((c) => c === params.get('category')) as SupportCategory | undefined,
     q: params.get('q') || undefined,
   };
   const set = (patch: Partial<Record<keyof TicketQuery, string | undefined>>) =>
@@ -100,7 +103,8 @@ export default function TicketsPage() {
   const qs = params.toString() ? `?${params.toString()}` : '';
   const open = (id: string) => nav(href(`tickets/${id}`) + qs);
 
-  const extraFilters = [filters.status, filters.assignee, filters.flag, filters.channel, filters.customer].filter(Boolean).length;
+  const extraFilters = [filters.status, filters.assignee, filters.flag, filters.channel, filters.customer, filters.category].filter(Boolean).length;
+  const teamAssignment = useTeamAssignment();
   const newOpen = params.get('new') === '1';
   const [exportOpen, setExportOpen] = useState(false);
   // Without search or extra filters, the view's own count is the export's size.
@@ -169,6 +173,10 @@ export default function TicketsPage() {
               options={[{ value: 'me', label: 'Assigned to me' }, { value: 'none', label: 'Unassigned' }, ...assignees.map((m) => ({ value: m.user_id, label: m.name }))]} />
             <Select size="sm" aria-label="Flag" value={filters.flag ?? ''} onChange={(e) => set({ flag: e.target.value || undefined })} placeholder="Any flag"
               options={(Object.keys(FLAG_LABEL) as TicketFlag[]).filter((f) => f !== 'overdue').map((f) => ({ value: f, label: FLAG_LABEL[f] }))} />
+            {(teamAssignment || filters.category) && (
+              <Select size="sm" aria-label="Category" value={filters.category ?? ''} onChange={(e) => set({ category: e.target.value || undefined })} placeholder="Any category"
+                options={CATEGORY_OPTIONS} />
+            )}
             {Boolean(channels.data?.length || filters.channel) && (
               <Select size="sm" className="col-span-2" aria-label="Channel" value={filters.channel ?? ''} onChange={(e) => set({ channel: e.target.value || undefined })} placeholder="Any channel"
                 options={[{ value: 'none', label: 'No channel' }, ...(channels.data ?? []).map((c) => ({ value: c.id, label: `${c.name} · ${c.type_label}` }))]} />
@@ -184,7 +192,7 @@ export default function TicketsPage() {
             )}
             {extraFilters > 0 && (
               <button type="button" className="col-span-2 inline-flex items-center gap-1 justify-self-start text-xs font-semibold text-accent hover:underline"
-                onClick={() => set({ status: undefined, assignee: undefined, flag: undefined, channel: undefined, customer: undefined })}>
+                onClick={() => set({ status: undefined, assignee: undefined, flag: undefined, channel: undefined, customer: undefined, category: undefined })}>
                 <X className="size-3" /> Clear filters
               </button>
             )}
@@ -227,6 +235,7 @@ export default function TicketsPage() {
                     <div className="flex flex-wrap items-center gap-1.5 pl-4">
                       <TicketStatusBadge status={t.status} />
                       <TicketFlags ticket={t} />
+                      {t.category && t.category !== 'general' && <CategoryBadge category={t.category} />}
                       {t.channel_name && <ChannelBadge name={t.channel_name} icon={iconOf(t.channel_type)} className="max-w-[140px] text-[0.7rem] text-ink-faint" />}
                       <span className="ml-auto flex items-center gap-1.5 text-[0.7rem] text-ink-faint">
                         {t.assignee_name ? <Avatar name={t.assignee_name} size={18} /> : 'Unassigned'}

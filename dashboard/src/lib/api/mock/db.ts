@@ -27,6 +27,9 @@ import type {
   Tool,
   Webhook,
   WorkspaceVersion,
+  AutoAssignMode,
+  Availability,
+  SupportCategory,
 } from '@/lib/api/types';
 import type { MockProperty } from './properties';
 import type { MockImport, MockProduct } from './products';
@@ -72,6 +75,8 @@ export interface MockTenant {
   logo_url?: string;
   /** The Paddle subscription, once one is started. */
   subscription?: Subscription;
+  /** How new tickets are assigned; absent is category. */
+  auto_assign?: AutoAssignMode;
 }
 
 export interface MockMembership {
@@ -79,6 +84,13 @@ export interface MockMembership {
   user_id: string;
   role: Role;
   joined_at: string;
+  /** Absent or [] is general support. */
+  support_roles?: SupportCategory[];
+  /** Absent is available. */
+  availability?: Availability;
+  last_active_at?: string;
+  /** A seeded teammate who always counts as having the dashboard open, so demo tickets have someone to go to. */
+  demo_active?: boolean;
 }
 
 export interface MockBot {
@@ -173,6 +185,8 @@ export interface MockDb {
   suggestions: MockSuggestion[];
   tools: MockTool[];
   tickets: MockTicket[];
+  /** When each member was last auto-assigned, by `<tenant>|<category or *>|<user>`. */
+  rotation?: Record<string, string>;
   conversations: MockConversation[];
   replies: Record<string, TicketReply[]>;
   webhooks: Record<string, Webhook & { secret: string }>;
@@ -198,7 +212,7 @@ export interface MockDb {
   queries: MockQuery[];
 }
 
-export const DB_VERSION = 17;
+export const DB_VERSION = 18;
 const KEY = 'truplexy.mock.db';
 
 export function loadDb(seed: () => MockDb): MockDb {

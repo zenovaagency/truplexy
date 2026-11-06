@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useSearchParams } from 'react-router';
-import { Check, Clock, Mail, MailPlus, Minus, RotateCw, Shield, Trash2, UserMinus, Users } from 'lucide-react';
+import { Check, Clock, Mail, MailPlus, Minus, RotateCw, Shield, Shuffle, Trash2, UserMinus, Users } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
-import { useCreateInvite, useInvites, useMembers, useRemoveMember, useRevokeInvite, useTenant, useUpdateMember } from '@/lib/api/endpoints/business';
-import type { Invite, Member, Permission, Role } from '@/lib/api/types';
+import { useCreateInvite, useInvites, useMembers, useRemoveMember, useRevokeInvite, useSetMyAvailability, useTenant, useUpdateMember, useUpdateTenant } from '@/lib/api/endpoints/business';
+import type { AutoAssignMode, Availability, Invite, Member, Permission, Role } from '@/lib/api/types';
 import { planLabel } from '@/lib/billing';
 import { cn } from '@/lib/cn';
 import { env } from '@/lib/env';
 import { formatDate, formatRelative } from '@/lib/format';
-import { assignableRoles, DEFAULT_ROLE_PERMISSIONS, ROLE_DESCRIPTION, ROLE_LABEL, ROLES } from '@/lib/permissions';
+import { assignableRoles, canBeAssigned, DEFAULT_ROLE_PERMISSIONS, ROLE_DESCRIPTION, ROLE_LABEL, ROLES } from '@/lib/permissions';
+import { AUTO_ASSIGN_DESCRIPTION, AUTO_ASSIGN_LABEL, AVAILABILITIES, AVAILABILITY_LABEL, CATEGORY_LABEL, PRESENCE_LABEL, presenceOf, rolesOf, SUPPORT_CATEGORIES } from '@/lib/support';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import {
   Avatar,
@@ -34,6 +35,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { RoleBadge } from '@/components/domain/badges';
+import { PresenceLabel, StatusDot, SupportRolesPicker } from '@/components/domain/support';
 
 export default function TeamPage() {
   const { href, can, businessName } = useScopeCtx();
@@ -66,6 +68,7 @@ export default function TeamPage() {
         items={[
           { to: href('team'), label: 'Members', icon: <Users />, end: true, count: members.data?.length },
           { to: href('team/invitations'), label: 'Invitations', icon: <Mail />, count: invites.data?.length },
+          ...(t?.auto_assign !== undefined ? [{ to: href('team/assignment'), label: 'Assignment', icon: <Shuffle /> }] : []),
           { to: href('team/roles'), label: 'Roles & permissions', icon: <Shield /> },
         ]}
       />
@@ -81,9 +84,15 @@ export function MembersTab() {
   const me = useMe();
   const members = useMembers();
   const update = useUpdateMember();
+  const setMine = useSetMyAvailability();
   const remove = useRemoveMember();
   const confirm = useConfirm();
   const writable = can('members.write');
+  // Support roles and availability arrive with the API's team assignment.
+  const assignment = members.data?.some((m) => m.availability !== undefined) ?? false;
+
+  const setAvailability = (m: Member, availability: Availability) =>
+    m.user_id === myId ? setMine.mutate(availability) : update.mutate({ userId: m.user_id, availability });
   const ownersOk = can('owners.manage');
   const myId = me.data?.user.id;
 
@@ -151,6 +160,50 @@ export function MembersTab() {
           </Tip>
         ),
     },
+    ...(assignment
+      ? ([
+          {
+            key: 'support',
+            header: 'Support roles',
+            cell: (m) =>
+              canBeAssigned(m.role) ? (
+                <SupportRolesPicker
+                  name={m.name}
+                  roles={m.support_roles}
+                  disabled={!editable(m)}
+                  onSave={(support_roles) => update.mutate({ userId: m.user_id, support_roles })}
+                />
+              ) : (
+                <span className="text-xs text-ink-faint">Not assigned tickets</span>
+              ),
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            cell: (m) =>
+              m.user_id === myId || editable(m) ? (
+                <span className="flex items-center gap-2">
+                  <StatusDot member={m} />
+                  <Select
+                    size="sm"
+                    aria-label={`Status for ${m.name}`}
+                    className="w-32"
+                    value={m.availability ?? 'available'}
+                    onChange={(e) => setAvailability(m, e.target.value as Availability)}
+                    options={AVAILABILITIES.map((a) => ({ value: a, label: AVAILABILITY_LABEL[a] }))}
+                  />
+                  {presenceOf(m) === 'idle' && (
+                    <Tip content="Set to Available, but hasn't had the dashboard open in the last 15 minutes, so isn't assigned tickets.">
+                      <span className="text-xs text-warn">Inactive</span>
+                    </Tip>
+                  )}
+                </span>
+              ) : (
+                <PresenceLabel member={m} />
+              ),
+          },
+        ] satisfies Column<Member>[])
+      : []),
     { key: 'joined', header: 'Joined', hideBelowLg: true, cell: (m) => <span className="text-ink-muted">{formatDate(m.joined_at)}</span> },
     {
       key: 'actions',
@@ -408,6 +461,112 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
         </form>
       )}
     </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+const MODES: AutoAssignMode[] = ['category', 'overall', 'off'];
+
+/** How new tickets are assigned, and who is there to take them. */
+export function AssignmentTab() {
+  const { can } = useScopeCtx();
+  const tenant = useTenant();
+  const members = useMembers();
+  const update = useUpdateTenant();
+  const saved = tenant.data?.auto_assign ?? 'category';
+  const [mode, setMode] = useState<AutoAssignMode>(saved);
+  useEffect(() => setMode(saved), [saved]);
+  const writable = can('business.write');
+  const team = (members.data ?? []).filter((m) => canBeAssigned(m.role));
+  const online = team.filter((m) => presenceOf(m) === 'online');
+
+  if (tenant.isPending || members.isPending) return <SkeletonRows rows={5} className="p-4" />;
+  if (tenant.isError) return <ErrorState error={tenant.error} onRetry={() => tenant.refetch()} />;
+  if (tenant.data.auto_assign === undefined)
+    return <EmptyState icon={<Shuffle />} title="Not available yet" description="Automatic assignment arrives with the next API update." />;
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <Card title="Assign new tickets" description="Tickets that open, are escalated or are taken over with nobody assigned go to an online teammate straight away.">
+        <div className="grid gap-2" role="radiogroup" aria-label="How new tickets are assigned">
+          {MODES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={mode === m}
+              disabled={!writable}
+              onClick={() => setMode(m)}
+              className={cn(
+                'flex items-start gap-3 rounded-[12px] border p-3 text-left transition-colors disabled:cursor-default',
+                mode === m ? 'border-accent bg-accent-soft/50' : 'border-line hover:border-line-strong',
+              )}
+            >
+              <span className={cn('mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border-2', mode === m ? 'border-btn' : 'border-line-strong')}>
+                {mode === m && <span className="size-1.5 rounded-full bg-btn" />}
+              </span>
+              <span className="grid">
+                <span className="flex items-center gap-2 text-[0.8125rem] font-semibold text-ink">
+                  {AUTO_ASSIGN_LABEL[m]}
+                  {m === 'category' && <Badge tone="outline" className="px-1.5 py-0 text-[0.65rem]">Default</Badge>}
+                </span>
+                <span className="text-xs text-ink-muted">{AUTO_ASSIGN_DESCRIPTION[m]}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-ink-faint">
+          Only agents and above who are set to Available and have the dashboard open (seen in the last 15 minutes) are assigned. Whoever was assigned longest ago goes next.
+        </p>
+        {writable ? (
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="quiet" disabled={mode === saved || update.isPending} onClick={() => setMode(saved)}>
+              Reset
+            </Button>
+            <Button variant="accent" disabled={mode === saved} loading={update.isPending} onClick={() => update.mutate({ auto_assign: mode })}>
+              Save
+            </Button>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-ink-muted">Only owners and admins change how tickets are assigned.</p>
+        )}
+      </Card>
+
+      <Card flush title="Who takes each category" description={`${online.length} of ${team.length} teammates online now.`}>
+        <ul className="divide-y divide-line">
+          {SUPPORT_CATEGORIES.map((c) => {
+            const handles = team.filter((m) => rolesOf(m).includes(c));
+            const here = handles.filter((m) => presenceOf(m) === 'online');
+            const none = mode === 'category' && here.length === 0;
+            return (
+              <li key={c} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="grid min-w-0 flex-1">
+                  <span className="text-[0.8125rem] font-semibold text-ink">{CATEGORY_LABEL[c]}</span>
+                  <span className={cn('text-xs', none ? 'text-warn' : 'text-ink-faint')}>
+                    {handles.length === 0
+                      ? c === 'general'
+                        ? 'Nobody. Tickets go to anyone online.'
+                        : 'Nobody has this role. Tickets go to general support.'
+                      : none
+                        ? 'Nobody online. Tickets go to general support, then anyone.'
+                        : `${here.length} of ${handles.length} online`}
+                  </span>
+                </span>
+                <span className="flex -space-x-1.5">
+                  {handles.slice(0, 5).map((m) => (
+                    <span key={m.user_id} className="relative" title={`${m.name}: ${PRESENCE_LABEL[presenceOf(m)]}`}>
+                      <Avatar name={m.name} email={m.email} src={m.avatar_url} size={26} className={cn('ring-2 ring-surface', presenceOf(m) !== 'online' && 'opacity-50')} />
+                      <StatusDot member={m} className="absolute -bottom-0.5 -right-0.5 ring-2 ring-surface" />
+                    </span>
+                  ))}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+    </div>
   );
 }
 

@@ -4,13 +4,24 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Team roles and auto-assignment (2026-11-06)
+
+Members get support roles and an availability, tickets get a category, and new tickets are assigned to the team in turn. Apply migration `0052_team_assignment.sql` first. Existing fields keep their meaning.
+
+- **Support roles and categories** are the same fixed list: `general`, `billing`, `technical`, `orders`, `returns`, `account`, `sales`, `product`. A member has any number (none counts as `general`); a ticket has one.
+- **Members** (`GET /members`, `PATCH /members/{user_id}`) gain `support_roles`, `availability` (`available` | `away` | `offline`), `last_active_at` and `online`. `PATCH /members/{user_id}` now takes any of `{role, support_roles, availability}` (`members.write`).
+- **Own availability and presence:** [`PATCH /members/me`](#patch-membersme) `{availability}` and [`POST /members/me/presence`](#post-membersmepresence), for every member (`members.read`). A member counts as `online`, and is assigned tickets, only while `available` and active in the last 15 minutes; the dashboard says it is there with the presence call every couple of minutes.
+- **Business** (`GET`/`PATCH /tenant`) gains `auto_assign`: `off`, `category` (the default: in turn among the members with the ticket's category, then general members, then anyone online) or `overall` (in turn across the whole team). Only members who may work on tickets (agent and up) are assigned.
+- **Tickets** gain `category`, classified from the subject and the customer's latest messages when the ticket opens, unless given. `GET /tickets?category=`, `POST /tickets` `{category, assignee_user_id}` and `PATCH /tickets/{id}` `{category}` use it. A ticket opened, escalated or taken over is assigned at once when nobody is; moving an unassigned ticket to another category assigns it in that category. Taking a conversation over from the handoffs list (`POST /tickets` with `escalated: true`) assigns it to whoever took it over.
+- **What a dashboard does:** show and edit support roles and availability on the Team page, a status switcher for the signed-in person, a mode switch for `auto_assign`, a category badge, filter and picker on tickets, and call `POST /members/me/presence` while the dashboard is open.
 
 ## Suggested replies (2026-11-05)
 
@@ -463,10 +474,12 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/invites/preview` | account | Describe an invitation |
 | `POST` | `/invites/accept` | account | Join a business by invitation |
 | `GET` | `/tenant` | `members.read` | The business, its limits and usage |
-| `PATCH` | `/tenant` | `business.write` | Rename the business, change its type or reply target |
+| `PATCH` | `/tenant` | `business.write` | Rename the business, change its type, reply target or how tickets are assigned |
 | `POST` | `/tenant/leave` | `members.read` | Leave the business |
 | `GET` | `/members` | `members.read` | List members |
-| `PATCH` | `/members/{user_id}` | `members.write` | Change a member's role |
+| `PATCH` | `/members/me` | `members.read` | Set your own availability |
+| `POST` | `/members/me/presence` | `members.read` | Say your dashboard is open |
+| `PATCH` | `/members/{user_id}` | `members.write` | Change a member's role, support roles or availability |
 | `DELETE` | `/members/{user_id}` | `members.write` | Remove a member |
 | `GET` | `/invites` | `members.read` | Pending invitations |
 | `POST` | `/invites` | `members.write` | Invite someone |
@@ -709,6 +722,7 @@ Scope headers. These act on the business the headers name.
   limit_overrides: {…},                          // only what a platform admin overrode
   usage: {bots, members, replies_this_month, tokens_this_month},   // members includes pending invitations
   balance,                                       // USD; see GET /billing
+  auto_assign,                                   // off | category | overall: how new tickets are assigned
   deleted_at?                                    // only on deleted businesses, which only platform admins see
 }
 ```
@@ -724,6 +738,7 @@ Scope headers. These act on the business the headers name.
 - `business_type`.
 - `reply_target_hours`: 1–720.
 - `auto_close_hours` (v2): 0 (never, the default) to 2160. Open tickets without a channel, and those of channel types without a time, close after this many hours without activity; see [Tickets](#tickets).
+- `auto_assign`: how new tickets are assigned. `category` (the default) gives each ticket to the online member whose turn it is among those with the ticket's category as a support role, then among general members, then anyone online; `overall` takes turns across the whole team; `off` assigns nobody. See [Assignment](#assignment).
 
 Changing the type changes the defaults for new bots, not saved bots. **200** the Business.
 
@@ -733,11 +748,34 @@ Changing the type changes the defaults for new bots, not saved bots. **200** the
 
 #### `GET /members`
 
-`members.read`. **200** `{data: [{user_id, email, name, role, joined_at}]}`, owners first.
+`members.read`. **200** `{data: [Member]}`, owners first, where a Member is:
+
+```text
+{
+  user_id, email, name, avatar_url?, role, joined_at,
+  support_roles,      // e.g. ["billing", "technical"]; [] is general support
+  availability,       // available | away | offline, as set
+  last_active_at?,    // when their dashboard last said they were there
+  online              // available and active in the last 15 minutes: only then assigned tickets
+}
+```
+
+#### `PATCH /members/me`
+
+`members.read`. `{availability}`: `available`, `away` or `offline`, for the signed-in member. Becoming `available` counts as being active. **200** the Member. **Errors:** `400 INVALID_REQUEST`, `404 MEMBER_NOT_FOUND`.
+
+#### `POST /members/me/presence`
+
+`members.read`. Says the signed-in member's dashboard is open; call it every couple of minutes while it is, and when it comes back into view. Writes at most once a minute. **204**.
 
 #### `PATCH /members/{user_id}`
 
-`members.write`. `{role}`: `owner`, `admin`, `editor`, `agent` or `viewer`. Changing an owner, or making someone an owner, needs `owners.manage`. **200** the member.
+`members.write`. Send any of:
+- `role`: `owner`, `admin`, `editor`, `agent` or `viewer`. Changing an owner, or making someone an owner, needs `owners.manage`.
+- `support_roles`: a list of `general`, `billing`, `technical`, `orders`, `returns`, `account`, `sales`, `product` (repeats are dropped; `[]` is general support).
+- `availability`: `available`, `away` or `offline`.
+
+**200** the Member.
 
 **Errors:**
 - `403 FORBIDDEN`
@@ -1732,6 +1770,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   keep_open,                               // true: never closes on its own (v2)
   auto_close_at?,                          // when it closes if nothing happens before (v2)
   auto_closed_at?,                         // when it last closed on its own (v2)
+  category,                                // general | billing | technical | orders | returns | account | sales | product
   created_at, updated_at
 }
 ```
@@ -1744,6 +1783,11 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 - A customer message sets `needs_reply`.
 - Closing ends escalation, and the assistant answers again.
 - **Closing inactive tickets** (v2). An open ticket closes after a number of hours without activity (no change to it and no message in its conversation): its channel's `auto_close_hours`, else its channel type's, else its business's; 0 is never, and nothing closes until one is set. A ticket with `keep_open: true` never closes on its own; one waiting on the team (escalated or handed off, with the customer having written last) closes like any other. `auto_close_at` says when it will. Closing on its own ends escalation, adds the internal note "Closed automatically after N hours without activity." and sets `auto_closed_at`; reopening clears it. It sends the same `ticket.updated` events as a person closing it.
+
+**Assignment.**
+- A ticket's `category` is classified from its subject and the customer's latest messages when it opens, unless given; a person can change it.
+- A ticket that opens, is escalated or is taken over with nobody assigned is assigned at once, as the business's `auto_assign` says. Only members who may work on tickets (agent and up) who are `online` (available, and active in the last 15 minutes) are assigned. In turn means the member assigned longest ago in that rotation (the category's, or the whole team's) goes next.
+- With nobody online the ticket stays unassigned. Moving an unassigned open ticket to another category assigns it in that category. A person can always reassign.
 
 **Flags**, for badges and filters:
 
@@ -1768,6 +1812,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | `channel` | A channel `id`, or `none` for tickets without one (v2). |
 | `channel_type` | A channel type `id`, such as `discord` (v2). |
 | `customer` | A customer `id` (`cus_…`): only tickets from that customer (v2). |
+| `category` | One category, such as `billing`. |
 | `status`, `priority` | One value each; `status` is `open` or `closed`. |
 | `q` | Up to 200 characters: matches the subject, or a ticket or conversation ID exactly. |
 | `limit` | 1–100, default 50. |
@@ -1787,8 +1832,10 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | `escalated` | `true` takes the conversation over at once. |
 | `channel_id` | One of the bot's channels (v2). With `conversation_id`, defaults to the conversation's channel. |
 | `keep_open` | `true` stops the ticket closing on its own (v2). |
+| `category` | One category; default: classified from the subject and the conversation. |
+| `assignee_user_id` | A member who may work on tickets; default (or a member who may not): assigned as the business's `auto_assign` says. |
 
-Opening a ticket for a flagged conversation clears the flag. To take over a conversation from `GET /handoffs`, send its `conversation_id` with `escalated: true`. **201** the ticket.
+Opening a ticket for a flagged conversation clears the flag. To take over a conversation from `GET /handoffs`, send its `conversation_id` with `escalated: true`; the ticket is assigned to whoever took it over. **201** the ticket.
 
 **Errors:**
 - `404 CONVERSATION_NOT_FOUND`
@@ -1821,6 +1868,7 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 | `assignee` | Legacy free text, up to 64 characters. |
 | `channel_id` | One of the bot's channels; `""` clears it (v2). |
 | `keep_open` | `true` stops the ticket closing on its own; `false` lets it again (v2). |
+| `category` | One category. An open ticket nobody is assigned to is then assigned in it. |
 
 **200** the ticket.
 

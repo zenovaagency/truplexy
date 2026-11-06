@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, ImagePlus, LogOut, UserRound, RotateCcw, Shield, ShieldCheck, UserCog } from 'lucide-react';
 import { useMe, useRemoveMyAvatar, useSetMyAvatar } from '@/lib/api/endpoints/account';
+import { MyStatus } from '@/components/layout/MyStatus';
 import { ImageUploader } from '@/components/domain/ImageUploader';
 import type { Role } from '@/lib/api/types';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -93,6 +94,7 @@ export function UserMenu() {
             {scopeCtx.role ? `${ROLE_LABEL[scopeCtx.role]} in ${scopeCtx.businessName}` : 'Visiting as platform admin'}
           </p>
         )}
+        {scopeCtx?.membership && <MyStatus />}
         <MenuSeparator />
 
         <MenuItem onSelect={() => nav('/account')}>

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, hasCode } from '@/lib/api/client';
-import type { ApiKey, AuditEvent, Bot, Business, BusinessTypeId, DeletionRequest, Invite, Member, Role } from '@/lib/api/types';
+import { useEffect } from 'react';
+import type { ApiKey, AuditEvent, AutoAssignMode, Availability, Bot, Business, BusinessTypeId, DeletionRequest, Invite, Member, Role, SupportCategory } from '@/lib/api/types';
 import { imageForm, refreshImages } from '@/lib/api/endpoints/account';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
@@ -20,7 +21,7 @@ export function useUpdateTenant() {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name?: string; business_type?: BusinessTypeId; reply_target_hours?: number; auto_close_hours?: number }) =>
+    mutationFn: (body: { name?: string; business_type?: BusinessTypeId; reply_target_hours?: number; auto_close_hours?: number; auto_assign?: AutoAssignMode }) =>
       api<Business>('/tenant', { method: 'PATCH', body, scope }),
     onSuccess: (b) => {
       qc.setQueryData(qk.tenant(scope, 'business'), b);
@@ -138,14 +139,54 @@ export function useUpdateMember() {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: Role }) =>
-      api<Member>(`/members/${encodeURIComponent(userId)}`, { method: 'PATCH', body: { role }, scope }),
-    onSuccess: () => {
+    mutationFn: ({ userId, ...body }: { userId: string; role?: Role; support_roles?: SupportCategory[]; availability?: Availability }) =>
+      api<Member>(`/members/${encodeURIComponent(userId)}`, { method: 'PATCH', body, scope }),
+    onSuccess: (_m, vars) => {
       qc.invalidateQueries({ queryKey: qk.tenant(scope, 'members') });
-      qc.invalidateQueries({ queryKey: qk.me });
+      if (vars.role) qc.invalidateQueries({ queryKey: qk.me });
     },
-    meta: { success: 'Role updated' },
+    meta: { success: 'Member updated' },
   });
+}
+
+/** Sets the signed-in member's own availability. */
+export function useSetMyAvailability() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (availability: Availability) => api<Member>('/members/me', { method: 'PATCH', body: { availability }, scope }),
+    onSuccess: (m) => {
+      qc.setQueryData<Member[]>(qk.tenant(scope, 'members'), (list) => list?.map((x) => (x.user_id === m.user_id ? m : x)));
+      qc.invalidateQueries({ queryKey: qk.tenant(scope, 'members') });
+    },
+  });
+}
+
+/** How often the dashboard tells the API it is open; a member counts as online for 15 minutes after. */
+export const PRESENCE_MS = 120_000;
+
+/**
+ * Tells the API the signed-in member's dashboard is open: now, every couple of minutes while the tab is visible,
+ * and whenever it comes back into view. Failures are ignored; an API without presence answers 404.
+ */
+export function usePresenceHeartbeat(enabled: boolean) {
+  const scope = useScope();
+  useEffect(() => {
+    if (!enabled) return;
+    let stopped = false;
+    const beat = () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      void api<void>('/members/me/presence', { method: 'POST', scope }).catch(() => {});
+    };
+    beat();
+    const timer = window.setInterval(beat, PRESENCE_MS);
+    document.addEventListener('visibilitychange', beat);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', beat);
+    };
+  }, [enabled, scope.tenant, scope.bot]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export function useRemoveMember() {

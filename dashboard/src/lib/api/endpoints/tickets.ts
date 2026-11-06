@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Handoff, SuggestedReply, Ticket, TicketDetail, TicketList, TicketPatch, TicketPriority, TicketQuery, TicketReply, TicketStatus } from '@/lib/api/types';
+import type { Handoff, SuggestedReply, Ticket, TicketDetail, TicketList, TicketPatch, TicketPriority, TicketQuery, TicketReply, TicketStatus, SupportCategory } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -98,6 +98,8 @@ export function useCreateTicket() {
       escalated?: boolean;
       channel_id?: string;
       keep_open?: boolean;
+      category?: SupportCategory;
+      assignee_user_id?: string;
     }) =>
       api<Ticket>('/tickets', { method: 'POST', body, scope }),
     onSuccess: () => {
