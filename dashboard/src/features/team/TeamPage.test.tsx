@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { button, choose, cleanup, click, json, renderPage, text, type Call } from '@/test-utils';
+import { act } from 'react';
+import { button, cleanup, click, json, renderPage, text, tick, type Call } from '@/test-utils';
 import TeamPage, { AssignmentTab, MembersTab } from './TeamPage';
 
 vi.mock('@/lib/notify', () => ({ notifySuccess: vi.fn(), notifyError: vi.fn(), notifyInfo: vi.fn() }));
@@ -46,18 +47,30 @@ function api(withAssignment = true) {
   };
 }
 
+/** Opens a member's status menu (Radix opens on pointer down) and picks an option. */
+async function pickStatus(name: string, option: string) {
+  const trigger = document.querySelector(`[aria-label^="Status for ${name}"]`)!;
+  await act(async () => {
+    trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false, pointerType: 'mouse' }));
+  });
+  await tick();
+  const item = [...document.querySelectorAll('[role="menuitemradio"]')].find((i) => i.textContent?.startsWith(option));
+  await click(item);
+}
+
 describe('Team members', () => {
   it('shows support roles and who is online, and saves a status', async () => {
     const { calls } = await renderPage(routes, '/team', api());
     expect(text()).toContain('Support roles');
     expect(text()).toContain('Billing');
     // Jun is set to available but hasn't had the dashboard open lately.
-    expect(text()).toContain('Inactive');
-    // A viewer isn't assigned tickets.
+    expect(document.querySelector('[aria-label="Status for Jun Park: Inactive"]')).not.toBeNull();
+    // A viewer isn't assigned tickets, so has no status to set.
     expect(text()).toContain('Not assigned tickets');
+    expect(document.querySelector('[aria-label^="Status for Liam Ode"]')).toBeNull();
 
-    await choose(document.querySelector('select[aria-label="Status for Priya Shah"]'), 'away');
-    await choose(document.querySelector('select[aria-label="Status for Alex Rivera"]'), 'offline');
+    await pickStatus('Priya Shah', 'Away');
+    await pickStatus('Alex Rivera', 'Offline');
     const patches = calls.filter((c) => c.method === 'PATCH');
     expect(patches).toEqual([
       expect.objectContaining({ path: '/members/u2', body: { availability: 'away' } }),

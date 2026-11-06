@@ -9,7 +9,7 @@ import { cn } from '@/lib/cn';
 import { env } from '@/lib/env';
 import { formatDate, formatRelative } from '@/lib/format';
 import { assignableRoles, canBeAssigned, DEFAULT_ROLE_PERMISSIONS, ROLE_DESCRIPTION, ROLE_LABEL, ROLES } from '@/lib/permissions';
-import { AUTO_ASSIGN_DESCRIPTION, AUTO_ASSIGN_LABEL, AVAILABILITIES, AVAILABILITY_LABEL, CATEGORY_LABEL, PRESENCE_LABEL, presenceOf, rolesOf, SUPPORT_CATEGORIES } from '@/lib/support';
+import { AUTO_ASSIGN_DESCRIPTION, AUTO_ASSIGN_LABEL, CATEGORY_LABEL, PRESENCE_LABEL, presenceOf, rolesOf, SUPPORT_CATEGORIES } from '@/lib/support';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import {
   Avatar,
@@ -35,7 +35,7 @@ import {
   type Column,
 } from '@/components/ui';
 import { RoleBadge } from '@/components/domain/badges';
-import { PresenceLabel, StatusDot, SupportRolesPicker } from '@/components/domain/support';
+import { StatusDot, StatusPill, SupportRolesPicker } from '@/components/domain/support';
 
 export default function TeamPage() {
   const { href, can, businessName } = useScopeCtx();
@@ -180,26 +180,16 @@ export function MembersTab() {
           {
             key: 'status',
             header: 'Status',
+            // Only people who can be assigned tickets have a status that matters.
             cell: (m) =>
-              m.user_id === myId || editable(m) ? (
-                <span className="flex items-center gap-2">
-                  <StatusDot member={m} />
-                  <Select
-                    size="sm"
-                    aria-label={`Status for ${m.name}`}
-                    className="w-32"
-                    value={m.availability ?? 'available'}
-                    onChange={(e) => setAvailability(m, e.target.value as Availability)}
-                    options={AVAILABILITIES.map((a) => ({ value: a, label: AVAILABILITY_LABEL[a] }))}
-                  />
-                  {presenceOf(m) === 'idle' && (
-                    <Tip content="Set to Available, but hasn't had the dashboard open in the last 15 minutes, so isn't assigned tickets.">
-                      <span className="text-xs text-warn">Inactive</span>
-                    </Tip>
-                  )}
-                </span>
+              !canBeAssigned(m.role) ? (
+                <span className="text-xs text-ink-faint">—</span>
               ) : (
-                <PresenceLabel member={m} />
+                <StatusPill
+                  member={m}
+                  name={m.name}
+                  onChange={m.user_id === myId || editable(m) ? (a: Availability) => setAvailability(m, a) : undefined}
+                />
               ),
           },
         ] satisfies Column<Member>[])
