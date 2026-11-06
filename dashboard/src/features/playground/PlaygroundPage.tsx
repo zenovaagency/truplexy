@@ -339,6 +339,8 @@ function RunError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
 
 function Bubble({ m, last, onResend, busy, refresher }: { m: PlaygroundMessage; last: boolean; onResend: () => void; busy: boolean; refresher: ImageRefresher }) {
   const [open, setOpen] = useState(false);
+  // Which model answered and what it cost is the platform's business, not the customer's.
+  const { isPlatformAdmin } = useScopeCtx();
   if (m.role === 'user') {
     // A message may be pictures alone: no empty text bubble then.
     return (
@@ -354,8 +356,8 @@ function Bubble({ m, last, onResend, busy, refresher }: { m: PlaygroundMessage; 
       <div className="bubble bubble-bot">{m.content || <span className="italic text-ink-faint">No reply: a person has the conversation.</span>}</div>
       <div className="flex flex-wrap items-center gap-1.5 px-1 text-[0.7rem] text-ink-faint">
         {m.status && <ReplyStatusBadge status={m.status} />}
-        {m.model && <span className="font-mono">{m.model.split('/').pop()}</span>}
-        {m.usage && (
+        {isPlatformAdmin && m.model && <span className="font-mono">{m.model.split('/').pop()}</span>}
+        {isPlatformAdmin && m.usage && (
           <span>
             · {formatNumber(m.usage.total_tokens)} tokens · {formatCurrency(m.usage.cost)}
           </span>

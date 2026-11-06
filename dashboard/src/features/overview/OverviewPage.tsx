@@ -9,6 +9,7 @@ import {
   MessagesSquare,
   ScrollText,
   Sparkles,
+  Ticket,
   Zap,
 } from 'lucide-react';
 import { useMe } from '@/lib/api/endpoints/account';
@@ -64,7 +65,7 @@ function greeting() {
 }
 
 export default function OverviewPage() {
-  const { bots, businessName, bot, can, href } = useScopeCtx();
+  const { bots, businessName, bot, can, href, isPlatformAdmin } = useScopeCtx();
   const me = useMe();
   const [days, setDays] = useStoredState<Days>('truplexy.overview.days', '30');
   const [statsScope, setStatsScope] = useState<'bot' | 'business'>('bot');
@@ -89,6 +90,8 @@ export default function OverviewPage() {
   // Durations come in seconds; AI replies take a few, so they read better in ms or s.
   const ms = (seconds: number | null | undefined) => (seconds == null ? undefined : seconds * 1000);
   const plan = t ? planUsage(t) : undefined;
+  // Tokens and cost are for platform admins; a business sees requests only.
+  const shown: Metric = isPlatformAdmin ? metric : 'requests';
   const backlogCounts = s
     ? [
         { key: 'open', label: 'Open', value: s.backlog.total, to: 'tickets' },
@@ -179,16 +182,29 @@ export default function OverviewPage() {
             trend={replyTime && s?.by_day.map((d) => d.ai_reply_seconds ?? 0)}
             info="How long the assistant takes to write a reply, from the customer's message to the answer."
           />
-          <StatCard
-            label="Cost per AI resolution"
-            icon={<Coins />}
-            loading={!s}
-            value={formatCurrency(s?.cost.per_ai_resolved)}
-            delta={compareStat(s?.cost.per_ai_resolved, p?.cost.per_ai_resolved, { better: 'down', title: vs })}
-            sub={s && `${formatCurrency(s.cost.total)} in this period · ${formatCurrency(s.cost.per_conversation)} per conversation`}
-            trend={s?.by_day.map((d) => d.ticket_cost)}
-            info="AI cost for each conversation the assistant resolved without a person. Estimated; billing may differ."
-          />
+          {isPlatformAdmin ? (
+            <StatCard
+              label="Cost per AI resolution"
+              icon={<Coins />}
+              loading={!s}
+              value={formatCurrency(s?.cost.per_ai_resolved)}
+              delta={compareStat(s?.cost.per_ai_resolved, p?.cost.per_ai_resolved, { better: 'down', title: vs })}
+              sub={s && `${formatCurrency(s.cost.total)} in this period · ${formatCurrency(s.cost.per_conversation)} per conversation`}
+              trend={s?.by_day.map((d) => d.ticket_cost)}
+              info="AI cost for each conversation the assistant resolved without a person. Estimated; billing may differ."
+            />
+          ) : (
+            // A business sees its ticket load here; model costs are for platform admins.
+            <StatCard
+              label="Tickets opened"
+              icon={<Ticket />}
+              loading={!s}
+              value={formatNumber(s?.tickets.created)}
+              delta={compareStat(s?.tickets.created, p?.tickets.created, { better: 'none', title: vs })}
+              sub={s && `${formatNumber(s.tickets.closed)} closed in this period`}
+              trend={s?.by_day.map((d) => d.tickets_created)}
+            />
+          )}
           <StatCard
             label="Plan usage"
             icon={<Gauge />}
@@ -250,19 +266,27 @@ export default function OverviewPage() {
 
       <Card
         title="AI usage"
-        description={u ? `${formatNumber(u.requests)} requests · ${formatCompact(u.total_tokens)} tokens · ${formatCurrency(u.estimated_cost)} · ${formatMs(u.avg_latency_ms)} average latency` : 'Model requests for this bot.'}
+        description={
+          u
+            ? isPlatformAdmin
+              ? `${formatNumber(u.requests)} requests · ${formatCompact(u.total_tokens)} tokens · ${formatCurrency(u.estimated_cost)} · ${formatMs(u.avg_latency_ms)} average latency`
+              : `${formatNumber(u.requests)} requests · ${formatMs(u.avg_latency_ms)} average latency`
+            : 'AI requests for this bot.'
+        }
         actions={
-          <Segmented
-            size="xs"
-            label="Metric"
-            value={metric}
-            onChange={setMetric}
-            options={(Object.keys(METRIC) as Metric[]).map((k) => ({ value: k, label: METRIC[k].label }))}
-          />
+          isPlatformAdmin && (
+            <Segmented
+              size="xs"
+              label="Metric"
+              value={metric}
+              onChange={setMetric}
+              options={(Object.keys(METRIC) as Metric[]).map((k) => ({ value: k, label: METRIC[k].label }))}
+            />
+          )
         }
       >
         {u ? (
-          <TrendChart data={u.by_day} series={[{ key: metric, label: METRIC[metric].label, slot: 1 }]} kind="bar" format={METRIC[metric].format} height={220} />
+          <TrendChart data={u.by_day} series={[{ key: shown, label: METRIC[shown].label, slot: 1 }]} kind="bar" format={METRIC[shown].format} height={220} />
         ) : usage.isError ? (
           <ErrorState compact error={usage.error} onRetry={() => usage.refetch()} />
         ) : (
@@ -270,16 +294,18 @@ export default function OverviewPage() {
         )}
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Models" description="Requests per model.">
-          {u ? (
-            <BarList
-              items={u.by_model.map((m) => ({ key: m.model, label: m.model.split('/').pop()!, value: m.requests, hint: formatCurrency(m.estimated_cost) }))}
-            />
-          ) : (
-            <SkeletonRows rows={3} />
-          )}
-        </Card>
+      <div className={cn('grid gap-4', isPlatformAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-2')}>
+        {isPlatformAdmin && (
+          <Card title="Models" description="Requests per model.">
+            {u ? (
+              <BarList
+                items={u.by_model.map((m) => ({ key: m.model, label: m.model.split('/').pop()!, value: m.requests, hint: formatCurrency(m.estimated_cost) }))}
+              />
+            ) : (
+              <SkeletonRows rows={3} />
+            )}
+          </Card>
+        )}
         <Card title="Answer quality" description={u ? `${formatNumber(u.rag.requests)} answers used the knowledge base.` : undefined}>
           {u ? (
             <ul className="grid gap-3.5 text-[0.8125rem]">

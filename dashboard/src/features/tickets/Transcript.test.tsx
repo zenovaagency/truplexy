@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Attachment, TicketDetail } from '@/lib/api/types';
 import { createImageRefresher } from '@/lib/images/refresh';
+import { ScopeContext, type ScopeContextValue } from '@/lib/session/scope-context';
 import { TooltipProvider } from '@/components/ui';
 import { Transcript } from './TicketDetail';
 
@@ -35,7 +36,8 @@ afterEach(async () => {
   document.body.innerHTML = '';
 });
 
-async function render(t: TicketDetail, reload = vi.fn(async () => {})) {
+async function render(t: TicketDetail, reload = vi.fn(async () => {}), isPlatformAdmin = false) {
+  const ctx = { isPlatformAdmin, can: () => true } as unknown as ScopeContextValue;
   const refresher = createImageRefresher(reload);
   const container = document.createElement('div');
   document.body.append(container);
@@ -43,9 +45,11 @@ async function render(t: TicketDetail, reload = vi.fn(async () => {})) {
   const show = (next: TicketDetail) =>
     act(async () =>
       root!.render(
-        <TooltipProvider>
-          <Transcript ticket={next} refresher={refresher} />
-        </TooltipProvider>,
+        <ScopeContext.Provider value={ctx}>
+          <TooltipProvider>
+            <Transcript ticket={next} refresher={refresher} />
+          </TooltipProvider>
+        </ScopeContext.Provider>,
       ),
     );
   await show(t);
@@ -53,6 +57,30 @@ async function render(t: TicketDetail, reload = vi.fn(async () => {})) {
 }
 
 describe('the ticket transcript', () => {
+  const reply = () =>
+    ticket([
+      message('msg_1', {
+        role: 'assistant',
+        author: 'assistant',
+        content: 'Your order ships today.',
+        model: 'openai/gpt-4.1-mini',
+        usage: { input_tokens: 900, output_tokens: 40, total_tokens: 940, cost: 0.0123 },
+      } as Partial<TicketDetail['messages'][number]>),
+    ]);
+
+  it("doesn't show a business which model wrote a reply or what it cost", async () => {
+    const { container } = await render(reply());
+    expect(container.textContent).toContain('Your order ships today.');
+    expect(container.textContent).not.toContain('gpt-4.1-mini');
+    expect(container.textContent).not.toContain('$');
+  });
+
+  it('shows a platform admin the model and cost of a reply', async () => {
+    const { container } = await render(reply(), undefined, true);
+    expect(container.textContent).toContain('gpt-4.1-mini');
+    expect(container.textContent).toContain('$');
+  });
+
   it("shows a customer message's pictures with alt text, above its text", async () => {
     const { container } = await render(ticket([message('msg_1', { content: 'This is the error', attachments: [picture(1), picture(2)] })]));
     const imgs = [...container.querySelectorAll('img')];
