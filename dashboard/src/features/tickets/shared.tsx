@@ -6,6 +6,7 @@ import type { Ticket, TicketFlag } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { canBeAssigned } from '@/lib/permissions';
 import { Avatar, Badge, Popover, PopoverContent, PopoverTrigger, type Tone } from '@/components/ui';
+import { StatusDot } from '@/components/domain/support';
 
 export const FLAG_LABEL: Record<TicketFlag, string> = {
   needs_reply: 'Needs reply',
@@ -99,7 +100,10 @@ export function AssigneePicker({
               >
                 <Avatar name={m.name} email={m.email} size={22} />
                 <span className="grid min-w-0 flex-1">
-                  <span className="truncate font-medium text-ink">{m.name}</span>
+                  <span className="flex items-center gap-1.5 truncate font-medium text-ink">
+                    {m.availability && <StatusDot member={m} />}
+                    {m.name}
+                  </span>
                   <span className="truncate text-[0.7rem] text-ink-faint">{m.email}</span>
                 </span>
                 {value === m.user_id && <Check className="size-4 text-accent" />}

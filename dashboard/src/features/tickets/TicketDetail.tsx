@@ -62,6 +62,7 @@ import {
 } from '@/components/ui';
 import { TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
 import { AssigneePicker, TicketFlags } from './shared';
+import { CategorySelect } from '@/components/domain/support';
 import { OpenQueryLink } from '@/features/queries/CustomerQueries';
 import { AssistantAvatar } from '@/components/layout/Brand';
 
@@ -854,6 +855,13 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
           />
           {t.assignee && !t.assignee_user_id && <span className="text-[0.7rem] text-ink-faint">Set by an integration: {t.assignee}</span>}
         </div>
+        {t.category && (
+          <label className="grid gap-1.5">
+            <span className="mono text-ink-faint">Category</span>
+            <CategorySelect size="sm" value={t.category} disabled={!writable} onChange={(category) => patch({ category })} />
+            {!closed && !t.assignee_user_id && <span className="text-[0.7rem] text-ink-faint">Changing it assigns the ticket to that category's next online teammate.</span>}
+          </label>
+        )}
         {(channelOptions.length > 0 || t.channel_id) && (
           <label className="grid gap-1.5">
             <span className="mono text-ink-faint">Channel</span>

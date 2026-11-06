@@ -4,7 +4,7 @@ import { Dialog as D } from 'radix-ui';
 import { ArrowLeft, ArrowRight, FlaskConical, Menu as MenuIcon, PauseCircle, PowerOff, Search, ShieldCheck } from 'lucide-react';
 import { useHealth } from '@/lib/api/endpoints/account';
 import { useTrialEligible } from '@/lib/api/endpoints/billing';
-import { useTenant } from '@/lib/api/endpoints/business';
+import { usePresenceHeartbeat, useTenant } from '@/lib/api/endpoints/business';
 import { useTicketCounts } from '@/lib/api/endpoints/tickets';
 import { hasNoPlan, planLabel, TRIAL_DAYS } from '@/lib/billing';
 import { cn } from '@/lib/cn';
@@ -123,6 +123,7 @@ export function AppShell({ variant }: { variant: 'business' | 'platform' }) {
               <Search />
             </Button>
             {variant === 'business' && <LiveUpdates />}
+            {variant === 'business' && <Presence />}
             <ThemeToggle />
             <ApiStatusDot />
             <UserMenu />
@@ -243,6 +244,17 @@ function PlatformSidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavi
 /** Keeps the bot's live connection open so tickets refresh the moment customers write. Shows nothing. */
 function LiveUpdates() {
   useLiveUpdates();
+  return null;
+}
+
+/** Tells the API a member has the dashboard open, so tickets can be assigned to them. */
+function Presence() {
+  const ctx = useContext(ScopeContext);
+  return ctx?.membership ? <PresenceBeat /> : null;
+}
+
+function PresenceBeat() {
+  usePresenceHeartbeat(true);
   return null;
 }
 

@@ -3037,6 +3037,11 @@ paths:
             type: string
             pattern: '^cus_[0-9a-f]{32}$'
           description: Keeps tickets from this customer (v2).
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/SupportCategory'
+          description: Keeps tickets of this category.
         - name: cursor
           in: query
           schema:
@@ -3113,6 +3118,11 @@ paths:
                 keep_open:
                   type: boolean
                   description: True stops the ticket closing on its own (v2).
+                category:
+                  $ref: '#/components/schemas/SupportCategory'
+                assignee_user_id:
+                  type: string
+                  description: A member who may work on tickets. Without it (or for a member who may not), the ticket is assigned as the business's auto_assign says; taking a conversation over (escalated true) assigns the signed-in member.
       responses:
         '201':
           description: The new ticket.
@@ -3176,6 +3186,8 @@ paths:
                 keep_open:
                   type: boolean
                   description: True stops the ticket closing on its own; false lets it again (v2).
+                category:
+                  $ref: '#/components/schemas/SupportCategory'
       responses:
         '200':
           description: The updated ticket.
@@ -5232,6 +5244,8 @@ paths:
                   minimum: 0
                   maximum: 2160
                   description: Open tickets without a channel, and those of channel types without a time, close after this many hours without activity; 0 never (v2).
+                auto_assign:
+                  $ref: '#/components/schemas/AutoAssign'
       responses:
         '200':
           description: The business.
@@ -5407,6 +5421,45 @@ paths:
                       $ref: '#/components/schemas/Member'
         default:
           $ref: '#/components/responses/Error'
+  /members/me:
+    patch:
+      operationId: setMyAvailability
+      summary: Set your own availability
+      description: Needs members.read. Becoming available counts as being active.
+      security:
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [availability]
+              properties:
+                availability:
+                  $ref: '#/components/schemas/Availability'
+      responses:
+        '200':
+          description: The member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        default:
+          $ref: '#/components/responses/Error'
+  /members/me/presence:
+    post:
+      operationId: touchPresence
+      summary: Say your dashboard is open
+      description: Needs members.read. Call it every couple of minutes while the dashboard is open; it writes at most once a minute. A member is online, and assigned tickets, while available and active in the last 15 minutes.
+      security:
+        - MemberToken: []
+      responses:
+        '204':
+          description: Recorded.
+        default:
+          $ref: '#/components/responses/Error'
   /members/{user_id}:
     parameters:
       - name: user_id
@@ -5417,7 +5470,7 @@ paths:
           format: uuid
     patch:
       operationId: setMemberRole
-      summary: Change a member's role
+      summary: Change a member's role, support roles or availability
       description: Needs members.write; changing an owner's role or making someone an owner needs owners.manage. The last owner keeps the role (409 LAST_OWNER).
       security:
         - AdminKey: []
@@ -5429,10 +5482,17 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [role]
+              minProperties: 1
               properties:
                 role:
                   $ref: '#/components/schemas/Role'
+                support_roles:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SupportCategory'
+                  description: Repeats are dropped; [] is general support.
+                availability:
+                  $ref: '#/components/schemas/Availability'
       responses:
         '200':
           description: The member.
@@ -6844,6 +6904,8 @@ components:
         auto_close_hours:
           type: integer
           description: Hours without activity after which open tickets without a channel, and those of channel types without a time, close; 0 never (v2).
+        auto_assign:
+          $ref: '#/components/schemas/AutoAssign'
         limits:
           $ref: '#/components/schemas/Limits'
         limit_overrides:
@@ -7032,6 +7094,31 @@ components:
         joined_at:
           type: string
           format: date-time
+        support_roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportCategory'
+          description: The kinds of issue the member handles; [] is general support.
+        availability:
+          $ref: '#/components/schemas/Availability'
+        last_active_at:
+          type: string
+          format: date-time
+          description: When their dashboard last said they were there.
+        online:
+          type: boolean
+          description: Available and active in the last 15 minutes; only then assigned tickets automatically.
+    SupportCategory:
+      type: string
+      enum: [general, billing, technical, orders, returns, account, sales, product]
+      description: A kind of issue - a ticket's category and a member's support role.
+    Availability:
+      type: string
+      enum: [available, away, offline]
+    AutoAssign:
+      type: string
+      enum: [off, category, overall]
+      description: How new tickets are assigned - off; category (in turn among online members with the ticket's category, then general members, then anyone online; the default); overall (in turn across the whole team).
     Invite:
       type: object
       required: [id, email, role, status, expires_at, created_at]
@@ -9081,6 +9168,8 @@ components:
           type: string
           format: date-time
           description: When it last closed on its own; cleared when it reopens (v2).
+        category:
+          $ref: '#/components/schemas/SupportCategory'
         flags:
           type: object
           description: What needs attention beside the status. overdue is needs_reply for longer than the business's reply_target_hours; unassigned is an open ticket without assignee_user_id; reopened is reopen_count above 0.

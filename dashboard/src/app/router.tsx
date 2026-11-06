@@ -94,6 +94,7 @@ const businessRoutes: RouteObject[] = [
       children: [
         { index: true, ...lazyRoute(pages.team, (m) => m.MembersTab) },
         { path: 'invitations', ...lazyRoute(pages.team, (m) => m.InvitesTab) },
+        { path: 'assignment', ...lazyRoute(pages.team, (m) => m.AssignmentTab) },
         { path: 'roles', ...lazyRoute(pages.team, (m) => m.RolesTab) },
         missing,
       ],

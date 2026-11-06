@@ -45,6 +45,8 @@ import { readCsv, sampleDrafts, type MockImport, type MockProduct } from './prod
 import { isLink, parsePrice } from '@/lib/products';
 import { WIDGET_DEFAULTS, widgetErrors } from '@/lib/widget';
 import { QUERY_PRESETS, type MockQuery, type MockQueryType } from './queries';
+import { autoAssign, classify, memberFields } from './assign';
+import { AVAILABILITIES, SUPPORT_CATEGORIES } from '@/lib/support';
 import type { CustomerQuery, QueryType } from '@/lib/api/types';
 
 /* ------------------------------------------------------------------ */
@@ -170,6 +172,7 @@ function businessOf(db: MockDb, t: MockTenant): Business {
       tokens_this_month: t.tokens_this_month,
     },
     balance: t.balance,
+    auto_assign: t.auto_assign ?? 'category',
     ...(t.deleted_at ? { deleted_at: t.deleted_at } : {}),
   };
 }
@@ -297,6 +300,7 @@ function ticketOut(db: MockDb, t: MockTicket): Ticket {
   const autoCloseAt = !done && !t.keep_open && closeAfter > 0 ? new Date(lastActivity + closeAfter * 3_600_000).toISOString() : undefined;
   return {
     ...t,
+    category: t.category ?? classify(t.subject),
     keep_open: t.keep_open ?? false,
     auto_close_at: autoCloseAt,
     channel_name: ch?.name ?? t.channel_name,
@@ -592,6 +596,10 @@ route('PATCH', '/tenant', 'business.write', (c) => {
     c.tenant.reply_target_hours = b.reply_target_hours;
   }
   if (b.auto_close_hours !== undefined) c.tenant.auto_close_hours = autoCloseHours(b.auto_close_hours, 'auto_close_hours', false)!;
+  if (b.auto_assign !== undefined) {
+    if (!['off', 'category', 'overall'].includes(b.auto_assign)) throw invalid('auto_assign must be off, category or overall.');
+    c.tenant.auto_assign = b.auto_assign;
+  }
   audit(c, 'business.updated', c.tenant.id, b);
   return businessOf(c.db, c.tenant);
 });
@@ -647,7 +655,7 @@ route('GET', '/members', 'members.read', (c) => ({
     .filter((m) => m.tenant_id === c.tenant.id)
     .map((m) => {
       const u = userById(c.db, m.user_id)!;
-      return { user_id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: m.role, joined_at: m.joined_at };
+      return { user_id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: m.role, joined_at: m.joined_at, ...memberFields(m) };
     })
     .sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role) || a.joined_at.localeCompare(b.joined_at)),
 }));
@@ -658,19 +666,59 @@ function ownerGuard(c: Ctx, from: Role | undefined, to?: Role) {
   }
 }
 
+function memberOut(c: Ctx, m: MockDb['memberships'][number]) {
+  const u = userById(c.db, m.user_id)!;
+  return { user_id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: m.role, joined_at: m.joined_at, ...memberFields(m) };
+}
+
+function availabilityOf(v: unknown) {
+  if (!AVAILABILITIES.includes(v as never)) throw invalid('availability must be available, away or offline.');
+  return v as (typeof AVAILABILITIES)[number];
+}
+
+route('PATCH', '/members/me', 'members.read', (c) => {
+  const m = memberOf(c.db, c.tenant.id, c.user.id);
+  if (!m) throw notFound('MEMBER_NOT_FOUND', 'Member');
+  m.availability = availabilityOf(c.body?.availability);
+  if (m.availability === 'available') m.last_active_at = nowIso();
+  return memberOut(c, m);
+});
+
+route('POST', '/members/me/presence', 'members.read', (c) => {
+  const m = memberOf(c.db, c.tenant.id, c.user.id);
+  if (m) m.last_active_at = nowIso();
+  return noContent();
+});
+
 route('PATCH', '/members/:user_id', 'members.write', (c) => {
   const m = memberOf(c.db, c.tenant.id, c.params.user_id!);
   if (!m) throw notFound('MEMBER_NOT_FOUND', 'Member');
-  const role = c.body.role as Role;
-  if (!ROLES.includes(role)) throw invalid('role must be owner, admin, editor, agent or viewer.');
-  ownerGuard(c, m.role, role);
-  if (m.role === 'owner' && role !== 'owner' && c.db.memberships.filter((x) => x.tenant_id === c.tenant.id && x.role === 'owner').length === 1) {
-    throw err(409, 'LAST_OWNER', 'A business always keeps at least one owner.');
+  const b = c.body ?? {};
+  if (b.role === undefined && b.support_roles === undefined && b.availability === undefined) throw invalid('Send any of role, support_roles or availability.');
+  let roles: typeof SUPPORT_CATEGORIES | undefined;
+  if (b.support_roles !== undefined) {
+    if (!Array.isArray(b.support_roles) || b.support_roles.some((r: unknown) => !SUPPORT_CATEGORIES.includes(r as never))) {
+      throw invalid('support_roles must be a list of general, billing, technical, orders, returns, account, sales and product.');
+    }
+    roles = SUPPORT_CATEGORIES.filter((r) => b.support_roles.includes(r));
   }
-  audit(c, 'member.role_changed', m.user_id, { from: m.role, to: role });
-  m.role = role;
-  const u = userById(c.db, m.user_id)!;
-  return { user_id: u.id, email: u.email, name: u.name, role: m.role, joined_at: m.joined_at };
+  const availability = b.availability === undefined ? undefined : availabilityOf(b.availability);
+  if (b.role !== undefined) {
+    const role = b.role as Role;
+    if (!ROLES.includes(role)) throw invalid('role must be owner, admin, editor, agent or viewer.');
+    ownerGuard(c, m.role, role);
+    if (m.role === 'owner' && role !== 'owner' && c.db.memberships.filter((x) => x.tenant_id === c.tenant.id && x.role === 'owner').length === 1) {
+      throw err(409, 'LAST_OWNER', 'A business always keeps at least one owner.');
+    }
+    if (role !== m.role) audit(c, 'member.role_changed', m.user_id, { from: m.role, to: role });
+    m.role = role;
+  }
+  if (roles || availability) {
+    if (roles) m.support_roles = roles;
+    if (availability) m.availability = availability;
+    audit(c, 'member.updated', m.user_id, { ...(roles ? { support_roles: roles } : {}), ...(availability ? { availability } : {}) });
+  }
+  return memberOut(c, m);
 });
 
 route('DELETE', '/members/:user_id', 'members.write', (c) => {
@@ -2444,6 +2492,7 @@ route('GET', '/tickets', 'tickets.read', (c) => {
     .filter((t) => !q.get('channel') || (q.get('channel') === 'none' ? !t.channel_id : t.channel_id === q.get('channel')))
     .filter((t) => !q.get('channel_type') || t.channel_type === q.get('channel_type'))
     .filter((t) => !q.get('customer') || t.customer_id === q.get('customer'))
+    .filter((t) => !q.get('category') || t.category === q.get('category'))
     .filter((t) => !s || t.subject.toLowerCase().includes(s) || t.id === s || t.conversation_id === s)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const limit = Math.min(100, Math.max(1, Number(q.get('limit') ?? 50)));
@@ -2468,6 +2517,7 @@ route('POST', '/tickets', 'tickets.write', (c) => {
   }
   if (b.priority && !['low', 'normal', 'high', 'urgent'].includes(b.priority)) throw invalid('Unknown priority.');
   if (b.keep_open !== undefined && typeof b.keep_open !== 'boolean') throw invalid('keep_open must be true or false.');
+  if (b.category !== undefined && !SUPPORT_CATEGORIES.includes(b.category)) throw invalid('Unknown category.');
   const channelId = b.channel_id ? channelOf(c, b.channel_id).id : conv?.channel_id;
   const now = nowIso();
   const lastCustomer = conv?.messages.filter((m) => m.author === 'customer').at(-1);
@@ -2492,6 +2542,14 @@ route('POST', '/tickets', 'tickets.write', (c) => {
     updated_at: now,
   };
   if (conv) conv.status = 'open';
+  if (b.category) t.category = b.category;
+  // A named member who may work on tickets, else whoever takes the conversation over, else whoever's turn it is.
+  const named = memberOf(c.db, c.tenant.id, b.assignee_user_id || (t.escalated ? c.user.id : ''));
+  if (named && named.role !== 'viewer') {
+    t.assignee_user_id = named.user_id;
+    t.assignee_name = userById(c.db, named.user_id)?.name;
+  }
+  autoAssign(c.db, t, (conv?.messages ?? []).filter((m) => m.author === 'customer').slice(-5).map((m) => m.content).join('\n'));
   c.db.tickets.push(t);
   if (t.escalated) addNotice(c, t, 'joined');
   emitTicket(c, t, 'ticket.created');
@@ -2548,6 +2606,13 @@ route('PATCH', '/tickets/:id', 'tickets.write', (c) => {
       t.assignee_user_id = m.user_id;
       t.assignee_name = userById(c.db, m.user_id)?.name;
     }
+  }
+  if (b.category !== undefined) {
+    if (!SUPPORT_CATEGORIES.includes(b.category)) throw invalid('Unknown category.');
+    const moved = b.category !== t.category;
+    t.category = b.category;
+    // An unassigned open ticket moved to another category takes that category's turn.
+    if (moved && b.assignee_user_id === undefined) autoAssign(c.db, t);
   }
   if (b.escalated !== undefined) {
     if (b.escalated && t.status !== 'open') applyStatus(t, 'open');
