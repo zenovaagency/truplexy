@@ -35,7 +35,7 @@ function nextMonthStart() {
 
 /** What this business and bot use: the plan's allowances, the volume handled, and what the model costs. */
 export default function UsagePage() {
-  const { bot } = useScopeCtx();
+  const { bot, isPlatformAdmin } = useScopeCtx();
   const [days, setDays] = useStoredState<Days>('truplexy.usage.days', '30');
   const [metric, setMetric] = useState<Metric>('estimated_cost');
   const range = useMemo(() => dayRange(Number(days)), [days]);
@@ -45,6 +45,8 @@ export default function UsagePage() {
   const u = usage.data;
   const s = support.data;
   const t = tenant.data;
+  // Tokens, cost and models are for platform admins; a business sees requests only.
+  const shown: Metric = isPlatformAdmin ? metric : 'requests';
 
   // The API reports the five busiest models; the rest of the requests are counted in the totals.
   const { rows, otherRequests } = useMemo(() => {
@@ -113,7 +115,11 @@ export default function UsagePage() {
     <Page>
       <PageHeader
         title="Usage"
-        description={`What your plan allows and what ${bot.name} is using: replies, tokens, conversations and model costs.`}
+        description={
+          isPlatformAdmin
+            ? `What your plan allows and what ${bot.name} is using: replies, tokens, conversations and model costs.`
+            : `What your plan allows and what ${bot.name} is handling: replies, conversations and tickets.`
+        }
         actions={
           <Segmented
             label="Date range"
@@ -159,63 +165,73 @@ export default function UsagePage() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard label="Conversations" icon={<MessagesSquare />} loading={!s} value={formatNumber(s?.conversations.total)} sub={s && `${formatPercent(s.conversations.deflection_rate)} answered by the assistant alone`} trend={s?.by_day.map((d) => d.conversations)} />
               <StatCard label="Tickets opened" icon={<Ticket />} loading={!s} value={formatNumber(s?.tickets.created)} sub={s && `${formatNumber(s.tickets.closed)} closed · ${formatNumber(s.conversations.handed_off)} handed to a person`} trend={s?.by_day.map((d) => d.tickets_created)} />
-              <StatCard label="Cost per conversation" icon={<Coins />} loading={!s} value={formatCurrency(s?.cost.per_conversation)} sub={s && `${formatCurrency(s.cost.per_ai_resolved)} per answer without a person`} />
+              {isPlatformAdmin ? (
+                <StatCard label="Cost per conversation" icon={<Coins />} loading={!s} value={formatCurrency(s?.cost.per_conversation)} sub={s && `${formatCurrency(s.cost.per_ai_resolved)} per answer without a person`} />
+              ) : (
+                <StatCard label="Average latency" icon={<Gauge />} loading={!u} value={formatMs(u?.avg_latency_ms)} sub="From request to full reply" />
+              )}
               <StatCard label="Requests" icon={<Activity />} loading={!u} value={formatNumber(u?.requests)} trend={u?.by_day.map((d) => d.requests)} />
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard
-                label="Tokens"
-                icon={<Hash />}
-                loading={!u}
-                value={formatCompact(u?.total_tokens)}
-                sub={u && `${formatCompact(u.input_tokens)} in · ${formatCompact(u.output_tokens)} out`}
-              />
-              <StatCard
-                label="Cost"
-                icon={<Coins />}
-                loading={!u}
-                value={formatCurrency(u?.estimated_cost)}
-                sub={u && u.requests > 0 ? `${formatCurrency(u.estimated_cost / u.requests)} per request` : undefined}
-                info="What you were billed: each model's price, fees included."
-                trend={u?.by_day.map((d) => d.estimated_cost)}
-              />
-              <StatCard label="Average latency" icon={<Gauge />} loading={!u} value={formatMs(u?.avg_latency_ms)} sub="From request to full reply" />
-            </div>
+            {isPlatformAdmin && (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <StatCard
+                  label="Tokens"
+                  icon={<Hash />}
+                  loading={!u}
+                  value={formatCompact(u?.total_tokens)}
+                  sub={u && `${formatCompact(u.input_tokens)} in · ${formatCompact(u.output_tokens)} out`}
+                />
+                <StatCard
+                  label="Cost"
+                  icon={<Coins />}
+                  loading={!u}
+                  value={formatCurrency(u?.estimated_cost)}
+                  sub={u && u.requests > 0 ? `${formatCurrency(u.estimated_cost / u.requests)} per request` : undefined}
+                  info="What you were billed: each model's price, fees included."
+                  trend={u?.by_day.map((d) => d.estimated_cost)}
+                />
+                <StatCard label="Average latency" icon={<Gauge />} loading={!u} value={formatMs(u?.avg_latency_ms)} sub="From request to full reply" />
+              </div>
+            )}
 
             <Card
               title="Per day"
-              description="Model requests made for this bot's customers, per UTC day."
+              description={isPlatformAdmin ? "Model requests made for this bot's customers, per UTC day." : "AI requests made for this bot's customers, per UTC day."}
               actions={
-                <Segmented
-                  size="xs"
-                  label="Metric"
-                  value={metric}
-                  onChange={setMetric}
-                  options={(Object.keys(METRIC) as Metric[]).map((k) => ({ value: k, label: METRIC[k].label }))}
-                />
+                isPlatformAdmin && (
+                  <Segmented
+                    size="xs"
+                    label="Metric"
+                    value={metric}
+                    onChange={setMetric}
+                    options={(Object.keys(METRIC) as Metric[]).map((k) => ({ value: k, label: METRIC[k].label }))}
+                  />
+                )
               }
             >
               {u ? (
-                <TrendChart data={u.by_day} series={[{ key: metric, label: METRIC[metric].label, slot: 1 }]} kind="bar" format={METRIC[metric].format} height={240} />
+                <TrendChart data={u.by_day} series={[{ key: shown, label: METRIC[shown].label, slot: 1 }]} kind="bar" format={METRIC[shown].format} height={240} />
               ) : (
                 <Skeleton className="h-[240px]" />
               )}
             </Card>
 
-            <Card title="By model" description="The models that answered in this period. Truplexy picks one for each message." flush>
-              {!u ? (
-                <div className="p-5">
-                  <SkeletonRows rows={4} />
-                </div>
-              ) : (
-                <DataTable columns={columns} rows={rows} getKey={(r) => r.id} />
-              )}
-              {otherRequests > 0 && (
-                <p className="border-t border-line px-5 py-3 text-xs text-ink-faint">
-                  The usage report breaks out the five busiest models; {formatNumber(otherRequests)} requests to other models aren't listed.
-                </p>
-              )}
-            </Card>
+            {isPlatformAdmin && (
+              <Card title="By model" description="The models that answered in this period. Truplexy picks one for each message." flush>
+                {!u ? (
+                  <div className="p-5">
+                    <SkeletonRows rows={4} />
+                  </div>
+                ) : (
+                  <DataTable columns={columns} rows={rows} getKey={(r) => r.id} />
+                )}
+                {otherRequests > 0 && (
+                  <p className="border-t border-line px-5 py-3 text-xs text-ink-faint">
+                    The usage report breaks out the five busiest models; {formatNumber(otherRequests)} requests to other models aren't listed.
+                  </p>
+                )}
+              </Card>
+            )}
           </>
         )}
       </section>

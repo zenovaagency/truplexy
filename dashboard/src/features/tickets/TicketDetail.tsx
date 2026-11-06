@@ -463,14 +463,20 @@ function MessageBubble({ m, refresher }: { m: TicketMessage; refresher: ImageRef
       </div>
     );
   }
+  return <AssistantBubble m={m} />;
+}
+
+/** An assistant reply. Only platform admins see which model wrote it and what it cost. */
+function AssistantBubble({ m }: { m: TicketMessage }) {
+  const { isPlatformAdmin } = useScopeCtx();
   return (
     <div className="flex flex-col items-end gap-1">
       <div className={cn('bubble bubble-ai', m.error && 'border-danger/40 bg-danger-soft')}>{m.content || <span className="italic text-ink-faint">No reply</span>}</div>
       {m.error && <p className="px-1 text-[0.7rem] font-medium text-danger">{m.error}</p>}
       <Meta right>
         <AssistantAvatar size={14} /> Assistant
-        {m.model && <span className="font-mono">{m.model.split('/').pop()}</span>}
-        {m.usage && <span>· {formatCurrency(m.usage.cost)}</span>}
+        {isPlatformAdmin && m.model && <span className="font-mono">{m.model.split('/').pop()}</span>}
+        {isPlatformAdmin && m.usage && <span>· {formatCurrency(m.usage.cost)}</span>}
         <span>· {formatTime(m.created_at)}</span>
       </Meta>
     </div>
@@ -816,7 +822,7 @@ function CustomerSection({ id }: { id: string }) {
 }
 
 function Properties({ ticket: t }: { ticket: TDetail }) {
-  const { can } = useScopeCtx();
+  const { can, isPlatformAdmin } = useScopeCtx();
   const update = useUpdateTicket();
   const channels = useChannels();
   const writable = can('tickets.write');
@@ -938,8 +944,8 @@ function Properties({ ticket: t }: { ticket: TDetail }) {
               ),
             },
             { label: 'AI replies', value: formatNumber(t.usage?.replies ?? 0) },
-            { label: 'Tokens', value: formatNumber(t.usage?.total_tokens ?? 0) },
-            { label: 'AI cost', value: formatCurrency(t.usage?.cost ?? 0) },
+            { label: 'Tokens', value: formatNumber(t.usage?.total_tokens ?? 0), hidden: !isPlatformAdmin },
+            { label: 'AI cost', value: formatCurrency(t.usage?.cost ?? 0), hidden: !isPlatformAdmin },
           ]}
         />
       </section>
