@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTenant } from '@/lib/api/endpoints/business';
 import { ChevronDown } from 'lucide-react';
-import type { Member, SupportCategory } from '@/lib/api/types';
+import type { Availability, Member, SupportCategory } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
-import { CATEGORY_DESCRIPTION, CATEGORY_LABEL, CATEGORY_SHORT, PRESENCE_LABEL, presenceOf, type Presence, SUPPORT_CATEGORIES } from '@/lib/support';
-import { Badge, Button, Checkbox, Popover, PopoverContent, PopoverTrigger, Select } from '@/components/ui';
+import { AVAILABILITIES, AVAILABILITY_LABEL, CATEGORY_DESCRIPTION, CATEGORY_LABEL, CATEGORY_SHORT, PRESENCE_LABEL, presenceOf, type Presence, SUPPORT_CATEGORIES } from '@/lib/support';
+import { Badge, Button, Checkbox, Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, Popover, PopoverContent, PopoverTrigger, Select, Tip } from '@/components/ui';
 
 /** Whether the API assigns tickets and knows categories and availability (it reports the business's auto_assign). */
 export function useTeamAssignment() {
@@ -31,12 +31,77 @@ export function StatusDot({ member, className }: { member: Pick<Member, 'availab
   );
 }
 
-export function PresenceLabel({ member }: { member: Pick<Member, 'availability' | 'online'> }) {
+/** What each availability means for new tickets, under its name in status menus. */
+export const AVAILABILITY_HINT: Record<Availability, string> = {
+  available: 'Gets new tickets while the dashboard is open.',
+  away: 'Stepped out. Keeps tickets, gets no new ones.',
+  offline: 'Done for now. Keeps tickets, gets no new ones.',
+};
+
+const IDLE_TIP = "Set to Available, but hasn't had the dashboard open in the last 15 minutes, so gets no new tickets.";
+
+const pill =
+  'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface pl-2.5 pr-2 text-xs font-medium text-ink';
+
+/** The radio items of a status menu: a dot, the name and what it means. */
+export function AvailabilityItems({ value, onChange }: { value: Availability; onChange: (a: Availability) => void }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[0.8125rem] text-ink-muted">
+    <MenuRadioGroup value={value} onValueChange={(v) => onChange(v as Availability)}>
+      {AVAILABILITIES.map((a) => (
+        <MenuRadioItem key={a} value={a} className="items-start gap-2.5 py-2">
+          <span className="grid h-[1.15rem] place-items-center">
+            <StatusDot member={{ availability: a, online: true }} />
+          </span>
+          <span className="grid gap-0.5">
+            <span>{AVAILABILITY_LABEL[a]}</span>
+            <span className="text-[0.7rem] font-normal leading-snug text-ink-faint">{AVAILABILITY_HINT[a]}</span>
+          </span>
+        </MenuRadioItem>
+      ))}
+    </MenuRadioGroup>
+  );
+}
+
+/**
+ * A member's status as one pill: dot and label (Inactive when set to available but not seen lately). With
+ * `onChange` it opens a menu to change it; without, it only shows it.
+ */
+export function StatusPill({
+  member,
+  name,
+  onChange,
+}: {
+  member: Pick<Member, 'availability' | 'online'>;
+  name: string;
+  onChange?: (a: Availability) => void;
+}) {
+  const p = presenceOf(member);
+  const label = p === 'idle' ? 'Inactive' : PRESENCE_LABEL[p];
+  const body = (
+    <>
       <StatusDot member={member} />
-      {PRESENCE_LABEL[presenceOf(member)]}
-    </span>
+      <span className={cn(p === 'idle' && 'text-ink-muted')}>{label}</span>
+    </>
+  );
+  const shown = onChange ? (
+    <Menu>
+      <MenuTrigger aria-label={`Status for ${name}: ${label}`} className={cn(pill, 'transition-colors hover:border-line-strong data-[state=open]:border-line-strong')}>
+        {body}
+        <ChevronDown className="size-3.5 text-ink-faint" />
+      </MenuTrigger>
+      <MenuContent align="start" className="w-[272px]">
+        <AvailabilityItems value={member.availability ?? 'available'} onChange={onChange} />
+      </MenuContent>
+    </Menu>
+  ) : (
+    <span className={cn(pill, 'pr-2.5')}>{body}</span>
+  );
+  return p === 'idle' ? (
+    <Tip content={IDLE_TIP}>
+      <span className="inline-flex">{shown}</span>
+    </Tip>
+  ) : (
+    shown
   );
 }
 

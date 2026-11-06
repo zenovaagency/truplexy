@@ -171,12 +171,20 @@ export const PRESENCE_MS = 120_000;
  */
 export function usePresenceHeartbeat(enabled: boolean) {
   const scope = useScope();
+  const qc = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
     let stopped = false;
+    let first = true;
     const beat = () => {
       if (stopped || document.visibilityState !== 'visible') return;
-      void api<void>('/members/me/presence', { method: 'POST', scope }).catch(() => {});
+      void api<void>('/members/me/presence', { method: 'POST', scope })
+        .then(() => {
+          // A list loaded before the first beat shows you as inactive; read it again once.
+          if (first) qc.invalidateQueries({ queryKey: qk.tenant(scope, 'members') });
+          first = false;
+        })
+        .catch(() => {});
     };
     beat();
     const timer = window.setInterval(beat, PRESENCE_MS);
