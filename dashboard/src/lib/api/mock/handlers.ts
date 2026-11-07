@@ -3432,7 +3432,7 @@ route('GET', '/platform/tenants/:id/detail', 'platform', ({ db, params }) => {
       .filter((m) => m.tenant_id === t.id)
       .map((m) => {
         const u = userById(db, m.user_id)!;
-        return { user_id: u.id, email: u.email, name: u.name, role: m.role, created_at: m.joined_at };
+        return { user_id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, role: m.role, created_at: m.joined_at };
       }),
     bots: db.bots
       .filter((b) => b.tenant_id === t.id)
@@ -3557,9 +3557,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const userStatus = (u: MockUser) => u.status ?? 'active';
 
 function userOut(db: MockDb, u: MockUser) {
-  const { avatar_url: _a, ...rest } = u;
   return {
-    ...rest,
+    ...u,
     status: userStatus(u),
     memberships: db.memberships
       .filter((m) => m.user_id === u.id && !db.tenants.find((t) => t.id === m.tenant_id)?.deleted_at)

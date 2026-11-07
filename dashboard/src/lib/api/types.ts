@@ -1542,7 +1542,7 @@ export interface PlatformBusiness extends Business {
 }
 
 export interface PlatformBusinessDetail {
-  members: { user_id: string; email: string; name: string; role: Role; created_at: string }[];
+  members: { user_id: string; email: string; name: string; avatar_url?: string; role: Role; created_at: string }[];
   bots: {
     id: string;
     name: string;
@@ -1587,6 +1587,8 @@ export interface PlatformUser {
   id: string;
   email: string;
   name: string;
+  /** The person's profile picture, when they set one. */
+  avatar_url?: string;
   platform_admin: boolean;
   status: PlatformUserStatus;
   disabled_at?: string;
