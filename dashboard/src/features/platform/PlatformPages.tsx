@@ -585,7 +585,7 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
                 <ul className="grid gap-2">
                   {d.members.map((m) => (
                     <li key={m.user_id} className="flex items-center gap-3 text-[0.8125rem]">
-                      <Avatar name={m.name} email={m.email} size={26} />
+                      <Avatar name={m.name} email={m.email} src={m.avatar_url} size={26} />
                       <span className="grid min-w-0 flex-1">
                         <span className="truncate font-medium text-ink">{m.name}</span>
                         <span className="truncate text-xs text-ink-faint">{m.email}</span>
@@ -1055,7 +1055,7 @@ export function PlatformUsers() {
                 header: 'Person',
                 cell: (u) => (
                   <span className={cn('flex items-center gap-3', u.status === 'deleted' && 'opacity-60')}>
-                    <Avatar name={u.name} email={u.email} size={30} />
+                    <Avatar name={u.name} email={u.email} src={u.avatar_url} size={30} />
                     <span className="grid min-w-0">
                       <span className="flex items-center gap-1.5 truncate font-semibold text-ink">
                         {userLabel(u)} {u.platform_admin && <ShieldCheck className="size-3.5 text-accent" aria-label="Platform admin" />}
@@ -1548,7 +1548,7 @@ export function PlatformCustomers() {
                 header: 'Customer',
                 cell: (c) => (
                   <span className="flex items-center gap-3">
-                    <Avatar name={c.name} email={contactOf(c, 'email')} size={32} />
+                    <Avatar name={c.name} email={contactOf(c, 'email')} src={c.avatar_url} size={32} />
                     <span className="grid min-w-0">
                       <span className="truncate font-semibold text-ink">{customerLabel(c)}</span>
                       <span className="truncate text-xs text-ink-faint">

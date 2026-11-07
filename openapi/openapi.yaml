@@ -6404,6 +6404,9 @@ components:
           description: deleted+{id}@invalid once deleted.
         name:
           type: string
+        avatar_url:
+          type: string
+          description: The person's profile picture, when they set one.
         platform_admin:
           type: boolean
         status:
