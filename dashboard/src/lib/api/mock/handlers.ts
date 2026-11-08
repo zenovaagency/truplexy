@@ -803,18 +803,31 @@ route('POST', '/bots', 'bots.create', (c) => {
 });
 
 route('GET', '/api-keys', 'integrations.read', (c) => ({
-  data: c.db.apiKeys.filter((k) => k.tenant_id === c.tenant.id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+  data: c.db.apiKeys
+    .filter((k) => k.tenant_id === c.tenant.id)
+    .map((k) => ({ ...k, kind: k.kind ?? 'chat' }))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at)),
 }));
 
 route('POST', '/api-keys', 'integrations.write', (c) => {
   const name = str(c.body.name, 'name', 1, 80)!;
+  const kind = c.body.kind ?? 'chat';
+  const access = kind === 'agent' ? (c.body.access ?? 'read') : c.body.access;
+  // An AI agent's key (MCP) takes read or write access and no channel; a chat key takes neither.
+  const valid = (kind === 'chat' && access === undefined) || (kind === 'agent' && !c.body.channel_id && (access === 'read' || access === 'write'));
+  if (!valid) throw err(400, 'INVALID_REQUEST', 'For an AI agent\'s key, send kind agent and access read or write, without a channel_id.');
   const bot = c.db.bots.find((b) => b.tenant_id === c.tenant.id && b.id === c.body.bot_id);
   if (!bot) throw notFound('BOT_NOT_FOUND', 'Bot');
+  if (kind === 'agent' && !limitsOf(c.tenant).mcp) throw err(403, 'PLAN_LIMIT_REACHED', MCP_LIMIT_MESSAGE, { limit: 'mcp' });
   const channel = c.body.channel_id ? channelOf(c, c.body.channel_id, bot.id) : undefined;
-  const secret = `tpx_${hex(48)}`;
-  const key: ApiKey = { id: newId('key'), name, tenant_id: c.tenant.id, bot_id: bot.id, key_prefix: secret.slice(0, 8), channel_id: channel?.id, status: 'active', created_at: nowIso() };
+  const prefix = kind === 'agent' ? 'tpxa_' : 'tpx_';
+  const secret = `${prefix}${hex(48)}`;
+  const key: ApiKey = {
+    id: newId('key'), name, tenant_id: c.tenant.id, bot_id: bot.id, key_prefix: secret.slice(0, prefix.length + 6), channel_id: channel?.id,
+    kind, access: kind === 'agent' ? access : undefined, status: 'active', created_at: nowIso(),
+  };
   c.db.apiKeys.push(key);
-  audit(c, 'api_key.created', key.id, { name, bot_id: bot.id, ...(channel ? { channel: channel.name } : {}) });
+  audit(c, 'api_key.created', key.id, { name, bot_id: bot.id, kind, ...(key.access ? { access: key.access } : {}), ...(channel ? { channel: channel.name } : {}) });
   return created({ ...key, key: secret });
 });
 
@@ -2467,6 +2480,8 @@ route('POST', '/tools/:name/test', 'tools.write', (c) => {
 
 /* MCP servers -------------------------------------------------------- */
 
+const MCP_LIMIT_MESSAGE = "Your plan doesn't include MCP. Upgrade to Pro to connect MCP servers and AI agents.";
+
 /** Kept per mock business for the session only. */
 const MCP_SERVERS = new Map<string, McpServer[]>();
 const MCP_MAX = 10;
@@ -2567,7 +2582,7 @@ route('GET', '/mcp-servers', 'tools.read', (c) => ({
 }));
 
 route('POST', '/mcp-servers', 'tools.write', (c) => {
-  if (!limitsOf(c.tenant).mcp) throw err(403, 'PLAN_LIMIT_REACHED', "Your plan doesn't include MCP servers. Upgrade to Pro to connect them.", { limit: 'mcp' });
+  if (!limitsOf(c.tenant).mcp) throw err(403, 'PLAN_LIMIT_REACHED', MCP_LIMIT_MESSAGE, { limit: 'mcp' });
   if (mcpServersOf(c).length >= MCP_MAX) throw err(409, 'MCP_SERVER_LIMIT', `A business can connect up to ${MCP_MAX} MCP servers. Remove one to add another.`);
   const i = mcpInput(c, c.body ?? {});
   const now = nowIso();
@@ -2596,7 +2611,7 @@ route('PATCH', '/mcp-servers/:id', 'tools.write', (c) => {
 
 route('POST', '/mcp-servers/:id/sync', 'tools.write', (c) => {
   const s = findMcpServer(c);
-  if (!limitsOf(c.tenant).mcp) throw err(403, 'PLAN_LIMIT_REACHED', "Your plan doesn't include MCP servers. Upgrade to Pro to connect them.", { limit: 'mcp' });
+  if (!limitsOf(c.tenant).mcp) throw err(403, 'PLAN_LIMIT_REACHED', MCP_LIMIT_MESSAGE, { limit: 'mcp' });
   s.synced_at = nowIso();
   s.status = 'ok';
   s.last_error = undefined;

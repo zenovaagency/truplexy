@@ -51,6 +51,7 @@ export const DOCS_LINKS: NavLink[] = [
   { label: 'Website chat SDK', href: '/docs/web-sdk', blurb: 'A chat widget for any site' },
   { label: 'REST API', href: '/docs/api', blurb: 'Connect a platform of your own' },
   { label: 'Webhooks', href: '/docs/webhooks', blurb: 'Signed events when your team replies' },
+  { label: 'MCP and AI agents', href: '/docs/mcp', blurb: 'MCP tools for your bot, your inbox for agents' },
 ];
 
 export const CHANGELOG_HREF = '/changelog';

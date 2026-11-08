@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, hasCode } from '@/lib/api/client';
 import { useEffect } from 'react';
-import type { ApiKey, AuditEvent, AutoAssignMode, Availability, Bot, Business, BusinessTypeId, DeletionRequest, Invite, Member, Role, SupportCategory } from '@/lib/api/types';
+import type { AgentAccess, ApiKey, ApiKeyKind, AuditEvent, AutoAssignMode, Availability, Bot, Business, BusinessTypeId, DeletionRequest, Invite, Member, Role, SupportCategory } from '@/lib/api/types';
 import { imageForm, refreshImages } from '@/lib/api/endpoints/account';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
@@ -296,7 +296,7 @@ export function useCreateApiKey() {
   const scope = useScope();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { bot_id: string; name: string; channel_id?: string }) => api<ApiKey>('/api-keys', { method: 'POST', body, scope }),
+    mutationFn: (body: { bot_id: string; name: string; channel_id?: string; kind?: ApiKeyKind; access?: AgentAccess }) => api<ApiKey>('/api-keys', { method: 'POST', body, scope }),
     onSuccess: (k) => {
       qc.invalidateQueries({ queryKey: qk.tenant(scope, 'api-keys') });
       if (k.channel_id) qc.invalidateQueries({ queryKey: qk.bot({ tenant: scope.tenant, bot: k.bot_id }, 'channels') });

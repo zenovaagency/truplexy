@@ -4,7 +4,7 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [MCP servers (2026-11-08)](#mcp-servers-2026-11-08), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [MCP servers (2026-11-08)](#mcp-servers-2026-11-08), [MCP server for AI agents (2026-11-08)](#mcp-server-for-ai-agents-2026-11-08), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
@@ -20,6 +20,15 @@ A business can connect remote [MCP](https://modelcontextprotocol.io) servers, an
 - **Tools:** a server's tools are listed when it is added or synced, and `GET /tools` lists them as built-in tools named `mcp_<slug>_<tool>`, with a new `mcp: {server_id, server_name, tool}` field. Turn them on in a bot's `tools` like any tool. API tools can no longer be named `mcp_…` (`400 INVALID_TOOL`).
 - **Plans:** `limits` (and platform `limit_overrides`) gain `mcp`, on or off like `image_input`.
 - **What a dashboard does:** an MCP servers section on the Tools page to add, edit, sync and remove servers; badge MCP tools in the tool library with their server's name.
+
+## MCP server for AI agents (2026-11-08)
+
+AI agents (Claude, Cursor, ChatGPT…) can work one bot's support inbox through Truplexy's own MCP endpoint, `POST /v3/mcp` (Streamable HTTP, stateless, JSON responses; other methods get 405). Pro and Enterprise only; no migration.
+
+- **Agent keys:** `POST /api-keys` takes `kind: "agent"` and `access: "read" | "write"` (default `read`, no `channel_id`). The secret starts `tpxa_`. `GET /api-keys` lists `kind` (`chat` or `agent`) and, for agent keys, `access`. Agent keys work only on `/mcp`; chat keys never work there. Without MCP in the plan: `403 PLAN_LIMIT_REACHED` (`limit: "mcp"`), on issuing and on every `/mcp` request.
+- **Permissions:** a read key may do what a viewer may; a write key what a support agent may, plus adding knowledge. Neither reaches integrations, members or billing.
+- **Tools:** read: `list_tickets`, `get_ticket`, `search_knowledge`, `find_customers`, `get_customer`, `support_stats`. Write keys add `reply_to_ticket`, `update_ticket` (including `take_over`), `suggest_reply`, `add_knowledge_article`, `ask_bot`. Each runs the matching REST endpoint with its validation, webhooks, live events and rate limits; replies are signed with the key's name, and the audit log names `key:<id>`. `suggest_reply` and `ask_bot` are billed like replies.
+- **Connect:** `claude mcp add --transport http truplexy https://<api>/v3/mcp --header "Authorization: Bearer tpxa_…"`.
 
 ## Team roles and auto-assignment (2026-11-06)
 
@@ -279,6 +288,7 @@ Tenant and bot IDs are 1–31 lowercase letters, digits, `-` or `_`, starting wi
 | Playground (`/playground/…`) | yes | a member with `playground.run`; the playground key |
 | Platform (`/platform/…`) | no | a platform admin; the admin key |
 | Chat API (`/conversations/…`, `/realtime/token`) | no | a chat key only, never a person's token |
+| MCP for AI agents (`POST /mcp`, v2) | no | an agent key (`tpxa_…`) only |
 | Internal (`/internal/cron/…`) | no | the scheduler's `CRON_SECRET` |
 
 The admin key (`ADMIN_API_KEY`) is a server-side credential with every permission; without scope headers it acts on the `default` bot. The chat key is what websites, apps and messaging platforms use to talk to a bot. It is shown here because a dashboard issues chat keys and shows integrators how to use them.
@@ -500,7 +510,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/bots` | `bot.read` | List the business's bots |
 | `POST` | `/bots` | `bots.create` | Create a bot |
 | `GET` | `/api-keys` | `integrations.read` | List chat API keys |
-| `POST` | `/api-keys` | `integrations.write` | Issue a chat API key |
+| `POST` | `/api-keys` | `integrations.write` | Issue a chat API key, or an AI agent's key (`kind: "agent"`) |
 | `DELETE` | `/api-keys/{id}` | `integrations.write` | Revoke a chat API key |
 | `GET` | `/channel-types` | `channels.read` | Channel types the bot may add (v2) |
 | `GET` | `/channels` | `channels.read` | List the bot's channels (v2) |
@@ -879,11 +889,11 @@ Scope headers; these act on the business. With the admin key, the endpoints cove
 
 #### `GET /api-keys`
 
-`integrations.read`. **200** `{data: [{id, name, tenant_id, bot_id, key_prefix, channel_id?, status, created_at, last_used_at?}]}`, newest first, without secrets. `status` is `active` or `revoked`; `channel_id` names the channel the key is bound to.
+`integrations.read`. **200** `{data: [{id, name, tenant_id, bot_id, key_prefix, channel_id?, kind, access?, status, created_at, last_used_at?}]}`, newest first, without secrets. `status` is `active` or `revoked`; `channel_id` names the channel the key is bound to.
 
 #### `POST /api-keys`
 
-`integrations.write`. `{bot_id, name, channel_id?}`. **201** the key, with the secret in `key` (`tpx_` plus 48 hex characters). The secret is returned only this once, so show it with a copy button and a warning. The key reaches only that bot's conversations.
+`integrations.write`. `{bot_id, name, channel_id?, kind?, access?}`; `kind: "agent"` issues an [AI agent's key](#mcp-server-for-ai-agents-2026-11-08) (`tpxa_…`) with `access` `read` or `write`. **201** the key, with the secret in `key` (`tpx_` plus 48 hex characters). The secret is returned only this once, so show it with a copy button and a warning. The key reaches only that bot's conversations.
 
 `channel_id` (v2) binds the key to one of the bot's [channels](#channels-v2): the conversations it starts, and their tickets, are marked with the channel, and the key stops working while the channel is off. Issue one key per channel, for example one for the Discord bot and one for the website widget. A binding can't be changed; issue a new key.
 
