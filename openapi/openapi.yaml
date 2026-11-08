@@ -2947,6 +2947,15 @@ paths:
                   type: string
                   pattern: '^chn_[0-9a-f]{32}$'
                   description: Binds the key to one of the bot's channels (v2), marking its conversations and their tickets; the key stops working while the channel is off. 404 CHANNEL_NOT_FOUND.
+                kind:
+                  type: string
+                  enum: [chat, agent]
+                  default: chat
+                  description: agent issues an AI agent's key (tpxa_…) for POST /mcp, with access, and no channel_id. Needs a plan with MCP (403 PLAN_LIMIT_REACHED, limit mcp).
+                access:
+                  type: string
+                  enum: [read, write]
+                  description: An agent key's access, default read. Not sent for chat keys.
       responses:
         '201':
           description: The key, including its secret this once.
@@ -3659,6 +3668,139 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ToolCall'
+        default:
+          $ref: '#/components/responses/Error'
+  /mcp-servers:
+    get:
+      operationId: listMcpServers
+      summary: The business's MCP servers, by name (v2)
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The servers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, database_configured, auth_supported, plan_includes, max_servers]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MCPServer'
+                  database_configured:
+                    type: boolean
+                  auth_supported:
+                    type: boolean
+                    description: False until the server has MCP_TOKEN_KEY; servers can then be added only without an auth header.
+                  plan_includes:
+                    type: boolean
+                    description: False when the business's plan has no MCP servers.
+                  max_servers:
+                    type: integer
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createMcpServer
+      summary: Connect an MCP server (v2)
+      description: Connects to the server, lists its tools, and stores it only if that works. 400 INVALID_MCP_SERVER, 422 MCP_CONNECT_FAILED, 403 PLAN_LIMIT_REACHED (limit mcp), 409 MCP_SERVER_EXISTS or MCP_SERVER_LIMIT. Needs migrations/0054_mcp_servers.sql.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPServerInput'
+      responses:
+        '201':
+          description: The server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServer'
+        default:
+          $ref: '#/components/responses/Error'
+  /mcp-servers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getMcpServer
+      summary: One MCP server (v2)
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServer'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateMcpServer
+      summary: Change an MCP server (v2)
+      description: Fields left out keep their value; auth_value "" removes the auth header. A new url, auth_header or auth_value is checked by connecting again, and nothing changes if that fails (422 MCP_CONNECT_FAILED).
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPServerInput'
+      responses:
+        '200':
+          description: The server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServer'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteMcpServer
+      summary: Remove an MCP server (v2)
+      description: Bots that use its tools skip them. 404 MCP_SERVER_NOT_FOUND.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '204':
+          description: Removed.
+        default:
+          $ref: '#/components/responses/Error'
+  /mcp-servers/{id}/sync:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: syncMcpServer
+      summary: List an MCP server's tools again (v2)
+      description: When the server can't be reached, its status becomes error with last_error, the tools listed before are kept, and the answer is 422 MCP_CONNECT_FAILED.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServer'
         default:
           $ref: '#/components/responses/Error'
   /me:
@@ -4761,6 +4903,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Customer'
+        default:
+          $ref: '#/components/responses/Error'
+  /mcp:
+    post:
+      operationId: mcp
+      summary: MCP endpoint for AI agents (v2)
+      description: "Model Context Protocol, Streamable HTTP transport, stateless, with JSON responses: send JSON-RPC messages (initialize, tools/list, tools/call) with Accept: application/json, text/event-stream. Authenticate with an agent key; read keys get list_tickets, get_ticket, search_knowledge, find_customers, get_customer and support_stats, write keys also reply_to_ticket, update_ticket, suggest_reply, add_knowledge_article and ask_bot. Other methods get 405."
+      security:
+        - AgentKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A JSON-RPC 2.0 request or notification.
+      responses:
+        '200':
+          description: The JSON-RPC response.
+          content:
+            application/json:
+              schema:
+                type: object
+        '202':
+          description: A notification was accepted.
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /realtime/token:
@@ -5868,6 +6039,10 @@ components:
       type: http
       scheme: bearer
       description: CHAT_API_KEY, which acts for the default bot, or a key issued with POST /api-keys, which acts for its bot. The key alone decides whose knowledge and conversations a request reaches. Keep it on your own server.
+    AgentKey:
+      type: http
+      scheme: bearer
+      description: An AI agent's key (tpxa_…), issued with POST /api-keys and kind agent. It works only on POST /mcp, for its bot, with read or write access.
     PlaygroundKey:
       type: http
       scheme: bearer
@@ -6258,6 +6433,17 @@ components:
         built_in:
           type: boolean
           description: True for a built-in tool, such as shopify_order_status or woocommerce_order_status (v2); its api fields are empty.
+        mcp:
+          type: object
+          description: For an MCP server's tool, the server and its own name for the tool.
+          required: [server_id, server_name, tool]
+          properties:
+            server_id:
+              type: string
+            server_name:
+              type: string
+            tool:
+              type: string
         api:
           type: object
           description: How the tool calls its endpoint.
@@ -6273,6 +6459,97 @@ components:
             updated_at:
               type: string
               format: date-time
+    MCPServer:
+      type: object
+      required: [id, name, slug, url, has_auth, status, tools, disabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          example: mcps_8f2c1a
+        name:
+          type: string
+        slug:
+          type: string
+          description: Names the server's tools, mcp_<slug>_<tool>.
+        url:
+          type: string
+        has_auth:
+          type: boolean
+        auth_header:
+          type: string
+          description: Present when has_auth. The value is never returned.
+        auth_hint:
+          type: string
+          description: The end of the stored value, such as …a1b2, when has_auth.
+        server_name:
+          type: string
+        server_version:
+          type: string
+        status:
+          type: string
+          enum: [ok, error]
+        last_error:
+          type: string
+        tools:
+          type: array
+          items:
+            type: object
+            required: [name, tool, description, read_only, available]
+            properties:
+              name:
+                type: string
+                description: What bots call it, mcp_<slug>_<tool>.
+              tool:
+                type: string
+                description: The server's own name for it.
+              title:
+                type: string
+              description:
+                type: string
+              read_only:
+                type: boolean
+              available:
+                type: boolean
+              unavailable_reason:
+                type: string
+        disabled:
+          type: boolean
+          description: A platform admin turned it off.
+        synced_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    MCPServerInput:
+      type: object
+      additionalProperties: false
+      description: On create, name and url are required.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        url:
+          type: string
+          maxLength: 2000
+          description: The server's Streamable HTTP endpoint, https:// (http://localhost only while APP_ENV=development).
+          example: https://mcp.example.com/mcp
+        slug:
+          type: string
+          pattern: '^[a-z][a-z0-9]{0,19}$'
+          description: Unique in the business. Defaults to the name's letters and digits.
+        auth_header:
+          type: string
+          description: Defaults to Authorization.
+          example: X-API-Key
+        auth_value:
+          type: string
+          maxLength: 4096
+          description: Stored encrypted (needs MCP_TOKEN_KEY); "" removes it.
     APIToolInput:
       type: object
       additionalProperties: false
@@ -6609,6 +6886,9 @@ components:
         image_input:
           type: boolean
           description: Whether customers may attach pictures to a message (image input). A business without a plan has none.
+        mcp:
+          type: boolean
+          description: Whether the business may connect MCP servers. Pro and Enterprise have them.
     LimitOverrides:
       type: object
       additionalProperties: false
@@ -6639,6 +6919,9 @@ components:
         image_input:
           type: boolean
           description: Turns image input on or off whatever the plan says.
+        mcp:
+          type: boolean
+          description: Turns MCP servers on or off whatever the plan says.
     PlatformSettings:
       type: object
       required: [vision_model]
@@ -8052,6 +8335,14 @@ components:
         channel_id:
           type: string
           description: The channel the key is bound to (v2); its conversations and their tickets are marked with it.
+        kind:
+          type: string
+          enum: [chat, agent]
+          description: chat for the chat API; agent for an AI agent on POST /mcp.
+        access:
+          type: string
+          enum: [read, write]
+          description: An agent key's access.
         status:
           type: string
           enum: [active, revoked]

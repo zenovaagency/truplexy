@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Lock, MinusCircle, MoreHorizontal, Pencil, Play, Plus, Trash2, Wrench, XCircle } from 'lucide-react';
 import { hasCode } from '@/lib/api/client';
-import { useDeleteTool, useSaveTool, useTestTool, useTools } from '@/lib/api/endpoints/bot';
+import { useDeleteTool, useMcpServers, useSaveTool, useTestTool, useTools } from '@/lib/api/endpoints/bot';
 import type { HttpMethod, JsonSchema, Tool, ToolRun } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatDateTime, formatMs, formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { storeToolPlatform } from '@/lib/woocommerce';
+import { MCP_PREFIX, builtInLabel } from '@/lib/mcp';
 import {
   Badge,
   Button,
@@ -38,6 +38,7 @@ import {
 } from '@/components/ui';
 import { useBotDraft } from '@/features/llm/draft';
 import { BotToolsCard } from './BotToolsCard';
+import { McpServersCard } from './McpServers';
 import { isShown } from './visible';
 import { MAX_PARAMS, ParamsForm, newRow, rowsToSchema, schemaToRows, validateRows, type ParamRow } from './ParamsEditor';
 
@@ -58,9 +59,10 @@ function AccessBadge({ tool }: { tool: Tool }) {
   return tool.read_only ? <Badge tone="outline">Read only</Badge> : <Badge tone="warn">Changes data</Badge>;
 }
 
-/** Built-in tools come with the server, not the business's API: no endpoint, edit or delete. */
+/** Built-in tools come with the server, a connected store or an MCP server, not the business's API: no endpoint, edit or delete. */
 export function BuiltInBadge({ tool }: { tool: Tool }) {
-  return tool.built_in ? <Badge tone="accent">{storeToolPlatform(tool) ? `Built-in · ${storeToolPlatform(tool)}` : 'Built-in'}</Badge> : null;
+  const label = builtInLabel(tool);
+  return label ? <Badge tone={tool.mcp ? 'violet' : 'accent'}>{label}</Badge> : null;
 }
 
 /** Why a tool can't be called. Built-in tools that aren't set up are hidden, so this is mostly the business's own tools. */
@@ -73,6 +75,9 @@ const paramCount = (t: Tool) => Object.keys(t.parameters.properties ?? {}).lengt
 export default function ToolsPage() {
   const { can, bot } = useScopeCtx();
   const tools = useTools();
+  // The same query as the MCP servers card; the page mentions MCP only where the API serves it.
+  const mcp = useMcpServers();
+  const hasMcp = Boolean(mcp.data?.database_configured);
   const del = useDeleteTool();
   const confirm = useConfirm();
   const { draft, patchBot, canWrite: canEditBot } = useBotDraft();
@@ -154,7 +159,11 @@ export default function ToolsPage() {
       header: 'Endpoint',
       hideBelowLg: true,
       cell: (t) =>
-        t.built_in ? (
+        t.mcp ? (
+          <span className="block max-w-[280px] truncate text-xs text-ink-faint" title={t.mcp.tool}>
+            {t.mcp.server_name} · <span className="font-mono">{t.mcp.tool}</span>
+          </span>
+        ) : t.built_in ? (
           <span className="text-xs text-ink-faint">Built in</span>
         ) : (
           <span className="flex min-w-0 max-w-[280px] items-center gap-1.5" title={t.api.url}>
@@ -189,7 +198,7 @@ export default function ToolsPage() {
     <Page>
       <PageHeader
         title="Tools"
-        description={`Let ${bot.name} look things up or take actions through your own HTTPS APIs, such as an order lookup or a returns endpoint.`}
+        description={`Let ${bot.name} look things up or take actions through your own HTTPS APIs, such as an order lookup or a returns endpoint${hasMcp ? ', or through the tools of MCP servers you connect' : ''}.`}
         actions={
           writable && (
             <Button variant="accent" leading={<Plus />} onClick={() => setEditing('new')}>
@@ -200,6 +209,8 @@ export default function ToolsPage() {
       />
 
       <BotToolsCard />
+
+      <McpServersCard />
 
       {tools.data && !tools.data.database_configured && (
         <Callout tone="warn" icon={<AlertTriangle />} title="Tools are unavailable on this server">
@@ -302,7 +313,14 @@ function ToolViewer({
       open={Boolean(tool)}
       onOpenChange={(o) => !o && onClose()}
       title={tool ? <span className="font-mono">{tool.name}</span> : 'Tool'}
-      description={tool && (tool.built_in ? "Built in: it can't be changed or deleted." : `Updated ${formatRelative(tool.api.updated_at)}`)}
+      description={
+        tool &&
+        (tool.mcp
+          ? `From the MCP server ${tool.mcp.server_name}, where it is called ${tool.mcp.tool}. Change or remove the server under MCP servers.`
+          : tool.built_in
+            ? "Built in: it can't be changed or deleted."
+            : `Updated ${formatRelative(tool.api.updated_at)}`)
+      }
       footer={
         writable &&
         tool &&
@@ -485,8 +503,8 @@ function ToolEditor({ tool, onClose }: { tool: Tool | 'new' | null; onClose: () 
     setMode('form');
   };
 
-  // Built-in tools own the shopify_ names; the API refuses them with INVALID_TOOL too.
-  const reserved = name.startsWith('shopify_');
+  // Built-in and MCP tools own these names; the API refuses them with INVALID_TOOL too.
+  const reserved = ['shopify_', 'woocommerce_', MCP_PREFIX].find((p) => name.startsWith(p));
   const nameOk = /^[a-z][a-z0-9_]{0,63}$/.test(name) && !reserved;
   const urlOk = /^https:\/\/[^\s]+$/.test(url) && url.length <= 2000;
   const placeholders = [...new Set([...url.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((m) => m[1]!))];
@@ -545,7 +563,7 @@ function ToolEditor({ tool, onClose }: { tool: Tool | 'new' | null; onClose: () 
     >
       <div className="grid gap-5">
         {error && <Callout tone="danger" icon={<AlertTriangle />} title="The tool wasn't saved">{error}</Callout>}
-        <Field label="Name" hint="Lowercase letters, digits and underscores, starting with a letter. The model sees this name." error={reserved ? 'Names starting with shopify_ are kept for the built-in Shopify tools. Pick another name.' : name && !nameOk ? 'Use a-z, 0-9 and _ only, starting with a letter.' : undefined}>
+        <Field label="Name" hint="Lowercase letters, digits and underscores, starting with a letter. The model sees this name." error={reserved ? `Names starting with ${reserved} are kept for built-in and MCP tools. Pick another name.` : name && !nameOk ? 'Use a-z, 0-9 and _ only, starting with a letter.' : undefined}>
           <Input value={name} onChange={(e) => setName(e.target.value.toLowerCase().slice(0, 64))} placeholder="lookup_order" className="font-mono" />
         </Field>
         <Field label="When should the assistant use it?" hint="Describe what it does and when to call it. This is the model's only guide." aside={`${description.length}/1000`}>
@@ -648,7 +666,13 @@ function ToolTester({ tool, onClose }: { tool: Tool | null; onClose: () => void 
       open={Boolean(tool)}
       onOpenChange={(o) => !o && onClose()}
       title={tool ? `Test ${tool.name}` : 'Test'}
-      description={tool?.built_in ? 'This calls the connected store for real and records the run.' : 'This calls your endpoint for real and records the run.'}
+      description={
+        tool?.mcp
+          ? `This calls the MCP server ${tool.mcp.server_name} for real and records the run.`
+          : tool?.built_in
+            ? 'This calls the connected store for real and records the run.'
+            : 'This calls your endpoint for real and records the run.'
+      }
       footer={
         <Button variant="accent" leading={<Play />} loading={test.isPending} onClick={run}>
           Run test
