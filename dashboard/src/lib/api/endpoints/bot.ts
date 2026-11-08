@@ -2,9 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, hasCode } from '@/lib/api/client';
 import type {
   BotConfig,
-  McpServer,
-  McpServerInput,
-  McpServerList,
   RealtimeInfo,
   Tool,
   ToolInput,
@@ -116,67 +113,6 @@ export function useTestTool() {
   return useMutation({
     mutationFn: ({ name, args }: { name: string; args: Record<string, unknown> }) =>
       api<ToolRun>(`/tools/${encodeURIComponent(name)}/test`, { method: 'POST', body: { arguments: args }, scope }),
-  });
-}
-
-/* MCP servers ------------------------------------------------------------ */
-
-/**
- * The business's MCP servers. A server without the endpoint (404) or its migration (a database error) fails
- * quietly, and the Tools page leaves the section out.
- */
-export function useMcpServers(enabled = true) {
-  const scope = useScope();
-  return useQuery({
-    queryKey: qk.bot(scope, 'mcp-servers'),
-    queryFn: ({ signal }) => api<McpServerList>('/mcp-servers', { scope, signal }),
-    enabled,
-    retry: false,
-    meta: { silent: true },
-  });
-}
-
-/** Adding or changing a server connects to it first; MCP_CONNECT_FAILED and INVALID_MCP_SERVER are shown in the form. */
-export function useSaveMcpServer() {
-  const scope = useScope();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, input }: { id?: string; input: McpServerInput }) =>
-      id
-        ? api<McpServer>(`/mcp-servers/${encodeURIComponent(id)}`, { method: 'PATCH', body: input, scope })
-        : api<McpServer>('/mcp-servers', { method: 'POST', body: input, scope }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.bot(scope, 'mcp-servers') });
-      qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') });
-    },
-    meta: { success: 'MCP server saved', silentCodes: ['MCP_CONNECT_FAILED', 'INVALID_MCP_SERVER', 'MCP_SERVER_EXISTS'] },
-  });
-}
-
-export function useSyncMcpServer() {
-  const scope = useScope();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api<McpServer>(`/mcp-servers/${encodeURIComponent(id)}/sync`, { method: 'POST', scope }),
-    // A failed sync still records why on the server, so reload either way.
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: qk.bot(scope, 'mcp-servers') });
-      qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') });
-    },
-    meta: { success: 'Tools synced' },
-  });
-}
-
-export function useDeleteMcpServer() {
-  const scope = useScope();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api<void>(`/mcp-servers/${encodeURIComponent(id)}`, { method: 'DELETE', scope }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.bot(scope, 'mcp-servers') });
-      qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') });
-    },
-    meta: { success: 'MCP server removed' },
   });
 }
 

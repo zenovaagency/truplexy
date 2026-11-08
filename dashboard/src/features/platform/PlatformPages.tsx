@@ -400,7 +400,7 @@ function BusinessStatusBadge({ business: b }: { business: PlatformBusiness }) {
 /** Businesses that can still be filtered on: deleted ones have nothing to show. */
 const liveBusinesses = (list: PlatformBusiness[] | undefined) => (list ?? []).filter((t) => !t.deleted_at);
 
-type NumericLimit = Exclude<keyof Limits, 'web_search' | 'image_input' | 'mcp'>;
+type NumericLimit = Exclude<keyof Limits, 'web_search' | 'image_input'>;
 
 const LIMIT_FIELDS: { key: NumericLimit; label: string; max: number }[] = [
   { key: 'replies_per_month', label: 'AI replies / month', max: 10_000_000 },
@@ -452,7 +452,6 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
     for (const f of LIMIT_FIELDS) if (limits[f.key] !== undefined && limits[f.key] !== '') out[f.key] = Math.max(0, Math.min(f.max, Math.round(Number(limits[f.key]))));
     if (limits.web_search === 'true' || limits.web_search === 'false') out.web_search = limits.web_search === 'true';
     if (limits.image_input === 'true' || limits.image_input === 'false') out.image_input = limits.image_input === 'true';
-    if (limits.mcp === 'true' || limits.mcp === 'false') out.mcp = limits.mcp === 'true';
     update.mutate({ id: b.id, body: { limits: out } });
   };
 
@@ -538,17 +537,6 @@ function BusinessSheet({ business: b, onClose }: { business?: PlatformBusiness; 
               <Select
                 value={limits.image_input ?? ''}
                 onChange={(e) => setLimits({ ...limits, image_input: e.target.value })}
-                options={[
-                  { value: '', label: "The plan's setting" },
-                  { value: 'true', label: 'On' },
-                  { value: 'false', label: 'Off' },
-                ]}
-              />
-            </Field>
-            <Field label="MCP servers" hint={`Now ${b.limits.mcp ? 'on' : 'off'} for this business.`}>
-              <Select
-                value={limits.mcp ?? ''}
-                onChange={(e) => setLimits({ ...limits, mcp: e.target.value })}
                 options={[
                   { value: '', label: "The plan's setting" },
                   { value: 'true', label: 'On' },

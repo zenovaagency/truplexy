@@ -108,8 +108,6 @@ export interface Limits {
   web_searches_per_month?: number;
   /** Whether customers may attach pictures to a message (image input). Plans don't list it; a business's limits always do. A business without a plan has none. */
   image_input?: boolean;
-  /** Whether the business may connect MCP servers (Pro and Enterprise). */
-  mcp?: boolean;
 }
 
 /** The extra-token slider a plan sells. */
@@ -243,9 +241,6 @@ export interface Bot {
   avatar_url?: string;
 }
 
-export type ApiKeyKind = 'chat' | 'agent';
-export type AgentAccess = 'read' | 'write';
-
 export interface ApiKey {
   id: string;
   name: string;
@@ -254,10 +249,6 @@ export interface ApiKey {
   key_prefix: string;
   /** The channel the key is bound to (v2). */
   channel_id?: string;
-  /** chat for the chat API; agent for an AI agent on POST /mcp. Missing from APIs before agent keys. */
-  kind?: ApiKeyKind;
-  /** An agent key's access. */
-  access?: AgentAccess;
   status: 'active' | 'revoked';
   created_at: string;
   last_used_at?: string;
@@ -616,61 +607,6 @@ export interface Tool {
   /** A built-in tool, such as shopify_order_status: it can't be changed or deleted, and its api fields are empty. */
   built_in?: boolean;
   api: { method: HttpMethod; url: string; created_at: string; updated_at: string };
-  /** An MCP server's tool (named mcp_<slug>_<tool>): the server, and its own name for the tool. */
-  mcp?: { server_id: string; server_name: string; tool: string };
-}
-
-/** One of an MCP server's tools, as GET /mcp-servers lists it. */
-export interface McpServerTool {
-  /** What bots call it: mcp_<slug>_<tool>. */
-  name: string;
-  /** The server's own name for it. */
-  tool: string;
-  title?: string;
-  description: string;
-  read_only: boolean;
-  available: boolean;
-  unavailable_reason?: string;
-}
-
-/** A remote MCP server whose tools the business's bots may call (API_REFERENCE.md → "MCP servers (v2)"). */
-export interface McpServer {
-  id: string;
-  name: string;
-  slug: string;
-  url: string;
-  has_auth: boolean;
-  /** When has_auth: the header's name and the end of its value; the value is never returned. */
-  auth_header?: string;
-  auth_hint?: string;
-  server_name?: string;
-  server_version?: string;
-  status: 'ok' | 'error';
-  last_error?: string;
-  tools: McpServerTool[];
-  disabled: boolean;
-  synced_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface McpServerList {
-  data: McpServer[];
-  database_configured: boolean;
-  /** False until the API has MCP_TOKEN_KEY: servers can then be added only without an auth header. */
-  auth_supported: boolean;
-  /** False when the business's plan has no MCP servers. */
-  plan_includes: boolean;
-  max_servers: number;
-}
-
-/** Fields left out keep their value; auth_value "" removes the auth header. */
-export interface McpServerInput {
-  name?: string;
-  url?: string;
-  slug?: string;
-  auth_header?: string;
-  auth_value?: string;
 }
 
 export interface ToolInput {

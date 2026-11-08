@@ -4,31 +4,13 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [MCP servers (2026-11-08)](#mcp-servers-2026-11-08), [MCP server for AI agents (2026-11-08)](#mcp-server-for-ai-agents-2026-11-08), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
-
-## MCP servers (2026-11-08)
-
-A business can connect remote [MCP](https://modelcontextprotocol.io) servers, and its bots call their tools while replying, like built-in tools. Apply migration `0054_mcp_servers.sql` first, and set `MCP_TOKEN_KEY` (64 hex characters, `openssl rand -hex 32`) so servers can be added with an auth header. Pro and Enterprise include MCP servers; other plans get `403 PLAN_LIMIT_REACHED` with `limit: "mcp"`. Existing fields keep their meaning.
-
-- **Servers:** [`GET`/`POST /mcp-servers`, `GET`/`PATCH`/`DELETE /mcp-servers/{id}` and `POST /mcp-servers/{id}/sync`](#mcp-servers-v2) (`tools.read` / `tools.write`). A server is a Streamable HTTP endpoint plus, optionally, one header that authenticates it (such as `Authorization: Bearer …`), stored encrypted and never returned. Up to 10 per business.
-- **Tools:** a server's tools are listed when it is added or synced, and `GET /tools` lists them as built-in tools named `mcp_<slug>_<tool>`, with a new `mcp: {server_id, server_name, tool}` field. Turn them on in a bot's `tools` like any tool. API tools can no longer be named `mcp_…` (`400 INVALID_TOOL`).
-- **Plans:** `limits` (and platform `limit_overrides`) gain `mcp`, on or off like `image_input`.
-- **What a dashboard does:** an MCP servers section on the Tools page to add, edit, sync and remove servers; badge MCP tools in the tool library with their server's name.
-
-## MCP server for AI agents (2026-11-08)
-
-AI agents (Claude, Cursor, ChatGPT…) can work one bot's support inbox through Truplexy's own MCP endpoint, `POST /v3/mcp` (Streamable HTTP, stateless, JSON responses; other methods get 405). Pro and Enterprise only; no migration.
-
-- **Agent keys:** `POST /api-keys` takes `kind: "agent"` and `access: "read" | "write"` (default `read`, no `channel_id`). The secret starts `tpxa_`. `GET /api-keys` lists `kind` (`chat` or `agent`) and, for agent keys, `access`. Agent keys work only on `/mcp`; chat keys never work there. Without MCP in the plan: `403 PLAN_LIMIT_REACHED` (`limit: "mcp"`), on issuing and on every `/mcp` request.
-- **Permissions:** a read key may do what a viewer may; a write key what a support agent may, plus adding knowledge. Neither reaches integrations, members or billing.
-- **Tools:** read: `list_tickets`, `get_ticket`, `search_knowledge`, `find_customers`, `get_customer`, `support_stats`. Write keys add `reply_to_ticket`, `update_ticket` (including `take_over`), `suggest_reply`, `add_knowledge_article`, `ask_bot`. Each runs the matching REST endpoint with its validation, webhooks, live events and rate limits; replies are signed with the key's name, and the audit log names `key:<id>`. `suggest_reply` and `ask_bot` are billed like replies.
-- **Connect:** `claude mcp add --transport http truplexy https://<api>/v3/mcp --header "Authorization: Bearer tpxa_…"`.
 
 ## Team roles and auto-assignment (2026-11-06)
 
@@ -288,7 +270,6 @@ Tenant and bot IDs are 1–31 lowercase letters, digits, `-` or `_`, starting wi
 | Playground (`/playground/…`) | yes | a member with `playground.run`; the playground key |
 | Platform (`/platform/…`) | no | a platform admin; the admin key |
 | Chat API (`/conversations/…`, `/realtime/token`) | no | a chat key only, never a person's token |
-| MCP for AI agents (`POST /mcp`, v2) | no | an agent key (`tpxa_…`) only |
 | Internal (`/internal/cron/…`) | no | the scheduler's `CRON_SECRET` |
 
 The admin key (`ADMIN_API_KEY`) is a server-side credential with every permission; without scope headers it acts on the `default` bot. The chat key is what websites, apps and messaging platforms use to talk to a bot. It is shown here because a dashboard issues chat keys and shows integrators how to use them.
@@ -510,7 +491,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/bots` | `bot.read` | List the business's bots |
 | `POST` | `/bots` | `bots.create` | Create a bot |
 | `GET` | `/api-keys` | `integrations.read` | List chat API keys |
-| `POST` | `/api-keys` | `integrations.write` | Issue a chat API key, or an AI agent's key (`kind: "agent"`) |
+| `POST` | `/api-keys` | `integrations.write` | Issue a chat API key |
 | `DELETE` | `/api-keys/{id}` | `integrations.write` | Revoke a chat API key |
 | `GET` | `/channel-types` | `channels.read` | Channel types the bot may add (v2) |
 | `GET` | `/channels` | `channels.read` | List the bot's channels (v2) |
@@ -579,12 +560,6 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `PUT` | `/tools/{name}` | `tools.write` | Replace a tool |
 | `DELETE` | `/tools/{name}` | `tools.write` | Delete a tool |
 | `POST` | `/tools/{name}/test` | `tools.write` | Run a tool for real |
-| `GET` | `/mcp-servers` | `tools.read` | The business's MCP servers (v2) |
-| `POST` | `/mcp-servers` | `tools.write` | Connect an MCP server (v2) |
-| `GET` | `/mcp-servers/{id}` | `tools.read` | An MCP server (v2) |
-| `PATCH` | `/mcp-servers/{id}` | `tools.write` | Change an MCP server (v2) |
-| `DELETE` | `/mcp-servers/{id}` | `tools.write` | Remove an MCP server (v2) |
-| `POST` | `/mcp-servers/{id}/sync` | `tools.write` | List an MCP server's tools again (v2) |
 | `GET` | `/tickets` | `tickets.read` | List tickets |
 | `POST` | `/tickets` | `tickets.write` | Open a ticket |
 | `GET` | `/tickets/{id}` | `tickets.read` | A ticket with its conversation |
@@ -743,7 +718,7 @@ Scope headers. These act on the business the headers name.
   auto_close_hours,                              // open tickets close after this long without activity (v2); 0 = never
   limits: {bots, documents_per_bot, members, replies_per_month, tokens_per_month,
            web_search, web_searches_per_month,
-           image_input, mcp},               // the plan's, with overrides; 0 = unlimited; web_search, image_input and mcp are on or off
+           image_input},                    // the plan's, with overrides; 0 = unlimited; web_search and image_input are on or off
   limit_overrides: {…},                          // only what a platform admin overrode
   usage: {bots, members, replies_this_month, tokens_this_month},   // members includes pending invitations
   balance,                                       // USD; see GET /billing
@@ -889,11 +864,11 @@ Scope headers; these act on the business. With the admin key, the endpoints cove
 
 #### `GET /api-keys`
 
-`integrations.read`. **200** `{data: [{id, name, tenant_id, bot_id, key_prefix, channel_id?, kind, access?, status, created_at, last_used_at?}]}`, newest first, without secrets. `status` is `active` or `revoked`; `channel_id` names the channel the key is bound to.
+`integrations.read`. **200** `{data: [{id, name, tenant_id, bot_id, key_prefix, channel_id?, status, created_at, last_used_at?}]}`, newest first, without secrets. `status` is `active` or `revoked`; `channel_id` names the channel the key is bound to.
 
 #### `POST /api-keys`
 
-`integrations.write`. `{bot_id, name, channel_id?, kind?, access?}`; `kind: "agent"` issues an [AI agent's key](#mcp-server-for-ai-agents-2026-11-08) (`tpxa_…`) with `access` `read` or `write`. **201** the key, with the secret in `key` (`tpx_` plus 48 hex characters). The secret is returned only this once, so show it with a copy button and a warning. The key reaches only that bot's conversations.
+`integrations.write`. `{bot_id, name, channel_id?}`. **201** the key, with the secret in `key` (`tpx_` plus 48 hex characters). The secret is returned only this once, so show it with a copy button and a warning. The key reaches only that bot's conversations.
 
 `channel_id` (v2) binds the key to one of the bot's [channels](#channels-v2): the conversations it starts, and their tickets, are marked with the channel, and the key stops working while the channel is off. Issue one key per channel, for example one for the Discord bot and one for the website widget. A binding can't be changed; issue a new key.
 
@@ -1697,8 +1672,7 @@ Scope headers. Tools belong to the business and are shared by its bots; each bot
   available,
   unavailable_reason?,        // when available is false; also when a platform admin turned it off
   built_in?,                  // true for a built-in tool (v2); its api fields are empty
-  api: {method, url, created_at, updated_at},
-  mcp?: {server_id, server_name, tool}   // an MCP server's tool: the server, and its own name for the tool
+  api: {method, url, created_at, updated_at}
 }
 ```
 
@@ -1768,81 +1742,6 @@ Arguments that don't fill a placeholder go in the query string for `GET` and `DE
 **Errors:**
 - `400 TOOL_UNAVAILABLE`
 - `404 TOOL_NOT_FOUND`
-
-### MCP servers (v2)
-
-A business connects remote [MCP](https://modelcontextprotocol.io) servers over Streamable HTTP, and its bots call their tools. When a server is added, changed or synced, the API connects to it, lists up to 100 of its tools and keeps the list; replies use the kept list and call a server only when the model calls one of its tools. One reply's calls to a server share one MCP session. Each call has 10 seconds, like any tool, and the server's responses are read up to 1 MB.
-
-Calls go through the same guard as API tools: the address must be `https://` (and `http://localhost` only while `APP_ENV=development`), must not resolve to a private, loopback or metadata address, and redirects are not followed.
-
-**Tools.** A server's tools appear in [`GET /tools`](#get-tools) as built-in tools (`built_in: true`) named `mcp_<slug>_<tool>`: the server's name for the tool in lowercase letters, digits and underscores, ending in a short hash when that would pass 64 characters. Their `description` starts with `[<server name>]`, `read_only` is the server's `readOnlyHint`, and `mcp` names the server. Turn them on in a bot's `tools` like any tool; changing a server's `slug` renames its tools, and bots that use the old names skip them until they are picked again. A tool is `available: false` when:
-
-- the business's plan doesn't include MCP servers (a downgrade turns them off without removing them);
-- a platform admin turned the server off;
-- its input schema can't be used. Tools take the JSON Schema subset of [API tools](#post-tools); annotations (`title`, `default`, `format`, lengths, ranges, `$schema`…) are dropped and an optional value (`anyOf: [X, {type: null}]`, `type: [X, "null"]`) becomes `X`, but unions, `$ref`, values of any type and nesting past 3 levels can't be used, and `unavailable_reason` says which;
-- another of the server's tools gets the same name.
-
-A call's `output` is the tool's structured content when it has some, otherwise its text (JSON when it is JSON; pictures are left out); a result the server marks as an error has `status: "error"`.
-
-```
-MCPServer {
-  id,                         // mcps_…
-  name, slug,                 // slug names its tools: mcp_<slug>_<tool>
-  url,
-  has_auth,                   // whether an auth header is stored
-  auth_header?, auth_hint?,   // when has_auth: the header's name and the end of its value, such as "…a1b2"; the value is never returned
-  server_name?, server_version?,   // what the server calls itself
-  status,                     // ok | error: whether the last connection worked
-  last_error?,                // why it didn't; the tools listed before stay usable
-  tools: [{name, tool, title?, description, read_only, available, unavailable_reason?}],
-  disabled,                   // a platform admin turned it off
-  synced_at?, created_at, updated_at
-}
-```
-
-#### `GET /mcp-servers`
-
-`tools.read`. **200** `{data: [MCPServer], database_configured, auth_supported, plan_includes, max_servers}`, by name. `auth_supported` is false until the server has `MCP_TOKEN_KEY`: servers can then be added only without an auth header. `plan_includes` is false when the business's plan has no MCP servers.
-
-#### `POST /mcp-servers`
-
-`tools.write`. Connects to the server, lists its tools, and stores it only if that works.
-
-| Field | Rules |
-| --- | --- |
-| `name` | Required. 1–80 characters. |
-| `url` | Required. The server's MCP endpoint, often ending in `/mcp`: an `https://` URL of up to 2000 characters, without a user name, password or fragment. |
-| `slug` | `^[a-z][a-z0-9]{0,19}$`, unique in the business. Defaults to the name's letters and digits. |
-| `auth_header` | The header that authenticates the server, such as `Authorization` (the default) or `X-API-Key`. Not one the connection sets itself (`Host`, `Content-Type`, `Accept`, `Mcp-Session-Id`…). |
-| `auth_value` | Its value, such as `Bearer sk_live_…`. Up to 4096 characters on one line. Needs `MCP_TOKEN_KEY`. |
-
-**201** the server.
-
-**Errors:**
-- `400 INVALID_MCP_SERVER` (`message` says which rule).
-- `422 MCP_CONNECT_FAILED`: the server couldn't be reached or listed; `message` says why (such as a refused auth header, a 404 for a wrong path, or a timeout after 20 seconds). Nothing is stored.
-- `403 PLAN_LIMIT_REACHED` (`limit: "mcp"`).
-- `409 MCP_SERVER_EXISTS` (the slug is taken), `409 MCP_SERVER_LIMIT` (10 servers already).
-
-#### `GET /mcp-servers/{id}`
-
-`tools.read`. **200** the server. **Errors:** `404 MCP_SERVER_NOT_FOUND`.
-
-#### `PATCH /mcp-servers/{id}`
-
-`tools.write`. Any of the fields of `POST /mcp-servers`. A field left out keeps its value; send `"auth_value": ""` to remove the auth header. A new `url`, `auth_header` or `auth_value` is checked by connecting again, and nothing changes if that fails. **200** the server.
-
-**Errors:** as `POST /mcp-servers`, and `404 MCP_SERVER_NOT_FOUND`.
-
-#### `DELETE /mcp-servers/{id}`
-
-`tools.write`. **204**. Bots that use its tools skip them. **Errors:** `404 MCP_SERVER_NOT_FOUND`.
-
-#### `POST /mcp-servers/{id}/sync`
-
-`tools.write`. Lists the server's tools again. **200** the server. When the server can't be reached, its `status` becomes `error` with `last_error`, the tools listed before are kept, and the answer is `422 MCP_CONNECT_FAILED`.
-
-**Errors:** `422 MCP_CONNECT_FAILED`, `403 PLAN_LIMIT_REACHED` (`limit: "mcp"`), `404 MCP_SERVER_NOT_FOUND`.
 
 ### Tickets
 
@@ -2551,7 +2450,7 @@ A platform admin's token (`platform_admin: true` in `GET /me`) or the admin key;
 `{plan?, status?, limits?}`; leave out what doesn't change.
 - `plan`: a plan `id` from `GET /plans`.
 - `status`: `active` or `suspended`. Suspending blocks the business's members and chat keys.
-- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?, tokens_per_month?, web_search?, web_searches_per_month?, image_input?, mcp?}`, each 0 (unlimited) to 10,000,000 (`tokens_per_month` to 100,000,000,000); `web_search`, `image_input` and `mcp` are `true` or `false`, turning web search, image input or MCP servers on or off whatever the plan says (Starter, Pro and Enterprise have image input; a business without a plan doesn't). It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
+- `limits`: `{bots?, documents_per_bot?, members?, replies_per_month?, tokens_per_month?, web_search?, web_searches_per_month?, image_input?}`, each 0 (unlimited) to 10,000,000 (`tokens_per_month` to 100,000,000,000); `web_search` and `image_input` are `true` or `false`, turning web search or image input on or off whatever the plan says (Starter, Pro and Enterprise have image input; a business without a plan doesn't). It replaces every override, and a dimension left out uses the plan's limit. Send `{}` to clear them all.
 
 **200** the Business.
 
@@ -3077,7 +2976,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets/{id}/suggested-reply` for the reply box's AI draft, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
-| Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test`, `GET`/`POST /mcp-servers`, `GET`/`PATCH`/`DELETE /mcp-servers/{id}`, `POST /mcp-servers/{id}/sync` |
+| Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |
 | Playground | `GET /playground/conversations/current`, `POST /playground/conversations`, `POST /playground/run` (with the saved or draft bot settings from `GET /workspace`); image input: `GET /playground/attachments/config`, then `POST /playground/attachments` (and the R2 `PUT`) for each picture |
 | Integrations | `GET`/`PUT`/`DELETE /webhook`, `POST /webhook/secret`, `POST /webhook/test`, `GET`/`POST /api-keys` (with a channel picker), `DELETE /api-keys/{id}`, `GET /channel-types` with `GET`/`POST`/`PATCH`/`DELETE /channels…`, and the chat API section as the integrator guide |
 | Business settings | `GET`/`PATCH /tenant` (name, type, `reply_target_hours`; `limits` and `usage` for the plan box), `GET /plans`, `POST /tenant/leave`, `GET`/`POST`/`DELETE /tenant/deletion-request` for owners |
@@ -3099,15 +2998,13 @@ Every error has its HTTP status and this body:
 }
 ```
 
-`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month`, `tokens_per_month`, `web_search`, `image_input`, `mcp` or `no_plan`. `SOLE_OWNER` adds `tenants`.
+`DUPLICATE_DOCUMENT` adds `document_id`. `PLAN_LIMIT_REACHED` adds `limit`: `bots`, `documents_per_bot`, `members`, `replies_per_month`, `tokens_per_month`, `web_search`, `image_input` or `no_plan`. `SOLE_OWNER` adds `tenants`.
 
 | HTTP | Codes | What to do |
 | --- | --- | --- |
 | 400 | `INVALID_REQUEST` | Fix the body, path or query; `message` says what. |
 | 400 | `SCOPE_REQUIRED`, `INVALID_SCOPE` | Send both scope headers, with valid IDs. |
 | 400 | `INVALID_TOOL`, `TOOL_UNAVAILABLE` | Fix the tool definition. `TOOL_UNAVAILABLE` comes only from `POST /tools/{name}/test`; replies skip unavailable tools. |
-| 400 | `INVALID_MCP_SERVER` | Fix the MCP server's fields; `message` says which. |
-| 422 | `MCP_CONNECT_FAILED` | The MCP server couldn't be reached or listed. Show `message`, which says why (wrong URL or auth header, timeout, not an MCP server). |
 | 400 | `MODEL_NOT_ALLOWED`, `PROMPT_TEMPLATE_NOT_ALLOWED`, `INVALID_PROMPT_VARIABLES`, `PROMPT_NOT_EDITABLE` | Pick from `GET /prompt-templates` and fill required variables. `MODEL_NOT_ALLOWED` now only means the platform's default model can't call tools while tools are on: ask a platform admin. |
 | 400 | `INVALID_ASSIGNEE` | Assign a member with `tickets.write`. |
 | 400 | `CHANNEL_TYPE_NOT_ALLOWED` | Pick a channel type from `GET /channel-types`. |

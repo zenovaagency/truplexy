@@ -103,7 +103,7 @@ for (const c of CONNECT_CHANNELS) {
   }
   if (built(`channels/${c.id}/index.html`)) {
     const page = strip(new URL(`channels/${c.id}/index.html`, dist));
-    if (/href="\/docs\/(?!web-sdk|api|webhooks|mcp)/.test(page.replace(/<header[\s\S]*?<\/header>|<footer[\s\S]*?<\/footer>/g, ''))) {
+    if (/href="\/docs\/(?!web-sdk|api|webhooks)/.test(page.replace(/<header[\s\S]*?<\/header>|<footer[\s\S]*?<\/footer>/g, ''))) {
       failures++;
       console.log(`✗ /channels/${c.id} links to a setup guide; it should point at Connect in the dashboard`);
     }

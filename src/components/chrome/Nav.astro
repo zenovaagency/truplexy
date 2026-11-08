@@ -2,7 +2,6 @@
 import {
   ArrowRight,
   BookOpen,
-  Bot,
   Braces,
   CalendarDays,
   Code,
@@ -47,7 +46,6 @@ const ICON: Record<string, LucideIcon> = {
   '/docs/web-sdk': Code,
   '/docs/api': Braces,
   '/docs/webhooks': Webhook,
-  '/docs/mcp': Bot,
 };
 // The live demo gets the Product panel's side card instead of a row.
 const productRows = PRODUCT_LINKS.filter((l) => l.href !== '#demo').map((l) => ({ ...l, Icon: ICON[l.href] }));
