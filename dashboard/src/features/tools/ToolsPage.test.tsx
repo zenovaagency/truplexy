@@ -161,16 +161,16 @@ describe('built-in tool actions', () => {
 });
 
 describe('the API tool form', () => {
-  it('refuses names starting with shopify_', async () => {
+  it.each(['shopify_', 'woocommerce_', 'mcp_'])('refuses names starting with %s', async (prefix) => {
     await render([apiTool]);
     await act(async () => button('New tool')!.click());
     await tick();
     const name = document.body.querySelector<HTMLInputElement>('input[placeholder="lookup_order"]')!;
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(name, 'shopify_refunds');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(name, `${prefix}refunds`);
       name.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(page()).toContain('Names starting with shopify_ are kept for the built-in Shopify tools.');
+    expect(page()).toContain(`Names starting with ${prefix} are kept for built-in and MCP tools.`);
     expect(button('Create tool')!.disabled).toBe(true);
   });
 });

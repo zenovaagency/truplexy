@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
+  JsonSchema,
+  McpServer,
   ApiKey,
   DeletionRequest,
   Billing,
@@ -125,7 +127,7 @@ const planOf = (t: MockTenant) => PLANS.find((p) => p.id === t.plan);
 
 function limitsOf(t: MockTenant): Limits {
   const plan = planOf(t);
-  return { ...(plan?.limits ?? NO_PLAN_LIMITS), web_search: Boolean(plan), web_searches_per_month: WEB_SEARCHES[t.plan] ?? 0, image_input: Boolean(plan), ...t.limit_overrides };
+  return { ...(plan?.limits ?? NO_PLAN_LIMITS), web_search: Boolean(plan), web_searches_per_month: WEB_SEARCHES[t.plan] ?? 0, image_input: Boolean(plan), mcp: t.plan === 'pro' || t.plan === 'enterprise', ...t.limit_overrides };
 }
 
 /** Refuses a reply when the business has no plan, as the API does. */
@@ -266,7 +268,7 @@ function audit(c: Ctx, action: string, target: string, details: Record<string, u
   });
 }
 
-function requireLimit(t: MockTenant, key: Exclude<keyof Limits, 'web_search' | 'image_input'>, used: number) {
+function requireLimit(t: MockTenant, key: Exclude<keyof Limits, 'web_search' | 'image_input' | 'mcp'>, used: number) {
   const max = limitsOf(t)[key] ?? 0;
   if (max > 0 && used >= max) throw err(403, 'PLAN_LIMIT_REACHED', `The ${t.plan} plan allows ${max} ${key.replace(/_/g, ' ')}.`, { limit: key });
 }
@@ -2374,7 +2376,8 @@ const isBuiltIn = (name: unknown) => BUILT_IN_TOOLS.some((t) => t.name === name)
 function toolInput(c: Ctx, b: any) {
   const name = str(b.name, 'name', 1, 64)!;
   if (!/^[a-z][a-z0-9_]{0,63}$/.test(name)) throw err(400, 'INVALID_TOOL', 'name must match ^[a-z][a-z0-9_]{0,63}$.');
-  if (name.startsWith('shopify_') || name.startsWith('woocommerce_')) throw err(400, 'INVALID_TOOL', `Names starting with ${name.startsWith('shopify_') ? 'shopify_' : 'woocommerce_'} are kept for built-in tools.`);
+  const reserved = ['shopify_', 'woocommerce_', 'mcp_'].find((p) => name.startsWith(p));
+  if (reserved) throw err(400, 'INVALID_TOOL', `Names starting with ${reserved} are kept for built-in tools.`);
   const description = str(b.description, 'description', 1, 1000)!;
   if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(b.method)) throw err(400, 'INVALID_TOOL', 'method must be GET, POST, PUT, PATCH or DELETE.');
   const url = str(b.url, 'url', 1, 2000)!;
@@ -2392,7 +2395,7 @@ function toolInput(c: Ctx, b: any) {
 }
 
 route('GET', '/tools', 'tools.read', (c) => ({
-  data: [...builtInTools(c), ...tenantTools(c).sort((a, b) => a.name.localeCompare(b.name)).map(toolOut)],
+  data: [...builtInTools(c), ...mcpTools(c), ...tenantTools(c).sort((a, b) => a.name.localeCompare(b.name)).map(toolOut)],
   database_configured: true,
 }));
 
@@ -2411,7 +2414,7 @@ function findTool(c: Ctx) {
   return t;
 }
 
-route('GET', '/tools/:name', 'tools.read', (c) => builtInTools(c).find((t) => t.name === c.params.name) ?? toolOut(findTool(c)));
+route('GET', '/tools/:name', 'tools.read', (c) => [...builtInTools(c), ...mcpTools(c)].find((t) => t.name === c.params.name) ?? toolOut(findTool(c)));
 
 route('PUT', '/tools/:name', 'tools.write', (c) => {
   if (isBuiltIn(c.params.name)) throw err(400, 'INVALID_TOOL', "Built-in tools can't be changed.");
@@ -2446,6 +2449,12 @@ function runTool(t: MockDb['tools'][number], args: Record<string, unknown>): Too
 }
 
 route('POST', '/tools/:name/test', 'tools.write', (c) => {
+  const remote = mcpTools(c).find((t) => t.name === c.params.name);
+  if (remote) {
+    if (!remote.available) throw err(400, 'TOOL_UNAVAILABLE', remote.unavailable_reason!);
+    const args = c.body?.arguments ?? {};
+    return { name: remote.name, arguments: args, status: 'ok', output: JSON.stringify({ tool: remote.mcp!.tool, received: args, note: 'Mock MCP server' }, null, 2), latency_ms: 240 } satisfies ToolRun;
+  }
   const built = builtInTools(c).find((t) => t.name === c.params.name);
   if (built) {
     if (!built.available) throw err(400, 'TOOL_UNAVAILABLE', built.unavailable_reason!);
@@ -2454,6 +2463,150 @@ route('POST', '/tools/:name/test', 'tools.write', (c) => {
   const t = findTool(c);
   if (t.disabled) throw err(400, 'TOOL_UNAVAILABLE', 'This tool was turned off by a platform admin.');
   return runTool(t, c.body?.arguments ?? {});
+});
+
+/* MCP servers -------------------------------------------------------- */
+
+/** Kept per mock business for the session only. */
+const MCP_SERVERS = new Map<string, McpServer[]>();
+const MCP_MAX = 10;
+
+const mcpServersOf = (c: Ctx) => {
+  let list = MCP_SERVERS.get(c.tenant.id);
+  if (!list) MCP_SERVERS.set(c.tenant.id, (list = c.tenant.id === 'acme' ? [sampleMcpServer()] : []));
+  return list;
+};
+
+/** Acme starts with one connected server, so the section has something to show. */
+function sampleMcpServer(): McpServer {
+  const at = new Date(Date.now() - 3 * 3_600_000).toISOString();
+  return {
+    id: 'mcps_sample', name: 'Stripe', slug: 'stripe', url: 'https://mcp.stripe.com', has_auth: true, auth_header: 'Authorization', auth_hint: '…9f3c',
+    server_name: 'stripe-mcp', server_version: '0.2.4', status: 'ok', tools: mockServerTools('stripe', 'https://mcp.stripe.com'),
+    disabled: false, synced_at: at, created_at: at, updated_at: at,
+  };
+}
+
+const mcpToolName = (slug: string, tool: string) =>
+  `mcp_${slug}_${tool.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tool'}`.slice(0, 64);
+
+/** What a mock server offers, from its address: a "stripe" address has payment tools, anything else a weather server. */
+function mockServerTools(slug: string, url: string): McpServer['tools'] {
+  const remote = url.includes('stripe')
+    ? [
+        { tool: 'list_customers', description: 'List customers by email.', read_only: true },
+        { tool: 'create_refund', description: 'Refund a payment.', read_only: false },
+        { tool: 'search_documentation', description: 'Search the docs.', read_only: true, bad: true },
+      ]
+    : [
+        { tool: 'get_weather', description: 'Current weather for a city.', read_only: true },
+        { tool: 'get_forecast', description: 'Forecast for the next days.', read_only: true },
+      ];
+  return remote.map((t) => ({
+    name: mcpToolName(slug, t.tool),
+    tool: t.tool,
+    description: t.description,
+    read_only: t.read_only,
+    available: !('bad' in t),
+    unavailable_reason: 'bad' in t ? 'Its input schema can\'t be used: parameters.filters uses "anyOf" with several types, which tools don\'t support.' : undefined,
+  }));
+}
+
+function mcpOut(c: Ctx, s: McpServer): McpServer {
+  const allowed = Boolean(limitsOf(c.tenant).mcp);
+  return {
+    ...s,
+    tools: s.tools.map((t) =>
+      allowed || !t.available ? t : { ...t, available: false, unavailable_reason: "Your plan doesn't include MCP servers. Upgrade to Pro to use this tool." },
+    ),
+  };
+}
+
+function mcpTools(c: Ctx): Tool[] {
+  return mcpServersOf(c).flatMap((s) =>
+    mcpOut(c, s).tools.map((t): Tool => ({
+      name: t.name,
+      description: `[${s.name}] ${t.description}`,
+      parameters: {
+        type: 'object',
+        properties: (t.tool.includes('weather') || t.tool.includes('forecast') ? { city: { type: 'string', description: 'City name' } } : { email: { type: 'string' } }) as Record<string, JsonSchema>,
+      },
+      read_only: t.read_only,
+      available: t.available,
+      unavailable_reason: t.unavailable_reason,
+      built_in: true,
+      api: { method: 'GET' as const, url: '', created_at: '', updated_at: '' },
+      mcp: { server_id: s.id, server_name: s.name, tool: t.tool },
+    })),
+  );
+}
+
+function mcpInput(c: Ctx, b: any, current?: McpServer) {
+  if (!current && (b.name === undefined || b.url === undefined)) throw err(400, 'INVALID_MCP_SERVER', 'name and url are required.');
+  const name = b.name === undefined ? current!.name : str(b.name, 'name', 1, 80)!.trim();
+  const url = b.url === undefined ? current!.url : String(b.url).trim();
+  if (!/^https:\/\/[^\s/]+/.test(url)) throw err(400, 'INVALID_MCP_SERVER', 'url must start with https://.');
+  const slug = b.slug === undefined || b.slug === '' ? (current?.slug ?? (name.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/^[0-9]+/, '').slice(0, 20) || 'server')) : String(b.slug);
+  if (!/^[a-z][a-z0-9]{0,19}$/.test(slug)) throw err(400, 'INVALID_MCP_SERVER', 'slug must start with a lowercase letter and use only lowercase letters and digits (at most 20 characters).');
+  if (mcpServersOf(c).some((s) => s.slug === slug && s.id !== current?.id)) throw err(409, 'MCP_SERVER_EXISTS', 'Another MCP server uses this slug. Choose another.');
+  // A mock server that answers "unauthorized": any address with "private" in it, without an auth value.
+  const auth = b.auth_value === undefined ? current?.has_auth ?? false : Boolean(b.auth_value);
+  if (url.includes('private') && !auth) throw err(422, 'MCP_CONNECT_FAILED', 'The server refused the credentials (401 Unauthorized). Check the auth header.');
+  if (url.includes('down')) throw err(422, 'MCP_CONNECT_FAILED', 'The server did not respond in time.');
+  const header = b.auth_header || current?.auth_header || 'Authorization';
+  const hint = typeof b.auth_value === 'string' && b.auth_value.length >= 12 ? `…${b.auth_value.slice(-4)}` : '…';
+  return { name, url, slug, has_auth: auth, auth_header: auth ? header : undefined, auth_hint: auth ? (b.auth_value ? hint : current?.auth_hint) : undefined };
+}
+
+route('GET', '/mcp-servers', 'tools.read', (c) => ({
+  data: [...mcpServersOf(c)].sort((a, b) => a.name.localeCompare(b.name)).map((s) => mcpOut(c, s)),
+  database_configured: true,
+  auth_supported: true,
+  plan_includes: Boolean(limitsOf(c.tenant).mcp),
+  max_servers: MCP_MAX,
+}));
+
+route('POST', '/mcp-servers', 'tools.write', (c) => {
+  if (!limitsOf(c.tenant).mcp) throw err(403, 'PLAN_LIMIT_REACHED', "Your plan doesn't include MCP servers. Upgrade to Pro to connect them.", { limit: 'mcp' });
+  if (mcpServersOf(c).length >= MCP_MAX) throw err(409, 'MCP_SERVER_LIMIT', `A business can connect up to ${MCP_MAX} MCP servers. Remove one to add another.`);
+  const i = mcpInput(c, c.body ?? {});
+  const now = nowIso();
+  const s: McpServer = {
+    id: newId('mcps'), ...i, server_name: i.url.includes('stripe') ? 'stripe-mcp' : 'weather', server_version: '1.0.0', status: 'ok',
+    tools: mockServerTools(i.slug, i.url), disabled: false, synced_at: now, created_at: now, updated_at: now,
+  };
+  mcpServersOf(c).push(s);
+  return created(mcpOut(c, s));
+});
+
+function findMcpServer(c: Ctx) {
+  const s = mcpServersOf(c).find((x) => x.id === c.params.id);
+  if (!s) throw notFound('MCP_SERVER_NOT_FOUND', 'MCP server');
+  return s;
+}
+
+route('GET', '/mcp-servers/:id', 'tools.read', (c) => mcpOut(c, findMcpServer(c)));
+
+route('PATCH', '/mcp-servers/:id', 'tools.write', (c) => {
+  const s = findMcpServer(c);
+  const i = mcpInput(c, c.body ?? {}, s);
+  Object.assign(s, i, { tools: mockServerTools(i.slug, i.url), updated_at: nowIso() });
+  return mcpOut(c, s);
+});
+
+route('POST', '/mcp-servers/:id/sync', 'tools.write', (c) => {
+  const s = findMcpServer(c);
+  if (!limitsOf(c.tenant).mcp) throw err(403, 'PLAN_LIMIT_REACHED', "Your plan doesn't include MCP servers. Upgrade to Pro to connect them.", { limit: 'mcp' });
+  s.synced_at = nowIso();
+  s.status = 'ok';
+  s.last_error = undefined;
+  return mcpOut(c, s);
+});
+
+route('DELETE', '/mcp-servers/:id', 'tools.write', (c) => {
+  const s = findMcpServer(c);
+  MCP_SERVERS.set(c.tenant.id, mcpServersOf(c).filter((x) => x !== s));
+  return noContent();
 });
 
 /* Tickets ------------------------------------------------------------ */
@@ -3410,6 +3563,11 @@ route('PATCH', '/platform/tenants/:id', 'platform', (c) => {
       if (k === 'image_input') {
         if (typeof v !== 'boolean') throw invalid('image_input must be true or false.');
         out.image_input = v;
+        continue;
+      }
+      if (k === 'mcp') {
+        if (typeof v !== 'boolean') throw invalid('mcp must be true or false.');
+        out.mcp = v;
         continue;
       }
       if (!['bots', 'documents_per_bot', 'members', 'replies_per_month', 'tokens_per_month', 'web_searches_per_month'].includes(k)) throw invalid(`Unknown limit ${k}.`);
