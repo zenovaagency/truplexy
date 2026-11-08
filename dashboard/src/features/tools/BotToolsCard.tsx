@@ -2,7 +2,7 @@ import { AlertTriangle, Bot } from 'lucide-react';
 import { useTools } from '@/lib/api/endpoints/bot';
 import { cn } from '@/lib/cn';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { builtInLabel } from '@/lib/mcp';
+import { storeToolPlatform } from '@/lib/woocommerce';
 import { Badge, Button, Callout, Card, Checkbox, ErrorState, SkeletonRows, Switch } from '@/components/ui';
 import { useBotDraft } from '@/features/llm/draft';
 import { isShown } from './visible';
@@ -78,9 +78,9 @@ export function BotToolsCard() {
                     onChange={(e) => toggle(t.name, e.target.checked)}
                     label={
                       <span className="grid">
-                        <span className="flex flex-wrap items-center gap-1.5 break-all font-mono text-xs font-semibold text-ink">
+                        <span className="flex items-center gap-1.5 font-mono text-xs font-semibold text-ink">
                           {t.name}
-                          {builtInLabel(t) && <Badge tone={t.mcp ? 'violet' : 'accent'} className="px-1.5 py-0 font-sans text-[0.65rem]">{builtInLabel(t)}</Badge>}
+                          {t.built_in && <Badge tone="accent" className="px-1.5 py-0 font-sans text-[0.65rem]">{storeToolPlatform(t) ? `Built-in · ${storeToolPlatform(t)}` : 'Built-in'}</Badge>}
                           {!t.read_only && <Badge tone="warn" className="px-1.5 py-0 font-sans text-[0.65rem]">Changes data</Badge>}
                           {skipped.has(t.name) && <Badge tone="danger" className="px-1.5 py-0 font-sans text-[0.65rem]">Skipped</Badge>}
                         </span>

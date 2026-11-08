@@ -2,7 +2,6 @@
 import Docs from '../../layouts/Docs.astro';
 import Button from '../../components/ui/Button.astro';
 import ChannelIcon from '../../components/ui/ChannelIcon';
-import { Bot } from 'lucide-react';
 import { SITE } from '../../data/site';
 import { CONNECT_CHANNELS, listNames } from '../../data/channels';
 import { DOC_GROUPS, GUIDES, docsHref } from '../../data/setup-guides';
@@ -23,7 +22,7 @@ const toc = [['quickstart', 'Quickstart'], ['concepts', 'Core concepts'], ...DOC
 
 <Docs
   title="Docs — Truplexy"
-  description="Set up Truplexy: a quickstart, the core concepts, and setup guides for the website chat SDK, WordPress, Telegram, email, the REST API, webhooks, and MCP for AI agents."
+  description="Set up Truplexy: a quickstart, the core concepts, and setup guides for the website chat SDK, WordPress, Telegram, email, the REST API and webhooks."
   breadcrumbs={[{ name: 'Docs', path: '/docs' }]}
   eyebrow="Docs"
   heading="Set up Truplexy"
@@ -71,17 +70,6 @@ const toc = [['quickstart', 'Quickstart'], ['concepts', 'Core concepts'], ...DOC
             </a>
           </li>
         ))}
-        {g.id === 'build' && (
-          <li>
-            <a href="/docs/mcp" class="card-link">
-              <span class="icon"><Bot size={18} aria-hidden="true" /></span>
-              <span>
-                <span class="name">MCP and AI agents</span>
-                <span class="blurb">Give your bot the tools of any MCP server, and let Claude, Cursor and other agents work your inbox with an agent key.</span>
-              </span>
-            </a>
-          </li>
-        )}
       </ul>
     </>
   ))}
