@@ -2947,6 +2947,15 @@ paths:
                   type: string
                   pattern: '^chn_[0-9a-f]{32}$'
                   description: Binds the key to one of the bot's channels (v2), marking its conversations and their tickets; the key stops working while the channel is off. 404 CHANNEL_NOT_FOUND.
+                kind:
+                  type: string
+                  enum: [chat, agent]
+                  default: chat
+                  description: agent issues an AI agent's key (tpxa_…) for POST /mcp, with access, and no channel_id. Needs a plan with MCP (403 PLAN_LIMIT_REACHED, limit mcp).
+                access:
+                  type: string
+                  enum: [read, write]
+                  description: An agent key's access, default read. Not sent for chat keys.
       responses:
         '201':
           description: The key, including its secret this once.
@@ -4896,6 +4905,35 @@ paths:
                 $ref: '#/components/schemas/Customer'
         default:
           $ref: '#/components/responses/Error'
+  /mcp:
+    post:
+      operationId: mcp
+      summary: MCP endpoint for AI agents (v2)
+      description: "Model Context Protocol, Streamable HTTP transport, stateless, with JSON responses: send JSON-RPC messages (initialize, tools/list, tools/call) with Accept: application/json, text/event-stream. Authenticate with an agent key; read keys get list_tickets, get_ticket, search_knowledge, find_customers, get_customer and support_stats, write keys also reply_to_ticket, update_ticket, suggest_reply, add_knowledge_article and ask_bot. Other methods get 405."
+      security:
+        - AgentKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A JSON-RPC 2.0 request or notification.
+      responses:
+        '200':
+          description: The JSON-RPC response.
+          content:
+            application/json:
+              schema:
+                type: object
+        '202':
+          description: A notification was accepted.
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
   /realtime/token:
     post:
       operationId: getRealtimeTopics
@@ -6001,6 +6039,10 @@ components:
       type: http
       scheme: bearer
       description: CHAT_API_KEY, which acts for the default bot, or a key issued with POST /api-keys, which acts for its bot. The key alone decides whose knowledge and conversations a request reaches. Keep it on your own server.
+    AgentKey:
+      type: http
+      scheme: bearer
+      description: An AI agent's key (tpxa_…), issued with POST /api-keys and kind agent. It works only on POST /mcp, for its bot, with read or write access.
     PlaygroundKey:
       type: http
       scheme: bearer
@@ -8293,6 +8335,14 @@ components:
         channel_id:
           type: string
           description: The channel the key is bound to (v2); its conversations and their tickets are marked with it.
+        kind:
+          type: string
+          enum: [chat, agent]
+          description: chat for the chat API; agent for an AI agent on POST /mcp.
+        access:
+          type: string
+          enum: [read, write]
+          description: An agent key's access.
         status:
           type: string
           enum: [active, revoked]

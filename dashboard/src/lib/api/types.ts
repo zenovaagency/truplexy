@@ -243,6 +243,9 @@ export interface Bot {
   avatar_url?: string;
 }
 
+export type ApiKeyKind = 'chat' | 'agent';
+export type AgentAccess = 'read' | 'write';
+
 export interface ApiKey {
   id: string;
   name: string;
@@ -251,6 +254,10 @@ export interface ApiKey {
   key_prefix: string;
   /** The channel the key is bound to (v2). */
   channel_id?: string;
+  /** chat for the chat API; agent for an AI agent on POST /mcp. Missing from APIs before agent keys. */
+  kind?: ApiKeyKind;
+  /** An agent key's access. */
+  access?: AgentAccess;
   status: 'active' | 'revoked';
   created_at: string;
   last_used_at?: string;
