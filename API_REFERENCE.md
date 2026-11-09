@@ -4,13 +4,23 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Discord bot (2026-11-09)](#discord-bot-2026-11-09), [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Discord bot (2026-11-09)
+
+Truplexy runs its own public Discord bot. A business adds it to its Discord server from the dashboard, with no code and no key to paste. In the server, a ticket panel opens a private channel per customer, the bot answers first, and the team takes over in Discord or in the dashboard. Businesses that run their own Discord bot keep using a chat key bound to a `discord` channel, as before. Apply migration `0055_discord.sql` and set the `DISCORD_*` variables first (see the README).
+
+- **Connect:** [`POST /channels/connect`](#post-channelsconnect-v2) `{type: "discord", account?, return_to}`. The `url` is Discord's page where the person picks a server they manage and adds the bot. `account` is optional: a server ID, sent when the person came from the bot's "Link this server" button (the dashboard link carries `?connect=discord&guild_id=…`), which picks the server for them. The browser comes back to `return_to` with `connected=discord&channel_id=…&type=discord`, or `connect_error=denied|expired|invalid|store_connected_elsewhere|failed&type=discord`; `store_connected_elsewhere` means another business has the server.
+- **The channel:** a `discord` channel named after the server, with `external_id` set to the server's ID. Connecting the same server again turns its channel back on; connecting it to another bot of the business moves it and turns the first bot's channel off. When the bot is removed from the server, the channel is turned off. Deleting the channel unlinks the server.
+- **Tickets:** conversations and tickets from the server carry the channel, and the customer (contact type `discord`), like any chat API integration's. A `reply` to such a ticket ([`POST /tickets/{id}/replies`](#post-ticketsidreplies)) is posted in the ticket's Discord channel, and the response gains `delivery: {status, message}` as for WhatsApp: `sent` or `failed`. Taking over, handing back and closing in the dashboard show in Discord too.
+- **Plans:** a business without a plan (`none`) keeps the bot's moderation commands, but its ticket panel and AI replies are off.
+- **What a dashboard does:** a Discord card with an "Add to Discord" button that calls the connect, the `connected`/`connect_error` banners, and the `?connect=discord&guild_id=` link that starts the connect for that server. Keep the guide for businesses that build their own bot with a chat key.
 
 ## WhatsApp numbers (2026-11-09)
 
@@ -509,7 +519,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/channels/{id}` | `channels.read` | A channel (v2) |
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
-| `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store (v2) |
+| `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store or a Discord server (v2) |
 | `POST` | `/channels/whatsapp` | `channels.write` | Connect the business's own WhatsApp number (v2) |
 | `GET` | `/channels/{id}/whatsapp` | `channels.read` | A connected WhatsApp number, with its webhook settings (v2) |
 | `PUT` | `/channels/{id}/whatsapp` | `channels.write` | Replace a WhatsApp number's access token and app secret (v2) |
@@ -649,6 +659,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/conversations/{id}/attachments` | chat key | Image input: register a picture and get a presigned upload URL |
 | `PUT` | `/customer` | chat key | Find or create the customer your platform knows, by any contact: email, phone, platform user ID (v2) |
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
+| `GET` | `/discord/guilds/{guild_id}` | `DISCORD_SERVICE_KEY` | Whether a server is linked, and its business's plan (v2; Truplexy's Discord bot only) |
+| `POST` | `/discord/guilds/{guild_id}/removed` | `DISCORD_SERVICE_KEY` | The bot left a server: turn its channel off (v2; Truplexy's Discord bot only) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
 | `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
 | `GET` | `/internal/cron/billing` | `CRON_SECRET` | Cancel deleted businesses' subscriptions; compare Paddle with the database (v2; not for frontends) |
@@ -1329,12 +1341,12 @@ Deleting a `shopify` channel also removes the store's access token and, unless a
 
 #### `POST /channels/connect` (v2)
 
-`channels.write`. Starts connecting a channel through its platform's own sign-in. Only `shopify` and `woocommerce` are connected this way; other types are added with `POST /channels`.
+`channels.write`. Starts connecting a channel through its platform's own sign-in. Only `shopify`, `woocommerce` and `discord` are connected this way; other types are added with `POST /channels`.
 
 | Field | Rules |
 | --- | --- |
-| `type` | Required. `shopify` or `woocommerce`. |
-| `account` | Required. For `shopify`: `your-store`, `your-store.myshopify.com`, or its admin URL `https://admin.shopify.com/store/your-store`. For `woocommerce`: the store's https address, such as `https://shop.example.com` (a store in a subdirectory keeps its path; pasted `/wp-admin` or `/wp-json` addresses are cut back to the store). |
+| `type` | Required. `shopify`, `woocommerce` or `discord`. |
+| `account` | Required for stores; optional for `discord`, where it is the server's ID to add the bot to. For `shopify`: `your-store`, `your-store.myshopify.com`, or its admin URL `https://admin.shopify.com/store/your-store`. For `woocommerce`: the store's https address, such as `https://shop.example.com` (a store in a subdirectory keeps its path; pasted `/wp-admin` or `/wp-json` addresses are cut back to the store). |
 | `return_to` | Required. The dashboard page to come back to, on an origin in `DASHBOARD_URL` or `CORS_ALLOWED_ORIGINS`. Its own query is kept. |
 
 **200** `{url}`: Shopify's install page for the store. Send the browser there. The connect expires after 10 minutes and works once.
@@ -1354,6 +1366,8 @@ After the owner approves, Shopify sends the browser to the API's callback (`GET 
 | `failed` | Shopify or the API failed; try again. |
 
 An unknown or expired connect lands on `{DASHBOARD_URL}/integrations/guides` with `connect_error=invalid`.
+
+**Discord** connects through Discord's own page, where the person picks a server and adds Truplexy's bot; see [Discord bot](#discord-bot-2026-11-09).
 
 **WooCommerce** connects the same way, with these differences. The 200 `{url}` is the store's own authorization page (`<store>/wc-auth/v1/authorize`), where the owner approves read-only access. The store posts the new REST API keys to `POST /channels/connect/woocommerce/callback` and then sends the browser to `GET /channels/connect/woocommerce/return` (neither is called by the dashboard), which lands on `return_to` with `connected=woocommerce&channel_id=chn_…&type=woocommerce` or `connect_error=<code>&type=woocommerce`. The channel's `external_id` is the store's address. `denied` means the owner refused; `scopes_missing` means the keys can't read orders; `failed` includes keys the store rejects. There is no uninstall to hear about: if the store revokes the keys, the tools answer that the store can't be reached until it is connected again. The store must be on https and the address must be a public host.
 
@@ -2986,6 +3000,27 @@ Records a reply a person wrote on the integration's platform. It is text only: p
 | `escalate` | Default `false`; `true` also takes the conversation over. |
 
 It opens a ticket if there is none, and isn't sent back to the webhook. **201** `{message, ticket_id, escalated}`, or **200** for a repeated `external_id`.
+
+### Truplexy's Discord bot
+
+Only Truplexy's own Discord bot calls these, with `DISCORD_SERVICE_KEY` as its bearer token. Dashboards never do.
+
+**The chat API for a linked server.** Every chat API endpoint above also accepts `DISCORD_SERVICE_KEY` with the header `X-Truplexy-Discord-Guild: <server ID>`. The request acts for the server's `discord` channel exactly as a chat key bound to that channel would, so the rules, limits and errors are the same. Rate limits count per server. Errors of its own:
+- `400 INVALID_REQUEST`: the header is missing or isn't a server ID.
+- `401 DISCORD_GUILD_NOT_LINKED`: no bot holds the server; connect it from the dashboard.
+- `403 CHANNEL_DISABLED`: the server's channel is turned off, or the business is suspended.
+
+#### `GET /discord/guilds/{guild_id}` (v2)
+
+**200** `{guild_id, linked, channel_id?, channel_active, business?: {name}, bot?: {name}, subscription: {active}, dashboard_url?}`. `subscription.active` is false for a business without a plan; the bot then turns its ticket panel off. An unlinked server is `linked: false`.
+
+#### `POST /discord/guilds/{guild_id}/removed` (v2)
+
+The bot left the server or was removed from it. Turns the server's channel off (`channel.disconnect` in the activity log); connecting it again turns it back on. **204**, also for a server no bot holds.
+
+**What the API sends the bot.** The API posts events to `DISCORD_BOT_URL/v1/events`, signed with `DISCORD_EVENTS_SECRET` in the [webhook](#webhook) format (`X-Truplexy-Event`, `X-Truplexy-Delivery`, `X-Truplexy-Signature`). Each is `{id, type, created_at, guild_id, data}`:
+- `reply`: a person's reply from the dashboard, `data: {conversation_id, ticket_id, channel_id, message: {content, agent?}}`. The bot answers `{status: "sent"}`, or `{status: "failed", message}`, which the dashboard shows as the reply's `delivery`.
+- `ticket.updated`: a ticket closed, taken over or handed back in the dashboard, or closed on its own, `data` as for the webhook.
 
 ### Internal
 

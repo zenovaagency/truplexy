@@ -37,6 +37,7 @@ import { hasCode, isApiError } from '@/lib/api/client';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { isShopifyChannel, shopifyToolsUnavailable } from '@/lib/shopify';
 import { isWooCommerceChannel, wooCommerceToolsUnavailable } from '@/lib/woocommerce';
+import { isDiscordServer, readDiscordInvite } from '@/lib/discord';
 import { isWhatsAppChannel } from '@/lib/whatsapp';
 import {
   Badge,
@@ -72,6 +73,7 @@ import { useCopy } from '@/hooks';
 export { WidgetTab } from './WidgetTab';
 import { ConnectReturnBanner, ConnectedChatSetup, CustomizeChatButton, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
 import { WooCommerceConnectButton } from './woocommerce';
+import { DiscordCard, DiscordCommands, DiscordConnectButton } from './discord';
 import { WhatsAppConnectButton, WhatsAppPanel } from './whatsapp';
 import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
@@ -135,13 +137,17 @@ export function CatalogTab() {
           INTEGRATIONS.filter((i) => i.connect !== 'shopify' && i.connect !== 'whatsapp'),
     [types.data],
   );
-  // Connect integrations have no guide, even from an old ?guide= link.
-  const open = available.find((i) => i.id === params.get('guide') && !i.connect);
+  // Connect integrations have no guide, even from an old ?guide= link. Discord keeps one for a business's own bot.
+  const open = available.find((i) => i.id === params.get('guide') && (!i.connect || i.connect === 'discord'));
   const back = useConnectReturn();
   // An install started inside Shopify lands here with ?shopify_shop=<store>: prefill it, and the person presses Connect.
   const [shop] = useState(() => params.get('shopify_shop') ?? undefined);
+  // The Discord bot's "Link this server" button lands here with ?connect=discord&guild_id=<server>: offer to add it.
+  const [invite] = useState(() => readDiscordInvite(params) ?? undefined);
   useEffect(() => {
     if (params.has('shopify_shop')) setParams((p) => (p.delete('shopify_shop'), p), { replace: true });
+    if (params.has('connect') || params.has('guild_id'))
+      setParams((p) => (p.delete('connect'), p.delete('guild_id'), p), { replace: true });
   }, [params, setParams]);
 
   /** Its active channels when it has a channel type; otherwise keys named after it. */
@@ -233,6 +239,17 @@ export function CatalogTab() {
                   );
                 if (i.connect === 'shopify') return <ShopifyCard key={i.id} i={i} channels={(channels.data ?? []).filter(isShopifyChannel)} prefill={shop} />;
                 if (i.connect === 'whatsapp') return <WhatsAppCard key={i.id} i={i} channels={(channels.data ?? []).filter(isWhatsAppChannel)} />;
+                if (i.connect === 'discord')
+                  return (
+                    <DiscordCard
+                      key={i.id}
+                      servers={(channels.data ?? []).filter(isDiscordServer)}
+                      invite={invite}
+                      onGuide={() => openGuide(i)}
+                      className={CARD}
+                      head={<CardHead i={i} />}
+                    />
+                  );
                 const n = connected(i).length;
                 const card = (
                   <>
@@ -851,6 +868,7 @@ export function ChannelsTab() {
               <span className="truncate font-semibold text-ink">{c.name}</span>
               {isShopifyChannel(c) && <Badge tone="outline" className="shrink-0 px-1.5 py-0 text-[0.65rem]">Shopify</Badge>}
               {isWooCommerceChannel(c) && <Badge tone="outline" className="shrink-0 px-1.5 py-0 text-[0.65rem]">WooCommerce</Badge>}
+              {isDiscordServer(c) && <Badge tone="outline" className="shrink-0 px-1.5 py-0 text-[0.65rem]">Truplexy bot</Badge>}
             </span>
             <span className="truncate text-xs text-ink-faint">
               {c.type_label}
@@ -901,6 +919,10 @@ export function ChannelsTab() {
           <Tip content="Connected with read-only keys your store made: no chat key needed">
             <span className="text-ink-faint">—</span>
           </Tip>
+        ) : isDiscordServer(c) && !c.api_keys ? (
+          <Tip content="Answered by Truplexy's Discord bot: no chat key needed">
+            <span className="text-ink-faint">—</span>
+          </Tip>
         ) : isWhatsAppChannel(c) && !c.api_keys ? (
           <Tip content="Messages come straight from your Meta app: no chat key needed">
             <span className="text-ink-faint">—</span>
@@ -917,7 +939,7 @@ export function ChannelsTab() {
       cell: (c) => {
         if (!writable) return null;
         // Platforms you run yourself keep their steps, so a 2nd or 3rd bot or server can follow them too.
-        const guide = INTEGRATIONS.find((i) => i.channelType === c.type && !i.connect);
+        const guide = isDiscordServer(c) ? undefined : INTEGRATIONS.find((i) => i.channelType === c.type && (!i.connect || i.connect === 'discord'));
         return (
           <span className="flex items-center justify-end gap-1">
             {guide && (
@@ -935,6 +957,14 @@ export function ChannelsTab() {
               </span>
             )}
             {/* After an uninstall in Shopify the channel is just off; only Reconnect brings its tools back, so it's always offered. */}
+            {/* Adding the bot again turns a server's channel back on, as after the bot was removed from it. */}
+            {isDiscordServer(c) && !c.enabled && !c.disabled_by_platform && (
+              <span className="mr-1">
+                <DiscordConnectButton guildId={c.external_id} size="xs" variant="accent">
+                  Add again
+                </DiscordConnectButton>
+              </span>
+            )}
             {isShopifyChannel(c) && c.external_id && !c.disabled_by_platform && (
               <span className="mr-1">
                 <ShopifyConnectButton account={c.external_id} size="xs" variant={lostAccess(c) || !c.enabled ? 'accent' : 'soft'}>
@@ -1080,7 +1110,9 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
   const whatsApp = useWhatsApp(existing && isWhatsAppChannel(existing) ? existing.id : undefined);
   const number = existing && isWhatsAppChannel(existing) ? whatsApp.data : undefined;
   const store = Boolean(existing && (isShopifyChannel(existing) || isWooCommerceChannel(existing)));
-  const connected = store || Boolean(number);
+  // A Discord server linked to Truplexy's bot: its server ID ties it to the link, so it isn't edited here.
+  const server = Boolean(existing && isDiscordServer(existing));
+  const connected = store || server || Boolean(number);
   // Offered types, upcoming ones (listed but not pickable), and the channel's own
   // type even when it's upcoming or hidden now: it may keep it. Shopify stores are
   // added with Connect, never by hand.
@@ -1125,6 +1157,7 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
     >
       <div className="grid gap-4">
       {existing && isWhatsAppChannel(existing) && <WhatsAppPanel channel={existing} />}
+      {server && <DiscordCommands />}
       <form
         className="grid gap-4"
         onSubmit={(e) => {
@@ -1142,6 +1175,8 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
           hint={
             number ? (
               `Connected to ${number.display_phone || number.phone_number_id}.`
+            ) : server ? (
+              `Linked to the Discord server ${existing?.external_id} through Truplexy's bot.`
             ) : connected ? (
               `Connected to ${existing?.external_id || (existing && isWooCommerceChannel(existing) ? 'a WooCommerce store' : 'a Shopify store')}.`
             ) : existing ? (
@@ -1184,6 +1219,10 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
               ? c.enabled
                 ? 'The assistant answers messages to this number.'
                 : "Messages to this number get no reply until it's back on."
+              : server
+              ? c.enabled
+                ? "Truplexy's bot answers tickets and moderates in this server."
+                : "The bot is paused in this server until it's back on."
               : connected
               ? c.enabled
                 ? "The assistant can look up the store's orders and products."

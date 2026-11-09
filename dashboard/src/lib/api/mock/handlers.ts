@@ -966,6 +966,48 @@ function connectWooCommerce(c: Ctx, b: any) {
   return { url: back.toString() };
 }
 
+/**
+ * "Discord" adds Truplexy's bot to a server: the person would pick one there, so the demo
+ * makes one up unless the bot's "Link this server" button named it. A server ID ending in
+ * 0000 comes back denied, to try the error by hand.
+ */
+function connectDiscord(c: Ctx, b: any) {
+  const account = b.account === undefined || b.account === null ? '' : String(b.account).trim();
+  if (account && !/^\d{15,25}$/.test(account)) throw invalid('account must be a Discord server ID, or empty to pick the server in Discord.');
+  let back: URL;
+  try {
+    back = new URL(str(b.return_to, 'return_to', 1, 2000)!);
+  } catch {
+    throw invalid('return_to must be a dashboard page.');
+  }
+  if (back.origin !== window.location.origin) throw invalid('return_to must be a dashboard page.');
+  audit(c, 'channel.connect_started', account || 'discord', { name: account || 'Discord', type: 'discord' });
+
+  back.searchParams.set('type', 'discord');
+  const guild = account || String(1100000000000000000n + BigInt(Math.floor(Math.random() * 1e15)));
+  const elsewhere = c.db.channels.some((x) => x.type === 'discord' && x.external_id === guild && x.tenant_id !== c.tenant.id);
+  if (guild.endsWith('0000') || elsewhere) {
+    back.searchParams.set('connect_error', elsewhere ? 'store_connected_elsewhere' : 'denied');
+    return { url: back.toString() };
+  }
+
+  const now = nowIso();
+  // Adding the bot to a server the bot already has turns its channel back on.
+  let ch = botChannels(c).find((x) => x.type === 'discord' && x.external_id === guild);
+  if (ch) Object.assign(ch, { enabled: true, updated_at: now });
+  else {
+    const taken = new Set(botChannels(c).map((x) => x.name.toLowerCase()));
+    let name = 'Demo community';
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `Demo community ${n}`;
+    ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: 'discord', name, description: '', external_id: guild, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
+    c.db.channels.push(ch);
+  }
+  audit(c, 'channel.connect', ch.id, { name: ch.name, type: 'discord', guild_id: guild });
+  back.searchParams.set('connected', 'discord');
+  back.searchParams.set('channel_id', ch.id);
+  return { url: back.toString() };
+}
+
 /** Demo stores that come back from "Shopify" with each connect_error, to try the flow by hand. */
 const DEMO_CONNECT_ERRORS: Record<string, string> = {
   denied: 'denied',
@@ -984,13 +1026,14 @@ const DEMO_CONNECT_ERRORS: Record<string, string> = {
 route('POST', '/channels/connect', 'channels.write', (c) => {
   const b = c.body ?? {};
   if (b.type === undefined) throw invalid('type is required.');
-  if (b.type !== 'shopify' && b.type !== 'woocommerce') {
+  if (b.type !== 'shopify' && b.type !== 'woocommerce' && b.type !== 'discord') {
     if (c.db.channelTypes.some((t) => t.id === b.type)) throw err(400, 'CHANNEL_CONNECT_UNSUPPORTED', `${b.type} channels are added with POST /channels.`);
-    throw invalid('type must be shopify or woocommerce.');
+    throw invalid('type must be shopify, woocommerce or discord.');
   }
   const type = offeredType(c.db, b.type);
-  if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `${b.type === 'shopify' ? 'Shopify' : 'WooCommerce'} isn't offered for this bot.`);
+  if (!type) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `${b.type === 'shopify' ? 'Shopify' : b.type === 'discord' ? 'Discord' : 'WooCommerce'} isn't offered for this bot.`);
   if (b.type === 'woocommerce') return connectWooCommerce(c, b);
+  if (b.type === 'discord') return connectDiscord(c, b);
   if (b.account === undefined) throw invalid('account is required.');
   const handle = shopifyStore(b.account);
   let back: URL;
