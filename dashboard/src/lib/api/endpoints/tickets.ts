@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Handoff, SuggestedReply, Ticket, TicketDetail, TicketList, TicketPatch, TicketPriority, TicketQuery, TicketReply, TicketStatus, SupportCategory } from '@/lib/api/types';
+import type { Handoff, ReplyDelivery, SuggestedReply, Ticket, TicketDetail, TicketList, TicketPatch, TicketPriority, TicketQuery, TicketReply, TicketStatus, SupportCategory } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -128,7 +128,7 @@ export function useReplyToTicket() {
   const apply = useApplyTicket();
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; content: string; kind: 'reply' | 'note'; status?: TicketStatus }) =>
-      api<{ reply: TicketReply; ticket: Ticket }>(`/tickets/${id}/replies`, { method: 'POST', body, scope }),
+      api<{ reply: TicketReply; ticket: Ticket; delivery?: ReplyDelivery }>(`/tickets/${id}/replies`, { method: 'POST', body, scope }),
     onSuccess: ({ ticket }) => {
       apply(ticket);
       qc.invalidateQueries({ queryKey: qk.bot(scope, 'tickets') });

@@ -4,13 +4,23 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## WhatsApp numbers (2026-11-09)
+
+A business connects its own WhatsApp number to a bot, through the WhatsApp Cloud API of a Meta app it owns: the bot answers the customers who message the number, and the team's replies from the dashboard go back on WhatsApp. Neither Truplexy nor the business needs Meta's business verification or App Review for this, because the business's app only uses its own number and only answers customers who write first (no template messages). Apply migration `0054_whatsapp.sql` and set `WHATSAPP_TOKEN_KEY` and `WHATSAPP_WEBHOOK_URL` first.
+
+- **Connect:** [`POST /channels/whatsapp`](#post-channelswhatsapp-v2) `{phone_number_id, waba_id, access_token, app_secret, name?}`, all from the business's Meta app. The API checks them with Meta, subscribes the app to the account's webhooks and adds a `whatsapp` channel. It answers with the channel's `webhook_url` and `verify_token`, which the person sets under WhatsApp → Configuration in their Meta app, subscribing the `messages` field.
+- **Status:** [`GET /channels/{id}/whatsapp`](#get-channelsidwhatsapp-v2) shows the number, the webhook settings and `webhook_verified_at` / `last_event_at`, so the dashboard can say when Meta has checked the webhook and when a message last came in. [`PUT /channels/{id}/whatsapp`](#put-channelsidwhatsapp-v2) replaces a revoked token or reset app secret. Deleting the channel removes the credentials and unsubscribes the app.
+- **Conversations:** each WhatsApp user gets a conversation on the channel, with a customer (contacts `whatsapp` and `phone`) and a ticket, like the storefront chat window. Text messages are answered; pictures, voice notes and other media get a short "text only" answer. A customer who asks for a person is handed to the team; a closed ticket makes their next message start a new conversation.
+- **Team replies:** a `reply` to a WhatsApp ticket ([`POST /tickets/{id}/replies`](#post-ticketsidreplies)) is also sent on WhatsApp, and the response gains `delivery: {status, message}`: `sent`, `window_closed` (WhatsApp only allows replies within 24 hours of the customer's last message) or `failed`. The reply is stored either way.
+- **What a dashboard does:** a WhatsApp card that walks the person through their Meta app, a form for the four values, the webhook URL and verify token to copy, and a status that turns green once `webhook_verified_at` or `last_event_at` is set; in the ticket reply box, show `delivery.message` when `delivery.status` isn't `sent`.
 
 ## Team roles and auto-assignment (2026-11-06)
 
@@ -500,6 +510,9 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
 | `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store (v2) |
+| `POST` | `/channels/whatsapp` | `channels.write` | Connect the business's own WhatsApp number (v2) |
+| `GET` | `/channels/{id}/whatsapp` | `channels.read` | A connected WhatsApp number, with its webhook settings (v2) |
+| `PUT` | `/channels/{id}/whatsapp` | `channels.write` | Replace a WhatsApp number's access token and app secret (v2) |
 | `GET` | `/channels/{id}/widget` | `channels.read` | Whether a Shopify store shows the chat window, and when it was last seen (v2) |
 | `PUT` | `/channels/{id}/widget` | `channels.write` | Show or hide the chat window on a Shopify store (v2) |
 | `GET` | `/customers` | `customers.read` | List and search the bot's customers (v2) |
@@ -1352,6 +1365,39 @@ When the app is uninstalled from the store, the store's channels are turned off 
 - `400 CHANNEL_TYPE_NOT_ALLOWED`: a platform admin marked the type upcoming or hid it.
 - `503 CHANNEL_CONNECT_UNAVAILABLE`: the server has no Shopify app (or WooCommerce key) configured.
 
+#### `POST /channels/whatsapp` (v2)
+
+`channels.write`. Connects the business's own WhatsApp number to the caller's bot, through the WhatsApp Cloud API of a Meta app the business owns. Nothing about the business needs Meta's verification or App Review: the app uses its own number, and the bot only answers customers who write first.
+
+| Field | Rules |
+| --- | --- |
+| `phone_number_id` | Required. The number's **Phone number ID** from WhatsApp → API Setup in the Meta app (a long number, not the phone number). |
+| `waba_id` | Required. The **WhatsApp Business Account ID** the number belongs to, from the same page. |
+| `access_token` | Required. A permanent token of a system user in Meta Business Settings that has the WhatsApp account, with `whatsapp_business_messaging` and `whatsapp_business_management`. |
+| `app_secret` | Required. The app's **App secret** (App settings → Basic), 32 hex characters. Meta signs webhooks with it, and the API proves it with every call (`appsecret_proof`), so it must be the secret of the app that made the token. |
+| `name` | Optional. The channel's name, up to 80 characters. Empty names it after the number's verified name or the number. |
+
+The API reads the number with the token, checks that it is in the account, and subscribes the app to the account's webhooks (`POST /{waba_id}/subscribed_apps`). It then adds a `whatsapp` channel with `external_id` set to the phone number ID, and keeps the token and app secret sealed (AES-256-GCM under `WHATSAPP_TOKEN_KEY`). Connecting a number the bot already has updates its credentials and turns its channel back on.
+
+**201** `{channel, phone_number_id, waba_id, display_phone, verified_name, webhook_url, verify_token, webhook_verified_at?, last_event_at?}`. The person then opens WhatsApp → Configuration in the Meta app, sets **Callback URL** to `webhook_url` and **Verify token** to `verify_token`, and subscribes the `messages` webhook field. Meta checks the URL with `GET {webhook_url}?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…`, which sets `webhook_verified_at`. A Meta app has one callback URL, so numbers of the same app share it: messages are matched to channels by phone number ID, and each delivery must be signed with that number's app secret (`X-Hub-Signature-256`). If messages from real customers don't arrive, switch the app to **Live** in the App Dashboard; that needs a privacy policy URL, not App Review.
+
+**What happens to messages.** Each WhatsApp user's messages go into a conversation on the channel. Its customer has the contacts `whatsapp` (their WhatsApp ID) and `phone` (`+` and the same digits), and it opens a ticket "Chat with {their WhatsApp name}". Text, button and list replies are answered by the bot, which is told it is writing for WhatsApp; Markdown in its answers is turned into WhatsApp's `*bold*` and `_italic_`, and long answers are split. Pictures, voice notes, documents and other media get "Sorry, I can only read text messages for now." Reactions are ignored. Each message is answered once, even when Meta delivers it again. A customer who asks for a person is handed to the team, and the bot stays quiet while the ticket is escalated. A closed ticket makes the customer's next message start a new conversation and ticket. A channel turned off answers nobody. The activity log records `channel.connect`.
+
+**Errors:**
+- `400 INVALID_REQUEST`, with `error.field` naming the value to fix: a value is malformed, or Meta refused it (an expired or wrong token, an app secret that isn't the token's app's, a number that isn't in the account, an ID the token can't see).
+- `400 CHANNEL_TYPE_NOT_ALLOWED`: a platform admin marked the `whatsapp` type upcoming or hid it.
+- `409 WHATSAPP_NUMBER_TAKEN`: the number is connected to another bot.
+- `502 WHATSAPP_UNAVAILABLE`: Meta couldn't be reached; try again.
+- `503 CHANNEL_CONNECT_UNAVAILABLE`: the server has no `WHATSAPP_TOKEN_KEY` configured.
+
+#### `GET /channels/{id}/whatsapp` (v2)
+
+`channels.read`. A connected number: **200** as `POST /channels/whatsapp` answers, with `webhook_verified_at` (when Meta last checked the webhook) and `last_event_at` (when a signed message last arrived), each left out until it has happened. The token and app secret are never returned. **Errors:** `404 CHANNEL_NOT_FOUND` (also for a channel that isn't a connected WhatsApp number), `503 CHANNEL_CONNECT_UNAVAILABLE`.
+
+#### `PUT /channels/{id}/whatsapp` (v2)
+
+`channels.write`. Replaces the number's credentials after a token was revoked or the app secret reset: send `{access_token, app_secret}`, and optionally `waba_id`. They are checked with Meta as on connect. **200** the number, as `GET` returns it. The activity log records `channel.credentials_updated`. **Errors** as for `POST /channels/whatsapp`, plus `404 CHANNEL_NOT_FOUND`.
+
 #### `GET /channels/{id}/widget` (v2)
 
 `channels.read`. Whether a Shopify store shows the bot's chat window, and whether a page of the store has loaded it yet. How the window looks is the bot's [chat widget](#get-widget-v2).
@@ -1895,6 +1941,8 @@ Opening a ticket for a flagged conversation clears the flag. To take over a conv
 The signed-in person is recorded as the author; any `author` sent is replaced. A reply is added to the conversation (`author: "agent"`), clears the handoff flag, sets `first_response_at` if unset, and goes to the bot's webhook and live topics. **201** `{reply, ticket}`.
 
 A `reply` needs the conversation taken over first (`PATCH /tickets/{id}` with `escalated: true`), so the person and the assistant don't answer side by side; otherwise it returns `409 TAKE_OVER_REQUIRED`. Notes, replies on a closed ticket and tickets without a conversation are not affected.
+
+A `reply` to a ticket from a connected [WhatsApp number](#post-channelswhatsapp-v2) is also sent to the customer on WhatsApp, and the response gains `delivery: {status, message?}`. `status` is `sent`, `window_closed` (WhatsApp lets a business write only within 24 hours of the customer's last message; the reply wasn't sent) or `failed` (Meta refused it or couldn't be reached, the channel is off, or the customer has written since in a newer conversation). The reply is stored either way, and `message` says what happened, for the reply box to show. Other tickets' responses have no `delivery`.
 
 **Errors:** `400 INVALID_REQUEST`, `404 TICKET_NOT_FOUND`, `409 TAKE_OVER_REQUIRED`.
 

@@ -228,6 +228,7 @@ describe('connecting a Shopify store', () => {
     await render('catalog', '/integrations/guides');
     expect(page()).toContain('WhatsApp');
     expect(page()).toContain('Coming soon');
+    expect(buttons('Connect number')).toHaveLength(0);
     expect(buttons('Connect')).toHaveLength(1);
   });
 

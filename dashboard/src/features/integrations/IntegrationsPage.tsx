@@ -27,7 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useApiKeys } from '@/lib/api/endpoints/business';
-import { useChannelIcon, useChannels, useChannelTypes, useCreateChannel, useDeleteChannel, useUpdateChannel } from '@/lib/api/endpoints/channels';
+import { useChannelIcon, useChannels, useChannelTypes, useCreateChannel, useDeleteChannel, useUpdateChannel, useWhatsApp } from '@/lib/api/endpoints/channels';
 import { useDeleteWebhook, useRotateWebhookSecret, useSaveWebhook, useTestWebhook, useTools, useWebhook } from '@/lib/api/endpoints/bot';
 import type { Channel, ChannelInput, Webhook, WebhookDelivery } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -37,6 +37,7 @@ import { hasCode, isApiError } from '@/lib/api/client';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { isShopifyChannel, shopifyToolsUnavailable } from '@/lib/shopify';
 import { isWooCommerceChannel, wooCommerceToolsUnavailable } from '@/lib/woocommerce';
+import { isWhatsAppChannel } from '@/lib/whatsapp';
 import {
   Badge,
   Button,
@@ -71,6 +72,7 @@ import { useCopy } from '@/hooks';
 export { WidgetTab } from './WidgetTab';
 import { ConnectReturnBanner, ConnectedChatSetup, CustomizeChatButton, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
 import { WooCommerceConnectButton } from './woocommerce';
+import { WhatsAppConnectButton, WhatsAppPanel } from './whatsapp';
 import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
 import { WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
@@ -129,8 +131,8 @@ export function CatalogTab() {
     () =>
       types.data
         ? INTEGRATIONS.filter((i) => !i.channelType || types.data.some((t) => t.id === i.channelType))
-        : // Shopify can only be connected when the API lists the type, so it waits for the catalog.
-          INTEGRATIONS.filter((i) => i.connect !== 'shopify'),
+        : // Shopify and WhatsApp can only be connected when the API lists the type, so they wait for the catalog.
+          INTEGRATIONS.filter((i) => i.connect !== 'shopify' && i.connect !== 'whatsapp'),
     [types.data],
   );
   // Connect integrations have no guide, even from an old ?guide= link.
@@ -230,6 +232,7 @@ export function CatalogTab() {
                     </div>
                   );
                 if (i.connect === 'shopify') return <ShopifyCard key={i.id} i={i} channels={(channels.data ?? []).filter(isShopifyChannel)} prefill={shop} />;
+                if (i.connect === 'whatsapp') return <WhatsAppCard key={i.id} i={i} channels={(channels.data ?? []).filter(isWhatsAppChannel)} />;
                 const n = connected(i).length;
                 const card = (
                   <>
@@ -326,6 +329,39 @@ function ShopifyCard({ i, channels, prefill }: { i: Integration; channels: Chann
           <>
             <span className="text-xs text-ink-faint">Not connected</span>
             <ShopifyConnectButton size="xs" prefill={prefill} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** WhatsApp: the business's own number, connected with values from its Meta app. */
+function WhatsAppCard({ i, channels }: { i: Integration; channels: Channel[] }) {
+  const { href } = useScopeCtx();
+  const active = channels.filter((c) => c.active);
+  return (
+    <div className={CARD}>
+      <CardHead i={i} />
+      <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+        {active.length ? (
+          <>
+            <Badge tone="live" dot className="min-w-0">
+              <span className="truncate">{active.length > 1 ? `Connected · ${active.length} numbers` : `Connected · ${active[0]!.name}`}</span>
+            </Badge>
+            <span className="flex shrink-0 items-center gap-3">
+              <WhatsAppConnectButton size="xs" variant="soft">
+                Add number
+              </WhatsAppConnectButton>
+              <Link to={href('integrations')} className="text-[0.8125rem] font-semibold text-accent hover:underline">
+                Manage →
+              </Link>
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-xs text-ink-faint">{channels.length ? 'Turned off' : 'Not connected'}</span>
+            <WhatsAppConnectButton size="xs" />
           </>
         )}
       </div>
@@ -766,6 +802,14 @@ export function ChannelsTab() {
             tone: 'danger',
             onConfirm: () => del.mutateAsync(c.id),
           }
+        : isWhatsAppChannel(c) && !c.api_keys
+        ? {
+            title: `Delete “${c.name}”?`,
+            description: `${bot.name} stops answering this WhatsApp number, and its Meta app stops sending messages to Truplexy (unless another channel uses the same WhatsApp account). Existing tickets keep the channel's name.`,
+            confirmLabel: 'Delete channel',
+            tone: 'danger',
+            onConfirm: () => del.mutateAsync(c.id),
+          }
         : {
             title: `Delete “${c.name}”?`,
             description: c.api_keys
@@ -783,7 +827,13 @@ export function ChannelsTab() {
       {
         onSuccess: () =>
           notifySuccess(
-            enabled ? `${c.name} is on` : isShopifyChannel(c) ? `${c.name} is off. Its order and product lookups stop.` : `${c.name} is off. Its keys stop working.`,
+            enabled
+              ? `${c.name} is on`
+              : isShopifyChannel(c)
+                ? `${c.name} is off. Its order and product lookups stop.`
+                : isWhatsAppChannel(c) && !c.api_keys
+                  ? `${c.name} is off. Messages to the number get no reply.`
+                  : `${c.name} is off. Its keys stop working.`,
             enabled && isShopifyChannel(c) ? SHOPIFY_SWITCH_NOTE : undefined,
           ),
       },
@@ -851,6 +901,10 @@ export function ChannelsTab() {
           <Tip content="Connected with read-only keys your store made: no chat key needed">
             <span className="text-ink-faint">—</span>
           </Tip>
+        ) : isWhatsAppChannel(c) && !c.api_keys ? (
+          <Tip content="Messages come straight from your Meta app: no chat key needed">
+            <span className="text-ink-faint">—</span>
+          </Tip>
         ) : (
           <span className="tabular-nums text-ink-muted">{formatNumber(c.api_keys)}</span>
         ),
@@ -903,7 +957,9 @@ export function ChannelsTab() {
                       ? 'Turn off: its order and product lookups stop'
                       : `Turn on. ${SHOPIFY_SWITCH_NOTE}`
                     : c.enabled
-                      ? 'Turn off: its keys stop working'
+                      ? isWhatsAppChannel(c) && !c.api_keys
+                        ? 'Turn off: messages to the number get no reply'
+                        : 'Turn off: its keys stop working'
                       : 'Turn on'
                 }
               >
@@ -1020,7 +1076,11 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
   const set = <K extends keyof ChannelInput>(k: K, v: ChannelInput[K]) => setC((x) => ({ ...x, [k]: v }));
 
   const { href } = useScopeCtx();
-  const connected = Boolean(existing && (isShopifyChannel(existing) || isWooCommerceChannel(existing)));
+  // A WhatsApp channel is a connected number when the API has its settings; one added by hand isn't.
+  const whatsApp = useWhatsApp(existing && isWhatsAppChannel(existing) ? existing.id : undefined);
+  const number = existing && isWhatsAppChannel(existing) ? whatsApp.data : undefined;
+  const store = Boolean(existing && (isShopifyChannel(existing) || isWooCommerceChannel(existing)));
+  const connected = store || Boolean(number);
   // Offered types, upcoming ones (listed but not pickable), and the channel's own
   // type even when it's upcoming or hidden now: it may keep it. Shopify stores are
   // added with Connect, never by hand.
@@ -1063,6 +1123,8 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
         </>
       }
     >
+      <div className="grid gap-4">
+      {existing && isWhatsAppChannel(existing) && <WhatsAppPanel channel={existing} />}
       <form
         className="grid gap-4"
         onSubmit={(e) => {
@@ -1078,7 +1140,9 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
         <Field
           label="Type"
           hint={
-            connected ? (
+            number ? (
+              `Connected to ${number.display_phone || number.phone_number_id}.`
+            ) : connected ? (
               `Connected to ${existing?.external_id || (existing && isWooCommerceChannel(existing) ? 'a WooCommerce store' : 'a Shopify store')}.`
             ) : existing ? (
               own && !own.offered && c.type === own.id ? (
@@ -1116,6 +1180,10 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
           description={
             existing?.disabled_by_platform
               ? "Turned off by the platform. Your switch has no effect until Truplexy turns it back on."
+              : number
+              ? c.enabled
+                ? 'The assistant answers messages to this number.'
+                : "Messages to this number get no reply until it's back on."
               : connected
               ? c.enabled
                 ? "The assistant can look up the store's orders and products."
@@ -1137,6 +1205,7 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
         />
         <button type="submit" hidden />
       </form>
+      </div>
     </Sheet>
   );
 }

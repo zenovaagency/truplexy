@@ -37,7 +37,7 @@ import type {
 import { hasNoPlan, NO_PLAN, quoteTokens } from '@/lib/billing';
 import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
 import { emit, topicFor } from './bus';
-import { hex, newId, nowIso, saveDb, wsKey, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockSuggestion, type MockTenant, type MockTicket, type MockUser } from './db';
+import { hex, newId, nowIso, saveDb, wsKey, type MockWhatsAppNumber, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockSuggestion, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 import { buildPerformance, performanceMode } from './performance';
 import { PRESETS, PROPERTY_ENTITIES, PropertyError, applyValues, changeDefinition, matchesFilters, newDefinition, visibleValues, type MockProperty } from './properties';
@@ -1029,6 +1029,99 @@ route('POST', '/channels/connect', 'channels.write', (c) => {
   return { url: back.toString() };
 });
 
+/* The business's own WhatsApp number. */
+const WHATSAPP_VERIFIED_AFTER_MS = 6_000;
+const WHATSAPP_MESSAGE_AFTER_MS = 15_000;
+
+function whatsAppOut(c: Ctx, ch: MockChannel, n: MockWhatsAppNumber) {
+  const since = Date.now() - n.connected_at;
+  return {
+    channel: channelOut(c.db, ch),
+    phone_number_id: n.phone_number_id,
+    waba_id: n.waba_id,
+    display_phone: n.display_phone,
+    verified_name: n.verified_name,
+    webhook_url: `https://api.truplexy.com/v1/channels/whatsapp/webhooks/${ch.id}`,
+    verify_token: n.verify_token,
+    ...(since >= WHATSAPP_VERIFIED_AFTER_MS ? { webhook_verified_at: new Date(n.connected_at + WHATSAPP_VERIFIED_AFTER_MS).toISOString() } : {}),
+    ...(since >= WHATSAPP_MESSAGE_AFTER_MS ? { last_event_at: new Date(n.connected_at + WHATSAPP_MESSAGE_AFTER_MS).toISOString() } : {}),
+  };
+}
+
+/** A connected number's channel, or 404 as the API answers for a WhatsApp channel added by hand. */
+function whatsAppOf(c: Ctx, id: string) {
+  const ch = channelOf(c, id);
+  const n = c.db.whatsappNumbers?.[ch.id];
+  if (ch.type !== 'whatsapp' || !n) throw err(404, 'CHANNEL_NOT_FOUND', 'No connected WhatsApp number has this channel ID.');
+  return { ch, n };
+}
+
+const metaId = (v: unknown, field: string, label: string) => {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (!s) throw err(400, 'INVALID_REQUEST', `${label} is required.`, { field });
+  if (!/^[0-9]{5,32}$/.test(s)) throw err(400, 'INVALID_REQUEST', `${label} is digits only.`, { field });
+  return s;
+};
+
+/** Checks the token and secret as Meta would. Demo: a token starting with "bad" or an app secret of zeros is refused. */
+function whatsAppSecrets(b: any) {
+  const token = typeof b.access_token === 'string' ? b.access_token.trim() : '';
+  const secret = typeof b.app_secret === 'string' ? b.app_secret.trim() : '';
+  if (!token) throw err(400, 'INVALID_REQUEST', 'access_token is required.', { field: 'access_token' });
+  if (!/^[0-9a-fA-F]{32}$/.test(secret)) throw err(400, 'INVALID_REQUEST', 'The App secret is 32 letters and digits from App settings → Basic.', { field: 'app_secret' });
+  if (token.startsWith('bad')) throw err(400, 'INVALID_REQUEST', "Meta didn't accept this access token. Generate a new one for the system user.", { field: 'access_token' });
+  if (/^0+$/.test(secret)) throw err(400, 'INVALID_REQUEST', "This App secret isn't the secret of the app that made the token.", { field: 'app_secret' });
+}
+
+route('POST', '/channels/whatsapp', 'channels.write', (c) => {
+  const b = c.body ?? {};
+  if (!offeredType(c.db, 'whatsapp')) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', "WhatsApp isn't offered for this bot.");
+  const phone = metaId(b.phone_number_id, 'phone_number_id', 'phone_number_id');
+  const waba = metaId(b.waba_id, 'waba_id', 'waba_id');
+  whatsAppSecrets(b);
+  const name = typeof b.name === 'string' ? b.name.trim() : '';
+  if (name.length > 80) throw err(400, 'INVALID_REQUEST', 'name is at most 80 characters.', { field: 'name' });
+  const numbers = (c.db.whatsappNumbers ??= {});
+  const owner = Object.entries(numbers).find(([, n]) => n.phone_number_id === phone);
+  const ownerChannel = owner && c.db.channels.find((x) => x.id === owner[0]);
+  if (ownerChannel && (ownerChannel.tenant_id !== c.tenant.id || ownerChannel.bot_id !== c.botId)) {
+    throw err(409, 'WHATSAPP_NUMBER_TAKEN', 'Another bot already has this WhatsApp number. Disconnect it there first.');
+  }
+  const now = nowIso();
+  const display = `+1 555 01${phone.slice(-2).padStart(2, '0')}`;
+  const verified = 'Demo Store';
+  let ch = ownerChannel;
+  if (ch) Object.assign(ch, { enabled: true, updated_at: now, ...(name ? { name } : {}) });
+  else {
+    const base = name || `${verified} WhatsApp`;
+    const taken = new Set(botChannels(c).map((x) => x.name.toLowerCase()));
+    let label = base;
+    for (let k = 2; taken.has(label.toLowerCase()); k++) label = `${base} ${k}`;
+    ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: 'whatsapp', name: label, description: '', external_id: phone, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
+    c.db.channels.push(ch);
+  }
+  const n: MockWhatsAppNumber = { phone_number_id: phone, waba_id: waba, display_phone: display, verified_name: verified, verify_token: `tpx_${hex(32)}`, connected_at: Date.now() };
+  if (owner) n.verify_token = owner[1].verify_token;
+  numbers[ch.id] = n;
+  audit(c, 'channel.connect', ch.id, { name: ch.name, type: 'whatsapp', phone_number_id: phone });
+  return created(whatsAppOut(c, ch, n));
+});
+
+route('GET', '/channels/:id/whatsapp', 'channels.read', (c) => {
+  const { ch, n } = whatsAppOf(c, c.params.id);
+  return whatsAppOut(c, ch, n);
+});
+
+route('PUT', '/channels/:id/whatsapp', 'channels.write', (c) => {
+  const { ch, n } = whatsAppOf(c, c.params.id);
+  const b = c.body ?? {};
+  whatsAppSecrets(b);
+  if (b.waba_id !== undefined) n.waba_id = metaId(b.waba_id, 'waba_id', 'waba_id');
+  ch.updated_at = nowIso();
+  audit(c, 'channel.update', ch.id, { name: ch.name, credentials: 'whatsapp' });
+  return whatsAppOut(c, ch, n);
+});
+
 route('GET', '/channels/:id', 'channels.read', (c) => channelOut(c.db, channelOf(c, c.params.id)));
 
 route('PATCH', '/channels/:id', 'channels.write', (c) => {
@@ -1124,6 +1217,7 @@ route('DELETE', '/channels/:id', 'channels.write', (c) => {
   const label = c.db.channelTypes.find((t) => t.id === ch.type)?.label;
   for (const t of c.db.tickets) if (t.channel_id === ch.id) Object.assign(t, { channel_name: ch.name, channel_type: ch.type });
   c.db.channels = c.db.channels.filter((x) => x !== ch);
+  if (c.db.whatsappNumbers) delete c.db.whatsappNumbers[ch.id];
   audit(c, 'channel.delete', ch.id, { name: ch.name, type: label ?? ch.type });
   return noContent();
 });
@@ -2670,6 +2764,14 @@ route('POST', '/tickets/:id/replies', 'tickets.write', (c) => {
   (c.db.replies[t.id] ??= []).push(reply);
   emitTicket(c, t, 'ticket.updated');
   const { tenant_id: _t, bot_id: _b, ...ticket } = ticketOut(c.db, t) as any;
+  // A reply to a ticket from a connected WhatsApp number is also sent there, within 24 hours of the customer's last message.
+  if (kind === 'reply' && t.conversation_id && t.channel_id && c.db.whatsappNumbers?.[t.channel_id]) {
+    const open = !!t.last_customer_at && Date.now() - new Date(t.last_customer_at).getTime() < 24 * 3_600_000;
+    const delivery = open
+      ? { status: 'sent' as const }
+      : { status: 'window_closed' as const, message: "The reply is saved but wasn't sent on WhatsApp: it's been more than 24 hours since the customer's last message." };
+    return created({ reply, ticket, delivery });
+  }
   return created({ reply, ticket });
 });
 

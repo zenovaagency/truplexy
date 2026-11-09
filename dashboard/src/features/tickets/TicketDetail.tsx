@@ -31,7 +31,7 @@ import { useDeleteTicket, useReplyToTicket, useSuggestReply, useSummarizeTicket,
 import type { SuggestedReply, TicketDetail as TDetail, TicketMessage, TicketPatch, TicketReply, TicketStatus } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatRelative, formatTime, pluralize } from '@/lib/format';
-import { notifyInfo, notifySuccess } from '@/lib/notify';
+import { notifyInfo, notifySuccess, notifyWarning } from '@/lib/notify';
 import type { ImageRefresher } from '@/lib/images/refresh';
 import { useImageRefresher } from '@/lib/images/useImageRefresher';
 import { MessageImages } from '@/components/domain/MessageImages';
@@ -587,10 +587,16 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
     reply.mutate(
       { id: t.id, content, kind, status },
       {
-        onSuccess: () => {
+        onSuccess: ({ delivery }) => {
           setText('');
           setSources(null);
-          notifySuccess(kind === 'note' ? 'Note added' : status === 'closed' ? 'Reply sent and ticket closed' : 'Reply sent');
+          // A ticket from a WhatsApp number: the reply is saved, but WhatsApp may not have taken it.
+          if (delivery && delivery.status !== 'sent')
+            notifyWarning(
+              delivery.status === 'window_closed' ? "Reply saved, but not sent on WhatsApp" : "Reply saved, but WhatsApp didn't take it",
+              delivery.message ?? (delivery.status === 'window_closed' ? "WhatsApp only allows replies within 24 hours of the customer's last message." : undefined),
+            );
+          else notifySuccess(kind === 'note' ? 'Note added' : status === 'closed' ? 'Reply sent and ticket closed' : 'Reply sent');
         },
       },
     );

@@ -15,3 +15,5 @@ export function notifyError(e: unknown, fallbackTitle?: string) {
 export const notifySuccess = (title: string, description?: string) => toast.success(title, { description });
 
 export const notifyInfo = (title: string, description?: string) => toast(title, { description });
+
+export const notifyWarning = (title: string, description?: string) => toast.warning(title, { description });

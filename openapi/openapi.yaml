@@ -1662,6 +1662,60 @@ paths:
                     format: uri
         default:
           $ref: '#/components/responses/Error'
+  /channels/whatsapp:
+    post:
+      operationId: connectWhatsApp
+      summary: Connect the business's own WhatsApp number (v2)
+      description: >-
+        Needs channels.write. The four values come from a Meta app the business owns; no Meta business verification or
+        App Review is needed. The API reads the number with the token (proving the app secret with appsecret_proof),
+        checks the number is in the WhatsApp Business Account, subscribes the app to the account's webhooks and adds a
+        whatsapp channel (external_id the phone number ID), or updates the bot's channel that has the number. The person
+        then sets webhook_url and verify_token under WhatsApp → Configuration in the Meta app and subscribes the messages
+        field. Customers' text messages are answered by the bot; a reply to one of the channel's tickets is also sent on
+        WhatsApp (see POST /tickets/{id}/replies). 400 INVALID_REQUEST with error.field when a value is malformed or Meta
+        refuses it; 400 CHANNEL_TYPE_NOT_ALLOWED; 409 WHATSAPP_NUMBER_TAKEN when another bot has the number; 502
+        WHATSAPP_UNAVAILABLE when Meta can't be reached; 503 CHANNEL_CONNECT_UNAVAILABLE without WHATSAPP_TOKEN_KEY.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone_number_id, waba_id, access_token, app_secret]
+              properties:
+                phone_number_id:
+                  type: string
+                  pattern: '^[0-9]{5,32}$'
+                  description: The Phone number ID from WhatsApp → API Setup (not the phone number).
+                waba_id:
+                  type: string
+                  pattern: '^[0-9]{5,32}$'
+                  description: The WhatsApp Business Account ID the number belongs to.
+                access_token:
+                  type: string
+                  description: A system user's permanent token with whatsapp_business_messaging and whatsapp_business_management.
+                app_secret:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{32}$'
+                  description: The App secret from App settings → Basic of the app that made the token.
+                name:
+                  type: string
+                  maxLength: 80
+                  description: The channel's name; empty names it after the number.
+      responses:
+        '201':
+          description: The connected number, with the webhook settings to put on the Meta app.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhatsAppConnection'
+        default:
+          $ref: '#/components/responses/Error'
   /channels/{id}:
     parameters:
       - $ref: '#/components/parameters/ChannelID'
@@ -1716,6 +1770,61 @@ paths:
       responses:
         '204':
           description: Deleted.
+        default:
+          $ref: '#/components/responses/Error'
+  /channels/{id}/whatsapp:
+    parameters:
+      - $ref: '#/components/parameters/ChannelID'
+    get:
+      operationId: getWhatsApp
+      summary: A connected WhatsApp number, with its webhook settings (v2)
+      description: >-
+        Needs channels.read. webhook_verified_at is when Meta last checked the webhook; last_event_at when a signed
+        message last arrived. The token and app secret are never returned. 404 CHANNEL_NOT_FOUND also for a channel that
+        isn't a connected WhatsApp number.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhatsAppConnection'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: updateWhatsAppCredentials
+      summary: Replace a WhatsApp number's access token and app secret (v2)
+      description: Needs channels.write. Checked with Meta as on connect. The number stays the same.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [access_token, app_secret]
+              properties:
+                access_token:
+                  type: string
+                app_secret:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{32}$'
+                waba_id:
+                  type: string
+                  pattern: '^[0-9]{5,32}$'
+      responses:
+        '200':
+          description: The number.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhatsAppConnection'
         default:
           $ref: '#/components/responses/Error'
   /channels/{id}/widget:
@@ -3255,6 +3364,20 @@ paths:
                     $ref: '#/components/schemas/TicketReply'
                   ticket:
                     $ref: '#/components/schemas/Ticket'
+                  delivery:
+                    type: object
+                    description: >-
+                      Only for a reply to a ticket from a connected WhatsApp number, which is also sent on WhatsApp. The
+                      reply is stored whatever the status.
+                    required: [status]
+                    properties:
+                      status:
+                        type: string
+                        enum: [sent, window_closed, failed]
+                        description: window_closed means WhatsApp's 24 hours since the customer's last message are over.
+                      message:
+                        type: string
+                        description: What happened, for the reply box to show.
         '409':
           $ref: '#/components/responses/Error'
         default:
@@ -7937,6 +8060,35 @@ components:
         picture_url:
           type: string
           description: The uploaded header picture, already a square; empty uses the business logo, then the bot's picture.
+    WhatsAppConnection:
+      type: object
+      required: [channel, phone_number_id, waba_id, display_phone, verified_name, webhook_url, verify_token]
+      properties:
+        channel:
+          $ref: '#/components/schemas/Channel'
+        phone_number_id:
+          type: string
+        waba_id:
+          type: string
+        display_phone:
+          type: string
+          description: The number as Meta shows it, such as +1 555-0100.
+        verified_name:
+          type: string
+          description: The business name Meta shows for the number.
+        webhook_url:
+          type: string
+          format: uri
+          description: The Callback URL to set on the Meta app.
+        verify_token:
+          type: string
+          description: The Verify token to set on the Meta app.
+        webhook_verified_at:
+          type: string
+          description: When Meta last checked the webhook; left out until it has.
+        last_event_at:
+          type: string
+          description: When a signed message last arrived; left out until one has.
     ChannelWidget:
       type: object
       required: [channel_id, enabled, first_seen_at, last_seen_at, shop, activation_url]
