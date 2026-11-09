@@ -74,9 +74,11 @@ export function WidgetPreview({ settings, pictureUrl, fallbackPicture }: { setti
     for (const [name, value] of Object.entries(widgetAttributes(shown.settings, shown.picture))) el.setAttribute(name, value);
     el.setAttribute('demo', '');
     el.setAttribute('open', '');
-    // Fits the frame; the real window is larger.
-    el.style.setProperty('--truplexy-width', '300px');
-    el.style.setProperty('--truplexy-height', '330px');
+    // The real window size, shrunk only when the frame is smaller. The wrapper's transform makes it
+    // the containing block, so % is of the frame; 130px keeps it between the stand-in browser bar
+    // and the launcher.
+    el.style.setProperty('--truplexy-width', 'min(380px, calc(100% - 24px))');
+    el.style.setProperty('--truplexy-height', 'min(600px, calc(100% - 130px))');
     el.style.setProperty('--truplexy-offset-x', '12px');
     el.style.setProperty('--truplexy-offset-y', '12px');
     el.style.setProperty('--truplexy-z-index', '1');
@@ -86,7 +88,7 @@ export function WidgetPreview({ settings, pictureUrl, fallbackPicture }: { setti
 
   return (
     <div
-      className="relative h-[400px] overflow-hidden lg:h-[460px] rounded-[14px] border border-line bg-surface-2"
+      className="relative h-[560px] overflow-hidden lg:h-[min(720px,calc(100vh-6rem))] rounded-[14px] border border-line bg-surface-2"
       style={{ transform: 'translateZ(0)' }}
       role="img"
       aria-label="Preview of your chat window on your store"
