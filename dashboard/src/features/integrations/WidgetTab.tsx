@@ -78,14 +78,14 @@ export function WidgetTab() {
   const pictureUrl = widget.data?.picture_url ?? '';
   const accentOk = draft ? /^#[0-9a-fA-F]{6}$/.test(draft.accent) : false;
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)]">
       {/* First on a phone, so the look being changed is in view; beside the form from lg up. */}
       <div className="grid content-start gap-2 lg:sticky lg:top-4 lg:order-last">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-[0.8125rem] font-semibold text-ink">Preview</h2>
           <span className="text-xs text-ink-faint">Sample replies only</span>
         </div>
-        {draft ? <WidgetPreview settings={previewable(draft)} pictureUrl={pictureUrl} /> : <div className="h-[400px] animate-pulse rounded-[14px] bg-surface-2 lg:h-[460px]" />}
+        {draft ? <WidgetPreview settings={previewable(draft)} pictureUrl={pictureUrl} /> : <div className="h-[560px] animate-pulse rounded-[14px] bg-surface-2 lg:h-[min(720px,calc(100vh-6rem))]" />}
       </div>
 
       <div className="grid min-w-0 content-start gap-5">
