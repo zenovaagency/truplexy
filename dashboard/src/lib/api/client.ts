@@ -19,6 +19,8 @@ export class ApiError extends Error {
   readonly tenants?: { id: string; name: string }[];
   /** Seconds the API asks the caller to wait (Retry-After): rate limits and busy checkouts. */
   readonly retryAfter?: number;
+  /** INVALID_REQUEST from a form endpoint: the field to fix. */
+  readonly field?: string;
 
   constructor(init: {
     code: string;
@@ -30,6 +32,7 @@ export class ApiError extends Error {
     limit?: LimitName;
     tenants?: { id: string; name: string }[];
     retryAfter?: number;
+    field?: string;
   }) {
     super(init.message);
     this.name = 'ApiError';
@@ -41,6 +44,7 @@ export class ApiError extends Error {
     this.limit = init.limit;
     this.tenants = init.tenants;
     this.retryAfter = init.retryAfter;
+    this.field = init.field;
   }
 }
 
@@ -164,6 +168,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
       limit: err?.limit,
       tenants: err?.tenants,
       retryAfter: parseRetryAfter(res.headers.get('Retry-After')),
+      field: err?.field,
     });
   }
   return body as T;

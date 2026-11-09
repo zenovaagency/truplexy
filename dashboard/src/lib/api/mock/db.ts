@@ -202,6 +202,8 @@ export interface MockDb {
   channels: MockChannel[];
   /** Whether a Shopify channel shows its chat window, and when the demo store "saw" it, by channel ID. */
   channelWidgets?: Record<string, { enabled: boolean; saved_at: number }>;
+  /** Connected WhatsApp numbers, by channel ID. The demo has no Meta, so the webhook "checks in" a few seconds after connecting. */
+  whatsappNumbers?: Record<string, MockWhatsAppNumber>;
   /** Each bot's chat widget (one look for every place it is shown), by `<tenant>/<bot>`. Absent until one is saved. */
   botWidgets?: Record<string, { settings: WidgetSettings; picture_url: string }>;
   customers: MockCustomer[];
@@ -263,6 +265,15 @@ export function clearDb() {
 }
 
 export const wsKey = (t: string, b: string) => `${t}/${b}`;
+
+export interface MockWhatsAppNumber {
+  phone_number_id: string;
+  waba_id: string;
+  display_phone: string;
+  verified_name: string;
+  verify_token: string;
+  connected_at: number;
+}
 
 export const hex = (n = 32) => Array.from(crypto.getRandomValues(new Uint8Array(n / 2)), (b) => b.toString(16).padStart(2, '0')).join('');
 export const newId = (prefix: string) => `${prefix}_${hex(32)}`;

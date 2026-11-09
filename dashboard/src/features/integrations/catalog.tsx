@@ -27,9 +27,11 @@ export interface Integration {
   /**
    * Platforms with an app marketplace: Truplexy's own app connects them with the
    * platform's sign-in. No guide, code or chat key. Only Shopify connects today
-   * (POST /channels/connect); the others are shown as coming soon.
+   * (POST /channels/connect); the others are shown as coming soon. 'whatsapp' is
+   * the business's own Meta app (POST /channels/whatsapp), held back until
+   * Truplexy can offer Meta's one-click signup.
    */
-  connect?: 'shopify' | 'soon';
+  connect?: 'shopify' | 'whatsapp' | 'soon';
   /** Words in a key name that mean this integration is set up, for integrations with no channel type. */
   match?: string[];
   /** Setup on the platform's side, in order. Guides only. */

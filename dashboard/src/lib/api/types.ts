@@ -356,6 +356,39 @@ export interface ChannelWidget {
   activation_url: string;
 }
 
+/** POST /channels/whatsapp, GET and PUT /channels/{id}/whatsapp (v2): the business's own WhatsApp number. */
+export interface WhatsAppConnection {
+  channel: Channel;
+  phone_number_id: string;
+  waba_id: string;
+  /** The number as Meta shows it, such as +1 555-0100. */
+  display_phone: string;
+  /** The business name Meta shows for the number. */
+  verified_name: string;
+  /** The Callback URL and Verify token to set under WhatsApp → Configuration in the Meta app. */
+  webhook_url: string;
+  verify_token: string;
+  /** When Meta last checked the webhook, and when a message last came in; missing until they have. */
+  webhook_verified_at?: string;
+  last_event_at?: string;
+}
+
+/** What the person pastes from their Meta app. */
+export interface WhatsAppConnectInput {
+  phone_number_id: string;
+  waba_id: string;
+  access_token: string;
+  app_secret: string;
+  name?: string;
+}
+
+/** A team reply to a ticket from a platform the API sends to itself, such as WhatsApp. The reply is saved either way. */
+export interface ReplyDelivery {
+  /** window_closed: WhatsApp only allows replies within 24 hours of the customer's last message. */
+  status: 'sent' | 'window_closed' | 'failed';
+  message?: string;
+}
+
 /* ------------------------------------------------------------------ */
 /* Bot configuration                                                   */
 /* ------------------------------------------------------------------ */
@@ -1790,5 +1823,7 @@ export interface ApiErrorBody {
     limit?: LimitName;
     /** SOLE_OWNER: the businesses the person is the only owner of. */
     tenants?: { id: string; name: string }[];
+    /** INVALID_REQUEST from a form endpoint: the field to fix. */
+    field?: string;
   };
 }

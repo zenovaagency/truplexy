@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Channel, ChannelInput, ChannelType, ChannelWidget } from '@/lib/api/types';
+import type { Channel, ChannelInput, ChannelType, ChannelWidget, WhatsAppConnectInput, WhatsAppConnection } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { connectReturnTo } from '@/lib/shopify';
 import { useScope } from '@/lib/session/scope-context';
@@ -95,6 +95,56 @@ export function useSetChannelWidgetEnabled(id: string | undefined) {
   return useMutation({
     mutationFn: (enabled: boolean) => api<ChannelWidget>(`/channels/${id}/widget`, { method: 'PUT', body: { enabled }, scope }),
     onSuccess: (state) => qc.setQueryData(qk.bot(scope, 'channel-widget', id), state),
+  });
+}
+
+/**
+ * Connects the business's own WhatsApp number with four values from its Meta app. The API checks
+ * them with Meta before adding the channel; a refusal comes back as INVALID_REQUEST with `field`.
+ */
+export function useConnectWhatsApp() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  const invalidate = useInvalidateChannels();
+  return useMutation({
+    mutationFn: (body: WhatsAppConnectInput) => api<WhatsAppConnection>('/channels/whatsapp', { method: 'POST', body, scope }),
+    onSuccess: (number) => {
+      qc.setQueryData(qk.bot(scope, 'whatsapp', number.channel.id), number);
+      invalidate();
+    },
+    // The form shows these next to its fields.
+    meta: { silentCodes: ['INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNAVAILABLE', 'WHATSAPP_NUMBER_TAKEN', 'WHATSAPP_UNAVAILABLE'] },
+  });
+}
+
+/**
+ * A connected WhatsApp number and its webhook settings. `poll` refreshes it every few seconds,
+ * to notice Meta checking the webhook (webhook_verified_at) or a first message (last_event_at).
+ * A channel that isn't a connected number (a WhatsApp channel added by hand) is 404 CHANNEL_NOT_FOUND.
+ */
+export function useWhatsApp(id: string | undefined, poll = false) {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.bot(scope, 'whatsapp', id),
+    queryFn: ({ signal }) => api<WhatsAppConnection>(`/channels/${id}/whatsapp`, { scope, signal }),
+    enabled: Boolean(id),
+    staleTime: 0,
+    retry: false,
+    refetchInterval: poll ? 5_000 : false,
+    // The sheet shows a number that can't be read inline.
+    meta: { silent: true },
+  });
+}
+
+/** Replaces a connected number's access token and app secret, checked with Meta as on connect. */
+export function useUpdateWhatsAppCredentials(id: string | undefined) {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Pick<WhatsAppConnectInput, 'access_token' | 'app_secret'>) =>
+      api<WhatsAppConnection>(`/channels/${id}/whatsapp`, { method: 'PUT', body, scope }),
+    onSuccess: (number) => qc.setQueryData(qk.bot(scope, 'whatsapp', id), number),
+    meta: { silentCodes: ['INVALID_REQUEST', 'WHATSAPP_UNAVAILABLE'], success: 'WhatsApp credentials updated' },
   });
 }
 
