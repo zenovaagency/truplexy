@@ -174,6 +174,8 @@ describe('connecting a Facebook Page', () => {
     expect(page()).toContain('Never');
     expect(page()).toContain('pages_messaging');
     expect(page()).not.toContain('instagram_manage_messages');
+    expect(input('Page ID').getAttribute('autocomplete')).toBe('off');
+    for (const l of ['Access token', 'App secret']) expect(input(l).getAttribute('autocomplete')).toBe('new-password');
     await fill();
     await click(submit());
     expect(connects()).toHaveLength(1);
