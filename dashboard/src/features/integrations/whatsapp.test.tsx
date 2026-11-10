@@ -147,11 +147,10 @@ async function fill() {
 const connects = () => calls.filter((c) => c.path === '/channels/whatsapp');
 
 describe('the catalog', () => {
-  it('shows WhatsApp as coming soon, like the other Meta channels', async () => {
+  it('offers to connect a WhatsApp number', async () => {
     await render('catalog');
     expect(page()).toContain('WhatsApp');
-    expect(page()).toContain('Coming soon');
-    expect(button('Connect number')).toBeUndefined();
+    expect(button('Connect number')).toBeTruthy();
   });
 });
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { Channel, ChannelInput, ChannelType, ChannelWidget, WhatsAppConnectInput, WhatsAppConnection } from '@/lib/api/types';
+import type { Channel, ChannelInput, ChannelType, ChannelWidget, MetaConnectInput, MetaConnection, MetaProvider, WhatsAppConnectInput, WhatsAppConnection } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { connectReturnTo } from '@/lib/shopify';
 import { useScope } from '@/lib/session/scope-context';
@@ -145,6 +145,56 @@ export function useUpdateWhatsAppCredentials(id: string | undefined) {
       api<WhatsAppConnection>(`/channels/${id}/whatsapp`, { method: 'PUT', body, scope }),
     onSuccess: (number) => qc.setQueryData(qk.bot(scope, 'whatsapp', id), number),
     meta: { silentCodes: ['INVALID_REQUEST', 'WHATSAPP_UNAVAILABLE'], success: 'WhatsApp credentials updated' },
+  });
+}
+
+/**
+ * Connects the business's own Facebook Page, for Messenger or for the Instagram account linked to
+ * it, with three values from its Meta app. The API checks them with Meta before adding the channel;
+ * a refusal comes back as INVALID_REQUEST with `field`.
+ */
+export function useConnectMeta(provider: MetaProvider) {
+  const scope = useScope();
+  const qc = useQueryClient();
+  const invalidate = useInvalidateChannels();
+  return useMutation({
+    mutationFn: (body: MetaConnectInput) => api<MetaConnection>(`/channels/${provider}`, { method: 'POST', body, scope }),
+    onSuccess: (account) => {
+      qc.setQueryData(qk.bot(scope, provider, account.channel.id), account);
+      invalidate();
+    },
+    // The form shows these next to its fields.
+    meta: { silentCodes: ['INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNAVAILABLE', 'META_ACCOUNT_TAKEN', 'META_UNAVAILABLE'] },
+  });
+}
+
+/**
+ * A connected Page or Instagram account and its webhook settings. `poll` refreshes it every few
+ * seconds, to notice Meta checking the webhook or a first message. A channel of the type added by
+ * hand is 404 CHANNEL_NOT_FOUND.
+ */
+export function useMeta(provider: MetaProvider, id: string | undefined, poll = false) {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.bot(scope, provider, id),
+    queryFn: ({ signal }) => api<MetaConnection>(`/channels/${id}/${provider}`, { scope, signal }),
+    enabled: Boolean(id),
+    staleTime: 0,
+    retry: false,
+    refetchInterval: poll ? 5_000 : false,
+    meta: { silent: true },
+  });
+}
+
+/** Replaces a connected Page's access token and app secret, checked with Meta as on connect. */
+export function useUpdateMetaCredentials(provider: MetaProvider, id: string | undefined) {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Pick<MetaConnectInput, 'access_token' | 'app_secret'>) =>
+      api<MetaConnection>(`/channels/${id}/${provider}`, { method: 'PUT', body, scope }),
+    onSuccess: (account) => qc.setQueryData(qk.bot(scope, provider, id), account),
+    meta: { silentCodes: ['INVALID_REQUEST', 'META_UNAVAILABLE'], success: provider === 'instagram' ? 'Instagram credentials updated' : 'Messenger credentials updated' },
   });
 }
 

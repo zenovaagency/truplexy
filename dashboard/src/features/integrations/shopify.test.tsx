@@ -224,11 +224,10 @@ describe('connecting a Shopify store', () => {
     expect(buttons('Connect')).toHaveLength(0);
   });
 
-  it('shows the other marketplace platforms as coming soon', async () => {
+  it('keeps WhatsApp on its own connect, beside the store', async () => {
     await render('catalog', '/integrations/guides');
     expect(page()).toContain('WhatsApp');
-    expect(page()).toContain('Coming soon');
-    expect(buttons('Connect number')).toHaveLength(0);
+    expect(buttons('Connect number')).toHaveLength(1);
     expect(buttons('Connect')).toHaveLength(1);
   });
 
