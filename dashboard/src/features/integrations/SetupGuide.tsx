@@ -68,8 +68,8 @@ export function SetupGuide({ steps, after, label = 'Setup steps' }: { steps: Gui
         <h4 className="text-[0.9375rem] font-bold text-ink">{step.title}</h4>
         <div className="grid gap-2 text-[0.8125rem] leading-relaxed text-ink-muted">{step.body}</div>
         {step.shots?.map((shot) => (
-          <a key={shot.src} href={shot.src} target="_blank" rel="noreferrer" className="group relative block overflow-hidden rounded-xl border border-line" title="Open full size">
-            <img src={shot.src} alt={shot.alt} loading="lazy" className="block h-auto w-full" />
+          <a key={shot.src} href={shot.src} target="_blank" rel="noreferrer" className="group relative block w-fit max-w-full overflow-hidden rounded-xl border border-line" title="Open full size">
+            <img src={shot.src} alt={shot.alt} loading="lazy" className="block h-auto max-w-full" />
             <span className="absolute right-2 top-2 grid size-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100">
               <Maximize2 className="size-3.5" />
             </span>

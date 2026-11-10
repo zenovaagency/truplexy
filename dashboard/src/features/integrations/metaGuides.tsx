@@ -13,7 +13,7 @@ const p = (children: React.ReactNode) => <p>{children}</p>;
 
 /** A link to a page in Meta, inside a step's text. */
 const L = ({ href, children }: { href: string; children: React.ReactNode }) => (
-  <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-accent hover:underline">
+  <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-ink underline decoration-ink-faint underline-offset-2 hover:decoration-ink">
     {children}
   </a>
 );
