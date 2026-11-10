@@ -4,7 +4,7 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Discord bot (2026-11-09)](#discord-bot-2026-11-09), [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Messenger and Instagram (2026-11-10)](#messenger-and-instagram-2026-11-10), [Discord bot (2026-11-09)](#discord-bot-2026-11-09), [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
@@ -21,6 +21,15 @@ Truplexy runs its own public Discord bot. A business adds it to its Discord serv
 - **Tickets:** conversations and tickets from the server carry the channel, and the customer (contact type `discord`), like any chat API integration's. A `reply` to such a ticket ([`POST /tickets/{id}/replies`](#post-ticketsidreplies)) is posted in the ticket's Discord channel, and the response gains `delivery: {status, message}` as for WhatsApp: `sent` or `failed`. Taking over, handing back and closing in the dashboard show in Discord too.
 - **Plans:** a business without a plan (`none`) keeps the bot's moderation commands, but its ticket panel and AI replies are off.
 - **What a dashboard does:** a Discord card with an "Add to Discord" button that calls the connect, the `connected`/`connect_error` banners, and the `?connect=discord&guild_id=` link that starts the connect for that server. Keep the guide for businesses that build their own bot with a chat key.
+
+## Messenger and Instagram (2026-11-10)
+
+A business connects its own Facebook Page to a bot, through a Meta app it owns, for the Page's Messenger inbox or for the Direct messages of the Instagram professional account linked to the Page. The bot answers the people who message it, and the team's replies from the dashboard go back on Messenger or Instagram. This works the same way as [WhatsApp numbers](#whatsapp-numbers-2026-11-09), and needs no App Review for the business's own Page. Apply migration `0056_meta_pages.sql` and set `META_TOKEN_KEY` and `META_WEBHOOK_URL` first.
+
+- **Connect:** [`POST /channels/messenger`](#post-channelsmessenger-and-post-channelsinstagram-v2) or `POST /channels/instagram` `{page_id, access_token, app_secret, name?}`. The token is a system user's token that never expires (or the Page's own token). The API trades it for the Page's token, checks it with Meta, subscribes the app to the Page's webhooks and adds a `messenger` or `instagram` channel. It answers with the channel's `webhook_url` and `verify_token`, which the person sets in the app's Webhooks settings, for the **Page** object (Messenger) or the **Instagram** object (Instagram), subscribing the `messages` and `messaging_postbacks` fields.
+- **Status:** [`GET /channels/{id}/messenger`](#get-channelsidmessenger-and-get-channelsidinstagram-v2) (or `/instagram`) shows the Page or account, the webhook settings and `webhook_verified_at` / `last_event_at`. `PUT` replaces a revoked token or reset app secret. Deleting the channel removes the credentials and, when no other channel uses the Page, unsubscribes the app.
+- **Conversations:** each person gets a conversation on the channel, with a customer (contact `messenger` or `instagram`: their page-scoped ID) and a ticket. Text and tapped buttons are answered in plain text; pictures, stickers and voice notes get a short "text only" answer.
+- **Team replies:** a `reply` to a Messenger or Instagram ticket is also sent there, and the response gains `delivery: {status, message}` as for WhatsApp: `sent`, `window_closed` (more than 24 hours since the customer's last message) or `failed`.
 
 ## WhatsApp numbers (2026-11-09)
 
@@ -523,6 +532,12 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/channels/whatsapp` | `channels.write` | Connect the business's own WhatsApp number (v2) |
 | `GET` | `/channels/{id}/whatsapp` | `channels.read` | A connected WhatsApp number, with its webhook settings (v2) |
 | `PUT` | `/channels/{id}/whatsapp` | `channels.write` | Replace a WhatsApp number's access token and app secret (v2) |
+| `POST` | `/channels/messenger` | `channels.write` | Connect the business's own Facebook Page for Messenger (v2) |
+| `GET` | `/channels/{id}/messenger` | `channels.read` | A connected Page, with its webhook settings (v2) |
+| `PUT` | `/channels/{id}/messenger` | `channels.write` | Replace a Page's access token and app secret (v2) |
+| `POST` | `/channels/instagram` | `channels.write` | Connect the Instagram account linked to the business's own Facebook Page (v2) |
+| `GET` | `/channels/{id}/instagram` | `channels.read` | A connected Instagram account, with its webhook settings (v2) |
+| `PUT` | `/channels/{id}/instagram` | `channels.write` | Replace an Instagram account's access token and app secret (v2) |
 | `GET` | `/channels/{id}/widget` | `channels.read` | Whether a Shopify store shows the chat window, and when it was last seen (v2) |
 | `PUT` | `/channels/{id}/widget` | `channels.write` | Show or hide the chat window on a Shopify store (v2) |
 | `GET` | `/customers` | `customers.read` | List and search the bot's customers (v2) |
@@ -956,7 +971,7 @@ Fields of `POST` and `PATCH`:
 A customer needs a name or at least one contact. On `PATCH`, fields left out keep their value.
 
 **Contacts.** Each is `{type, value, label?, primary?}`:
-- `type` is any lowercase word of 2–32 letters, digits, hyphens or underscores, starting with a letter. Use `email` and `phone` for those, and a platform's name for its user IDs, such as `discord`, `telegram`, `whatsapp` or `slack`; use `app` or any word you like for your own user ID.
+- `type` is any lowercase word of 2–32 letters, digits, hyphens or underscores, starting with a letter. Use `email` and `phone` for those, and a platform's name for its user IDs, such as `discord`, `telegram`, `whatsapp`, `messenger`, `instagram` or `slack`; use `app` or any word you like for your own user ID.
 - `value` is 1–254 characters. An `email` is lowercased and must be an address such as `ann@example.com`. A `phone` loses spaces, dashes, dots and parentheses and must be 5–20 digits, optionally starting with `+`. Other values are stored as sent, case included.
 - `label` is up to 60 characters of free text, such as "work".
 - `primary` marks the customer's main contact of its type. Mark at most one per type; the first of a type is primary when none is marked. A customer may have several contacts of a type, such as two emails.
@@ -1411,6 +1426,39 @@ The API reads the number with the token, checks that it is in the account, and s
 #### `PUT /channels/{id}/whatsapp` (v2)
 
 `channels.write`. Replaces the number's credentials after a token was revoked or the app secret reset: send `{access_token, app_secret}`, and optionally `waba_id`. They are checked with Meta as on connect. **200** the number, as `GET` returns it. The activity log records `channel.credentials_updated`. **Errors** as for `POST /channels/whatsapp`, plus `404 CHANNEL_NOT_FOUND`.
+
+#### `POST /channels/messenger` and `POST /channels/instagram` (v2)
+
+`channels.write`. Connects the business's own Facebook Page to the caller's bot, through a Meta app the business owns: `messenger` answers the Page's Messenger inbox, and `instagram` the Direct messages of the Instagram professional account linked to the Page. The same Page can have one channel of each.
+
+| Field | |
+|---|---|
+| `page_id` | Required. The Facebook Page's ID (a long number). |
+| `access_token` | Required. A token that never expires of a system user in Meta Business Settings that has the Page with full control, with `pages_messaging`, `pages_manage_metadata`, `pages_show_list` and `pages_read_engagement` (and `instagram_basic` and `instagram_manage_messages` for Instagram); or the Page's own access token. |
+| `app_secret` | Required. The **App secret** from App settings → Basic of the app that made the token (32 hex characters). |
+| `name` | Optional. The channel's name; by default the Page's name followed by "Messenger", or the Instagram username followed by "Instagram". |
+
+The API reads `/me` with the token: a Page's token is kept as it is, and a user's token is traded for the Page's (`GET /{page_id}?fields=access_token`). It reads the Page with its token, and for Instagram its `instagram_business_account`. It subscribes the app to the Page's webhooks (`POST /{page_id}/subscribed_apps` with `messages,messaging_postbacks`), adds the channel with `external_id` set to the Page's ID (Messenger) or the Instagram account's ID (Instagram), and keeps the Page token and app secret sealed (AES-256-GCM under `META_TOKEN_KEY`). Connecting an account the bot already has updates its credentials and turns its channel back on.
+
+**201** `{channel, provider, page_id, account_id, account_name, username?, webhook_url, verify_token, webhook_verified_at?, last_event_at?}`. The person then opens the app's **Webhooks** settings, picks **Page** (Messenger) or **Instagram**, sets **Callback URL** to `webhook_url` and **Verify token** to `verify_token`, and subscribes the `messages` and `messaging_postbacks` fields. Meta checks the URL, which sets `webhook_verified_at`. Events are matched to channels by the Page or Instagram account ID in them, and must be signed with that channel's app secret (`X-Hub-Signature-256`). While the app is in development, only people with a role on the app reach the bot; switch it to **Live** (it asks for a privacy policy URL) for everyone else. For Instagram, the account must also allow it: Instagram app → Settings → Messages and story replies → Message controls → Connected tools → **Allow access to messages**.
+
+**What happens to messages.** Each person's messages go into a conversation on the channel; its customer has the contact `messenger` or `instagram` (their page-scoped ID) and their name when Meta gives it. Text and tapped buttons are answered by the bot, which is told it is writing for Messenger or Instagram; Markdown in its answers is turned into plain text, and long answers are split (2,000 characters on Messenger, 1,000 bytes on Instagram). Pictures, stickers, voice notes and other attachments get "Sorry, I can only read text messages for now." Echoes of the account's own messages, read receipts and reactions are ignored, and each message is answered once, even when Meta delivers it again. A customer who asks for a person is handed to the team. A channel turned off answers nobody. The activity log records `channel.connect`.
+
+**Errors:**
+
+- `400 INVALID_REQUEST` with `field`: a value is malformed, or Meta refused it (an invalid token, a secret of another app, a token that can't manage the Page, or a Page with no Instagram account for `instagram`).
+- `400 CHANNEL_TYPE_NOT_ALLOWED`: a platform admin marked the type upcoming or hid it.
+- `409 META_ACCOUNT_TAKEN`: the Page or Instagram account is connected to another bot.
+- `502 META_UNAVAILABLE`: Meta couldn't be reached; try again.
+- `503 CHANNEL_CONNECT_UNAVAILABLE`: the server has no `META_TOKEN_KEY` configured.
+
+#### `GET /channels/{id}/messenger` and `GET /channels/{id}/instagram` (v2)
+
+`channels.read`. A connected Page or Instagram account: **200** as `POST` answers, with `webhook_verified_at` and `last_event_at` left out until they have happened. The token and app secret are never returned. **Errors:** `404 CHANNEL_NOT_FOUND` (also for a channel of the type that wasn't connected this way), `503 CHANNEL_CONNECT_UNAVAILABLE`.
+
+#### `PUT /channels/{id}/messenger` and `PUT /channels/{id}/instagram` (v2)
+
+`channels.write`. Replaces the credentials after a token was revoked or the app secret reset: send `{access_token, app_secret}`. They are checked with Meta as on connect. **200** as `GET` returns it. The activity log records `channel.credentials_updated`. **Errors** as for `POST`, plus `404 CHANNEL_NOT_FOUND`.
 
 #### `GET /channels/{id}/widget` (v2)
 
@@ -1956,7 +2004,7 @@ The signed-in person is recorded as the author; any `author` sent is replaced. A
 
 A `reply` needs the conversation taken over first (`PATCH /tickets/{id}` with `escalated: true`), so the person and the assistant don't answer side by side; otherwise it returns `409 TAKE_OVER_REQUIRED`. Notes, replies on a closed ticket and tickets without a conversation are not affected.
 
-A `reply` to a ticket from a connected [WhatsApp number](#post-channelswhatsapp-v2) is also sent to the customer on WhatsApp, and the response gains `delivery: {status, message?}`. `status` is `sent`, `window_closed` (WhatsApp lets a business write only within 24 hours of the customer's last message; the reply wasn't sent) or `failed` (Meta refused it or couldn't be reached, the channel is off, or the customer has written since in a newer conversation). The reply is stored either way, and `message` says what happened, for the reply box to show. Other tickets' responses have no `delivery`.
+A `reply` to a ticket from a connected [WhatsApp number](#post-channelswhatsapp-v2), [Facebook Page or Instagram account](#post-channelsmessenger-and-post-channelsinstagram-v2) is also sent to the customer there, and the response gains `delivery: {status, message?}`. `status` is `sent`, `window_closed` (WhatsApp lets a business write only within 24 hours of the customer's last message; the reply wasn't sent) or `failed` (Meta refused it or couldn't be reached, the channel is off, or the customer has written since in a newer conversation). The reply is stored either way, and `message` says what happened, for the reply box to show. Other tickets' responses have no `delivery`.
 
 **Errors:** `400 INVALID_REQUEST`, `404 TICKET_NOT_FOUND`, `409 TAKE_OVER_REQUIRED`.
 

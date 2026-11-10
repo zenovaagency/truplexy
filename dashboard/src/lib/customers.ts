@@ -18,4 +18,4 @@ export function normalizeContact(type: string, value: string): string {
 }
 
 export const CONTACT_TYPE = /^[a-z][a-z0-9_-]{1,31}$/;
-export const COMMON_CONTACT_TYPES = ['email', 'phone', 'discord', 'telegram', 'whatsapp'];
+export const COMMON_CONTACT_TYPES = ['email', 'phone', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram'];

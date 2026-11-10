@@ -382,9 +382,39 @@ export interface WhatsAppConnectInput {
   name?: string;
 }
 
+/** The Meta channels connected with a Facebook Page: its Messenger inbox, or its Instagram account's DMs. */
+export type MetaProvider = 'messenger' | 'instagram';
+
+/** POST /channels/{messenger|instagram}, GET and PUT /channels/{id}/{messenger|instagram} (v2): the business's own Facebook Page. */
+export interface MetaConnection {
+  channel: Channel;
+  provider: MetaProvider;
+  page_id: string;
+  /** The Page's ID on Messenger, the Instagram account's ID on Instagram. */
+  account_id: string;
+  /** The Page's name, or the Instagram account's name. */
+  account_name: string;
+  /** The Instagram username, without the @. */
+  username?: string;
+  /** The Callback URL and Verify token to set in the Meta app's Webhooks settings. */
+  webhook_url: string;
+  verify_token: string;
+  /** When Meta last checked the webhook, and when a message last came in; missing until they have. */
+  webhook_verified_at?: string;
+  last_event_at?: string;
+}
+
+/** What the person pastes from their Meta app. */
+export interface MetaConnectInput {
+  page_id: string;
+  access_token: string;
+  app_secret: string;
+  name?: string;
+}
+
 /** A team reply to a ticket from a platform the API sends to itself, such as WhatsApp. The reply is saved either way. */
 export interface ReplyDelivery {
-  /** window_closed: WhatsApp only allows replies within 24 hours of the customer's last message. */
+  /** window_closed: WhatsApp, Messenger and Instagram only allow replies within 24 hours of the customer's last message. */
   status: 'sent' | 'window_closed' | 'failed';
   message?: string;
 }

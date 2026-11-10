@@ -127,6 +127,7 @@ const button = (name: string) => [...document.body.querySelectorAll('button')].f
 /** The sheet's own button: the catalog card's has the same name and comes first. */
 const submit = () => [...document.body.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'Connect number').at(-1) as HTMLButtonElement;
 const input = (label: string) => document.body.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+const step = (title: string) => [...document.body.querySelectorAll<HTMLButtonElement>('button[aria-label]')].find((b) => b.getAttribute('aria-label')?.endsWith(`: ${title}`))!;
 const click = async (el: HTMLElement) => {
   await act(async () => el.click());
   await tick();
@@ -147,11 +148,10 @@ async function fill() {
 const connects = () => calls.filter((c) => c.path === '/channels/whatsapp');
 
 describe('the catalog', () => {
-  it('shows WhatsApp as coming soon, like the other Meta channels', async () => {
+  it('offers to connect a WhatsApp number', async () => {
     await render('catalog');
     expect(page()).toContain('WhatsApp');
-    expect(page()).toContain('Coming soon');
-    expect(button('Connect number')).toBeUndefined();
+    expect(button('Connect number')).toBeTruthy();
   });
 });
 
@@ -160,6 +160,15 @@ describe('connecting a WhatsApp number', () => {
     await render('connect');
     await click(button('Connect number'));
     expect(page()).toContain('Set up in Meta');
+    expect(page()).toContain('Step 1 of 7');
+    await click(step('Copy the two IDs'));
+    expect(page()).toContain('Messaging account ID');
+    await click(step('Generate a token that never expires'));
+    expect(page()).toContain('whatsapp_business_messaging');
+    expect(page()).not.toContain('pages_messaging');
+    // Browsers mustn't fill a saved login into the IDs or the token (Chrome took the ID field for a username).
+    for (const l of ['Phone number ID', 'WhatsApp Business Account ID']) expect(input(l).getAttribute('autocomplete')).toBe('off');
+    for (const l of ['Access token', 'App secret']) expect(input(l).getAttribute('autocomplete')).toBe('new-password');
     await fill();
     await click(submit());
     expect(connects()).toHaveLength(1);
@@ -169,6 +178,10 @@ describe('connecting a WhatsApp number', () => {
     expect(page()).toContain('Waiting for Meta to check the webhook');
     // The verify token is hidden until shown.
     expect(page()).not.toContain('tpx_0123');
+    // Meta delivers nothing to an unpublished app, so publishing comes first.
+    expect(page()).toContain('Publish the app');
+    await click(step('Add the webhook'));
+    expect(page()).toContain('Step 2. Production setup');
   });
 
   it('notices Meta checking the webhook', async () => {

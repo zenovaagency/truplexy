@@ -37,7 +37,7 @@ import type {
 import { hasNoPlan, NO_PLAN, quoteTokens } from '@/lib/billing';
 import { DEFAULT_ROLE_PERMISSIONS, ROLES } from '@/lib/permissions';
 import { emit, topicFor } from './bus';
-import { hex, newId, nowIso, saveDb, wsKey, type MockWhatsAppNumber, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockSuggestion, type MockTenant, type MockTicket, type MockUser } from './db';
+import { hex, newId, nowIso, saveDb, wsKey, type MockMetaAccount, type MockWhatsAppNumber, type MockBotConfig, type MockChannel, type MockCustomer, type MockDb, type MockDoc, type MockModel, type MockSuggestion, type MockTenant, type MockTicket, type MockUser } from './db';
 import { BUSINESS_TYPES, PLANS, hashString, rng } from './fixtures';
 import { buildPerformance, performanceMode } from './performance';
 import { PRESETS, PROPERTY_ENTITIES, PropertyError, applyValues, changeDefinition, matchesFilters, newDefinition, visibleValues, type MockProperty } from './properties';
@@ -1165,6 +1165,86 @@ route('PUT', '/channels/:id/whatsapp', 'channels.write', (c) => {
   return whatsAppOut(c, ch, n);
 });
 
+/* The business's own Facebook Page, for Messenger or its linked Instagram account. Demo: Page ID 0… has no Instagram account. */
+function metaOut(c: Ctx, ch: MockChannel, a: MockMetaAccount) {
+  const since = Date.now() - a.connected_at;
+  return {
+    channel: channelOut(c.db, ch),
+    provider: a.provider,
+    page_id: a.page_id,
+    account_id: a.account_id,
+    account_name: a.account_name,
+    ...(a.username ? { username: a.username } : {}),
+    webhook_url: `https://api.truplexy.com/v1/channels/meta/webhooks/${ch.id}`,
+    verify_token: a.verify_token,
+    ...(since >= WHATSAPP_VERIFIED_AFTER_MS ? { webhook_verified_at: new Date(a.connected_at + WHATSAPP_VERIFIED_AFTER_MS).toISOString() } : {}),
+    ...(since >= WHATSAPP_MESSAGE_AFTER_MS ? { last_event_at: new Date(a.connected_at + WHATSAPP_MESSAGE_AFTER_MS).toISOString() } : {}),
+  };
+}
+
+function metaOf(c: Ctx, provider: MockMetaAccount['provider'], id: string) {
+  const ch = channelOf(c, id);
+  const a = c.db.metaAccounts?.[ch.id];
+  if (ch.type !== provider || !a) throw err(404, 'CHANNEL_NOT_FOUND', `No connected ${provider === 'instagram' ? 'Instagram account' : 'Facebook Page'} has this channel ID.`);
+  return { ch, a };
+}
+
+for (const provider of ['messenger', 'instagram'] as const) {
+  const ig = provider === 'instagram';
+  route('POST', `/channels/${provider}`, 'channels.write', (c) => {
+    const b = c.body ?? {};
+    if (!offeredType(c.db, provider)) throw err(400, 'CHANNEL_TYPE_NOT_ALLOWED', `${ig ? 'Instagram' : 'Messenger'} isn't offered for this bot.`);
+    const page = metaId(b.page_id, 'page_id', 'page_id');
+    whatsAppSecrets(b);
+    if (ig && page.startsWith('0')) throw err(400, 'INVALID_REQUEST', 'This Page has no Instagram professional account linked. Link it in the Page\'s settings, then try again.', { field: 'page_id' });
+    const name = typeof b.name === 'string' ? b.name.trim() : '';
+    if (name.length > 80) throw err(400, 'INVALID_REQUEST', 'name is at most 80 characters.', { field: 'name' });
+    const accounts = (c.db.metaAccounts ??= {});
+    const accountId = ig ? `1784${page.slice(-11).padStart(11, '0')}` : page;
+    const owner = Object.entries(accounts).find(([, a]) => a.provider === provider && a.account_id === accountId);
+    const ownerChannel = owner && c.db.channels.find((x) => x.id === owner[0]);
+    if (ownerChannel && (ownerChannel.tenant_id !== c.tenant.id || ownerChannel.bot_id !== c.botId)) {
+      throw err(409, 'META_ACCOUNT_TAKEN', `This ${ig ? 'Instagram account' : 'Facebook Page'} is already connected to another bot. Remove it there first.`);
+    }
+    const now = nowIso();
+    const a: MockMetaAccount = {
+      provider,
+      page_id: page,
+      account_id: accountId,
+      account_name: 'Demo Store',
+      ...(ig ? { username: 'demostore' } : {}),
+      verify_token: owner?.[1].verify_token ?? `tpx_${hex(32)}`,
+      connected_at: Date.now(),
+    };
+    let ch = ownerChannel;
+    if (ch) Object.assign(ch, { enabled: true, updated_at: now, ...(name ? { name } : {}) });
+    else {
+      const base = name || (ig ? '@demostore Instagram' : 'Demo Store Messenger');
+      const taken = new Set(botChannels(c).map((x) => x.name.toLowerCase()));
+      let label = base;
+      for (let k = 2; taken.has(label.toLowerCase()); k++) label = `${base} ${k}`;
+      ch = { id: newId('chn'), tenant_id: c.tenant.id, bot_id: c.botId, type: provider, name: label, description: '', external_id: accountId, enabled: true, disabled_by_platform: false, created_at: now, updated_at: now };
+      c.db.channels.push(ch);
+    }
+    accounts[ch.id] = a;
+    audit(c, 'channel.connect', ch.id, { name: ch.name, type: provider, account: accountId });
+    return created(metaOut(c, ch, a));
+  });
+
+  route('GET', `/channels/:id/${provider}`, 'channels.read', (c) => {
+    const { ch, a } = metaOf(c, provider, c.params.id);
+    return metaOut(c, ch, a);
+  });
+
+  route('PUT', `/channels/:id/${provider}`, 'channels.write', (c) => {
+    const { ch, a } = metaOf(c, provider, c.params.id);
+    whatsAppSecrets(c.body ?? {});
+    ch.updated_at = nowIso();
+    audit(c, 'channel.update', ch.id, { name: ch.name, credentials: provider });
+    return metaOut(c, ch, a);
+  });
+}
+
 route('GET', '/channels/:id', 'channels.read', (c) => channelOut(c.db, channelOf(c, c.params.id)));
 
 route('PATCH', '/channels/:id', 'channels.write', (c) => {
@@ -1261,6 +1341,7 @@ route('DELETE', '/channels/:id', 'channels.write', (c) => {
   for (const t of c.db.tickets) if (t.channel_id === ch.id) Object.assign(t, { channel_name: ch.name, channel_type: ch.type });
   c.db.channels = c.db.channels.filter((x) => x !== ch);
   if (c.db.whatsappNumbers) delete c.db.whatsappNumbers[ch.id];
+  if (c.db.metaAccounts) delete c.db.metaAccounts[ch.id];
   audit(c, 'channel.delete', ch.id, { name: ch.name, type: label ?? ch.type });
   return noContent();
 });
@@ -2807,12 +2888,14 @@ route('POST', '/tickets/:id/replies', 'tickets.write', (c) => {
   (c.db.replies[t.id] ??= []).push(reply);
   emitTicket(c, t, 'ticket.updated');
   const { tenant_id: _t, bot_id: _b, ...ticket } = ticketOut(c.db, t) as any;
-  // A reply to a ticket from a connected WhatsApp number is also sent there, within 24 hours of the customer's last message.
-  if (kind === 'reply' && t.conversation_id && t.channel_id && c.db.whatsappNumbers?.[t.channel_id]) {
+  // A reply to a ticket from a connected WhatsApp number, Facebook Page or Instagram account is also sent there, within 24 hours of the customer's last message.
+  const meta = t.channel_id ? c.db.metaAccounts?.[t.channel_id] : undefined;
+  if (kind === 'reply' && t.conversation_id && t.channel_id && (c.db.whatsappNumbers?.[t.channel_id] || meta)) {
+    const where = meta ? (meta.provider === 'instagram' ? 'Instagram' : 'Messenger') : 'WhatsApp';
     const open = !!t.last_customer_at && Date.now() - new Date(t.last_customer_at).getTime() < 24 * 3_600_000;
     const delivery = open
       ? { status: 'sent' as const }
-      : { status: 'window_closed' as const, message: "The reply is saved but wasn't sent on WhatsApp: it's been more than 24 hours since the customer's last message." };
+      : { status: 'window_closed' as const, message: `The reply is saved but wasn't sent on ${where}: it's been more than 24 hours since the customer's last message.` };
     return created({ reply, ticket, delivery });
   }
   return created({ reply, ticket });

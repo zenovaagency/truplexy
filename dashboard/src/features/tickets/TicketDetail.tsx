@@ -66,6 +66,9 @@ import { CategorySelect } from '@/components/domain/support';
 import { OpenQueryLink } from '@/features/queries/CustomerQueries';
 import { AssistantAvatar } from '@/components/layout/Brand';
 
+/** Platforms the API sends team replies to itself, by channel type. */
+const DELIVERY_PLATFORM: Record<string, string> = { whatsapp: 'WhatsApp', messenger: 'Messenger', instagram: 'Instagram' };
+
 type Item = { kind: 'message'; at: string; m: TicketMessage } | { kind: 'note' | 'reply'; at: string; r: TicketReply };
 
 export function TicketDetail({ id, backHref }: { id: string; backHref?: string }) {
@@ -590,12 +593,14 @@ export function Composer({ ticket: t }: { ticket: TDetail }) {
         onSuccess: ({ delivery }) => {
           setText('');
           setSources(null);
-          // A ticket from a WhatsApp number: the reply is saved, but WhatsApp may not have taken it.
-          if (delivery && delivery.status !== 'sent')
+          // A ticket from WhatsApp, Messenger or Instagram: the reply is saved, but the platform may not have taken it.
+          if (delivery && delivery.status !== 'sent') {
+            const where = DELIVERY_PLATFORM[t.channel_type ?? ''] ?? 'WhatsApp';
             notifyWarning(
-              delivery.status === 'window_closed' ? "Reply saved, but not sent on WhatsApp" : "Reply saved, but WhatsApp didn't take it",
-              delivery.message ?? (delivery.status === 'window_closed' ? "WhatsApp only allows replies within 24 hours of the customer's last message." : undefined),
+              delivery.status === 'window_closed' ? `Reply saved, but not sent on ${where}` : `Reply saved, but ${where} didn't take it`,
+              delivery.message ?? (delivery.status === 'window_closed' ? `${where} only allows replies within 24 hours of the customer's last message.` : undefined),
             );
+          }
           else notifySuccess(kind === 'note' ? 'Note added' : status === 'closed' ? 'Reply sent and ticket closed' : 'Reply sent');
         },
       },

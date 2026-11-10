@@ -27,13 +27,14 @@ export interface Integration {
   /**
    * Platforms with an app marketplace: Truplexy's own app connects them with the
    * platform's sign-in. No guide, code or chat key. Only Shopify connects today
-   * (POST /channels/connect); the others are shown as coming soon. 'whatsapp' is
-   * the business's own Meta app (POST /channels/whatsapp), held back until
-   * Truplexy can offer Meta's one-click signup. 'discord' adds Truplexy's own
+   * (POST /channels/connect); the others are shown as coming soon. 'whatsapp',
+   * 'messenger' and 'instagram' use the business's own Meta app
+   * (POST /channels/whatsapp, /channels/messenger, /channels/instagram), with a
+   * step-by-step guide in the connect sheet. 'discord' adds Truplexy's own
    * Discord bot to a server (POST /channels/connect) and keeps the guide for a
    * business that runs its own bot.
    */
-  connect?: 'shopify' | 'whatsapp' | 'discord' | 'soon';
+  connect?: 'shopify' | 'whatsapp' | 'messenger' | 'instagram' | 'discord' | 'soon';
   /** Words in a key name that mean this integration is set up, for integrations with no channel type. */
   match?: string[];
   /** Setup on the platform's side, in order. Guides only. */
@@ -69,10 +70,10 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'whatsapp',
     name: 'WhatsApp',
     group: 'messaging',
-    blurb: 'Answer customers on your WhatsApp Business number. Sign in with Meta and pick the number.',
+    blurb: 'Answer customers on your WhatsApp Business number, through your own Meta app. A step-by-step guide walks you through it.',
     icon: '/brands/whatsapp.svg',
     color: 'var(--color-ink)',
-    connect: 'soon',
+    connect: 'whatsapp',
   },
   {
     id: 'telegram',
@@ -111,20 +112,20 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'messenger',
     name: 'Messenger',
     group: 'messaging',
-    blurb: 'Reply to messages sent to your Facebook Page. Sign in with Meta and pick the Page.',
+    blurb: 'Reply to messages sent to your Facebook Page, through your own Meta app. A step-by-step guide walks you through it.',
     icon: '/brands/messenger.svg',
     color: 'var(--color-ink)',
-    connect: 'soon',
+    connect: 'messenger',
   },
   {
     id: 'instagram',
     channelType: 'instagram',
     name: 'Instagram',
     group: 'messaging',
-    blurb: 'Answer Instagram Direct messages to your professional account. Sign in with Meta.',
+    blurb: 'Answer Instagram Direct messages to your professional account, through your own Meta app and the Facebook Page it is linked to.',
     icon: '/brands/instagram.svg',
     color: 'var(--color-ink)',
-    connect: 'soon',
+    connect: 'instagram',
   },
   {
     id: 'email',

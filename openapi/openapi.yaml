@@ -1716,6 +1716,68 @@ paths:
                 $ref: '#/components/schemas/WhatsAppConnection'
         default:
           $ref: '#/components/responses/Error'
+  /channels/messenger:
+    post:
+      operationId: connectMessenger
+      summary: Connect the business's own Facebook Page for Messenger (v2)
+      description: >-
+        Needs channels.write. The three values come from a Meta app the business owns. The API reads /me with the token,
+        trades a user's or system user's token for the Page's own (GET /{page_id}?fields=access_token), reads the Page,
+        subscribes the app to the Page's webhooks (messages, messaging_postbacks) and adds a messenger channel, or updates
+        the bot's channel that has it. The person then sets webhook_url and verify_token in the app's Webhooks settings
+        for the Page object and subscribes the messages and messaging_postbacks fields. A reply to one of the
+        channel's tickets is also sent there (see POST /tickets/{id}/replies). 400 INVALID_REQUEST with error.field when a
+        value is malformed or Meta refuses it; 400 CHANNEL_TYPE_NOT_ALLOWED; 409 META_ACCOUNT_TAKEN when another bot has
+        it; 502 META_UNAVAILABLE when Meta can't be reached; 503 CHANNEL_CONNECT_UNAVAILABLE without META_TOKEN_KEY.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetaConnectInput'
+      responses:
+        '201':
+          description: The connected account, with the webhook settings to put on the Meta app.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaConnection'
+        default:
+          $ref: '#/components/responses/Error'
+  /channels/instagram:
+    post:
+      operationId: connectInstagram
+      summary: Connect the Instagram account linked to the business's own Facebook Page (v2)
+      description: >-
+        Needs channels.write. The three values come from a Meta app the business owns. The API reads /me with the token,
+        trades a user's or system user's token for the Page's own (GET /{page_id}?fields=access_token), reads the Page and its instagram_business_account (400 INVALID_REQUEST on page_id when it has none),
+        subscribes the app to the Page's webhooks (messages, messaging_postbacks) and adds a instagram channel, or updates
+        the bot's channel that has it. The person then sets webhook_url and verify_token in the app's Webhooks settings
+        for the Instagram object and subscribes the messages and messaging_postbacks fields. A reply to one of the
+        channel's tickets is also sent there (see POST /tickets/{id}/replies). 400 INVALID_REQUEST with error.field when a
+        value is malformed or Meta refuses it; 400 CHANNEL_TYPE_NOT_ALLOWED; 409 META_ACCOUNT_TAKEN when another bot has
+        it; 502 META_UNAVAILABLE when Meta can't be reached; 503 CHANNEL_CONNECT_UNAVAILABLE without META_TOKEN_KEY.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetaConnectInput'
+      responses:
+        '201':
+          description: The connected account, with the webhook settings to put on the Meta app.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaConnection'
+        default:
+          $ref: '#/components/responses/Error'
   /channels/{id}:
     parameters:
       - $ref: '#/components/parameters/ChannelID'
@@ -1825,6 +1887,110 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WhatsAppConnection'
+        default:
+          $ref: '#/components/responses/Error'
+  /channels/{id}/messenger:
+    parameters:
+      - $ref: '#/components/parameters/ChannelID'
+    get:
+      operationId: getMessenger
+      summary: A connected Facebook Page, with its webhook settings (v2)
+      description: >-
+        Needs channels.read. webhook_verified_at is when Meta last checked the webhook; last_event_at when a signed
+        message last arrived. The token and app secret are never returned. 404 CHANNEL_NOT_FOUND also for a channel that
+        wasn't connected this way.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaConnection'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: updateMessengerCredentials
+      summary: Replace a Facebook Page's access token and app secret (v2)
+      description: Needs channels.write. Checked with Meta as on connect. The Page and account stay the same.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [access_token, app_secret]
+              properties:
+                access_token:
+                  type: string
+                app_secret:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{32}$'
+      responses:
+        '200':
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaConnection'
+        default:
+          $ref: '#/components/responses/Error'
+  /channels/{id}/instagram:
+    parameters:
+      - $ref: '#/components/parameters/ChannelID'
+    get:
+      operationId: getInstagram
+      summary: A connected Instagram account, with its webhook settings (v2)
+      description: >-
+        Needs channels.read. webhook_verified_at is when Meta last checked the webhook; last_event_at when a signed
+        message last arrived. The token and app secret are never returned. 404 CHANNEL_NOT_FOUND also for a channel that
+        wasn't connected this way.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      responses:
+        '200':
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaConnection'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: updateInstagramCredentials
+      summary: Replace a Instagram account's access token and app secret (v2)
+      description: Needs channels.write. Checked with Meta as on connect. The Page and account stay the same.
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [access_token, app_secret]
+              properties:
+                access_token:
+                  type: string
+                app_secret:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{32}$'
+      responses:
+        '200':
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaConnection'
         default:
           $ref: '#/components/responses/Error'
   /channels/{id}/widget:
@@ -8076,6 +8242,61 @@ components:
         verified_name:
           type: string
           description: The business name Meta shows for the number.
+        webhook_url:
+          type: string
+          format: uri
+          description: The Callback URL to set on the Meta app.
+        verify_token:
+          type: string
+          description: The Verify token to set on the Meta app.
+        webhook_verified_at:
+          type: string
+          description: When Meta last checked the webhook; left out until it has.
+        last_event_at:
+          type: string
+          description: When a signed message last arrived; left out until one has.
+    MetaConnectInput:
+      type: object
+      additionalProperties: false
+      required: [page_id, access_token, app_secret]
+      properties:
+        page_id:
+          type: string
+          pattern: '^[0-9]{5,32}$'
+          description: The Facebook Page's ID; for Instagram, the Page the Instagram account is linked to.
+        access_token:
+          type: string
+          description: >-
+            A system user's token that never expires, with the Page and pages_messaging, pages_manage_metadata,
+            pages_show_list and pages_read_engagement (plus instagram_basic and instagram_manage_messages for Instagram);
+            or the Page's own access token.
+        app_secret:
+          type: string
+          pattern: '^[0-9a-fA-F]{32}$'
+          description: The App secret from App settings → Basic of the app that made the token.
+        name:
+          type: string
+          maxLength: 80
+          description: The channel's name; empty names it after the Page or the Instagram username.
+    MetaConnection:
+      type: object
+      required: [channel, provider, page_id, account_id, account_name, webhook_url, verify_token]
+      properties:
+        channel:
+          $ref: '#/components/schemas/Channel'
+        provider:
+          type: string
+          enum: [messenger, instagram]
+        page_id:
+          type: string
+        account_id:
+          type: string
+          description: The Page's ID for Messenger; the Instagram account's ID for Instagram.
+        account_name:
+          type: string
+        username:
+          type: string
+          description: The Instagram username, without the @; Instagram only.
         webhook_url:
           type: string
           format: uri
