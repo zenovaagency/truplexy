@@ -48,7 +48,7 @@ describe('POST /channels/connect', () => {
   });
 
   it('refuses what the API refuses', () => {
-    expect(fails(() => call('POST', '/channels/connect', { type: 'discord', account: 'x', return_to: back }))).toEqual({ status: 400, code: 'CHANNEL_CONNECT_UNSUPPORTED' });
+    expect(fails(() => call('POST', '/channels/connect', { type: 'telegram', account: 'x', return_to: back }))).toEqual({ status: 400, code: 'CHANNEL_CONNECT_UNSUPPORTED' });
     expect(fails(() => call('POST', '/channels/connect', { type: 'shopify', account: 'not a store', return_to: back }))).toEqual({ status: 400, code: 'INVALID_REQUEST' });
     expect(fails(() => call('POST', '/channels/connect', { type: 'shopify', account: 'demo', return_to: 'https://evil.example/x' }))).toEqual({ status: 400, code: 'INVALID_REQUEST' });
   });

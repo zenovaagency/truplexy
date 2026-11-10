@@ -12,18 +12,23 @@ import { qk } from '@/lib/query-keys';
 import { useScopeCtx } from '@/lib/session/scope-context';
 import { SHOPIFY_TOOLS, connectErrorMessage, markShopifyUnavailable, readConnectReturn, shopifyUnavailable, storeFieldError, subscribeShopifyUnavailable } from '@/lib/shopify';
 import { WOOCOMMERCE_TOOLS, readWooConnectReturn, wooConnectErrorMessage } from '@/lib/woocommerce';
+import { discordConnectErrorMessage, readDiscordConnectReturn } from '@/lib/discord';
 import { Button, Callout, Dialog, Field, Input, Tip } from '@/components/ui';
 import { ShopifyChatSetup } from './ShopifyChatSetup';
+import { DiscordConnectButton } from './discord';
 import { WooCommerceConnectButton } from './woocommerce';
 
 const UNAVAILABLE = "Shopify connections aren't set up on this server yet.";
 
-export type StorePlatform = 'shopify' | 'woocommerce';
+/** A platform the API connects with a sign-in and a return to the dashboard: two stores, and Discord servers. */
+export type StorePlatform = 'shopify' | 'woocommerce' | 'discord';
 
-const PLATFORM_NAME: Record<StorePlatform, string> = { shopify: 'Shopify', woocommerce: 'WooCommerce' };
+const PLATFORM_NAME: Record<StorePlatform, string> = { shopify: 'Shopify', woocommerce: 'WooCommerce', discord: 'Discord' };
+/** What the platform connects: a store, or a Discord server. */
+const THING: Record<StorePlatform, string> = { shopify: 'store', woocommerce: 'store', discord: 'server' };
 
 /**
- * After Shopify or a WooCommerce store, the API returns to the page with
+ * After Shopify, a WooCommerce store or Discord, the API returns to the page with
  * ?connected=<platform>&channel_id=…&type=<platform> or ?connect_error=<code>&type=<platform>.
  * Says so once, reloads the channels and tools, and tidies the URL so a reload or a shared
  * link doesn't say it again. Any page can use it.
@@ -36,7 +41,9 @@ export function useConnectReturn() {
     const shopify = readConnectReturn(params);
     if (shopify) return { ...shopify, platform: 'shopify' as StorePlatform };
     const woo = readWooConnectReturn(params);
-    return woo ? { ...woo, platform: 'woocommerce' as StorePlatform } : null;
+    if (woo) return { ...woo, platform: 'woocommerce' as StorePlatform };
+    const discord = readDiscordConnectReturn(params);
+    return discord ? { ...discord, platform: 'discord' as StorePlatform } : null;
   }, [params]);
   const [failed, setFailed] = useState<{ code: string; platform: StorePlatform } | null>(null);
   const [connected, setConnected] = useState<{ channelId: string | null; platform: StorePlatform } | null>(null);
@@ -50,7 +57,7 @@ export function useConnectReturn() {
     if (told.current === key) return;
     told.current = key;
     if (ret.ok) {
-      notifySuccess(`Your ${PLATFORM_NAME[ret.platform]} store is connected.`);
+      notifySuccess(ret.platform === 'discord' ? 'Your Discord server is linked. Run /setup there next.' : `Your ${PLATFORM_NAME[ret.platform]} store is connected.`);
       void qc.invalidateQueries({ queryKey: qk.bot(scope, 'channels') });
       void qc.invalidateQueries({ queryKey: qk.bot(scope, 'tools') });
       setConnected({ channelId: ret.channelId, platform: ret.platform });
@@ -100,12 +107,12 @@ export function CustomizeChatButton({ size = 'xs', variant = 'soft' }: { size?: 
 
 /** Why the store wasn't connected. Stays until dismissed, with a way to try again. */
 export function ConnectReturnBanner({ code, platform = 'shopify', onDismiss }: { code: string; platform?: StorePlatform; onDismiss: () => void }) {
-  const Retry = platform === 'woocommerce' ? WooCommerceConnectButton : ShopifyConnectButton;
+  const Retry = platform === 'woocommerce' ? WooCommerceConnectButton : platform === 'discord' ? DiscordConnectButton : ShopifyConnectButton;
   return (
     <Callout
       tone="danger"
       icon={<AlertTriangle />}
-      title={`Your ${PLATFORM_NAME[platform]} store wasn't connected`}
+      title={platform === 'discord' ? "Your Discord server wasn't linked" : `Your ${PLATFORM_NAME[platform]} ${THING[platform]} wasn't connected`}
       action={
         <span className="flex items-center gap-2">
           <Retry size="xs" variant="soft">
@@ -117,7 +124,7 @@ export function ConnectReturnBanner({ code, platform = 'shopify', onDismiss }: {
         </span>
       }
     >
-      {platform === 'woocommerce' ? wooConnectErrorMessage(code) : connectErrorMessage(code)}
+      {platform === 'woocommerce' ? wooConnectErrorMessage(code) : platform === 'discord' ? discordConnectErrorMessage(code) : connectErrorMessage(code)}
     </Callout>
   );
 }
@@ -278,7 +285,8 @@ export function ShopifyToolsPrompt({ platform = 'shopify', onDismiss }: { platfo
   const listed = tools.data?.data.some((t) => t.built_in && names.includes(t.name));
   const on = Boolean(ws.data?.bot.toolsEnabled && names.every((n) => ws.data?.bot.tools?.includes(n)));
 
-  if (!can('bot.write') || !ws.data || !listed) return null;
+  // Discord servers bring no tools.
+  if (platform === 'discord' || !can('bot.write') || !ws.data || !listed) return null;
   if (on)
     return (
       <Callout tone="neutral" icon={<CheckCircle2 />} title="Order and product lookups are on" action={<Button size="xs" variant="quiet" onClick={onDismiss}>Dismiss</Button>}>

@@ -30,9 +30,11 @@ export interface Integration {
    * (POST /channels/connect); the others are shown as coming soon. 'whatsapp',
    * 'messenger' and 'instagram' use the business's own Meta app
    * (POST /channels/whatsapp, /channels/messenger, /channels/instagram), with a
-   * step-by-step guide in the connect sheet.
+   * step-by-step guide in the connect sheet. 'discord' adds Truplexy's own
+   * Discord bot to a server (POST /channels/connect) and keeps the guide for a
+   * business that runs its own bot.
    */
-  connect?: 'shopify' | 'whatsapp' | 'messenger' | 'instagram' | 'soon';
+  connect?: 'shopify' | 'whatsapp' | 'messenger' | 'instagram' | 'discord' | 'soon';
   /** Words in a key name that mean this integration is set up, for integrations with no channel type. */
   match?: string[];
   /** Setup on the platform's side, in order. Guides only. */
@@ -93,9 +95,10 @@ export const INTEGRATIONS: Integration[] = [
     channelType: 'discord',
     name: 'Discord',
     group: 'messaging',
-    blurb: 'A support bot for your community server, in channels or DMs.',
+    blurb: 'Add our ready-made bot to your server: private support tickets your assistant answers first, plus moderation.',
     icon: '/brands/discord.svg',
     color: 'var(--color-ink)',
+    connect: 'discord',
     match: ['discord'],
     langs: ['node', 'python', 'go', 'csharp'],
     steps: [
