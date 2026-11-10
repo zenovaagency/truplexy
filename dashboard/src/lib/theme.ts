@@ -7,12 +7,23 @@ const media = window.matchMedia('(prefers-color-scheme: dark)');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const listeners = new Set<() => void>();
 
-function readPref(): ThemePref {
+/**
+ * The stored choice. With none, new people start light, and someone already signed in from before light was the
+ * default (a Supabase session is stored) keeps following the system. The answer is stored, so it holds from then on.
+ * index.html runs the same rule before first paint.
+ */
+export function readPref(): ThemePref {
   try {
     const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' ? v : 'system';
+    if (v === 'light' || v === 'dark' || v === 'system') return v;
+    let first: ThemePref = 'light';
+    for (let i = 0; i < localStorage.length; i++) {
+      if (/^sb-.+-auth-token$/.test(localStorage.key(i) ?? '')) first = 'system';
+    }
+    localStorage.setItem(KEY, first);
+    return first;
   } catch {
-    return 'system';
+    return 'light';
   }
 }
 
@@ -63,8 +74,7 @@ function animated(update: () => void, origin?: ThemeOrigin) {
 export function setThemePref(next: ThemePref, origin?: ThemeOrigin) {
   pref = next;
   try {
-    if (next === 'system') localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, next);
+    localStorage.setItem(KEY, next);
   } catch {
     /* storage blocked: the choice lasts for this page only */
   }

@@ -11,11 +11,21 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#f6f3ee" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
-    <!-- Resolve the theme before first paint, so dark mode never flashes light. -->
+    <!-- Resolve the theme before first paint, so dark mode never flashes light. Same rule as lib/theme.ts. -->
     <script>
       (function () {
-        var pref = 'system';
-        try { pref = localStorage.getItem('truplexy.theme') || 'system'; } catch (e) {}
+        var pref = 'light';
+        try {
+          pref = localStorage.getItem('truplexy.theme');
+          if (!pref) {
+            // New people start light. Someone already signed in from before light was the default keeps following the system.
+            pref = 'light';
+            for (var i = 0; i < localStorage.length; i++) {
+              if (/^sb-.+-auth-token$/.test(localStorage.key(i) || '')) pref = 'system';
+            }
+            localStorage.setItem('truplexy.theme', pref);
+          }
+        } catch (e) {}
         var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.dataset.theme = dark ? 'dark' : 'light';
       })();
