@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, KeyRound, Lock, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Clock, KeyRound, Lock, MessageCircle } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import { useConnectWhatsApp, useUpdateWhatsAppCredentials, useWhatsApp } from '@/lib/api/endpoints/channels';
 import type { Channel, WhatsAppConnectInput, WhatsAppConnection } from '@/lib/api/types';
 import { formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { META_LINKS, whatsAppFieldError, webhookWorking, type WhatsAppField } from '@/lib/whatsapp';
+import { whatsAppFieldError, webhookWorking, type WhatsAppField } from '@/lib/whatsapp';
 import { Badge, Button, Callout, CopyField, Field, Input, Sheet } from '@/components/ui';
+import { SetupGuide } from './SetupGuide';
+import { whatsAppAfterSteps, whatsAppSetupSteps } from './metaGuides';
 
 const UNAVAILABLE = "WhatsApp connections aren't set up on this server yet.";
 
@@ -26,37 +28,9 @@ function refusal(e: unknown, setErrors: (e: Errors) => void, setFormError: (m: s
   return true;
 }
 
-function A({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-accent hover:underline">
-      {children}
-      <ExternalLink className="size-3" />
-    </a>
-  );
-}
-
-/** What to do in Meta before the form: an app with WhatsApp, the two IDs, a lasting token and the app secret. */
+/** What to do in Meta before the form, one step at a time with a screenshot of each. */
 function MetaGuide() {
-  return (
-    <ol className="grid list-decimal gap-2.5 pl-5 text-[0.8125rem] leading-relaxed text-ink-muted marker:font-semibold marker:text-ink">
-      <li>
-        In <A href={META_LINKS.apps}>Meta for Developers</A>, create an app of type <b className="text-ink">Business</b> and add <b className="text-ink">WhatsApp</b> to it. Meta gives it a
-        WhatsApp Business Account and a free test number.
-      </li>
-      <li>
-        Open <b className="text-ink">WhatsApp → API Setup</b>. Copy the <b className="text-ink">Phone number ID</b> and the <b className="text-ink">WhatsApp Business Account ID</b>. To use your
-        own number instead of the test one, add it there first.
-      </li>
-      <li>
-        In <A href={META_LINKS.systemUsers}>Business settings → System users</A>, add an admin system user, give it the app and the WhatsApp account with full control, then{' '}
-        <b className="text-ink">Generate token</b>: pick the app, set it to <b className="text-ink">never expire</b>, and tick <code className="font-mono text-xs">whatsapp_business_messaging</code> and{' '}
-        <code className="font-mono text-xs">whatsapp_business_management</code>. The temporary token on API Setup stops working after a day.
-      </li>
-      <li>
-        In the app's <b className="text-ink">App settings → Basic</b>, show and copy the <b className="text-ink">App secret</b>.
-      </li>
-    </ol>
-  );
+  return <SetupGuide steps={whatsAppSetupSteps()} after="Then paste the values below" label="Set up WhatsApp in Meta" />;
 }
 
 const EMPTY: WhatsAppConnectInput = { phone_number_id: '', waba_id: '', access_token: '', app_secret: '', name: '' };
@@ -126,8 +100,8 @@ export function WhatsAppConnectSheet({ onClose }: { onClose: () => void }) {
       title={number ? `${number.display_phone || number.channel.name} is connected` : 'Connect your WhatsApp number'}
       description={
         number
-          ? 'One more step: tell your Meta app where to send messages.'
-          : "Use a WhatsApp number from your own Meta app. Meta doesn't need to verify your business for the assistant to answer customers who message you."
+          ? 'Last steps in Meta: publish the app, add the webhook, then send a test message.'
+          : 'Use a WhatsApp number from your own Meta app. Meta delivers messages once the app is published.'
       }
       footer={
         number ? (
@@ -164,10 +138,10 @@ export function WhatsAppConnectSheet({ onClose }: { onClose: () => void }) {
             <h3 className="text-[0.9375rem] font-bold text-ink">2. Paste the four values</h3>
             {formError && <Callout tone="danger" icon={<AlertTriangle />} title={formError} />}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Phone number ID" hint="Under the number on API Setup, not the number itself." error={errors.phone_number_id ?? local('phone_number_id') ?? undefined}>
+              <Field label="Phone number ID" hint="On Step 1. Try it out, next to the number. Not the number itself." error={errors.phone_number_id ?? local('phone_number_id') ?? undefined}>
                 <Input value={v.phone_number_id} onChange={(e) => set('phone_number_id', e.target.value.slice(0, 40))} inputMode="numeric" className="font-mono text-xs" aria-label="Phone number ID" />
               </Field>
-              <Field label="WhatsApp Business Account ID" error={errors.waba_id ?? local('waba_id') ?? undefined}>
+              <Field label="WhatsApp Business Account ID" hint="Meta calls it Messaging account ID." error={errors.waba_id ?? local('waba_id') ?? undefined}>
                 <Input value={v.waba_id} onChange={(e) => set('waba_id', e.target.value.slice(0, 40))} inputMode="numeric" className="font-mono text-xs" aria-label="WhatsApp Business Account ID" />
               </Field>
             </div>
@@ -233,30 +207,13 @@ export function WebhookSetup({ id, initial }: { id: string; initial?: WhatsAppCo
         <WebhookStatus number={number} />
         {!webhookWorking(number) && <Clock className="size-3.5 animate-pulse text-ink-faint" aria-hidden />}
       </div>
-      <ol className="grid list-decimal gap-2 pl-5 text-[0.8125rem] leading-relaxed text-ink-muted marker:font-semibold marker:text-ink">
-        <li>
-          In your Meta app, open <b className="text-ink">WhatsApp → Configuration</b>. Under Webhook, click <b className="text-ink">Edit</b>, paste these two, then{' '}
-          <b className="text-ink">Verify and save</b>.
-        </li>
-        <li>
-          Under <b className="text-ink">Webhook fields</b>, click Manage and subscribe to <code className="font-mono text-xs">messages</code>.
-        </li>
-      </ol>
       <Field label="Callback URL">
         <CopyField value={number.webhook_url} />
       </Field>
       <Field label="Verify token">
         <CopyField value={number.verify_token} masked />
       </Field>
-      <Callout tone="neutral" icon={<CheckCircle2 />}>
-        <span className="grid gap-1 text-[0.8125rem] text-ink-muted">
-          <span>
-            Messages from your own phone arrive while the app is in development. If messages from customers don't, switch the app to <b className="text-ink">Live</b> at the top of the app
-            dashboard (it asks for a privacy policy URL).
-          </span>
-          <span>WhatsApp lets your team reply within 24 hours of the customer's last message. After that, the reply is saved but not sent.</span>
-        </span>
-      </Callout>
+      <SetupGuide steps={whatsAppAfterSteps()} label="Finish in Meta" />
     </div>
   );
 }
