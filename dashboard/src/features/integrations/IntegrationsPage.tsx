@@ -27,7 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useApiKeys } from '@/lib/api/endpoints/business';
-import { useChannelIcon, useChannels, useChannelTypes, useCreateChannel, useDeleteChannel, useUpdateChannel, useWhatsApp } from '@/lib/api/endpoints/channels';
+import { useChannelIcon, useChannels, useChannelTypes, useCreateChannel, useDeleteChannel, useMeta, useUpdateChannel, useWhatsApp } from '@/lib/api/endpoints/channels';
 import { useDeleteWebhook, useRotateWebhookSecret, useSaveWebhook, useTestWebhook, useTools, useWebhook } from '@/lib/api/endpoints/bot';
 import type { Channel, ChannelInput, Webhook, WebhookDelivery } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
@@ -38,6 +38,7 @@ import { useScopeCtx } from '@/lib/session/scope-context';
 import { isShopifyChannel, shopifyToolsUnavailable } from '@/lib/shopify';
 import { isWooCommerceChannel, wooCommerceToolsUnavailable } from '@/lib/woocommerce';
 import { isWhatsAppChannel } from '@/lib/whatsapp';
+import { META_LABEL, isMetaChannel, isMetaProvider, metaAccountLabel } from '@/lib/meta';
 import {
   Badge,
   Button,
@@ -73,6 +74,7 @@ export { WidgetTab } from './WidgetTab';
 import { ConnectReturnBanner, ConnectedChatSetup, CustomizeChatButton, ShopifyConnectButton, ShopifyToolsPrompt, useConnectReturn } from './shopify';
 import { WooCommerceConnectButton } from './woocommerce';
 import { WhatsAppConnectButton, WhatsAppPanel } from './whatsapp';
+import { MetaConnectButton, MetaPanel } from './meta';
 import { buildLlmGuide } from './llm-guide';
 import { ALL_LANGS, LangPicker, RecipeCode, RecipePicker, useLang, useLangPack, useRecipe, useWebRecipes } from './languages';
 import { WEB_SDK_DOCS, type IntegrationCode, type Lang, type LangPack } from './snippets/types';
@@ -131,8 +133,8 @@ export function CatalogTab() {
     () =>
       types.data
         ? INTEGRATIONS.filter((i) => !i.channelType || types.data.some((t) => t.id === i.channelType))
-        : // Shopify and WhatsApp can only be connected when the API lists the type, so they wait for the catalog.
-          INTEGRATIONS.filter((i) => i.connect !== 'shopify' && i.connect !== 'whatsapp'),
+        : // Shopify and the Meta channels can only be connected when the API lists the type, so they wait for the catalog.
+          INTEGRATIONS.filter((i) => i.connect !== 'shopify' && i.connect !== 'whatsapp' && i.connect !== 'messenger' && i.connect !== 'instagram'),
     [types.data],
   );
   // Connect integrations have no guide, even from an old ?guide= link.
@@ -233,6 +235,8 @@ export function CatalogTab() {
                   );
                 if (i.connect === 'shopify') return <ShopifyCard key={i.id} i={i} channels={(channels.data ?? []).filter(isShopifyChannel)} prefill={shop} />;
                 if (i.connect === 'whatsapp') return <WhatsAppCard key={i.id} i={i} channels={(channels.data ?? []).filter(isWhatsAppChannel)} />;
+                if (i.connect === 'messenger' || i.connect === 'instagram')
+                  return <MetaCard key={i.id} i={i} provider={i.connect} channels={(channels.data ?? []).filter((c) => c.type === i.connect)} />;
                 const n = connected(i).length;
                 const card = (
                   <>
@@ -362,6 +366,40 @@ function WhatsAppCard({ i, channels }: { i: Integration; channels: Channel[] }) 
           <>
             <span className="text-xs text-ink-faint">{channels.length ? 'Turned off' : 'Not connected'}</span>
             <WhatsAppConnectButton size="xs" />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Messenger or Instagram: the business's own Facebook Page, connected with values from its Meta app. */
+function MetaCard({ i, provider, channels }: { i: Integration; provider: 'messenger' | 'instagram'; channels: Channel[] }) {
+  const { href } = useScopeCtx();
+  const active = channels.filter((c) => c.active);
+  const what = provider === 'instagram' ? 'accounts' : 'Pages';
+  return (
+    <div className={CARD}>
+      <CardHead i={i} />
+      <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+        {active.length ? (
+          <>
+            <Badge tone="live" dot className="min-w-0">
+              <span className="truncate">{active.length > 1 ? `Connected · ${active.length} ${what}` : `Connected · ${active[0]!.name}`}</span>
+            </Badge>
+            <span className="flex shrink-0 items-center gap-3">
+              <MetaConnectButton provider={provider} size="xs" variant="soft">
+                {provider === 'instagram' ? 'Add account' : 'Add Page'}
+              </MetaConnectButton>
+              <Link to={href('integrations')} className="text-[0.8125rem] font-semibold text-accent hover:underline">
+                Manage →
+              </Link>
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-xs text-ink-faint">{channels.length ? 'Turned off' : 'Not connected'}</span>
+            <MetaConnectButton provider={provider} size="xs" />
           </>
         )}
       </div>
@@ -802,6 +840,14 @@ export function ChannelsTab() {
             tone: 'danger',
             onConfirm: () => del.mutateAsync(c.id),
           }
+        : isMetaChannel(c) && !c.api_keys
+        ? {
+            title: `Delete “${c.name}”?`,
+            description: `${bot.name} stops answering this ${META_LABEL[c.type as 'messenger' | 'instagram'].account}, and its Meta app stops sending messages to Truplexy (unless another channel uses the same Page). Existing tickets keep the channel's name.`,
+            confirmLabel: 'Delete channel',
+            tone: 'danger',
+            onConfirm: () => del.mutateAsync(c.id),
+          }
         : isWhatsAppChannel(c) && !c.api_keys
         ? {
             title: `Delete “${c.name}”?`,
@@ -833,6 +879,8 @@ export function ChannelsTab() {
                 ? `${c.name} is off. Its order and product lookups stop.`
                 : isWhatsAppChannel(c) && !c.api_keys
                   ? `${c.name} is off. Messages to the number get no reply.`
+                  : isMetaChannel(c) && !c.api_keys
+                  ? `${c.name} is off. Messages to it get no reply.`
                   : `${c.name} is off. Its keys stop working.`,
             enabled && isShopifyChannel(c) ? SHOPIFY_SWITCH_NOTE : undefined,
           ),
@@ -959,7 +1007,9 @@ export function ChannelsTab() {
                     : c.enabled
                       ? isWhatsAppChannel(c) && !c.api_keys
                         ? 'Turn off: messages to the number get no reply'
-                        : 'Turn off: its keys stop working'
+                        : isMetaChannel(c) && !c.api_keys
+                          ? 'Turn off: messages to it get no reply'
+                          : 'Turn off: its keys stop working'
                       : 'Turn on'
                 }
               >
@@ -1079,8 +1129,11 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
   // A WhatsApp channel is a connected number when the API has its settings; one added by hand isn't.
   const whatsApp = useWhatsApp(existing && isWhatsAppChannel(existing) ? existing.id : undefined);
   const number = existing && isWhatsAppChannel(existing) ? whatsApp.data : undefined;
+  // So is a Messenger or Instagram channel.
+  const metaProvider = existing && isMetaProvider(existing.type) ? existing.type : undefined;
+  const metaAccount = useMeta(metaProvider ?? 'messenger', metaProvider ? existing?.id : undefined).data;
   const store = Boolean(existing && (isShopifyChannel(existing) || isWooCommerceChannel(existing)));
-  const connected = store || Boolean(number);
+  const connected = store || Boolean(number) || Boolean(metaAccount);
   // Offered types, upcoming ones (listed but not pickable), and the channel's own
   // type even when it's upcoming or hidden now: it may keep it. Shopify stores are
   // added with Connect, never by hand.
@@ -1125,6 +1178,7 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
     >
       <div className="grid gap-4">
       {existing && isWhatsAppChannel(existing) && <WhatsAppPanel channel={existing} />}
+      {existing && metaProvider && <MetaPanel provider={metaProvider} channel={existing} />}
       <form
         className="grid gap-4"
         onSubmit={(e) => {
@@ -1142,6 +1196,8 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
           hint={
             number ? (
               `Connected to ${number.display_phone || number.phone_number_id}.`
+            ) : metaAccount ? (
+              `Connected to ${metaAccountLabel(metaAccount)}.`
             ) : connected ? (
               `Connected to ${existing?.external_id || (existing && isWooCommerceChannel(existing) ? 'a WooCommerce store' : 'a Shopify store')}.`
             ) : existing ? (
@@ -1184,6 +1240,10 @@ function ChannelSheet({ channel, onClose }: { channel: Channel | 'new' | { type:
               ? c.enabled
                 ? 'The assistant answers messages to this number.'
                 : "Messages to this number get no reply until it's back on."
+              : metaAccount
+              ? c.enabled
+                ? `The assistant answers messages to ${metaAccountLabel(metaAccount)}.`
+                : "Messages get no reply until it's back on."
               : connected
               ? c.enabled
                 ? "The assistant can look up the store's orders and products."

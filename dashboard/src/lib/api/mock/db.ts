@@ -204,6 +204,8 @@ export interface MockDb {
   channelWidgets?: Record<string, { enabled: boolean; saved_at: number }>;
   /** Connected WhatsApp numbers, by channel ID. The demo has no Meta, so the webhook "checks in" a few seconds after connecting. */
   whatsappNumbers?: Record<string, MockWhatsAppNumber>;
+  /** Connected Facebook Pages (Messenger) and Instagram accounts, by channel ID; their webhook "checks in" like WhatsApp's. */
+  metaAccounts?: Record<string, MockMetaAccount>;
   /** Each bot's chat widget (one look for every place it is shown), by `<tenant>/<bot>`. Absent until one is saved. */
   botWidgets?: Record<string, { settings: WidgetSettings; picture_url: string }>;
   customers: MockCustomer[];
@@ -271,6 +273,16 @@ export interface MockWhatsAppNumber {
   waba_id: string;
   display_phone: string;
   verified_name: string;
+  verify_token: string;
+  connected_at: number;
+}
+
+export interface MockMetaAccount {
+  provider: 'messenger' | 'instagram';
+  page_id: string;
+  account_id: string;
+  account_name: string;
+  username?: string;
   verify_token: string;
   connected_at: number;
 }
