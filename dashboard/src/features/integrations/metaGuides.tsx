@@ -43,12 +43,12 @@ function systemUserSteps(kind: 'page' | 'whatsapp', permissions: string[]): Guid
             <>
               {p(
                 <>
-                  <B>Pages</B> → tick your Page → turn on <B>Full control → Everything</B>. Click Assign.
+                  <B>Pages</B> → tick your Page → turn on <B>Full access → Everything</B>. Click Assign assets.
                 </>,
               )}
               {p(
                 <>
-                  Then Assign assets again: <B>Apps</B> → tick the app you made → turn on <B>Full control → Manage app</B>. Click Assign.
+                  Then Assign assets again: <B>Apps</B> → tick the app you made → turn on <B>Full access → Manage app</B>. Click Assign assets.
                 </>,
               )}
             </>
@@ -56,12 +56,12 @@ function systemUserSteps(kind: 'page' | 'whatsapp', permissions: string[]): Guid
             <>
               {p(
                 <>
-                  <B>Apps</B> → tick the app you made → turn on <B>Full control → Manage app</B>. Click Assign.
+                  <B>Apps</B> → tick the app you made → turn on <B>Full access → Manage app</B>. Click Assign assets.
                 </>,
               )}
               {p(
                 <>
-                  Then Assign assets again: <B>WhatsApp accounts</B> → tick the account → turn on <B>Full control</B>. Click Assign.
+                  Then Assign assets again: <B>WhatsApp accounts</B> → tick the account → turn on <B>Full access → Everything</B>. Click Assign assets.
                 </>,
               )}
             </>
@@ -70,8 +70,8 @@ function systemUserSteps(kind: 'page' | 'whatsapp', permissions: string[]): Guid
       ),
       shots:
         kind === 'page'
-          ? [shot('assign-page', 'Assign assets: the Page ticked with Full control, Everything'), shot('assign-app', 'Assign assets: the app ticked with Manage app')]
-          : [shot('assign-app', 'Assign assets: the app ticked with Manage app')],
+          ? [shot('assign-page', 'Assign assets: the Page ticked with Full access, Everything'), shot('assign-app', 'Assign assets: the app ticked with Manage app')]
+          : [shot('assign-app', 'Assign assets: the app ticked with Manage app'), shot('wa-assign-account', 'Assign assets: the WhatsApp account ticked with Full access, Everything')],
     },
     {
       title: 'Generate a token that never expires',
@@ -95,7 +95,10 @@ function systemUserSteps(kind: 'page' | 'whatsapp', permissions: string[]): Guid
             )}
         </>
       ),
-      shots: [shot('token-never', 'Generate token: Token expiration set to Never'), shot('token-permissions', 'Generate token: the permissions ticked and the Generate token button')],
+      shots: [
+        shot('token-never', 'Generate token: Token expiration set to Never'),
+        shot(kind === 'page' ? 'token-permissions' : 'wa-token-permissions', 'Generate token: the permissions ticked and the Generate token button'),
+      ],
     },
   ];
 }
@@ -219,7 +222,7 @@ export function metaSetupSteps(provider: MetaProvider): GuideStep[] {
   ];
 }
 
-/** WhatsApp: from a new app to the four values the form asks for. */
+/** WhatsApp: from a new app to the four values the form asks for (Meta's layout as of November 2026). */
 export function whatsAppSetupSteps(): GuideStep[] {
   return [
     {
@@ -231,11 +234,29 @@ export function whatsAppSetupSteps(): GuideStep[] {
               In Meta for Developers, click <B>Create app</B>. Give it a name, then under use cases pick <B>Business messaging</B> and tick <B>Connect with customers through WhatsApp</B>.
             </>,
           )}
-          {p(<>Pick your business portfolio when asked, then <B>Create app</B>. Meta adds a WhatsApp Business Account and a free test number.</>)}
+          {p(<>Pick your business portfolio when asked, then <B>Create app</B>.</>)}
         </>
       ),
       shots: [shot('use-case-whatsapp', 'Create app, use cases: Business messaging with the WhatsApp use case ticked')],
       link: { href: META_LINKS.apps, label: 'Open Meta for Developers' },
+    },
+    {
+      title: 'Turn on WhatsApp',
+      body: (
+        <>
+          {p(
+            <>
+              On the app's dashboard, click <B>Customize</B> next to the WhatsApp use case, then <B>Step 1. Try it out</B>.
+            </>,
+          )}
+          {p(
+            <>
+              Check the business portfolio is yours and click <B>Continue</B>. This accepts Meta's WhatsApp terms and gives you a WhatsApp Business Account with a free test number.
+            </>,
+          )}
+        </>
+      ),
+      shots: [shot('wa-terms', 'Step 1. Try it out: the business portfolio and the Continue button')],
     },
     {
       title: 'Copy the two IDs',
@@ -243,17 +264,26 @@ export function whatsAppSetupSteps(): GuideStep[] {
         <>
           {p(
             <>
-              In the app, open <B>WhatsApp → API Setup</B>. Under the number, copy the <B>Phone number ID</B> and the <B>WhatsApp Business Account ID</B>. They're long numbers, not the phone
-              number itself.
+              Still on <B>Step 1. Try it out</B>, copy the <B>Phone Number ID</B> and the <B>Messaging account ID</B>. Paste the Messaging account ID in the form's WhatsApp Business Account ID
+              field. Both are long numbers, not the phone number itself.
             </>,
           )}
-          {p(<>To use your own number instead of the test one, click Add phone number there first and verify it by SMS.</>)}
+          {p(
+            <>
+              To use your own number instead of the test one: open <B>Step 2. Production setup</B> → <B>Register your WhatsApp phone number</B> → <B>Add phone number</B>, and verify it. Then copy
+              its Phone Number ID instead.
+            </>,
+          )}
         </>
       ),
+      shots: [
+        shot('wa-api-setup', 'Step 1. Try it out: the Phone Number ID and the Messaging account ID'),
+        shot('wa-register', 'Step 2. Production setup: Add phone number, to use your own number'),
+      ],
       link: { href: META_LINKS.docs, label: "Meta's WhatsApp getting-started guide" },
     },
     ...systemUserSteps('whatsapp', WHATSAPP_PERMISSIONS),
-    appSecretStep(p(<>Don't use the temporary token on API Setup: it stops working after a day.</>)),
+    appSecretStep(p(<>Don't use the token from Step 1. Try it out: it stops working after a day.</>)),
   ];
 }
 
@@ -336,6 +366,82 @@ export function metaAfterSteps(provider: MetaProvider): GuideStep[] {
       ),
       shots: [shot('publish', 'The app dashboard: the Publish step and button')],
       link: { href: META_PAGE_LINKS.apps, label: 'Open your apps' },
+    },
+  ];
+}
+
+/** After connecting a WhatsApp number: publishing (Meta delivers nothing before), the webhook, a test, and going live. */
+export function whatsAppAfterSteps(): GuideStep[] {
+  return [
+    {
+      title: 'Publish the app',
+      body: (
+        <>
+          {p(
+            <>
+              Do this first. Until the app is published, Meta delivers <B>no</B> WhatsApp messages to the assistant, not even yours.
+            </>,
+          )}
+          {p(
+            <>
+              In your app, click <B>Publish</B> in the left menu and publish it. It needs the Privacy policy URL from App settings → Basic.
+            </>,
+          )}
+        </>
+      ),
+      shots: [shot('publish', 'The app dashboard: the Publish step and button')],
+      link: { href: META_LINKS.apps, label: 'Open your apps' },
+    },
+    {
+      title: 'Add the webhook',
+      body: (
+        <>
+          {p(
+            <>
+              In the WhatsApp use case, open <B>Step 2. Production setup</B>. Under <B>Configure Webhooks</B>, paste the <B>Callback URL</B> and <B>Verify token</B> from above and click{' '}
+              <B>Verify and save</B>.
+            </>,
+          )}
+          {p(
+            <>
+              If Meta then lists webhook fields, subscribe to <C>messages</C>. The status above turns green when Meta has checked the webhook.
+            </>,
+          )}
+        </>
+      ),
+      shots: [shot('wa-webhook', 'Step 2. Production setup: Callback URL, Verify token, and Verify and save')],
+    },
+    {
+      title: 'Send a test message',
+      body: (
+        <>
+          {p(
+            <>
+              Send the number a WhatsApp message from your own phone. The assistant should answer, and the status above shows <B>Receiving messages</B>.
+            </>,
+          )}
+          {p(
+            <>
+              On Meta's free test number, only up to five phone numbers can chat. Add yours under <B>Step 1. Try it out → Recipient</B> first.
+            </>,
+          )}
+        </>
+      ),
+    },
+    {
+      title: 'Answer everyone',
+      body: (
+        <>
+          {p(
+            <>
+              For customers to reach you, use your own number rather than the test one: <B>Step 2. Production setup → Register your WhatsApp phone number → Add phone number</B>. Then connect
+              that number in Truplexy with its own Phone Number ID.
+            </>,
+          )}
+          {p(<>WhatsApp lets your team reply within 24 hours of the customer's last message. After that, the reply is saved but not sent.</>)}
+        </>
+      ),
+      shots: [shot('wa-register', 'Step 2. Production setup: Add phone number')],
     },
   ];
 }
