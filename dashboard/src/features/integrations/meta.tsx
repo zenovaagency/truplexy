@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, KeyRound, Lock, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Clock, KeyRound, Lock, MessageCircle } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import { useConnectMeta, useMeta, useUpdateMetaCredentials } from '@/lib/api/endpoints/channels';
 import type { Channel, MetaConnectInput, MetaConnection, MetaProvider } from '@/lib/api/types';
 import { formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { META_LABEL, META_PAGE_LINKS, META_PERMISSIONS, metaAccountLabel, metaFieldError, metaWebhookWorking, type MetaField } from '@/lib/meta';
+import { META_LABEL, metaAccountLabel, metaFieldError, metaWebhookWorking, type MetaField } from '@/lib/meta';
 import { Badge, Button, Callout, CopyField, Field, Input, Sheet } from '@/components/ui';
+import { SetupGuide } from './SetupGuide';
+import { metaAfterSteps, metaSetupSteps } from './metaGuides';
 
 const UNAVAILABLE = "Messenger and Instagram connections aren't set up on this server yet.";
 
@@ -26,58 +28,9 @@ function refusal(provider: MetaProvider, e: unknown, setErrors: (e: Errors) => v
   return true;
 }
 
-function A({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-accent hover:underline">
-      {children}
-      <ExternalLink className="size-3" />
-    </a>
-  );
-}
-
-const B = ({ children }: { children: React.ReactNode }) => <b className="text-ink">{children}</b>;
-const C = ({ children }: { children: React.ReactNode }) => <code className="font-mono text-xs">{children}</code>;
-
-const STEPS = 'grid list-decimal gap-2.5 pl-5 text-[0.8125rem] leading-relaxed text-ink-muted marker:font-semibold marker:text-ink';
-
-/** What to do in Meta before the form: the Page (and Instagram account), an app, a lasting token and the app secret. */
+/** What to do in Meta before the form, one step at a time with a screenshot of each. */
 export function MetaGuide({ provider }: { provider: MetaProvider }) {
-  const ig = provider === 'instagram';
-  const permissions = META_PERMISSIONS[provider];
-  return (
-    <ol className={STEPS}>
-      {ig ? (
-        <li>
-          Make sure your Instagram account is a <B>professional</B> (business or creator) account and is <B>linked to a Facebook Page</B>: on the Page, open Settings → Linked accounts →
-          Instagram. Then, in the Instagram app, open Settings → Messages and story replies → Message controls → Connected tools and turn on <B>Allow access to messages</B>.
-        </li>
-      ) : (
-        <li>
-          You need a <B>Facebook Page</B> that you're an admin of, ideally in your <A href={META_PAGE_LINKS.pages}>Meta Business portfolio</A>.
-        </li>
-      )}
-      <li>
-        In <A href={META_PAGE_LINKS.apps}>Meta for Developers</A>, create an app of type <B>Business</B> (or with the use case <B>Engage with customers on Messenger from Meta</B>
-        {ig ? ', then add Instagram with “API setup with Facebook login”' : ''}). Connect the app to the same Business portfolio as the Page.
-      </li>
-      <li>
-        In <A href={META_PAGE_LINKS.systemUsers}>Business settings → System users</A>, add an <B>Admin</B> system user. Under <B>Assign assets</B>, give it the Page (full control) and the app.
-        Then <B>Generate token</B>: pick the app, set it to <B>never expire</B>, and tick {permissions.map((p, i) => (
-          <span key={p}>
-            <C>{p}</C>
-            {i < permissions.length - 2 ? ', ' : i === permissions.length - 2 ? ' and ' : ''}
-          </span>
-        ))}
-        . A Page access token works too, but one from a person stops working when they log out or change their password.
-      </li>
-      <li>
-        Copy the <B>Page ID</B>: on your Page, open About → Page transparency, or find it next to the Page in your app's {ig ? 'Instagram' : 'Messenger'} settings. It's a long number.
-      </li>
-      <li>
-        In the app's <B>App settings → Basic</B>, show and copy the <B>App secret</B>.
-      </li>
-    </ol>
-  );
+  return <SetupGuide steps={metaSetupSteps(provider)} after="Then paste the values below" label={`Set up ${META_LABEL[provider].name} in Meta`} />;
 }
 
 const EMPTY: MetaConnectInput = { page_id: '', access_token: '', app_secret: '', name: '' };
@@ -158,10 +111,10 @@ export function MetaConnectSheet({ provider, onClose }: { provider: MetaProvider
       title={account ? `${metaAccountLabel(account)} is connected` : ig ? 'Connect your Instagram account' : 'Connect your Facebook Page'}
       description={
         account
-          ? 'One more step: tell your Meta app where to send messages.'
+          ? 'Last steps in Meta: add the webhook, send a test message, then open it to customers.'
           : ig
-            ? "Answer Instagram Direct messages through your own Meta app. Your Instagram account must be linked to a Facebook Page, and Meta doesn't need to review your app to reply to people who message you."
-            : "Answer your Page's Messenger inbox through your own Meta app. Meta doesn't need to review your app to reply to people who message your Page."
+            ? 'Answer Instagram Direct messages through your own Meta app. Customers reach the assistant once Meta has reviewed the app.'
+            : "Answer your Page's Messenger inbox through your own Meta app. Customers reach the assistant once Meta has reviewed the app."
       }
       footer={
         account ? (
@@ -266,47 +219,19 @@ export function MetaWebhookSetup({ provider, id, initial }: { provider: MetaProv
   const account = q.data ?? initial;
   if (!done && metaWebhookWorking(q.data)) setDone(true);
   if (!account) return null;
-  const ig = provider === 'instagram';
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <WebhookStatus account={account} />
         {!metaWebhookWorking(account) && <Clock className="size-3.5 animate-pulse text-ink-faint" aria-hidden />}
       </div>
-      <ol className={STEPS}>
-        <li>
-          In your Meta app, open <B>Webhooks</B> (in the app dashboard's left menu, or {ig ? 'Instagram' : 'Messenger'} → Settings → Configure webhooks). Pick the{' '}
-          <B>{ig ? 'Instagram' : 'Page'}</B> object and click <B>Subscribe to this object</B> (or Edit subscription).
-        </li>
-        <li>
-          Paste the two values below, then <B>Verify and save</B>.
-        </li>
-        <li>
-          In the list of fields, subscribe to <C>messages</C> and <C>messaging_postbacks</C>.
-        </li>
-      </ol>
       <Field label="Callback URL">
         <CopyField value={account.webhook_url} />
       </Field>
       <Field label="Verify token">
         <CopyField value={account.verify_token} masked />
       </Field>
-      <Callout tone="neutral" icon={<CheckCircle2 />}>
-        <span className="grid gap-1 text-[0.8125rem] text-ink-muted">
-          <span>
-            While the app is in development, only people with a role on it (you, developers and testers) reach the assistant. Switch the app to <B>Live</B> at the top of the app dashboard (it
-            asks for a privacy policy URL) so everyone does. If messages from other people still don't arrive, request <B>Advanced access</B> to <C>pages_messaging</C>
-            {ig ? (
-              <>
-                {' '}
-                and <C>instagram_manage_messages</C>
-              </>
-            ) : null}{' '}
-            under App Review → Permissions and features.
-          </span>
-          <span>{ig ? 'Instagram' : 'Messenger'} lets your team reply within 24 hours of the customer's last message. After that, the reply is saved but not sent.</span>
-        </span>
-      </Callout>
+      <SetupGuide steps={metaAfterSteps(provider)} label="Finish in Meta" />
     </div>
   );
 }

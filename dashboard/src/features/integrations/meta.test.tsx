@@ -128,6 +128,7 @@ async function render(tab: 'catalog' | 'channels' | 'connect', s: Setup = {}) {
 
 const page = () => document.body.textContent ?? '';
 const button = (name: string) => [...document.body.querySelectorAll('button')].find((b) => b.textContent?.trim() === name) as HTMLButtonElement;
+const step = (title: string) => [...document.body.querySelectorAll<HTMLButtonElement>('button[aria-label]')].find((b) => b.getAttribute('aria-label')?.endsWith(`: ${title}`))!;
 /** The sheet's own submit button. */
 const submit = (name = 'Connect Messenger') => [...document.body.querySelectorAll('button')].filter((b) => b.textContent?.trim() === name).at(-1) as HTMLButtonElement;
 const input = (label: string) => document.body.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
@@ -164,6 +165,13 @@ describe('connecting a Facebook Page', () => {
     await render('connect');
     await click(button('Connect Page'));
     expect(page()).toContain('Set up in Meta');
+    expect(page()).toContain('Step 1 of 7');
+    expect(page()).toContain('Find your Page ID');
+    expect(page()).not.toContain("doesn't need to review");
+    await click(button('Next: Create a Meta app'));
+    expect(page()).toContain('Step 2 of 7');
+    await click(step('Generate a token that never expires'));
+    expect(page()).toContain('Never');
     expect(page()).toContain('pages_messaging');
     expect(page()).not.toContain('instagram_manage_messages');
     await fill();
@@ -174,6 +182,9 @@ describe('connecting a Facebook Page', () => {
     expect(page()).toContain('https://api.test/v1/channels/meta/webhooks/chn_fb');
     expect(page()).toContain('Waiting for Meta to check the webhook');
     expect(page()).not.toContain('tpx_0123');
+    expect(page()).toContain('Messenger API Settings');
+    await click(step('Answer everyone'));
+    expect(page()).toContain('App Review');
   });
 
   it('notices Meta checking the webhook', async () => {
@@ -225,6 +236,8 @@ describe('connecting an Instagram account', () => {
     });
     await click(button('Connect account'));
     expect(page()).toContain('Allow access to messages');
+    expect(page()).toContain('Step 1 of 8');
+    await click(step('Generate a token that never expires'));
     expect(page()).toContain('instagram_manage_messages');
     await fill();
     await click(submit('Connect Instagram'));

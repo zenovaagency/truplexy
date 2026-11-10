@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, KeyRound, Lock, MessageCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, KeyRound, Lock, MessageCircle } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import { useConnectWhatsApp, useUpdateWhatsAppCredentials, useWhatsApp } from '@/lib/api/endpoints/channels';
 import type { Channel, WhatsAppConnectInput, WhatsAppConnection } from '@/lib/api/types';
 import { formatRelative } from '@/lib/format';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { META_LINKS, whatsAppFieldError, webhookWorking, type WhatsAppField } from '@/lib/whatsapp';
+import { whatsAppFieldError, webhookWorking, type WhatsAppField } from '@/lib/whatsapp';
 import { Badge, Button, Callout, CopyField, Field, Input, Sheet } from '@/components/ui';
+import { SetupGuide } from './SetupGuide';
+import { whatsAppSetupSteps } from './metaGuides';
 
 const UNAVAILABLE = "WhatsApp connections aren't set up on this server yet.";
 
@@ -26,37 +28,9 @@ function refusal(e: unknown, setErrors: (e: Errors) => void, setFormError: (m: s
   return true;
 }
 
-function A({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-accent hover:underline">
-      {children}
-      <ExternalLink className="size-3" />
-    </a>
-  );
-}
-
-/** What to do in Meta before the form: an app with WhatsApp, the two IDs, a lasting token and the app secret. */
+/** What to do in Meta before the form, one step at a time with a screenshot of each. */
 function MetaGuide() {
-  return (
-    <ol className="grid list-decimal gap-2.5 pl-5 text-[0.8125rem] leading-relaxed text-ink-muted marker:font-semibold marker:text-ink">
-      <li>
-        In <A href={META_LINKS.apps}>Meta for Developers</A>, create an app of type <b className="text-ink">Business</b> and add <b className="text-ink">WhatsApp</b> to it. Meta gives it a
-        WhatsApp Business Account and a free test number.
-      </li>
-      <li>
-        Open <b className="text-ink">WhatsApp → API Setup</b>. Copy the <b className="text-ink">Phone number ID</b> and the <b className="text-ink">WhatsApp Business Account ID</b>. To use your
-        own number instead of the test one, add it there first.
-      </li>
-      <li>
-        In <A href={META_LINKS.systemUsers}>Business settings → System users</A>, add an admin system user, give it the app and the WhatsApp account with full control, then{' '}
-        <b className="text-ink">Generate token</b>: pick the app, set it to <b className="text-ink">never expire</b>, and tick <code className="font-mono text-xs">whatsapp_business_messaging</code> and{' '}
-        <code className="font-mono text-xs">whatsapp_business_management</code>. The temporary token on API Setup stops working after a day.
-      </li>
-      <li>
-        In the app's <b className="text-ink">App settings → Basic</b>, show and copy the <b className="text-ink">App secret</b>.
-      </li>
-    </ol>
-  );
+  return <SetupGuide steps={whatsAppSetupSteps()} after="Then paste the values below" label="Set up WhatsApp in Meta" />;
 }
 
 const EMPTY: WhatsAppConnectInput = { phone_number_id: '', waba_id: '', access_token: '', app_secret: '', name: '' };
