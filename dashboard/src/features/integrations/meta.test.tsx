@@ -56,7 +56,8 @@ const account = (more: Partial<MetaConnection> = {}): MetaConnection => ({
 });
 
 interface Setup {
-  channels?: Channel[];
+  /** The bot's channels; a function is asked again on each load, so it can change after a connect. */
+  channels?: Channel[] | (() => Channel[]);
   connect?: (body: any) => Response;
   status?: () => Response;
   can?: (p: string) => boolean;
@@ -88,7 +89,7 @@ async function render(tab: 'catalog' | 'channels' | 'connect', s: Setup = {}) {
       const body = req.method === 'GET' || req.method === 'DELETE' ? undefined : await req.json().catch(() => undefined);
       calls.push({ method: req.method, path, body });
       if (path === '/channel-types') return json(200, { data: TYPES });
-      if (path === '/channels') return json(200, { data: s.channels ?? [] });
+      if (path === '/channels') return json(200, { data: (typeof s.channels === 'function' ? s.channels() : s.channels) ?? [] });
       if (path === '/tools') return json(200, { data: [], database_configured: true });
       if (path === '/api-keys') return json(200, { data: [] });
       if (path === '/channels/messenger' || path === '/channels/instagram') return s.connect?.(body) ?? json(201, account());
@@ -160,16 +161,40 @@ describe('the catalog', () => {
   });
 });
 
+describe('connecting from the catalog', () => {
+  it('keeps the sheet open on the webhook step when the card turns to connected', async () => {
+    let connected = false;
+    await render('catalog', {
+      channels: () => (connected ? [channel()] : []),
+      connect: () => {
+        connected = true;
+        return json(201, account());
+      },
+    });
+    await click(button('Connect Page'));
+    await fill();
+    await click(submit());
+    await tick();
+    expect(page()).toContain('Connected · Acme Messenger');
+    expect(page()).toContain('Acme Goods is connected');
+    expect(page()).toContain('https://api.test/v1/channels/meta/webhooks/chn_fb');
+    expect(page()).toContain('Next: Turn on message events');
+  });
+});
+
 describe('connecting a Facebook Page', () => {
   it('walks through Meta, sends the three values, then shows the webhook settings', async () => {
     await render('connect');
     await click(button('Connect Page'));
     expect(page()).toContain('Set up in Meta');
-    expect(page()).toContain('Step 1 of 7');
-    expect(page()).toContain('Find your Page ID');
+    expect(page()).toContain('Step 1 of 8');
+    expect(page()).toContain('Before you start');
+    expect(page()).toContain('register as a developer');
+    expect(page()).toContain('Create a Page');
     expect(page()).not.toContain("doesn't need to review");
-    await click(button('Next: Create a Meta app'));
-    expect(page()).toContain('Step 2 of 7');
+    await click(button('Next: Find your Page ID'));
+    expect(page()).toContain('Step 2 of 8');
+    expect(page()).toContain('Business settings → Accounts → Pages');
     await click(step('Generate a token that never expires'));
     expect(page()).toContain('Never');
     expect(page()).toContain('pages_messaging');
@@ -183,6 +208,11 @@ describe('connecting a Facebook Page', () => {
     expect(page()).toContain('Waiting for Meta to check the webhook');
     expect(page()).not.toContain('tpx_0123');
     expect(page()).toContain('Messenger API Settings');
+    await click(step('Turn on message events'));
+    expect(page()).toContain('Add Subscriptions');
+    expect(page()).toContain('messaging_postbacks');
+    await click(step('Send a test message'));
+    expect(document.body.querySelector('a[href="https://m.me/104857600012345"]')).toBeTruthy();
     await click(step('Answer everyone'));
     expect(page()).toContain('App Review');
   });
@@ -235,8 +265,10 @@ describe('connecting an Instagram account', () => {
         json(201, account({ provider: 'instagram', account_id: '17841400000000001', account_name: 'Acme', username: 'acmegoods', channel: channel({ type: 'instagram' }) })),
     });
     await click(button('Connect account'));
+    expect(page()).toContain('Step 1 of 9');
+    expect(page()).toContain('professional');
+    await click(step('Link Instagram to your Page'));
     expect(page()).toContain('Allow access to messages');
-    expect(page()).toContain('Step 1 of 8');
     await click(step('Generate a token that never expires'));
     expect(page()).toContain('instagram_manage_messages');
     await fill();

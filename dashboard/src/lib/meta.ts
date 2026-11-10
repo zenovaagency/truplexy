@@ -17,6 +17,11 @@ export const META_LABEL: Record<MetaProvider, { name: string; account: string }>
 /** Where the person does each step in Meta. */
 export const META_PAGE_LINKS = {
   apps: 'https://developers.facebook.com/apps/',
+  /** Signing up as a Meta developer, with the Facebook account that will own the app. */
+  developer: 'https://developers.facebook.com/async/registration/',
+  /** Meta Business Suite: a new account is asked to create a business portfolio here. */
+  business: 'https://business.facebook.com/',
+  createPage: 'https://www.facebook.com/pages/create',
   systemUsers: 'https://business.facebook.com/settings/system-users',
   pages: 'https://business.facebook.com/settings/pages',
   messengerDocs: 'https://developers.facebook.com/docs/messenger-platform/get-started',
