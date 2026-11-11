@@ -54,8 +54,8 @@ function validate(v: Creds, mode: 'signin' | 'signup' | 'magic' | 'reset') {
   return errs;
 }
 
-// Temporarily disabled; flip to true to bring back "Continue with Google".
-const GOOGLE_SIGN_IN_ENABLED = false;
+// Needs the Google provider turned on in Supabase Auth; set to false to hide "Continue with Google".
+const GOOGLE_SIGN_IN_ENABLED = true;
 
 function GoogleIcon() {
   return <img src="/brands/google.svg" alt="" draggable={false} className="size-4 object-contain" />;
