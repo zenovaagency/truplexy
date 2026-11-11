@@ -7,6 +7,8 @@ export const env = {
   supabaseKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
   dashboardUrl: trim(import.meta.env.VITE_DASHBOARD_URL || window.location.origin),
   useMocks: import.meta.env.VITE_USE_MOCKS === 'true',
+  /** Cloudflare Turnstile site key (public). Empty means no human check is shown. */
+  turnstileSiteKey: import.meta.env.VITE_TURNSTILE_SITE_KEY || '',
   /** The site's checkout page, on the domain Paddle approved. It opens `?_ptxn=` transactions. */
   payUrl: trim(import.meta.env.VITE_PAY_PAGE_URL || 'https://truplexy.com/pay'),
 } as const;
