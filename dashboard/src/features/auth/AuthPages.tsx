@@ -18,6 +18,7 @@ import { Splash } from '@/app/guards';
 import { StatusScreen } from '@/app/errors';
 import { BrandMark } from '@/components/layout/Brand';
 import { AuthFrame, SITE_URL } from './AuthFrame';
+import { CAPTCHA_ERROR_MESSAGE, TURNSTILE_FAILED_MESSAGE, isCaptchaError, useTurnstile } from './Turnstile';
 
 /**
  * Only this site's own pages are followed after sign-in. Email templates may pass `{{ .RedirectTo }}`, a full
@@ -75,6 +76,7 @@ export function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [endedBy] = useState(signOutReason);
   const nav = useNavigate();
+  const captcha = useTurnstile();
 
   const [v, setV] = useState<Creds>(env.useMocks ? { email: 'alex@acme.example', password: 'demo-password', name: '' } : { email: '', password: '', name: '' });
   const [errs, setErrs] = useState<Partial<Record<keyof Creds, string>>>({});
@@ -92,6 +94,7 @@ export function SignInPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captcha.ready) return;
     const found = validate(v, mode);
     setErrs(found);
     if (Object.keys(found).length) return;
@@ -99,22 +102,26 @@ export function SignInPage() {
     setSubmitting(true);
     try {
       if (mode === 'magic') {
-        await auth.sendMagicLink(v.email, next);
+        await auth.sendMagicLink(v.email, next, captcha.token);
         if (!env.useMocks) setSent(v.email);
       } else if (mode === 'reset') {
-        await auth.sendPasswordReset(v.email.trim());
+        await auth.sendPasswordReset(v.email.trim(), captcha.token);
         setSent(v.email.trim());
       } else if (mode === 'signup') {
-        const r = await auth.signUp(v.email, v.password, v.name.trim(), next);
+        const r = await auth.signUp(v.email, v.password, v.name.trim(), next, captcha.token);
         if (r.needsConfirmation) setSent(v.email);
       } else {
-        await auth.signInWithPassword(v.email, v.password);
+        await auth.signInWithPassword(v.email, v.password, captcha.token);
       }
       if (env.useMocks && mode !== 'reset') nav(next, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : mode === 'reset' ? "Couldn't send the reset email." : 'Sign-in failed.');
+      setError(
+        isCaptchaError(err) ? CAPTCHA_ERROR_MESSAGE : err instanceof Error ? err.message : mode === 'reset' ? "Couldn't send the reset email." : 'Sign-in failed.',
+      );
     } finally {
       setSubmitting(false);
+      // A token works once, whatever the outcome.
+      captcha.reset();
     }
   };
 
@@ -254,8 +261,11 @@ export function SignInPage() {
               </div>
             </Field>
           )}
-          {error && <p className="rounded-[10px] bg-danger-soft px-3 py-2 text-[0.8125rem] font-medium text-danger">{error}</p>}
-          <Button type="submit" size="md" variant="accent" className="w-full" loading={submitting} disabled={!authConfigured}>
+          <div ref={captcha.ref} />
+          {(error || captcha.failed) && (
+            <p className="rounded-[10px] bg-danger-soft px-3 py-2 text-[0.8125rem] font-medium text-danger">{error ?? TURNSTILE_FAILED_MESSAGE}</p>
+          )}
+          <Button type="submit" size="md" variant="accent" className="w-full" loading={submitting} disabled={!authConfigured || !captcha.ready}>
             {mode === 'signup' ? 'Create account' : mode === 'magic' ? 'Email me a sign-in link' : mode === 'reset' ? 'Email me a reset link' : 'Sign in'}
           </Button>
           <div className="flex items-center gap-3 text-xs text-ink-faint">
