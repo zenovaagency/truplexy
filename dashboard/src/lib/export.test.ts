@@ -22,3 +22,15 @@ describe('safeFileName', () => {
     expect(safeFileName('\u0000\t')).toBe('');
   });
 });
+
+describe('toCsv formulas', () => {
+  it('shows text a spreadsheet would run as a formula as text', () => {
+    const csv = toCsv(['subject'], [['=HYPERLINK("http://evil.example","x")'], ['+1+1'], ['-2+3'], ['@SUM(1)'], ['  =1+1'], ['\t=1+1'], ['\r=1+1']]);
+    for (const line of csv.split('\r\n').slice(1, -1).filter((l) => l.length)) expect(line.startsWith(`"'`) || line.startsWith('"\'')).toBe(true);
+    expect(csv).toContain(`"'=HYPERLINK(""http://evil.example"",""x"")"`);
+  });
+
+  it('leaves ordinary text and numbers alone', () => {
+    expect(toCsv(['a'], [['Refund = fast'], ['a-b'], ['email@x.com'], [-5], [0.5]])).toBe('﻿"a"\r\n"Refund = fast"\r\n"a-b"\r\n"email@x.com"\r\n"-5"\r\n"0.5"\r\n');
+  });
+});
