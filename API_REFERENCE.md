@@ -17,7 +17,7 @@ Contents:
 Truplexy runs its own public Discord bot. A business adds it to its Discord server from the dashboard, with no code and no key to paste. In the server, a ticket panel opens a private channel per customer, the bot answers first, and the team takes over in Discord or in the dashboard. Businesses that run their own Discord bot keep using a chat key bound to a `discord` channel, as before. Apply migration `0055_discord.sql` and set the `DISCORD_*` variables first (see the README).
 
 - **Connect:** [`POST /channels/connect`](#post-channelsconnect-v2) `{type: "discord", account?, return_to}`. The `url` is Discord's page where the person picks a server they manage and adds the bot. `account` is optional: a server ID, sent when the person came from the bot's "Link this server" button (the dashboard link carries `?connect=discord&guild_id=…`), which picks the server for them. The browser comes back to `return_to` with `connected=discord&channel_id=…&type=discord`, or `connect_error=denied|expired|invalid|store_connected_elsewhere|failed&type=discord`; `store_connected_elsewhere` means another business has the server.
-- **The channel:** a `discord` channel named after the server, with `external_id` set to the server's ID. Connecting the same server again turns its channel back on; connecting it to another bot of the business moves it and turns the first bot's channel off. When the bot is removed from the server, the channel is turned off. Deleting the channel unlinks the server.
+- **The channel:** a `discord` channel named after the server, with `external_id` set to the server's ID. Connecting the same server again turns its channel back on; connecting it to another bot of the business moves it and turns the first bot's channel off. When the bot is removed from the server, the channel is turned off. Deleting the channel unlinks the server. Only this connect sets a `discord` channel's `external_id`: creating or editing a `discord` channel with an `external_id` through `POST`/`PATCH /channels` answers 400, so a business can't claim a server it didn't install the bot on. A `discord` channel without one is for a business's own bot.
 - **Tickets:** conversations and tickets from the server carry the channel, and the customer (contact type `discord`), like any chat API integration's. A `reply` to such a ticket ([`POST /tickets/{id}/replies`](#post-ticketsidreplies)) is posted in the ticket's Discord channel, and the response gains `delivery: {status, message}` as for WhatsApp: `sent` or `failed`. Taking over, handing back and closing in the dashboard show in Discord too.
 - **Plans:** a business without a plan (`none`) keeps the bot's moderation commands, but its ticket panel and AI replies are off.
 - **What a dashboard does:** a Discord card with an "Add to Discord" button that calls the connect, the `connected`/`connect_error` banners, and the `?connect=discord&guild_id=` link that starts the connect for that server. Keep the guide for businesses that build their own bot with a chat key.
@@ -676,6 +676,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
 | `GET` | `/discord/guilds/{guild_id}` | `DISCORD_SERVICE_KEY` | Whether a server is linked, and its business's plan (v2; Truplexy's Discord bot only) |
 | `POST` | `/discord/guilds/{guild_id}/removed` | `DISCORD_SERVICE_KEY` | The bot left a server: turn its channel off (v2; Truplexy's Discord bot only) |
+| `GET` | `/discord/guilds/{guild_id}/conversations/{conversation_id}/transcript` | `DISCORD_SERVICE_KEY` | The public link of a ticket's transcript (v2; Truplexy's Discord bot only) |
+| `GET` | `/discord/transcripts/{token}` | signed link | A closed Discord ticket's transcript, as a web page (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
 | `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
 | `GET` | `/internal/cron/billing` | `CRON_SECRET` | Cancel deleted businesses' subscriptions; compare Paddle with the database (v2; not for frontends) |
@@ -2122,8 +2124,8 @@ Scope headers; these act on the bot. Each bot has one webhook, which tells its i
 
 **What is delivered.**
 - **Events:**
-  - `message.created`: a person replied to a ticket of a chat API conversation.
-  - `ticket.updated`: such a ticket was opened, or its status or escalation changed.
+  - `message.created`: a person replied to a ticket of a customer conversation, from the chat API, the SDK, a plugin or a messaging channel.
+  - `ticket.updated`: such a ticket was opened from the dashboard or API, or its status or escalation changed (by the team or the auto-close sweep). Assignment, priority, category and subject changes, and tickets the customer opens, are not delivered.
 - **Not delivered:** notes, playground conversations, and anything the integration did itself.
 - **Format:** each delivery is `{id, type, created_at, data}`, with `data` as in the [live events](#live-updates).
 - **Headers:**
@@ -3066,7 +3068,15 @@ Only Truplexy's own Discord bot calls these, with `DISCORD_SERVICE_KEY` as its b
 
 The bot left the server or was removed from it. Turns the server's channel off (`channel.disconnect` in the activity log); connecting it again turns it back on. **204**, also for a server no bot holds.
 
-**What the API sends the bot.** The API posts events to `DISCORD_BOT_URL/v1/events`, signed with `DISCORD_EVENTS_SECRET` in the [webhook](#webhook) format (`X-Truplexy-Event`, `X-Truplexy-Delivery`, `X-Truplexy-Signature`). Each is `{id, type, created_at, guild_id, data}`:
+#### `GET /discord/guilds/{guild_id}/conversations/{conversation_id}/transcript` (v2)
+
+The link to a ticket's transcript, which the bot gives the customer and the team when the ticket closes. **200** `{url}`; **404 NOT_FOUND** when the conversation isn't one of the server's own, **401 DISCORD_GUILD_NOT_LINKED**. Nothing is stored: the link is the conversation's ID and a signature only the API can make, so a ticket always gets the same link.
+
+#### `GET /discord/transcripts/{token}` (v2)
+
+No credentials: the signature in the link authorizes it. **200** an HTML page of the ticket's subject, status, dates and messages (the customer's, the assistant's, the team's and the notices that the conversation changed hands), read from the conversation itself each time. It never shows notes, models, sources, tool calls, usage or messages that failed. Sent with `noindex`, `no-referrer`, `no-store` and a content security policy that allows no script. **404 NOT_FOUND** for a link that is forged, altered, of another kind of channel's conversation, or of a deleted business.
+
+**What the API sends the bot.** With `DISCORD_BOT_URL` empty it sends nothing: the bot polls `GET /conversations/{id}` for each open ticket and reads the team's replies (`author: "agent"`), `escalated` and the ticket's status from it, and a dashboard reply's answer carries no `delivery`. With `DISCORD_BOT_URL` set, the API posts events to `DISCORD_BOT_URL/v1/events`, signed with `DISCORD_EVENTS_SECRET` in the [webhook](#webhook) format (`X-Truplexy-Event`, `X-Truplexy-Delivery`, `X-Truplexy-Signature`). Each is `{id, type, created_at, guild_id, data}`:
 - `reply`: a person's reply from the dashboard, `data: {conversation_id, ticket_id, channel_id, message: {content, agent?}}`. The bot answers `{status: "sent"}`, or `{status: "failed", message}`, which the dashboard shows as the reply's `delivery`.
 - `ticket.updated`: a ticket closed, taken over or handed back in the dashboard, or closed on its own, `data` as for the webhook.
 

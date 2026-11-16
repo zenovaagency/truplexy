@@ -285,6 +285,7 @@ paths:
       description: Conversations started here are kept apart from the playground's. Replies use the bot configuration saved in the dashboard. The conversation is on the channel the body names, or else the one the key is bound to, and its tickets carry the channel. 404 CHANNEL_NOT_FOUND for a channel the bot doesn't have; 403 CHANNEL_DISABLED for one turned off.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       requestBody:
         required: false
         content:
@@ -336,6 +337,7 @@ paths:
       description: Customer messages that got no reply are left out. Unknown IDs, and playground conversations, return 404 CONVERSATION_NOT_FOUND.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       responses:
         '200':
           description: The conversation.
@@ -354,6 +356,7 @@ paths:
       description: Answers with the bot configuration saved in the dashboard (system prompt, model, temperature, output limit, knowledge retrieval, and tools), sending the conversation's recent messages as history. Both messages are stored and usage is recorded. A reply has 45 seconds by default (CHAT_REPLY_TIMEOUT_MS), including tool calls. A message starting with "[Context only" (such as a ticket's earlier history an integration passes on) is stored as history without a reply (status context). A message that only carries media the assistant can't see, such as "[sent an attachment in Discord]", gets a request to describe it (status clarification_required). With attachments (image input) the assistant reads the pictures in this reply only; they are read, checked and shrunk before anything is stored, so a picture error (400 INVALID_IMAGE, 400 UNSUPPORTED_IMAGE_TYPE, 413 IMAGE_TOO_LARGE, 404 ATTACHMENT_NOT_FOUND, 409 ATTACHMENT_NOT_UPLOADED) leaves nothing behind. After a handoff_offered reply, a message saying yes ("yes please", "sure") accepts the offer as the handoff endpoint does.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       parameters:
         - name: Idempotency-Key
           in: header
@@ -401,6 +404,7 @@ paths:
       description: Same request, response and errors as POST /playground/attachments, plus 404 CONVERSATION_NOT_FOUND. The attachment can only be sent in this conversation, once, within an hour (404 ATTACHMENT_NOT_FOUND after that). Call from the integration's server, never a browser.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       requestBody:
         required: true
         content:
@@ -425,6 +429,7 @@ paths:
       description: For a "talk to a person" button. Opens an escalated ticket for the conversation, or escalates its open ticket. Until a person resolves or closes the ticket (or turns escalation off), messages sent to the conversation are stored without a reply (status escalated, reply null), and people reply from the dashboard's Tickets page; their replies appear in the conversation with author agent. Repeating the call changes nothing.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       responses:
         '200':
           description: The conversation, now escalated.
@@ -443,6 +448,7 @@ paths:
       description: For an integration whose team is done with a conversation, such as a Discord bot's "resume AI" command. Ends the open ticket's escalation so the assistant replies again; the ticket stays open, so use /ticket/close to close it as well. This is the chat-key counterpart of PATCH /tickets/{id} with escalated false, which only the dashboard and the admin key can call. A conversation nobody took over is returned unchanged, and repeating the call changes nothing. No body. The change is not sent to the bot's webhook.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       responses:
         '200':
           description: The conversation, no longer escalated.
@@ -461,6 +467,7 @@ paths:
       description: Call it when the customer accepts the handoff a reply offered (status handoff_offered), or from your own "contact the team" button. Flags the conversation for the support team and adds the assistant's confirmation to it. The dashboard lists the conversation under the assistant's handoffs, or marks its open ticket handed off. The assistant keeps replying; to stop it, use escalate. Repeating the call, or calling it while a person has the conversation, changes nothing. No body.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       responses:
         '200':
           description: The conversation, with status handoff.
@@ -479,6 +486,7 @@ paths:
       description: For an integration with its own tickets, such as a Discord bot that opens a ticket channel. Opens a ticket for the conversation without escalating it, so the assistant keeps replying while your team can follow, reply and escalate from the dashboard. A conversation that already has an open ticket returns it unchanged. The body is optional.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       requestBody:
         required: false
         content:
@@ -514,6 +522,7 @@ paths:
       description: For an integration that closed its own ticket, such as a Discord bot closing a ticket channel. Closes the conversation's open ticket and ends its escalation, so the assistant answers the conversation again, and clears its handoff flag. Without an open ticket, the conversation's latest ticket is returned unchanged, so retries are safe; a conversation that never had a ticket returns 404 TICKET_NOT_FOUND. No body. The change is not sent to the bot's webhook.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       responses:
         '200':
           description: The closed ticket.
@@ -532,6 +541,7 @@ paths:
       description: For a reply someone on your team wrote on your platform, such as a moderator in a Discord ticket channel, so the dashboard shows the whole conversation. It is stored as an assistant message with author agent, which later replies take as history, and answers the conversation's open ticket - one is opened (not escalated) when there is none. The assistant keeps replying unless escalate is true, which escalates the ticket like /escalate. A repeated external_id returns the stored reply with 200 and changes nothing. These replies are not sent to the bot's webhook.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       requestBody:
         required: true
         content:
@@ -1617,12 +1627,13 @@ paths:
   /channels/connect:
     post:
       operationId: connectChannel
-      summary: Start connecting a channel through its platform, such as a Shopify or WooCommerce store (v2)
+      summary: Start connecting a channel through its platform, such as a Shopify or WooCommerce store or a Discord server (v2)
       description: >-
         Needs channels.write. Answers the platform page to send the browser to. After the owner approves, the API's
         callback adds the channel and sends the browser to return_to with connected=shopify&channel_id=… or
-        connect_error=denied|expired|invalid|store_connected_elsewhere|scopes_missing|failed, plus type=shopify or
-        type=woocommerce.
+        connect_error=denied|expired|invalid|store_connected_elsewhere|scopes_missing|failed, plus type=shopify,
+        type=woocommerce or type=discord. For discord the page is Discord's, where the person picks a server and adds
+        Truplexy's bot to it; account is optional.
         400 CHANNEL_CONNECT_UNSUPPORTED for a type added with POST /channels; 400 CHANNEL_TYPE_NOT_ALLOWED for a type
         that isn't offered; 503 CHANNEL_CONNECT_UNAVAILABLE when the server has no app for the platform.
       security:
@@ -1634,16 +1645,18 @@ paths:
           application/json:
             schema:
               type: object
-              required: [type, account, return_to]
+              required: [type, return_to]
               properties:
                 type:
                   type: string
-                  enum: [shopify, woocommerce]
+                  enum: [shopify, woocommerce, discord]
                 account:
                   type: string
                   description: >-
-                    The store. Shopify: your-store, your-store.myshopify.com or https://admin.shopify.com/store/your-store.
-                    WooCommerce: the https address of the store, such as https://shop.example.com.
+                    Required for stores. Shopify: your-store, your-store.myshopify.com or
+                    https://admin.shopify.com/store/your-store. WooCommerce: the https address of the store, such as
+                    https://shop.example.com. Discord: optional, the server's ID to add the bot to (from the bot's
+                    "Link this server" button); leave it out to let the person pick a server.
                 return_to:
                   type: string
                   format: uri
@@ -1660,6 +1673,115 @@ paths:
                   url:
                     type: string
                     format: uri
+        default:
+          $ref: '#/components/responses/Error'
+  /discord/guilds/{guild_id}:
+    get:
+      operationId: getDiscordGuild
+      summary: Whether a Discord server is linked, for Truplexy's Discord bot only (v2)
+      description: >-
+        Called by Truplexy's own Discord bot with DISCORD_SERVICE_KEY. Says whether the server is linked to a bot's
+        discord channel, whether that channel is on, the business and bot names, and whether the business has a plan
+        (the bot turns tickets off without one).
+      security:
+        - DiscordServiceKey: []
+      parameters:
+        - name: guild_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The server's link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [guild_id, linked, channel_active, subscription]
+                properties:
+                  guild_id: {type: string}
+                  linked: {type: boolean}
+                  channel_id: {type: string}
+                  channel_active: {type: boolean}
+                  business: {type: object, properties: {name: {type: string}}}
+                  bot: {type: object, properties: {name: {type: string}}}
+                  subscription: {type: object, properties: {active: {type: boolean}}}
+                  dashboard_url: {type: string}
+        default:
+          $ref: '#/components/responses/Error'
+  /discord/guilds/{guild_id}/removed:
+    post:
+      operationId: discordGuildRemoved
+      summary: Truplexy's Discord bot left a server, so its channel is turned off (v2)
+      security:
+        - DiscordServiceKey: []
+      parameters:
+        - name: guild_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The server's channel is off; connecting the server again turns it back on.
+        default:
+          $ref: '#/components/responses/Error'
+  /discord/guilds/{guild_id}/conversations/{conversation_id}/transcript:
+    get:
+      operationId: getDiscordTranscriptLink
+      summary: The public link of a Discord ticket's transcript, for Truplexy's Discord bot only (v2)
+      description: >-
+        Nothing is stored: the link is the conversation's ID and a signature only the API can make, so a ticket
+        always gets the same link. 404 NOT_FOUND when the conversation isn't one of the server's own;
+        401 DISCORD_GUILD_NOT_LINKED.
+      security:
+        - DiscordServiceKey: []
+      parameters:
+        - name: guild_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The transcript's link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url: {type: string, format: uri}
+        default:
+          $ref: '#/components/responses/Error'
+  /discord/transcripts/{token}:
+    get:
+      operationId: getDiscordTranscript
+      summary: A closed Discord ticket's transcript as a web page; the link's signature authorizes it (v2)
+      description: >-
+        An HTML page of the ticket's subject, status, dates and messages, read from the conversation each time. It
+        shows no notes, models, sources, tool calls, usage or failed messages, and is sent noindex, no-referrer and
+        no-store. 404 NOT_FOUND for a forged or altered link, or a deleted business.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The transcript page.
+          content:
+            text/html:
+              schema:
+                type: string
         default:
           $ref: '#/components/responses/Error'
   /channels/whatsapp:
@@ -4955,6 +5077,7 @@ paths:
       description: For a widget's header. Returns only names and public picture URLs of the key's own business and bot. bot.name is the name saved in the bot's configuration. Cacheable for 60 seconds.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       responses:
         '200':
           description: The profile.
@@ -5031,6 +5154,7 @@ paths:
       description: Finds the bot's customer who has any of the contacts sent, adds the contacts they lack, updates the name and metadata sent and marks them seen; if there is none, creates one. Pass the returned id as customer_id to POST /conversations. Send at least one contact. 409 CUSTOMER_CONFLICT when the contacts belong to different customers (nothing is changed); 409 CUSTOMER_EXISTS when another customer took a contact while the request ran.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       requestBody:
         required: true
         content:
@@ -5059,6 +5183,7 @@ paths:
       description: Subscribe to the returned topics with Supabase Realtime (broadcast) using url and publishable_key. Each event's payload is {id, type, created_at, data}, data as in the matching webhook event. 503 REALTIME_NOT_CONFIGURED when the server has no live updates.
       security:
         - ChatKey: []
+        - DiscordServiceKey: []
       requestBody:
         required: false
         content:
@@ -6165,6 +6290,10 @@ components:
       type: http
       scheme: bearer
       description: ADMIN_API_KEY, a service credential with every permission in every business. It acts for the default bot, or for the bot named by the X-Truplexy-Tenant and X-Truplexy-Bot headers (404 BOT_NOT_FOUND if it doesn't exist). Missing configuration returns 503 ADMIN_NOT_CONFIGURED; D1 failures return 502 DATABASE_ERROR, and R2, Vectorize, or Workers AI failures 502 STORAGE_ERROR.
+    DiscordServiceKey:
+      type: http
+      scheme: bearer
+      description: DISCORD_SERVICE_KEY, which only Truplexy's own Discord bot holds. On the chat API endpoints it acts, with the X-Truplexy-Discord-Guild header naming a linked server, for that server's channel as a chat key bound to it would (401 DISCORD_GUILD_NOT_LINKED for a server no bot holds).
   parameters:
     QueryID:
       name: id
@@ -8400,6 +8529,7 @@ components:
         external_id:
           type: string
           maxLength: 128
+          description: The platform's own ID. A discord channel's is set only by connecting the server from the dashboard; a request that sets it answers 400.
         enabled:
           type: boolean
         auto_close_hours:
