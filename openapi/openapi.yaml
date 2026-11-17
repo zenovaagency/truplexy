@@ -9633,6 +9633,9 @@ components:
         handed_off:
           type: boolean
           description: The ticket's conversation is flagged for the team (the customer accepted a handoff, or the assistant handed off), and the ticket is open. A person's reply, escalating or closing the ticket clears it.
+        was_escalated:
+          type: boolean
+          description: A mark on a closed ticket that was taken over or handed off when it closed, closing on its own included. Reopening clears it; tickets closed before this existed are false.
         last_customer_at:
           type: string
           format: date-time

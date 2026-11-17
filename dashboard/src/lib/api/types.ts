@@ -721,6 +721,8 @@ export interface Ticket {
   needs_reply: boolean;
   /** The assistant, or the customer, asked for a person and nobody has answered yet; the assistant keeps replying. */
   handed_off: boolean;
+  /** A closed ticket that was taken over or handed off when it closed: a mark. Reopening clears it. */
+  was_escalated?: boolean;
   last_customer_at?: string;
   last_agent_at?: string;
   first_response_at?: string;
