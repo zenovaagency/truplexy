@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-18',
+    title: 'One Escalated badge on tickets',
+    tag: 'Dashboard',
+    items: [
+      'A ticket that needs a person, or that one has taken over, now shows a single Escalated badge. Open the ticket to see which: Waiting for a person (the assistant keeps replying) or Taken over (the assistant is paused).',
+      'The Flag filter is gone from Tickets. Use the Needs reply and Escalated tabs, or filter by assignee to find unassigned tickets.',
+      'Developers: tickets no longer carry a flags object, and GET /tickets no longer takes ?flag=. Use the needs_reply, escalated, handed_off and reopen_count fields, the counts, and assignee=none.',
+    ],
+  },
+  {
     date: '2026-11-05',
     title: 'Draft replies with AI',
     tag: 'Dashboard',

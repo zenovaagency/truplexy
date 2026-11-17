@@ -61,7 +61,7 @@ import {
   useConfirm,
 } from '@/components/ui';
 import { TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
-import { AssigneePicker, TicketFlags } from './shared';
+import { AssigneePicker, EscalatedBadge } from './shared';
 import { CategorySelect } from '@/components/domain/support';
 import { OpenQueryLink } from '@/features/queries/CustomerQueries';
 import { AssistantAvatar } from '@/components/layout/Brand';
@@ -223,7 +223,7 @@ function Header({ ticket: t, backHref, onDetails }: { ticket: TDetail; backHref?
         )}
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
           <TicketStatusBadge status={t.status} />
-          <TicketFlags ticket={t} />
+          <EscalatedBadge ticket={t} detailed />
           <span>
             {t.source === 'customer' ? 'From the customer' : 'Opened in the dashboard'} · {formatRelative(t.created_at)}
           </span>

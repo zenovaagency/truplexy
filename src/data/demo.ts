@@ -413,13 +413,11 @@ export const STATUS_LABEL: Record<InboxStatus, string> = {
 
 /** The dashboard's ticket vocabulary, mirrored here for the Tickets recreation. */
 export type TicketStatus = 'open' | 'closed';
-export type TicketFlag = 'escalated' | 'handed_off' | 'reopened';
-
-export const FLAG_LABEL: Record<TicketFlag, string> = {
-  escalated: 'Escalated',
-  handed_off: 'Handed off',
-  reopened: 'Reopened',
-};
+/**
+ * Whether a person is needed or has the conversation, the one thing a ticket's badge says. The list
+ * shows both as "Escalated"; `handed_off` is the assistant still replying while it waits for a person.
+ */
+export type TicketFlag = 'escalated' | 'handed_off';
 
 export interface InboxThread {
   id: string;

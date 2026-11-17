@@ -695,7 +695,6 @@ export interface ToolRun {
 
 export type TicketStatus = 'open' | 'closed';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type TicketFlag = 'needs_reply' | 'escalated' | 'handed_off' | 'unassigned' | 'overdue' | 'reopened';
 export type TicketView = 'all' | 'open' | 'needs_reply' | 'escalated' | 'mine';
 
 export interface Ticket {
@@ -718,9 +717,10 @@ export interface Ticket {
   escalated: boolean;
   escalated_at?: string;
   source: 'dashboard' | 'customer';
+  /** The customer wrote after the last reply. */
   needs_reply: boolean;
+  /** The assistant, or the customer, asked for a person and nobody has answered yet; the assistant keeps replying. */
   handed_off: boolean;
-  flags: Record<TicketFlag, boolean>;
   last_customer_at?: string;
   last_agent_at?: string;
   first_response_at?: string;
@@ -805,7 +805,6 @@ export interface TicketList {
 
 export interface TicketQuery {
   view?: TicketView;
-  flag?: TicketFlag;
   assignee?: string;
   /** A channel id, or `none`. */
   channel?: string;

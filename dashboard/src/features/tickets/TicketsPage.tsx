@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowRightLeft, Download, Filter, Hand, Inbox, MessagesSquare, Plus, Search, X } from 'lucide-react';
 import { useChannelIcon, useChannels } from '@/lib/api/endpoints/channels';
 import { useCreateTicket, useHandoffs, usePrefetchTicket, useTickets } from '@/lib/api/endpoints/tickets';
-import type { SupportCategory, TicketCounts, TicketFlag, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
+import type { SupportCategory, TicketCounts, TicketQuery, TicketStatus, TicketView } from '@/lib/api/types';
 import { SUPPORT_CATEGORIES } from '@/lib/support';
 import { CATEGORY_OPTIONS, CategoryBadge, useTeamAssignment } from '@/components/domain/support';
 import { cn } from '@/lib/cn';
@@ -36,7 +36,7 @@ import { ChannelBadge } from '@/components/domain/ChannelBadge';
 import { useCustomer } from '@/lib/api/endpoints/customers';
 import { customerLabel } from '@/lib/customers';
 import { exportTickets, type TicketExportFormat, type TicketExportProgress } from './export';
-import { FLAG_LABEL, TicketFlags, useAssignees } from './shared';
+import { EscalatedBadge, useAssignees } from './shared';
 import { TicketDetail } from './TicketDetail';
 
 const VIEWS: { value: TicketView; label: string; count: keyof TicketCounts }[] = [
@@ -56,7 +56,6 @@ function useTicketFilters() {
     view: (params.get('view') as TicketView) || 'open',
     status: status && TICKET_STATUSES.includes(status) ? status : undefined,
     assignee: params.get('assignee') || undefined,
-    flag: (params.get('flag') as TicketFlag) || undefined,
     channel: params.get('channel') || undefined,
     customer: params.get('customer') || undefined,
     category: SUPPORT_CATEGORIES.find((c) => c === params.get('category')) as SupportCategory | undefined,
@@ -82,7 +81,7 @@ export default function TicketsPage() {
   const { filters, set, params, setParams } = useTicketFilters();
   const [search, setSearch] = useState(filters.q ?? '');
   const q = useDebounce(search, 350);
-  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.assignee || filters.flag || filters.channel || filters.customer));
+  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.assignee || filters.channel || filters.customer));
   const assignees = useAssignees();
   const handoffs = useHandoffs();
   const channels = useChannels();
@@ -95,7 +94,7 @@ export default function TicketsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.assignee, filters.flag, filters.channel, filters.customer, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.assignee, filters.channel, filters.customer, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = useTickets(query);
   const prefetch = usePrefetchTicket();
   const tickets = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
@@ -103,7 +102,7 @@ export default function TicketsPage() {
   const qs = params.toString() ? `?${params.toString()}` : '';
   const open = (id: string) => nav(href(`tickets/${id}`) + qs);
 
-  const extraFilters = [filters.status, filters.assignee, filters.flag, filters.channel, filters.customer, filters.category].filter(Boolean).length;
+  const extraFilters = [filters.status, filters.assignee, filters.channel, filters.customer, filters.category].filter(Boolean).length;
   const teamAssignment = useTeamAssignment();
   const newOpen = params.get('new') === '1';
   const [exportOpen, setExportOpen] = useState(false);
@@ -171,8 +170,6 @@ export default function TicketsPage() {
               options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))} />
             <Select size="sm" aria-label="Assignee" value={filters.assignee ?? ''} onChange={(e) => set({ assignee: e.target.value || undefined })} placeholder="Anyone"
               options={[{ value: 'me', label: 'Assigned to me' }, { value: 'none', label: 'Unassigned' }, ...assignees.map((m) => ({ value: m.user_id, label: m.name }))]} />
-            <Select size="sm" aria-label="Flag" value={filters.flag ?? ''} onChange={(e) => set({ flag: e.target.value || undefined })} placeholder="Any flag"
-              options={(Object.keys(FLAG_LABEL) as TicketFlag[]).filter((f) => f !== 'overdue').map((f) => ({ value: f, label: FLAG_LABEL[f] }))} />
             {(teamAssignment || filters.category) && (
               <Select size="sm" aria-label="Category" value={filters.category ?? ''} onChange={(e) => set({ category: e.target.value || undefined })} placeholder="Any category"
                 options={CATEGORY_OPTIONS} />
@@ -192,7 +189,7 @@ export default function TicketsPage() {
             )}
             {extraFilters > 0 && (
               <button type="button" className="col-span-2 inline-flex items-center gap-1 justify-self-start text-xs font-semibold text-accent hover:underline"
-                onClick={() => set({ status: undefined, assignee: undefined, flag: undefined, channel: undefined, customer: undefined, category: undefined })}>
+                onClick={() => set({ status: undefined, assignee: undefined, channel: undefined, customer: undefined, category: undefined })}>
                 <X className="size-3" /> Clear filters
               </button>
             )}
@@ -234,7 +231,7 @@ export default function TicketsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pl-4">
                       <TicketStatusBadge status={t.status} />
-                      <TicketFlags ticket={t} />
+                      <EscalatedBadge ticket={t} />
                       {t.category && t.category !== 'general' && <CategoryBadge category={t.category} />}
                       {t.channel_name && <ChannelBadge name={t.channel_name} icon={iconOf(t.channel_type)} className="max-w-[140px] text-[0.7rem] text-ink-faint" />}
                       <span className="ml-auto flex items-center gap-1.5 text-[0.7rem] text-ink-faint">
