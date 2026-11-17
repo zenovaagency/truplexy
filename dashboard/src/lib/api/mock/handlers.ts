@@ -287,11 +287,21 @@ function str(v: unknown, field: string, min: number, max: number, required = tru
 
 const TICKET_STATUSES: TicketStatus[] = ['open', 'closed'];
 
+/** An open ticket whose customer wrote after the last reply. */
+function needsReply(t: MockTicket) {
+  return t.status === 'open' && !!t.last_customer_at && (!t.last_agent_at || t.last_customer_at > t.last_agent_at);
+}
+
+/** It has needed a reply for longer than the business's reply target; sized in the counts, not carried by the ticket. */
+function isOverdue(db: MockDb, t: MockTicket) {
+  const tenant = db.tenants.find((x) => x.id === t.tenant_id)!;
+  return needsReply(t) && Date.now() - new Date(t.last_customer_at!).getTime() > tenant.reply_target_hours * 3_600_000;
+}
+
 function ticketOut(db: MockDb, t: MockTicket): Ticket {
   const tenant = db.tenants.find((x) => x.id === t.tenant_id)!;
   const done = t.status !== 'open';
-  const needs = !done && !!t.last_customer_at && (!t.last_agent_at || t.last_customer_at > t.last_agent_at);
-  const overdue = needs && Date.now() - new Date(t.last_customer_at!).getTime() > tenant.reply_target_hours * 3_600_000;
+  const needs = needsReply(t);
   const assignee = t.assignee_user_id ? userById(db, t.assignee_user_id) : undefined;
   const ch = t.channel_id ? db.channels.find((x) => x.id === t.channel_id) : undefined;
   // Closes after the inactivity time, unless kept open.
@@ -307,14 +317,6 @@ function ticketOut(db: MockDb, t: MockTicket): Ticket {
     channel_type: ch?.type ?? t.channel_type,
     assignee_name: assignee?.name ?? t.assignee_name,
     needs_reply: needs,
-    flags: {
-      needs_reply: needs,
-      escalated: t.escalated,
-      handed_off: t.handed_off,
-      unassigned: !t.assignee_user_id,
-      overdue,
-      reopened: t.reopen_count > 0,
-    },
   } as Ticket & { tenant_id?: string; bot_id?: string };
 }
 
@@ -2680,30 +2682,29 @@ const botTickets = (c: Ctx) => c.db.tickets.filter((t) => t.tenant_id === c.tena
 
 route('GET', '/tickets', 'tickets.read', (c) => {
   const q = c.query;
-  const all = botTickets(c).map((t) => ticketOut(c.db, t));
+  const stored = botTickets(c);
+  const all = stored.map((t) => ticketOut(c.db, t));
   const counts = {
     all: all.length,
     open: all.filter((t) => t.status === 'open').length,
-    needs_reply: all.filter((t) => t.flags.needs_reply).length,
+    needs_reply: all.filter((t) => t.needs_reply).length,
     escalated: all.filter((t) => t.escalated).length,
     mine: all.filter((t) => t.status === 'open' && t.assignee_user_id === c.user.id).length,
-    overdue: all.filter((t) => t.flags.overdue).length,
-    unassigned: all.filter((t) => t.status === 'open' && t.flags.unassigned).length,
+    overdue: stored.filter((t) => isOverdue(c.db, t)).length,
+    unassigned: all.filter((t) => t.status === 'open' && !t.assignee_user_id).length,
   };
   const view = q.get('view') ?? 'all';
   const status = statusParam(q);
-  const flag = q.get('flag') as keyof Ticket['flags'] | null;
   const assignee = q.get('assignee');
   const s = (q.get('q') ?? '').trim().toLowerCase();
   const filtered = all
     .filter((t) =>
       view === 'open' ? t.status === 'open'
-      : view === 'needs_reply' ? t.flags.needs_reply
+      : view === 'needs_reply' ? t.needs_reply
       : view === 'escalated' ? t.escalated
       : view === 'mine' ? t.status === 'open' && t.assignee_user_id === c.user.id
       : true,
     )
-    .filter((t) => !flag || t.flags[flag])
     .filter((t) => !assignee || (assignee === 'me' ? t.assignee_user_id === c.user.id : assignee === 'none' ? !t.assignee_user_id : t.assignee_user_id === assignee))
     .filter((t) => !status || t.status === status)
     .filter((t) => !q.get('priority') || t.priority === q.get('priority'))
@@ -3149,8 +3150,8 @@ route('GET', '/stats/support', 'usage.read', (c): SupportStats => {
     tickets: { created: ticketsCreated, closed, from_customer: Math.round(ticketsCreated * 0.78), reopened: Math.round(ticketsCreated * 0.04), reopen_rate: 0.04 },
     backlog: {
       total: open.length,
-      overdue: open.filter((t) => t.flags.overdue).length,
-      unassigned: open.filter((t) => t.flags.unassigned).length,
+      overdue: tickets.filter((t) => isOverdue(c.db, t)).length,
+      unassigned: open.filter((t) => !t.assignee_user_id).length,
       by_status: count(open.map((t) => t.status)),
       by_priority: count(open.map((t) => t.priority)),
     },
@@ -3590,7 +3591,7 @@ route('GET', '/platform/overview', 'platform', ({ db }) => {
     bots: db.bots.length,
     conversations_this_month: Math.round(thisMonth.reduce((n, d) => n + d.requests, 0) / 3.2),
     open_tickets: unresolved.length,
-    needs_reply: unresolved.filter((t) => t.flags.needs_reply).length,
+    needs_reply: unresolved.filter((t) => t.needs_reply).length,
     replies_this_month: db.tenants.reduce((n, t) => n + t.replies_this_month, 0),
     cost_this_month: +thisMonth.reduce((n, d) => n + d.estimated_cost, 0).toFixed(2),
     billed_this_month: +thisMonth.reduce((n, d) => n + d.estimated_cost * MOCK_MARKUP, 0).toFixed(2),
@@ -3922,7 +3923,7 @@ route('GET', '/platform/tickets', 'platform', ({ db, query }) => {
   const list = db.tickets
     .map((t) => ({ raw: t, t: ticketOut(db, t) }))
     .filter(({ raw }) => !query.get('tenant') || raw.tenant_id === query.get('tenant'))
-    .filter(({ t }) => (view === 'open' ? t.status === 'open' : view === 'needs_reply' ? t.flags.needs_reply : view === 'escalated' ? t.escalated : true))
+    .filter(({ t }) => (view === 'open' ? t.status === 'open' : view === 'needs_reply' ? t.needs_reply : view === 'escalated' ? t.escalated : true))
     .filter(({ t }) => !status || t.status === status)
     .filter(({ t }) => !query.get('priority') || t.priority === query.get('priority'))
     .filter(({ t }) => !query.get('channel_type') || t.channel_type === query.get('channel_type'))

@@ -95,7 +95,7 @@ export default function OverviewPage() {
   const backlogCounts = s
     ? [
         { key: 'open', label: 'Open', value: s.backlog.total, to: 'tickets' },
-        { key: 'unassigned', label: 'Unassigned', value: s.backlog.unassigned, to: 'tickets?flag=unassigned' },
+        { key: 'unassigned', label: 'Unassigned', value: s.backlog.unassigned, to: 'tickets?assignee=none' },
       ]
     : [];
 

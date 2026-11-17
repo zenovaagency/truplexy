@@ -1872,8 +1872,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   assignee?,                               // legacy free text set by API callers
   escalated, escalated_at?,                // escalated: a person has the conversation; the AI is silent
   source,                                  // dashboard | customer
-  needs_reply, handed_off,
-  flags: {needs_reply, escalated, handed_off, unassigned, overdue, reopened},
+  needs_reply, handed_off,                 // needs_reply: the customer wrote last; handed_off: the AI asked for a person
   last_customer_at?, last_agent_at?,
   first_response_at?, closed_at?, reopen_count,
   summary?, summary_at?,                   // the AI summary a person last generated, and when
@@ -1899,16 +1898,14 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 - A ticket that opens, is escalated or is taken over with nobody assigned is assigned at once, as the business's `auto_assign` says. Only members who may work on tickets (agent and up) who are `online` (available, and active in the last 15 minutes) are assigned. In turn means the member assigned longest ago in that rotation (the category's, or the whole team's) goes next.
 - With nobody online the ticket stays unassigned. Moving an unassigned open ticket to another category assigns it in that category. A person can always reassign.
 
-**Flags**, for badges and filters:
+**When a person is needed.** Two fields say whether a ticket needs a person or has one:
 
-| Flag | Meaning |
+| Field | Meaning |
 | --- | --- |
-| `needs_reply` | The customer wrote after the last reply. |
-| `escalated` | The AI is paused for this conversation. |
-| `handed_off` | The assistant flagged the conversation for the team. |
-| `unassigned` | No one is assigned. |
-| `overdue` | It has needed a reply for longer than the business's `reply_target_hours`. |
-| `reopened` | It was reopened at least once. |
+| `handed_off` | The assistant (or the customer) asked for a person, and nobody has answered yet. The assistant keeps replying. It clears when a person answers, takes the conversation over or closes the ticket. |
+| `escalated` | A person has the conversation and the AI is paused. |
+
+Everything else a badge might show is a plain field or a count: `needs_reply` (the customer wrote after the last reply), no `assignee_user_id` (filter with `assignee=none`), `reopen_count` above 0, and `counts.overdue` (waiting longer than the business's `reply_target_hours`).
 
 #### `GET /tickets`
 
@@ -1917,7 +1914,6 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | Query | Rules |
 | --- | --- |
 | `view` | `all` (default), `open` (every open ticket), `needs_reply`, `escalated` or `mine` (the caller's open tickets). |
-| `flag` | One of the flags above. |
 | `assignee` | `me`, `none`, or a member's user ID. |
 | `channel` | A channel `id`, or `none` for tickets without one (v2). |
 | `channel_type` | A channel type `id`, such as `discord` (v2). |
@@ -3114,7 +3110,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Products | `GET /products` (search with `q`, `status`, `property[key]=`), `POST`/`PATCH`/`DELETE /products…`, `GET /properties?entity=product` for the property fields; imports with `POST /products/imports` (then `PUT` and `…/process` for a file), `GET /products/imports/{id}` to review, `…/commit` to save |
 | Settings: properties | `GET /properties?entity=`, `GET /properties/presets` with the business's type, `POST`/`PATCH`/`DELETE /properties…` |
 | Customers | `GET /customers` (search with `q`, filter with `property[key]=`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, `PUT`/`DELETE /customers/{id}/avatar`, `GET /properties?entity=customer` for the property fields, and `GET /tickets?customer=` for all of their tickets |
-| Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets/{id}/suggested-reply` for the reply box's AI draft, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
+| Tickets | `GET /tickets` (views, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets/{id}/suggested-reply` for the reply box's AI draft, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |

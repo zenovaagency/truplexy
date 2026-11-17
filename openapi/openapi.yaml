@@ -3393,12 +3393,6 @@ paths:
             enum: [needs_reply, mine, escalated, open, all]
             default: all
           description: needs_reply is open tickets whose customer wrote after the last reply; mine is the signed-in member's open tickets (v2); escalated is open escalated tickets; open is every open ticket.
-        - name: flag
-          in: query
-          schema:
-            type: string
-            enum: [needs_reply, escalated, handed_off, unassigned, overdue, reopened]
-          description: Keeps tickets with this flag set (v2).
         - name: assignee
           in: query
           schema:
@@ -9676,22 +9670,6 @@ components:
           description: When it last closed on its own; cleared when it reopens (v2).
         category:
           $ref: '#/components/schemas/SupportCategory'
-        flags:
-          type: object
-          description: What needs attention beside the status. overdue is needs_reply for longer than the business's reply_target_hours; unassigned is an open ticket without assignee_user_id; reopened is reopen_count above 0.
-          properties:
-            needs_reply:
-              type: boolean
-            escalated:
-              type: boolean
-            handed_off:
-              type: boolean
-            unassigned:
-              type: boolean
-            overdue:
-              type: boolean
-            reopened:
-              type: boolean
         created_at:
           type: string
           format: date-time

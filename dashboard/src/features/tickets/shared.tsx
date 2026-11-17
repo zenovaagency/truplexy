@@ -2,39 +2,40 @@ import { useMemo, useState } from 'react';
 import { Check, ChevronDown, UserRound, UserX } from 'lucide-react';
 import { Command } from 'cmdk';
 import { useMembers } from '@/lib/api/endpoints/business';
-import type { Ticket, TicketFlag } from '@/lib/api/types';
+import type { Ticket } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { canBeAssigned } from '@/lib/permissions';
-import { Avatar, Badge, Popover, PopoverContent, PopoverTrigger, type Tone } from '@/components/ui';
+import { Avatar, Badge, Popover, PopoverContent, PopoverTrigger } from '@/components/ui';
 import { StatusDot } from '@/components/domain/support';
 
-export const FLAG_LABEL: Record<TicketFlag, string> = {
-  needs_reply: 'Needs reply',
-  escalated: 'Escalated',
-  handed_off: 'Handed off',
-  unassigned: 'Unassigned',
-  overdue: 'Overdue',
-  reopened: 'Reopened',
-};
+/**
+ * Whether a person is needed or already has the conversation: the one thing a ticket's badge says.
+ * `handed_off` means the assistant asked for a person and keeps replying; `escalated` means a person
+ * has taken over and the assistant is paused. Both are one badge, and the title says which.
+ */
+export function ticketEscalation(ticket: Pick<Ticket, 'status' | 'escalated' | 'handed_off'>): 'taken_over' | 'waiting' | undefined {
+  if (ticket.status === 'closed') return undefined;
+  return ticket.escalated ? 'taken_over' : ticket.handed_off ? 'waiting' : undefined;
+}
 
-const FLAG_TONE: Partial<Record<TicketFlag, Tone>> = {
-  escalated: 'danger',
-  handed_off: 'violet',
-  reopened: 'cyan',
-};
+export const ESCALATION_TEXT = {
+  taken_over: 'Taken over',
+  waiting: 'Waiting for a person',
+} as const;
 
-/** The flags worth a badge (needs_reply and unassigned show elsewhere; overdue is not shown at all). */
-export function TicketFlags({ ticket, className }: { ticket: Ticket; className?: string }) {
-  const shown = (['escalated', 'handed_off', 'reopened'] as const).filter((f) => ticket.flags?.[f]);
-  if (!shown.length) return null;
+const ESCALATION_HINT = {
+  taken_over: 'A person has this conversation. The assistant is paused.',
+  waiting: 'The assistant asked for a person. It keeps replying until someone answers.',
+} as const;
+
+/** The list says "Escalated"; with `detailed`, the ticket's own header says which kind. */
+export function EscalatedBadge({ ticket, detailed, className }: { ticket: Ticket; detailed?: boolean; className?: string }) {
+  const state = ticketEscalation(ticket);
+  if (!state) return null;
   return (
-    <span className={cn('flex flex-wrap gap-1', className)}>
-      {shown.map((f) => (
-        <Badge key={f} tone={FLAG_TONE[f]} className="px-1.5 py-px text-[0.68rem]">
-          {FLAG_LABEL[f]}
-        </Badge>
-      ))}
-    </span>
+    <Badge tone="danger" title={`${ESCALATION_TEXT[state]}. ${ESCALATION_HINT[state]}`} className={cn('px-1.5 py-px text-[0.68rem]', className)}>
+      {detailed ? ESCALATION_TEXT[state] : 'Escalated'}
+    </Badge>
   );
 }
 
