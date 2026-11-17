@@ -395,6 +395,7 @@ function buildTickets(
       escalated_at: escalated ? messages[1]?.created_at : undefined,
       source: r() < 0.8 ? 'customer' : 'dashboard',
       handed_off: !escalated && !done && r() < 0.25,
+      was_escalated: done && s.priority === 'urgent',
       last_customer_at: lastCustomer?.created_at,
       last_agent_at: lastAgent?.created_at,
       first_response_at: lastAgent?.created_at,

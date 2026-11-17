@@ -69,3 +69,35 @@ describe('taking a conversation over', () => {
     expect(messages.slice(-2).map((m) => m.author)).toEqual(['agent', 'system']);
   });
 });
+
+describe('the mark on a closed ticket', () => {
+  const get = (id: string) => call('GET', `/tickets/${id}`);
+
+  it('keeps a mark when a person had the conversation, and clears it on reopening', () => {
+    const { id } = freshTicket();
+    call('PATCH', `/tickets/${id}`, { escalated: true });
+    call('PATCH', `/tickets/${id}`, { status: 'closed' });
+    expect(get(id)).toMatchObject({ status: 'closed', escalated: false, was_escalated: true });
+
+    call('PATCH', `/tickets/${id}`, { status: 'open' });
+    expect(get(id)).toMatchObject({ status: 'open', was_escalated: false });
+  });
+
+  it('marks a reply that closes, but not a ticket nobody was needed on', () => {
+    const replying = call('POST', '/tickets', { conversation_id: call('GET', '/handoffs').data[0].conversation_id, escalated: true }) as { id: string };
+    call('POST', `/tickets/${replying.id}/replies`, { kind: 'reply', content: 'All sorted.', status: 'closed' });
+    expect(get(replying.id).was_escalated).toBe(true);
+
+    const { id } = freshTicket();
+    call('PATCH', `/tickets/${id}`, { status: 'closed' });
+    expect(get(id).was_escalated).toBe(false);
+  });
+
+  it('leaves the Escalated tab to open tickets', () => {
+    const { id } = freshTicket();
+    call('PATCH', `/tickets/${id}`, { escalated: true });
+    const before = call('GET', '/tickets').counts.escalated;
+    call('PATCH', `/tickets/${id}`, { status: 'closed' });
+    expect(call('GET', '/tickets').counts.escalated).toBe(before - 1);
+  });
+});

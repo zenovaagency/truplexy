@@ -358,10 +358,14 @@ function applyStatus(t: MockTicket, next: TicketStatus) {
   if (next === 'open' && t.status === 'closed') {
     t.reopen_count += 1;
     t.closed_at = undefined;
+    t.was_escalated = false;
   }
   if (next === 'closed' && t.status !== 'closed') {
     t.closed_at = nowIso();
+    // Closing ends both, so a closed ticket keeps a mark of what it had.
+    t.was_escalated = t.escalated || t.handed_off;
     t.escalated = false;
+    t.handed_off = false;
   }
   t.status = next;
 }

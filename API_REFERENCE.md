@@ -1873,6 +1873,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   escalated, escalated_at?,                // escalated: a person has the conversation; the AI is silent
   source,                                  // dashboard | customer
   needs_reply, handed_off,                 // needs_reply: the customer wrote last; handed_off: the AI asked for a person
+  was_escalated,                           // closed while a person had it or was asked for: a mark; cleared on reopening
   last_customer_at?, last_agent_at?,
   first_response_at?, closed_at?, reopen_count,
   summary?, summary_at?,                   // the AI summary a person last generated, and when
@@ -1890,7 +1891,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 
 **Automatic changes:**
 - A customer message sets `needs_reply`.
-- Closing ends escalation, and the assistant answers again.
+- Closing ends escalation, and the assistant answers again. A ticket that was taken over or handed off when it closed keeps `was_escalated: true` as a mark (closing on its own does too); reopening clears it, and `escalated` and `handed_off` show the live state again. Tickets closed before this existed are not marked.
 - **Closing inactive tickets** (v2). An open ticket closes after a number of hours without activity (no change to it and no message in its conversation): its channel's `auto_close_hours`, else its channel type's, else its business's; 0 is never, and nothing closes until one is set. A ticket with `keep_open: true` never closes on its own; one waiting on the team (escalated or handed off, with the customer having written last) closes like any other. `auto_close_at` says when it will. Closing on its own ends escalation, adds the internal note "Closed automatically after N hours without activity." and sets `auto_closed_at`; reopening clears it. It sends the same `ticket.updated` events as a person closing it.
 
 **Assignment.**

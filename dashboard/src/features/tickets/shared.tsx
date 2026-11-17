@@ -12,20 +12,25 @@ import { StatusDot } from '@/components/domain/support';
  * Whether a person is needed or already has the conversation: the one thing a ticket's badge says.
  * `handed_off` means the assistant asked for a person and keeps replying; `escalated` means a person
  * has taken over and the assistant is paused. Both are one badge, and the title says which.
+ * Closing ends both, so a closed ticket keeps the badge as a mark (`was_escalated`) of what it had.
  */
-export function ticketEscalation(ticket: Pick<Ticket, 'status' | 'escalated' | 'handed_off'>): 'taken_over' | 'waiting' | undefined {
-  if (ticket.status === 'closed') return undefined;
+export function ticketEscalation(
+  ticket: Pick<Ticket, 'status' | 'escalated' | 'handed_off' | 'was_escalated'>,
+): 'taken_over' | 'waiting' | 'was' | undefined {
+  if (ticket.status === 'closed') return ticket.was_escalated ? 'was' : undefined;
   return ticket.escalated ? 'taken_over' : ticket.handed_off ? 'waiting' : undefined;
 }
 
 export const ESCALATION_TEXT = {
   taken_over: 'Taken over',
   waiting: 'Waiting for a person',
+  was: 'Was escalated',
 } as const;
 
 const ESCALATION_HINT = {
   taken_over: 'A person has this conversation. The assistant is paused.',
   waiting: 'The assistant asked for a person. It keeps replying until someone answers.',
+  was: 'A person was needed or had this conversation before it closed.',
 } as const;
 
 /** The list says "Escalated"; with `detailed`, the ticket's own header says which kind. */
@@ -33,7 +38,7 @@ export function EscalatedBadge({ ticket, detailed, className }: { ticket: Ticket
   const state = ticketEscalation(ticket);
   if (!state) return null;
   return (
-    <Badge tone="danger" title={`${ESCALATION_TEXT[state]}. ${ESCALATION_HINT[state]}`} className={cn('px-1.5 py-px text-[0.68rem]', className)}>
+    <Badge tone={state === 'was' ? 'neutral' : 'danger'} title={`${ESCALATION_TEXT[state]}. ${ESCALATION_HINT[state]}`} className={cn('px-1.5 py-px text-[0.68rem]', className)}>
       {detailed ? ESCALATION_TEXT[state] : 'Escalated'}
     </Badge>
   );
