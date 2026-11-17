@@ -52,8 +52,9 @@ function useTicketFilters() {
   const [params, setParams] = useSearchParams();
   // Old links may carry a status the API no longer accepts; drop it rather than show an error.
   const status = params.get('status') as TicketStatus | null;
+  // Open, Needs reply, Mine and Escalated only hold open tickets, so a link for closed ones lands on All.
   const filters: TicketQuery = {
-    view: (params.get('view') as TicketView) || 'open',
+    view: (params.get('view') as TicketView) || (status === 'closed' ? 'all' : 'open'),
     status: status && TICKET_STATUSES.includes(status) ? status : undefined,
     assignee: params.get('assignee') || undefined,
     channel: params.get('channel') || undefined,
@@ -81,7 +82,7 @@ export default function TicketsPage() {
   const { filters, set, params, setParams } = useTicketFilters();
   const [search, setSearch] = useState(filters.q ?? '');
   const q = useDebounce(search, 350);
-  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.assignee || filters.channel || filters.customer));
+  const [showFilters, setShowFilters] = useState(Boolean(filters.status || filters.assignee || filters.channel || filters.customer || filters.category));
   const assignees = useAssignees();
   const handoffs = useHandoffs();
   const channels = useChannels();
@@ -94,7 +95,7 @@ export default function TicketsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.assignee, filters.channel, filters.customer, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const query = useMemo(() => ({ ...filters, q: filters.q }), [filters.view, filters.status, filters.assignee, filters.channel, filters.customer, filters.category, filters.q]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = useTickets(query);
   const prefetch = usePrefetchTicket();
   const tickets = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
@@ -104,6 +105,9 @@ export default function TicketsPage() {
 
   const extraFilters = [filters.status, filters.assignee, filters.channel, filters.customer, filters.category].filter(Boolean).length;
   const teamAssignment = useTeamAssignment();
+  // Category and Channel share a row; whichever is alone takes the full width.
+  const showCategory = Boolean(teamAssignment || filters.category);
+  const showChannel = Boolean(channels.data?.length || filters.channel);
   const newOpen = params.get('new') === '1';
   const [exportOpen, setExportOpen] = useState(false);
   // Without search or extra filters, the view's own count is the export's size.
@@ -159,23 +163,24 @@ export default function TicketsPage() {
           size="xs"
           label="View"
           value={filters.view ?? 'open'}
-          onChange={(v) => set({ view: v === 'open' ? undefined : v })}
+          // Closed tickets live in All, so any other view drops a "Closed" status instead of showing nothing.
+          onChange={(v) => set({ view: v === 'open' ? undefined : v, ...(v !== 'all' && filters.status === 'closed' ? { status: undefined } : {}) })}
           // Counts only where they ask for action; "Open" and "All" totals sit in the header.
           options={VIEWS.map((v) => ({ value: v.value, label: v.label, count: v.value === 'open' || v.value === 'all' ? undefined : counts?.[v.count] }))}
           stretch
         />
         {showFilters && (
           <div className="grid grid-cols-2 gap-2 animate-fade-in">
-            <Select size="sm" aria-label="Status" value={filters.status ?? ''} onChange={(e) => set({ status: e.target.value || undefined })} placeholder="Any status"
+            <Select size="sm" aria-label="Status" value={filters.status ?? ''} onChange={(e) => set({ status: e.target.value || undefined, ...(e.target.value === 'closed' && filters.view !== 'all' ? { view: 'all' } : {}) })} placeholder="Any status"
               options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS[s].label }))} />
             <Select size="sm" aria-label="Assignee" value={filters.assignee ?? ''} onChange={(e) => set({ assignee: e.target.value || undefined })} placeholder="Anyone"
               options={[{ value: 'me', label: 'Assigned to me' }, { value: 'none', label: 'Unassigned' }, ...assignees.map((m) => ({ value: m.user_id, label: m.name }))]} />
-            {(teamAssignment || filters.category) && (
-              <Select size="sm" aria-label="Category" value={filters.category ?? ''} onChange={(e) => set({ category: e.target.value || undefined })} placeholder="Any category"
+            {showCategory && (
+              <Select size="sm" className={showChannel ? undefined : 'col-span-2'} aria-label="Category" value={filters.category ?? ''} onChange={(e) => set({ category: e.target.value || undefined })} placeholder="Any category"
                 options={CATEGORY_OPTIONS} />
             )}
-            {Boolean(channels.data?.length || filters.channel) && (
-              <Select size="sm" className="col-span-2" aria-label="Channel" value={filters.channel ?? ''} onChange={(e) => set({ channel: e.target.value || undefined })} placeholder="Any channel"
+            {showChannel && (
+              <Select size="sm" className={showCategory ? undefined : 'col-span-2'} aria-label="Channel" value={filters.channel ?? ''} onChange={(e) => set({ channel: e.target.value || undefined })} placeholder="Any channel"
                 options={[{ value: 'none', label: 'No channel' }, ...(channels.data ?? []).map((c) => ({ value: c.id, label: `${c.name} · ${c.type_label}` }))]} />
             )}
             {filters.customer && (
