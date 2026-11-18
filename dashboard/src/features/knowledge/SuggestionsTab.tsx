@@ -1,14 +1,21 @@
 import { useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
-import { AlertTriangle, Check, Lightbulb, Pencil, Ticket, X } from 'lucide-react';
+import { AlertTriangle, Check, History, Lightbulb, Pencil, Ticket, X } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import { useWorkspace } from '@/lib/api/endpoints/bot';
-import { useAcceptSuggestion, useDismissSuggestion, useKnowledgeSuggestions, useLearnFromTickets } from '@/lib/api/endpoints/knowledge';
+import {
+  useAcceptSuggestion,
+  useDismissSuggestion,
+  useKnowledgeReview,
+  useKnowledgeSuggestions,
+  useLearnFromTickets,
+  useReviewClosedTickets,
+} from '@/lib/api/endpoints/knowledge';
 import type { KnowledgeSuggestion } from '@/lib/api/types';
-import { formatNumber, formatRelative } from '@/lib/format';
-import { notifySuccess } from '@/lib/notify';
+import { formatNumber, formatRelative, pluralize } from '@/lib/format';
+import { notifyInfo, notifySuccess } from '@/lib/notify';
 import { useScopeCtx } from '@/lib/session/scope-context';
-import { Button, Callout, Card, EmptyState, ErrorState, Field, Input, SkeletonRows, Switch, Textarea } from '@/components/ui';
+import { Button, Callout, Card, EmptyState, ErrorState, Field, Input, SkeletonRows, Switch, Textarea, useConfirm } from '@/components/ui';
 
 interface Ctx {
   openDoc: (id: string) => void;
@@ -25,6 +32,7 @@ export function SuggestionsTab() {
   return (
     <div className="grid gap-5">
       <LearnSetting />
+      <ReviewClosedTickets />
       {suggestions.isPending ? (
         <Card>
           <SkeletonRows rows={3} />
@@ -41,7 +49,7 @@ export function SuggestionsTab() {
             description={
               learning
                 ? `When a ticket someone on the team answered closes, ${bot.name} drafts an article from the answer within a few minutes. It shows up here for you to add or dismiss.`
-                : 'Turn on learning from closed tickets to get draft articles from your team’s answers.'
+                : 'Turn on learning from closed tickets, or review the ones already closed, to get draft articles from your team’s answers.'
             }
           />
         </Card>
@@ -181,6 +189,55 @@ function SuggestionCard({ suggestion: s, writable }: { suggestion: KnowledgeSugg
           </>
         ) : (
           <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-[10px] border border-line bg-surface-2/40 p-4 text-[0.8125rem] text-ink">{content}</div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** The most tickets one review queues (the API's limit); the rest wait for the next. */
+const REVIEW_LIMIT = 200;
+
+/** Reads closed tickets from before learning was on, and any the bot never read, for knowledge the bot is missing. */
+function ReviewClosedTickets() {
+  const { can, bot } = useScopeCtx();
+  const confirm = useConfirm();
+  const review = useKnowledgeReview();
+  const start = useReviewClosedTickets();
+  const status = review.data;
+  if (!status) return null;
+
+  const batch = Math.min(status.unreviewed, REVIEW_LIMIT);
+  const run = async () => {
+    const ok = await confirm({
+      title: `Review ${pluralize(batch, 'closed ticket')}?`,
+      description: `${bot.name} reads each ticket your team answered and drafts an article when your knowledge base is missing the answer. Each ticket counts as one reply on your plan. Drafts appear here for you to add or dismiss, so nothing changes until you accept it.${
+        status.unreviewed > batch ? ` ${formatNumber(status.unreviewed - batch)} older tickets wait for the next review.` : ''
+      }`,
+      confirmLabel: 'Review tickets',
+      onConfirm: () => start.mutateAsync(batch),
+    });
+    if (ok) notifyInfo('Review started', 'Drafts appear here within a few minutes. You can leave this page.');
+  };
+
+  const working = status.queued > 0;
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold text-ink">Review closed tickets</p>
+          <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
+            {working
+              ? `Reading ${pluralize(status.queued, 'ticket')}. Drafts appear below as they’re ready.`
+              : status.unreviewed > 0
+                ? `${pluralize(status.unreviewed, 'closed ticket')} your team answered ${status.unreviewed === 1 ? 'hasn’t' : 'haven’t'} been checked for missing knowledge. A ticket is checked once.`
+                : 'Every closed ticket your team answered has been checked.'}
+          </p>
+        </div>
+        {can('knowledge.write') && status.unreviewed > 0 && (
+          <Button variant="accent" leading={<History />} loading={start.isPending} disabled={start.isPending} onClick={run}>
+            Review closed tickets
+          </Button>
         )}
       </div>
     </Card>

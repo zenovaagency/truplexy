@@ -2304,6 +2304,7 @@ function draftFrom(c: Ctx, t: MockTicket) {
   const question = conv.messages.find((m) => m.author === 'customer')?.content ?? t.subject;
   const existing = c.db.suggestions.find((s) => s.ticket_id === t.id);
   const now = nowIso();
+  t.kb_reviewed = true;
   const draft = { status: 'ready' as const, title: t.subject.slice(0, 160), content: `**${question.trim()}**\n\n${answer.content.trim()}`, closed_at: t.closed_at, updated_at: now };
   if (existing) return Object.assign(existing, draft);
   const s: MockSuggestion = { id: newId('sug'), tenant_id: t.tenant_id, bot_id: t.bot_id, ticket_id: t.id, conversation_id: conv.id, created_at: now, ...draft };
@@ -2337,6 +2338,7 @@ route('POST', '/tickets/:id/learn', 'knowledge.write', (c) => {
   if (c.db.suggestions.some((s) => s.ticket_id === t.id && s.status === 'accepted')) throw err(409, 'SUGGESTION_HANDLED', "This ticket's answer is already in the knowledge base.");
   const conv = c.db.conversations.find((x) => x.id === t.conversation_id);
   if (!conv?.messages.some((m) => m.author === 'agent' && m.content.trim())) throw err(400, 'NOT_ANSWERED', "Reply to the customer first. The bot learns from your team's answers.");
+  t.kb_reviewed = true;
   const cover = coveredBy(c, t);
   if (cover) {
     const what = 'suggestion_id' in cover.extra ? `the draft “${cover.title}”, waiting for review` : `“${cover.title}”`;
@@ -2363,6 +2365,37 @@ route('GET', '/knowledge/suggestions', 'knowledge.read', (c) => ({
     .sort((a, b) => (b.closed_at ?? '').localeCompare(a.closed_at ?? ''))
     .map((s) => suggestionOut(c, s)),
 }));
+
+/** A closed ticket in the bot's scope a person answered that no review or Train bot has read, and that has no draft. */
+function unreviewedTickets(c: Ctx) {
+  return c.db.tickets
+    .filter((t) => t.tenant_id === c.tenant.id && t.bot_id === c.botId && t.status === 'closed' && t.conversation_id && !t.kb_reviewed)
+    .filter((t) => !c.db.suggestions.some((s) => s.ticket_id === t.id))
+    .filter((t) => c.db.conversations.find((x) => x.id === t.conversation_id)?.messages.some((m) => m.author === 'agent' && m.content.trim()))
+    .sort((a, b) => (b.closed_at ?? '').localeCompare(a.closed_at ?? ''));
+}
+
+route('GET', '/knowledge/suggestions/review', 'knowledge.read', (c) => ({
+  unreviewed: unreviewedTickets(c).length,
+  // The real API reads the queued tickets a few at a time; here a review is done at once.
+  queued: 0,
+  ready: c.db.suggestions.filter((s) => s.tenant_id === c.tenant.id && s.bot_id === c.botId && s.status === 'ready' && s.origin === 'review').length,
+}));
+
+route('POST', '/knowledge/suggestions/review', 'knowledge.write', (c) => {
+  const limit = c.body?.limit === undefined ? 200 : Number(c.body.limit);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw err(400, 'INVALID_LIMIT', 'limit must be between 1 and 200.');
+  const batch = unreviewedTickets(c).slice(0, limit);
+  if (batch.length === 0) throw err(422, 'NOTHING_TO_REVIEW', 'Every closed ticket your team answered has been reviewed already.');
+  for (const t of batch) {
+    t.kb_reviewed = true;
+    if (!coveredBy(c, t)) {
+      const s = draftFrom(c, t);
+      if (s) s.origin = 'review';
+    }
+  }
+  return { __status: 202, body: { queued: batch.length, unreviewed_left: unreviewedTickets(c).length } };
+});
 
 route('POST', '/knowledge/suggestions/:id/accept', 'knowledge.write', (c) => {
   const s = findSuggestion(c);
