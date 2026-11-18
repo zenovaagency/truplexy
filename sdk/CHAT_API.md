@@ -116,7 +116,7 @@ For `answered`, `clarification_required`, and `no_answer`, show `reply`. For `ha
 
 Never give a browser `bot_topic`: it includes other customers and internal notes. Give it only its authorized conversation's `url`, `publishable_key`, and `conversation_topic`. Treat broadcasts as prompts to refetch history. Fall back to polling for `REALTIME_NOT_CONFIGURED`, not for authorization or channel failures.
 
-Webhooks deliver staff `message.created` and `ticket.updated` events for chat API conversations. They exclude notes, playground chats, and integration-originated actions; `/resume` and `/replies` are not echoed. Verify the raw body with `X-Truplexy-Signature` HMAC-SHA256 and a five-minute timestamp window. Acknowledge within 2.5 seconds, queue work durably, and deduplicate `X-Truplexy-Delivery`: a failed delivery can be retried once using the same ID. Route a staff reply to its platform explicitly when using `/replies`.
+Webhooks deliver staff `message.created` and `ticket.updated` events for conversations from the chat API, the SDK, plugins and messaging channels. They exclude notes, playground chats, and integration-originated actions; `/resume` and `/replies` are not echoed. Verify the raw body with `X-Truplexy-Signature` HMAC-SHA256 and a five-minute timestamp window. Acknowledge within 2.5 seconds, queue work durably, and deduplicate `X-Truplexy-Delivery`: a failed delivery can be retried once using the same ID. Route a staff reply to its platform explicitly when using `/replies`.
 
 ## Website identity and migration
 

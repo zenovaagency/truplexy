@@ -166,6 +166,9 @@ describe('connecting a WhatsApp number', () => {
     await click(step('Generate a token that never expires'));
     expect(page()).toContain('whatsapp_business_messaging');
     expect(page()).not.toContain('pages_messaging');
+    // Browsers mustn't fill a saved login into the IDs or the token (Chrome took the ID field for a username).
+    for (const l of ['Phone number ID', 'WhatsApp Business Account ID']) expect(input(l).getAttribute('autocomplete')).toBe('off');
+    for (const l of ['Access token', 'App secret']) expect(input(l).getAttribute('autocomplete')).toBe('new-password');
     await fill();
     await click(submit());
     expect(connects()).toHaveLength(1);

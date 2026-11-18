@@ -19,9 +19,10 @@ type Status = 'loading' | 'signedOut' | 'signedIn';
 interface AuthValue {
   status: Status;
   user: AuthUser | null;
-  signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name?: string, next?: string) => Promise<{ needsConfirmation: boolean }>;
-  sendMagicLink: (email: string, next?: string) => Promise<void>;
+  /** `captchaToken` is the Turnstile token Supabase checks when its CAPTCHA protection is on. */
+  signInWithPassword: (email: string, password: string, captchaToken?: string) => Promise<void>;
+  signUp: (email: string, password: string, name?: string, next?: string, captchaToken?: string) => Promise<{ needsConfirmation: boolean }>;
+  sendMagicLink: (email: string, next?: string, captchaToken?: string) => Promise<void>;
   signInWithGoogle: (next?: string) => Promise<void>;
   /** Finishes a magic-link, confirmation or OAuth redirect on /auth/callback. */
   completeSignIn: (url: URL) => Promise<void>;
@@ -33,7 +34,7 @@ interface AuthValue {
   /** Sets the password of the signed-in person: a first one for magic-link accounts, or a new one. */
   setPassword: (password: string) => Promise<void>;
   /** Emails a link that signs the person in and lands on the Account page to choose a new password. */
-  sendPasswordReset: (email: string) => Promise<void>;
+  sendPasswordReset: (email: string, captchaToken?: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthValue | null>(null);
@@ -234,23 +235,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       status,
       user,
-      signInWithPassword: async (email, password) => {
+      signInWithPassword: async (email, password, captchaToken) => {
         const sb = await getSupabase();
-        fail((await sb.auth.signInWithPassword({ email, password })).error);
+        fail((await sb.auth.signInWithPassword({ email, password, options: { captchaToken } })).error);
       },
-      signUp: async (email, password, name, next) => {
+      signUp: async (email, password, name, next, captchaToken) => {
         const sb = await getSupabase();
         const { data, error } = await sb.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: callbackUrl(next), data: name ? { full_name: name } : undefined },
+          options: { emailRedirectTo: callbackUrl(next), data: name ? { full_name: name } : undefined, captchaToken },
         });
         fail(error);
         return { needsConfirmation: !data.session };
       },
-      sendMagicLink: async (email, next) => {
+      sendMagicLink: async (email, next, captchaToken) => {
         const sb = await getSupabase();
-        fail((await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: callbackUrl(next) } })).error);
+        fail((await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: callbackUrl(next), captchaToken } })).error);
       },
       signInWithGoogle: async (next) => {
         const sb = await getSupabase();
@@ -302,9 +303,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sb = await getSupabase();
         fail((await sb.auth.updateUser({ password })).error);
       },
-      sendPasswordReset: async (email) => {
+      sendPasswordReset: async (email, captchaToken) => {
         const sb = await getSupabase();
-        fail((await sb.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl('/account?recovery=1') })).error);
+        fail((await sb.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl('/account?recovery=1'), captchaToken })).error);
       },
     };
   }, [status, user, qc]);

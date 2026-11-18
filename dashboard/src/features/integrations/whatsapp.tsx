@@ -139,16 +139,16 @@ export function WhatsAppConnectSheet({ onClose }: { onClose: () => void }) {
             {formError && <Callout tone="danger" icon={<AlertTriangle />} title={formError} />}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Phone number ID" hint="On Step 1. Try it out, next to the number. Not the number itself." error={errors.phone_number_id ?? local('phone_number_id') ?? undefined}>
-                <Input value={v.phone_number_id} onChange={(e) => set('phone_number_id', e.target.value.slice(0, 40))} inputMode="numeric" className="font-mono text-xs" aria-label="Phone number ID" />
+                <Input value={v.phone_number_id} onChange={(e) => set('phone_number_id', e.target.value.slice(0, 40))} inputMode="numeric" autoComplete="off" className="font-mono text-xs" aria-label="Phone number ID" />
               </Field>
               <Field label="WhatsApp Business Account ID" hint="Meta calls it Messaging account ID." error={errors.waba_id ?? local('waba_id') ?? undefined}>
-                <Input value={v.waba_id} onChange={(e) => set('waba_id', e.target.value.slice(0, 40))} inputMode="numeric" className="font-mono text-xs" aria-label="WhatsApp Business Account ID" />
+                <Input value={v.waba_id} onChange={(e) => set('waba_id', e.target.value.slice(0, 40))} inputMode="numeric" autoComplete="off" className="font-mono text-xs" aria-label="WhatsApp Business Account ID" />
               </Field>
             </div>
             <Field label="Access token" hint="The system user's token that never expires." error={errors.access_token ?? local('access_token') ?? undefined}>
               <Input
                 type="password"
-                autoComplete="off"
+                autoComplete="new-password" data-1p-ignore data-lpignore="true"
                 value={v.access_token}
                 onChange={(e) => set('access_token', e.target.value.slice(0, 1000))}
                 className="font-mono text-xs"
@@ -156,7 +156,7 @@ export function WhatsAppConnectSheet({ onClose }: { onClose: () => void }) {
               />
             </Field>
             <Field label="App secret" hint="App settings → Basic in the same app." error={errors.app_secret ?? local('app_secret') ?? undefined}>
-              <Input type="password" autoComplete="off" value={v.app_secret} onChange={(e) => set('app_secret', e.target.value.slice(0, 64))} className="font-mono text-xs" aria-label="App secret" />
+              <Input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" value={v.app_secret} onChange={(e) => set('app_secret', e.target.value.slice(0, 64))} className="font-mono text-xs" aria-label="App secret" />
             </Field>
             <Field label="Channel name" optional hint="Leave empty to name it after the number's business name." error={errors.name ?? local('name') ?? undefined} aside={`${v.name?.length ?? 0}/80`}>
               <Input value={v.name ?? ''} onChange={(e) => set('name', e.target.value.slice(0, 80))} aria-label="Channel name" />
@@ -272,10 +272,10 @@ function UpdateCredentials({ id, onDone }: { id: string; onDone: () => void }) {
     <div className="grid gap-3">
       {formError && <Callout tone="danger" icon={<AlertTriangle />} title={formError} />}
       <Field label="New access token" error={errors.access_token ?? local('access_token', token) ?? undefined}>
-        <Input type="password" autoComplete="off" value={token} onChange={(e) => (setToken(e.target.value.slice(0, 1000)), setErrors({}))} className="font-mono text-xs" aria-label="New access token" />
+        <Input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" value={token} onChange={(e) => (setToken(e.target.value.slice(0, 1000)), setErrors({}))} className="font-mono text-xs" aria-label="New access token" />
       </Field>
       <Field label="App secret" hint="Of the app that made the token." error={errors.app_secret ?? local('app_secret', secret) ?? undefined}>
-        <Input type="password" autoComplete="off" value={secret} onChange={(e) => (setSecret(e.target.value.slice(0, 64)), setErrors({}))} className="font-mono text-xs" aria-label="App secret" />
+        <Input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" value={secret} onChange={(e) => (setSecret(e.target.value.slice(0, 64)), setErrors({}))} className="font-mono text-xs" aria-label="App secret" />
       </Field>
       <div className="flex gap-2">
         <Button size="sm" variant="ghost" onClick={onDone}>

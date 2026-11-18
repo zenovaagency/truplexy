@@ -9,7 +9,17 @@ export function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+/**
+ * A spreadsheet runs a cell that starts with = + - or @ as a formula, quoted or not, and
+ * customers write many of these cells (ticket subjects, messages, names). A leading
+ * apostrophe makes the program show such text as text. Numbers are not text and stay as they are.
+ */
+const FORMULA = /^[\t\r]|^\s*[=+\-@]/;
+const cell = (v: unknown) => {
+  const text = String(v ?? '');
+  const safe = typeof v === 'string' && FORMULA.test(text) ? "'" + text : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+};
 
 /** RFC 4180 CSV, every cell quoted. The byte-order mark makes Excel read it as UTF-8. */
 export function toCsv(head: string[], rows: unknown[][]) {
