@@ -548,6 +548,16 @@ export interface KnowledgeDocument extends DocMetadata {
   content?: string;
 }
 
+/** Where the review of a bot's closed tickets stands (v2). */
+export interface KnowledgeReview {
+  /** Closed tickets a person answered that no review has read yet. */
+  unreviewed: number;
+  /** Tickets a review queued that the model hasn't read yet. */
+  queued: number;
+  /** Suggestions a review wrote that wait for the team. */
+  ready: number;
+}
+
 /** A question and answer the model wrote from a closed ticket, waiting for the team (v2). */
 export interface KnowledgeSuggestion {
   id: string;

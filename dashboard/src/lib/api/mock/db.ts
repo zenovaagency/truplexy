@@ -136,10 +136,12 @@ export type MockSuggestion = Omit<KnowledgeSuggestion, 'ticket_subject' | 'statu
   tenant_id: string;
   bot_id: string;
   status: 'ready' | 'accepted' | 'dismissed';
+  /** 'review' when the team queued it with Review closed tickets. */
+  origin?: 'review';
 };
 export type MockTool = Tool & { id: string; tenant_id: string; disabled: boolean; calls: number; errors: number };
 /** `channel_name` and `channel_type` are stored only once the channel is deleted; otherwise they're read from it. */
-export type MockTicket = Omit<Ticket, 'needs_reply' | 'keep_open' | 'auto_close_at'> & { tenant_id: string; bot_id: string; keep_open?: boolean };
+export type MockTicket = Omit<Ticket, 'needs_reply' | 'keep_open' | 'auto_close_at'> & { tenant_id: string; bot_id: string; keep_open?: boolean; /** Read for a suggestion by a review or Train bot. */ kb_reviewed?: boolean };
 /** Counts, the type's label, `active` and the effective auto-close time are worked out on the way out. */
 export type MockChannel = Omit<Channel, 'type_label' | 'active' | 'open_tickets' | 'tickets' | 'api_keys' | 'auto_close_hours' | 'effective_auto_close_hours'> & {
   auto_close_hours?: number | null;

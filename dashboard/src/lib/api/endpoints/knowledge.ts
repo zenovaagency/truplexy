@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, hasCode, type Scope } from '@/lib/api/client';
-import type { DocMetadata, DocumentList, DocumentStatus, KnowledgeDocument, KnowledgeSuggestion, SearchFilters, SearchResult, UploadRegistration, Workspace } from '@/lib/api/types';
+import type { DocMetadata, DocumentList, DocumentStatus, KnowledgeDocument, KnowledgeReview, KnowledgeSuggestion, SearchFilters, SearchResult, UploadRegistration, Workspace } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -201,5 +201,35 @@ export function useLearnFromTicket() {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.bot(scope, 'kb-suggestions') }),
     // The ticket explains these itself.
     meta: { silentCodes: ['NOTHING_TO_LEARN', 'SUGGESTION_HANDLED', 'ALREADY_COVERED'] },
+  });
+}
+
+/* Review of the closed-ticket backlog (v2) -------------------------------- */
+
+/** Where the bot's review of its closed tickets stands. */
+export function useKnowledgeReview(enabled = true) {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.bot(scope, 'kb-review'),
+    queryFn: ({ signal }) => api<KnowledgeReview>('/knowledge/suggestions/review', { scope, signal }),
+    enabled,
+    // A job reads the queued tickets a few at a time, so look again soon while any wait.
+    refetchInterval: (query) => (query.state.data && query.state.data.queued > 0 ? 15_000 : 120_000),
+  });
+}
+
+/** Queues the closed tickets a person answered that were never read, to be drafted into suggestions. Billed like a reply each. */
+export function useReviewClosedTickets() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (limit?: number) =>
+      api<{ queued: number; unreviewed_left: number }>('/knowledge/suggestions/review', { method: 'POST', body: limit ? { limit } : {}, scope }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.bot(scope, 'kb-review') });
+      qc.invalidateQueries({ queryKey: qk.bot(scope, 'kb-suggestions') });
+    },
+    // The card says so itself.
+    meta: { silentCodes: ['NOTHING_TO_REVIEW'] },
   });
 }
