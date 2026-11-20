@@ -1,0 +1,27 @@
+---
+import Base from '../../layouts/Base.astro';
+import Nav from '../../components/chrome/Nav.astro';
+import Footer from '../../components/chrome/Footer.astro';
+import Button from '../../components/ui/Button.astro';
+import { SITE } from '../../data/site';
+---
+
+<!-- Where the demo request form lands. Out of search: it only makes sense after sending it. -->
+<Base title="Thanks for your request — Truplexy" description="Your Truplexy demo request has been sent. We'll reply by email to arrange a time that suits you." noindex>
+  <Nav />
+  <main id="main" class="relative overflow-hidden bg-ground-cream">
+    <section class="container-t flex min-h-[calc(100dvh-var(--nav-h))] flex-col items-center justify-center pb-20 pt-[calc(var(--nav-h)+2.5rem)] text-center">
+      <p class="eyebrow">Request sent</p>
+      <h1 class="display mt-5 max-w-[18ch] text-balance text-[clamp(2.1rem,1.5rem+2.6vw,3.5rem)]">Thanks. We’ll be in touch.</h1>
+      <p class="lede mt-5 max-w-[520px] text-pretty">
+        We’ve got your request and will reply by email to arrange a time. Questions in the meantime? Write to
+        <a href={`mailto:${SITE.email}`} class="font-semibold text-accent hover:underline">{SITE.email}</a>.
+      </p>
+      <div class="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:justify-center">
+        <Button href={SITE.signupUrl} class="w-full sm:w-auto">Start a 7-day free trial</Button>
+        <Button href="/" variant="ghost" arrow={false} class="w-full sm:w-auto">Back to Truplexy</Button>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>

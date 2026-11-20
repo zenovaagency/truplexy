@@ -458,7 +458,7 @@ export const PAGES: Record<OverviewId, ChannelPage> = {
 
   teams: {
     blurb: 'Route escalations to a Teams channel and answer from there.',
-    summary: 'Route escalated conversations to a Microsoft Teams channel and answer customers from the thread. Teams is where your team works; customers stay on their own channel.',
+    summary: 'Route escalated conversations to a Microsoft Teams channel and answer customers from the thread, while customers stay on the channel they wrote from.',
     capabilities: [
       'Posts each escalation as a card in your support channel.',
       'A teammate replies in the card’s thread, and the customer gets it on the channel they wrote from.',

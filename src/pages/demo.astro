@@ -1,0 +1,180 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/chrome/Nav.astro';
+import Footer from '../components/chrome/Footer.astro';
+import { SITE } from '../data/site';
+import { LIMITS, TEAM_SIZES, TOPICS } from '../data/demo-request';
+
+/**
+ * Book a demo / contact sales. Two ways in:
+ * - A booking calendar, when PUBLIC_BOOKING_URL is set at build time to an
+ *   embeddable scheduling page (Cal.com, Calendly, Google Calendar
+ *   appointment schedule …). PLACEHOLDER until the real link exists.
+ * - A request form, always. It posts to /api/demo-request, which forwards it
+ *   to DEMO_REQUEST_WEBHOOK_URL (see that file).
+ * `?topic=sales` (the Enterprise "Contact sales" button) preselects the topic.
+ */
+const bookingUrl = import.meta.env.PUBLIC_BOOKING_URL as string | undefined;
+
+const input =
+  'mt-2 block w-full rounded-xl border border-line-strong bg-surface px-3.5 py-2.5 text-[0.95rem] text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10';
+const label = 'block text-[0.875rem] font-semibold text-ink';
+const hint = 'font-normal text-ink-faint';
+
+const expect = [
+  'A live walkthrough of the assistant, the unified inbox and the handoff to your team.',
+  'Your channels and tools: which ones you use, and how each one connects.',
+  'Plans and limits, including Enterprise pricing for higher volumes.',
+  'Your questions about data handling, AI accuracy and setup.',
+];
+---
+
+<Base
+  title="Book a demo — Truplexy"
+  description="Book a Truplexy demo or talk to sales: see the AI assistant, unified inbox and human handoff on your channels, and get Enterprise pricing for your volume."
+  breadcrumbs={[{ name: 'Book a demo', path: '/demo' }]}
+>
+  <Nav />
+  <main id="main" class="relative overflow-x-clip">
+    <section class="bg-ground-cream pb-[var(--section-y)] pt-[calc(var(--nav-h)+clamp(3rem,6vw,5.5rem))]" aria-labelledby="demo-title">
+      <div class="container-t">
+        <div class="mx-auto max-w-[760px] text-center">
+          <p class="eyebrow">Book a demo</p>
+          <h1 id="demo-title" class="display mt-5 text-balance text-[clamp(2.3rem,1.5rem+3vw,3.75rem)]">See Truplexy on your channels.</h1>
+          <p class="lede mx-auto mt-6 max-w-[600px] text-pretty">
+            Tell us a little about your team and we’ll set up a walkthrough. For Enterprise, we’ll shape limits and pricing around your volume.
+          </p>
+        </div>
+
+        {bookingUrl && (
+          <div class="card mx-auto mt-12 max-w-[1040px] overflow-hidden !p-0">
+            <h2 class="sr-only">Pick a time</h2>
+            <iframe src={bookingUrl} title="Pick a time for your Truplexy demo" class="block h-[720px] w-full border-0" loading="lazy"></iframe>
+          </div>
+        )}
+
+        <div id="request" class="mx-auto mt-12 grid max-w-[1040px] scroll-mt-[calc(var(--nav-h)+24px)] gap-8 lg:grid-cols-[1fr_1.2fr] lg:gap-12">
+          <div>
+            <h2 class="text-xl font-bold tracking-tight">{bookingUrl ? 'Or send us a request' : 'What we’ll cover'}</h2>
+            <ul class="mt-5 space-y-3 text-[0.95rem] leading-relaxed text-ink-muted">
+              {expect.map((item) => (
+                <li class="flex gap-3">
+                  <span class="mt-[9px] h-1.5 w-1.5 flex-none rounded-full bg-ink" aria-hidden="true"></span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p class="mt-8 text-[0.9rem] leading-relaxed text-ink-faint">
+              Rather try it yourself first? <a href={SITE.signupUrl} class="font-semibold text-accent hover:underline">Start a 7-day free trial</a> on Starter or Pro.
+              You can also email <a href={`mailto:${SITE.email}`} class="font-semibold text-accent hover:underline">{SITE.email}</a>.
+            </p>
+          </div>
+
+          <form class="card space-y-5 !bg-surface p-6 sm:p-8" method="post" action="/api/demo-request" data-demo-form novalidate>
+            <p class="hidden rounded-xl border border-human/30 bg-human-soft px-4 py-3 text-[0.9rem] text-human" role="alert" data-form-error></p>
+
+            <div class="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label for="dr-name" class={label}>Your name</label>
+                <input id="dr-name" name="name" type="text" autocomplete="name" required maxlength={LIMITS.name} class={input} />
+              </div>
+              <div>
+                <label for="dr-email" class={label}>Work email</label>
+                <input id="dr-email" name="email" type="email" autocomplete="email" required maxlength={LIMITS.email} class={input} />
+              </div>
+              <div>
+                <label for="dr-company" class={label}>Company <span class={hint}>(optional)</span></label>
+                <input id="dr-company" name="company" type="text" autocomplete="organization" maxlength={LIMITS.company} class={input} />
+              </div>
+              <div>
+                <label for="dr-size" class={label}>Support team size <span class={hint}>(optional)</span></label>
+                <select id="dr-size" name="team_size" class={input}>
+                  <option value="">Choose…</option>
+                  {TEAM_SIZES.map((s) => <option value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label for="dr-topic" class={label}>What would you like to talk about?</label>
+              <select id="dr-topic" name="topic" class={input} data-topic>
+                {TOPICS.map((t) => <option value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label for="dr-message" class={label}>Anything we should know? <span class={hint}>(optional)</span></label>
+              <textarea id="dr-message" name="message" rows="4" maxlength={LIMITS.message} class={input} placeholder="The channels you use, roughly how many conversations a month, the tools you’d connect…"></textarea>
+            </div>
+
+            <!-- Left empty by people; filled by bots. -->
+            <div class="hidden" aria-hidden="true">
+              <label for="dr-fax">Fax</label>
+              <input id="dr-fax" name="fax" type="text" tabindex="-1" autocomplete="off" />
+            </div>
+            <input type="hidden" name="started" value="" data-started />
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button type="submit" class="btn btn-md btn-primary flex-none whitespace-nowrap" data-submit>
+                <span class="btn-roll"><span class="btn-text">Request a demo</span></span>
+              </button>
+              <p class="text-[0.8rem] text-ink-faint">
+                We use these details only to reply. See the <a href="/privacy" class="underline underline-offset-2 hover:text-ink">Privacy Notice</a>.
+              </p>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<script>
+  import { SITE } from '../data/site';
+
+  const form = document.querySelector<HTMLFormElement>('[data-demo-form]');
+  if (form) {
+    const errorBox = form.querySelector<HTMLElement>('[data-form-error]')!;
+    const submit = form.querySelector<HTMLButtonElement>('[data-submit]')!;
+    const started = form.querySelector<HTMLInputElement>('[data-started]')!;
+    started.value = String(Date.now());
+
+    const MESSAGES: Record<string, string> = {
+      invalid: 'Please add your name and a valid email address.',
+      unavailable: `The form isn’t connected yet. Please email ${SITE.email} instead.`,
+      failed: `Something went wrong sending that. Please try again, or email ${SITE.email}.`,
+    };
+    const showError = (code: string) => {
+      errorBox.textContent = MESSAGES[code] ?? MESSAGES.failed;
+      errorBox.classList.remove('hidden');
+    };
+
+    // ?topic=sales preselects a topic; ?error=… comes back from a no-JS post.
+    const params = new URLSearchParams(location.search);
+    const topic = form.querySelector<HTMLSelectElement>('[data-topic]')!;
+    const wanted = params.get('topic');
+    if (wanted && [...topic.options].some((o) => o.value === wanted)) topic.value = wanted;
+    const err = params.get('error');
+    if (err) showError(err);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!form.reportValidity()) return;
+      errorBox.classList.add('hidden');
+      submit.disabled = true;
+      try {
+        const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { accept: 'application/json' } });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (data.ok) {
+          location.assign('/demo/thanks');
+          return;
+        }
+        showError(data.error ?? 'failed');
+      } catch {
+        showError('failed');
+      }
+      submit.disabled = false;
+    });
+  }
+</script>

@@ -7,7 +7,6 @@ import PlanCards from '../components/pricing/PlanCards.astro';
 import CompareTable from '../components/pricing/CompareTable.astro';
 import { COMPARISON, PRICED } from '../data/pricing';
 import { SITE } from '../data/site';
-import { LEGAL } from '../data/legal';
 
 // The add-on prices come straight from the table, so the two can't drift.
 const addOns = COMPARISON.find((s) => s.group === 'Token add-ons')!.rows;
@@ -18,7 +17,7 @@ const offered = PRICED.filter((p) => typeof max.values[p.id] === 'string');
 <Base
   title="Pricing — Truplexy"
   breadcrumbs={[{ name: 'Pricing', path: '/pricing' }]}
-  description="Truplexy plans: Starter at $29 a month and Pro at $79 a month, each with a 7-day free trial, and Enterprise priced to your volume. Compare channels, integrations and support."
+  description="Truplexy pricing: Starter $29/month and Pro $79/month, each with a 7-day free trial, and Enterprise priced to your volume. Compare every plan side by side."
 >
   <Nav />
   <main id="main" class="relative overflow-x-clip">
@@ -36,10 +35,6 @@ const offered = PRICED.filter((p) => typeof max.values[p.id] === 'string');
 
         <PlanCards compareLink={false} />
 
-        <p class="mx-auto mt-8 max-w-[640px] text-center text-[0.85rem] text-ink-faint">
-          Prices are in US dollars, excluding any sales tax or VAT. Payments are handled by Paddle. Your first payment on a paid plan has a
-          {LEGAL.refundWindowDays}-day refund — see the <a href="/refunds" class="font-semibold text-accent hover:underline">Refund Policy</a>.
-        </p>
       </div>
     </section>
 

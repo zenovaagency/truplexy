@@ -250,7 +250,11 @@ const mobileLink = 'flex items-center gap-3 rounded-lg py-2.5 text-[1.0625rem] f
     </button>
   </div>
 
-  <ul class="container-t mt-4 flex-1 overflow-y-auto overscroll-contain">
+  <!-- The menu's links repeat the desktop nav's, so they ship in a <template>
+       and are copied in the first time the menu opens (it can only be opened
+       with JS). The page's HTML then lists each nav link once. -->
+  <ul class="container-t mt-4 flex-1 overflow-y-auto overscroll-contain" data-menu-list></ul>
+  <template data-menu-items>
     {NAV.map((item) => (
       <li class="border-b border-line">
         {item.menu ? (
@@ -295,7 +299,7 @@ const mobileLink = 'flex items-center gap-3 rounded-lg py-2.5 text-[1.0625rem] f
         )}
       </li>
     ))}
-  </ul>
+  </template>
 
   <div class="container-t flex flex-none flex-col gap-3 pb-10 pt-6">
     <Button href={SITE.signupUrl}>Get started</Button>
@@ -365,7 +369,18 @@ const mobileLink = 'flex items-center gap-3 rounded-lg py-2.5 text-[1.0625rem] f
   const openBtn = header.querySelector<HTMLButtonElement>('[data-menu-open]')!;
   const closeBtn = menu.querySelector<HTMLButtonElement>('[data-menu-close]')!;
 
+  const list = menu.querySelector<HTMLUListElement>('[data-menu-list]')!;
+  const items = menu.querySelector<HTMLTemplateElement>('[data-menu-items]')!;
+  // Closing unlocks scrolling first; same-page anchors are then handled by the
+  // document-level listener in lib/scroll.ts, links to other pages just navigate.
+  const fill = () => {
+    if (list.childElementCount) return;
+    list.append(items.content.cloneNode(true));
+    list.querySelectorAll<HTMLAnchorElement>('[data-menu-link]').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+  };
+
   const setOpen = (open: boolean) => {
+    if (open) fill();
     menu.toggleAttribute('data-open', open);
     openBtn.setAttribute('aria-expanded', String(open));
     lockScroll(open);
@@ -378,9 +393,4 @@ const mobileLink = 'flex items-center gap-3 rounded-lg py-2.5 text-[1.0625rem] f
   menu.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') setOpen(false);
   });
-  // Closing unlocks scrolling first; same-page anchors are then handled by the
-  // document-level listener in lib/scroll.ts, links to other pages just navigate.
-  menu.querySelectorAll<HTMLAnchorElement>('[data-menu-link]').forEach((a) =>
-    a.addEventListener('click', () => setOpen(false)),
-  );
 </script>

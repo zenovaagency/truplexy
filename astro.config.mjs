@@ -28,6 +28,7 @@ const PAGE_SOURCES = {
   '/privacy': ['src/pages/privacy.astro', 'src/data/legal.ts', 'src/data/site.ts'],
   '/terms': ['src/pages/terms.astro', 'src/data/legal.ts', 'src/data/site.ts'],
   '/refunds': ['src/pages/refunds.astro', 'src/data/legal.ts'],
+  '/demo': ['src/pages/demo.astro', 'src/data/demo-request.ts', 'src/data/site.ts'],
 };
 
 /**
@@ -157,8 +158,8 @@ export default defineConfig({
   integrations: [
     react(),
     sitemap({
-      // The 404 page and the checkout page are not for search.
-      filter: (page) => !/\/(404|pay)\/?$/.test(new URL(page).pathname),
+      // The 404 page, the checkout page and the demo request's thank-you page are not for search.
+      filter: (page) => !/\/(404|pay|demo\/thanks)\/?$/.test(new URL(page).pathname),
       serialize(item) {
         const route = new URL(item.url).pathname.replace(/\/$/, '') || '/';
         // Google ignores changefreq and priority; lastmod is the signal it uses.

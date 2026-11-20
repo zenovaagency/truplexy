@@ -11,7 +11,7 @@ Astro 7 + React islands + Tailwind v4, with GSAP/Lenis for motion. Structure mir
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Dev server on http://localhost:4321 |
-| `npm run build` | Static build to `dist/` |
+| `npm run build` | Build to `dist/` (static pages in `dist/client`, the `/api/demo-request` function in `dist/server`) |
 | `npm run check` | Type-check (`astro check`) |
 | `npm run verify:seo` | Sitemap, canonical, noindex and robots.txt audit of `dist/` (run after build) |
 | `npm run verify` | Honesty audit of the built home, `/channels/*` and `/docs/*` pages (run after build) |
@@ -45,7 +45,7 @@ services: `dashboard` on `app.` hosts (`app.truplexy.com`), `site` on every othe
   robots.txt, which cannot stop a URL from being indexed.
 - Identity: the home page opens with a visible "What is Truplexy?" section (`src/components/home/WhatIs.astro`)
   that answers what it is, who it is for, which channels it supports and how it differs from a chatbot, and
-  says Truplexy is an independent product of Zenova Agency, not Perplexity AI. Channel names come from the
+  links to the About section. The statement that Truplexy is an independent product of Zenova Agency, not Perplexity AI, is in the footer only. Channel names come from the
   registry. The JSON-LD in `Base.astro` (Organization, WebSite, SoftwareApplication, WebPage and
   BreadcrumbList, linked by `@id`) says the same. It deliberately has no ratings, reviews, offers or
   `sameAs`: add `sameAs` to the Organization once official profiles exist.
@@ -62,6 +62,19 @@ services: `dashboard` on `app.` hosts (`app.truplexy.com`), `site` on every othe
   `https://truplexy.com/sitemap.xml` (Bing Webmaster Tools: same URL, or import the site from Search Console).
 - The dashboard (`app.`) is kept out of search with an `X-Robots-Tag: noindex` header
   (`vercel.json`) and a noindex meta. Its `robots.txt` still allows crawling, so crawlers can see that.
+
+## Demo requests
+
+"Book a demo" and "Contact sales" open `/demo` (`src/pages/demo.astro`). It has a request form that posts to
+`/api/demo-request` (`src/pages/api/demo-request.ts`, the site's only on-demand route), which forwards each request as
+JSON (`text` and `content`) to `DEMO_REQUEST_WEBHOOK_URL`, so a Slack incoming webhook, a Discord webhook or a
+Zapier/Make hook works as is. Without that variable the form tells visitors to email instead. Set
+`PUBLIC_BOOKING_URL` at build time to an embeddable scheduling page (Cal.com, Calendly …) to show a calendar above the form.
+
+## Trust content
+
+Customer logos, testimonials and the case study live in `src/data/proof.ts`, empty until there is real, approved
+content. Empty blocks don't render in production; `npm run dev` shows them as dashed PLACEHOLDER slots.
 
 ## Where things live
 
