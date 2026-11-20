@@ -25,10 +25,12 @@ interface Props {
   duration?: string;
   /** How far down the poster the play button sits, so it can land in an empty part of the frame. */
   playY?: string;
+  /** A WebVTT captions file, offered in the player's captions menu. */
+  captions?: { src: string; label: string; lang?: string };
   class?: string;
 }
 
-const { src, poster, title, duration, playY = '50%', class: className } = Astro.props;
+const { src, poster, title, duration, playY = '50%', captions, class: className } = Astro.props;
 ---
 
 <div class:list={['vid-frame', className]}>
@@ -36,6 +38,7 @@ const { src, poster, title, duration, playY = '50%', class: className } = Astro.
   <video class="vid-media" controls preload="none" playsinline poster={poster} aria-label={title} width="1920" height="1080">
     <source src={`${src}.webm`} type="video/webm" />
     <source src={`${src}.mp4`} type="video/mp4" />
+    {captions && <track kind="captions" src={captions.src} srclang={captions.lang ?? 'en'} label={captions.label} />}
     <a href={`${src}.mp4`}>Download “{title}”</a>
   </video>
 

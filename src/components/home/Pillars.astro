@@ -6,7 +6,7 @@ import ChannelIcon from '../ui/ChannelIcon';
 import Mark from '../brand/Mark.astro';
 import bubbly from '../../assets/brand/bubbly-avatar.png';
 import { BUSINESS_HOURS, DAY, HERO } from '../../data/demo';
-import type { ChannelId } from '../../data/channels';
+import { channel, type ChannelId } from '../../data/channels';
 
 // The five things Truplexy combines, as a bento: three tiles, then two wide
 // ones. Every illustration reuses the page's sample cast from demo.ts, so the
@@ -155,7 +155,7 @@ const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
         <ul class:list={['flex w-[330px] flex-col gap-2 max-sm:scale-[0.9]']}>
           {INBOX_ROWS.map((r) => (
             <li class:list={['flex h-11 items-center gap-2.5 rounded-xl px-3', float]}>
-              <ChannelIcon id={r.channel} size={16} />
+              <ChannelIcon id={r.channel} size={16} title={channel(r.channel).name} />
               <span class="min-w-0 flex-1 truncate text-[0.78rem] font-medium text-ink">{r.subject}</span>
               <span class:list={['chip flex-none text-[0.66rem]', r.tone]}>{r.status}</span>
             </li>
@@ -173,7 +173,7 @@ const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
           <span class="thread-h absolute inset-x-4 top-1/2 -translate-y-1/2 opacity-35"></span>
           {CHANNEL_ROW[0].map((t) => (
             <span class:list={['relative h-14 w-14 place-items-center rounded-2xl', float, t.edge ? 'hidden sm:grid' : 'grid']}>
-              <ChannelIcon id={t.id} size={28} />
+              <ChannelIcon id={t.id} size={28} title={channel(t.id).name} />
             </span>
           ))}
           <span class="relative">
@@ -183,7 +183,7 @@ const float = 'border border-line bg-surface shadow-[var(--shadow-md)]';
           </span>
           {CHANNEL_ROW[1].map((t) => (
             <span class:list={['relative h-14 w-14 place-items-center rounded-2xl', float, t.edge ? 'hidden sm:grid' : 'grid']}>
-              <ChannelIcon id={t.id} size={28} />
+              <ChannelIcon id={t.id} size={28} title={channel(t.id).name} />
             </span>
           ))}
         </div>

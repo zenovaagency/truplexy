@@ -95,7 +95,7 @@ export const PLANS: Plan[] = [
       'Hands-on onboarding for your channels and tools',
       'Dedicated support',
     ],
-    cta: { label: 'Contact sales', href: SITE.demoUrl },
+    cta: { label: 'Contact sales', href: SITE.salesUrl },
   },
 ];
 
@@ -118,7 +118,26 @@ export interface CompareRow {
   note?: keyof typeof FOOTNOTES;
 }
 
-export const FOOTNOTES: Record<string, string> = {};
+/**
+ * Plain-language definitions of the usage terms on the plan cards and in the
+ * table. The cards show them as tooltips; the page prints them as notes too,
+ * so they're readable without hovering.
+ */
+export const USAGE_TERMS = {
+  tokens: {
+    term: 'AI tokens',
+    text: 'Tokens are how AI models measure text: short pieces of words. Every reply uses tokens for what the assistant reads (the customer’s message, the conversation so far and the knowledge it looks up) and for what it writes. Your allowance resets each month.',
+  },
+  replies: {
+    term: 'Est. AI replies',
+    text: 'A guide to how many replies your monthly tokens cover at a typical length. Long conversations and long knowledge passages use more tokens per reply, so your real number can be higher or lower.',
+  },
+} as const;
+
+export const FOOTNOTES: Record<string, string> = {
+  '*': `${USAGE_TERMS.replies.term}: ${USAGE_TERMS.replies.text}`,
+  '†': `${USAGE_TERMS.tokens.term}: ${USAGE_TERMS.tokens.text}`,
+};
 
 const all = { starter: true, pro: true, enterprise: true };
 const proUp = { starter: false, pro: true, enterprise: true };
@@ -128,8 +147,8 @@ export const COMPARISON: { group: string; rows: CompareRow[] }[] = [
   {
     group: 'AI & knowledge',
     rows: [
-      row('AI replies per month', '10,000', '50,000', 'Unlimited'),
-      row('AI tokens per month', '10M', '50M', 'Unlimited'),
+      { ...row('Est. AI replies per month', '10,000', '50,000', 'Unlimited'), note: '*' },
+      { ...row('AI tokens per month', '10M', '50M', 'Unlimited'), note: '†' },
       row('Bots', '3', '10', '100'),
       row('Knowledge documents per bot', '300', '1,000', '1,000'),
       { label: 'Custom tools', values: all },

@@ -1,7 +1,8 @@
 ---
 import { Check, Sparkles } from 'lucide-react';
 import Button from '../ui/Button.astro';
-import { PLANS, TRIAL_DAYS, YEARLY_SAVING, signupAttrs, type Billing } from '../../data/pricing';
+import { PLANS, TRIAL_DAYS, USAGE_TERMS, YEARLY_SAVING, signupAttrs, type Billing } from '../../data/pricing';
+import { LEGAL } from '../../data/legal';
 
 interface Props {
   /** Link to the full comparison on /pricing. Off on that page itself. */
@@ -30,8 +31,6 @@ const swap = (billing: string | null) => [
   billing === 'yearly' &&
     'invisible translate-y-1 opacity-0 group-data-[billing=yearly]/pricing:visible group-data-[billing=yearly]/pricing:translate-y-0 group-data-[billing=yearly]/pricing:opacity-100 group-data-[billing=yearly]/pricing:delay-80',
 ];
-
-const DIGITS = [...'0123456789'];
 
 type Column = { char: string } | { m: number; y: number };
 
@@ -127,17 +126,16 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
           <p class="flex items-baseline gap-2">
             {cols && plan.price ? (
               <span class="text-[2.6rem] font-bold leading-none tracking-[-0.03em] tabular-nums">
-                <!-- The reels are decoration; the sr-only copies carry the price. -->
-                <span class="inline-flex items-center" aria-hidden="true" style={`--card:${rolling.indexOf(plan.id)}`}>
-                  <span>$</span>
+                <!-- The reels are decoration, drawn entirely in CSS (the "$" and
+                     each 0–9 strip are generated content), so the page's text
+                     holds only the real price below, never a run of digits. -->
+                <span class="reels inline-flex items-center" aria-hidden="true" style={`--card:${rolling.indexOf(plan.id)}`}>
                   {cols.map((c, j) =>
                     'char' in c ? (
-                      <span>{c.char}</span>
+                      <span class="reel-char" data-char={c.char}></span>
                     ) : (
                       <span class:list={['reel', c.m !== c.y && 'reel-moves']}>
-                        <span class="reel-strip" style={`--m:${c.m};--y:${c.y};--col:${j}`}>
-                          {DIGITS.map((d) => <span>{d}</span>)}
-                        </span>
+                        <span class="reel-strip" style={`--m:${c.m};--y:${c.y};--col:${j}`}></span>
                       </span>
                     ),
                   )}
@@ -169,11 +167,17 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
 
         <dl class="mt-7 grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface-2/60 p-4">
           <div>
-            <dt class="mono text-[0.62rem] text-ink-faint">Est. AI replies</dt>
+            <dt class="mono flex items-center gap-1 text-[0.62rem] text-ink-faint">
+              {USAGE_TERMS.replies.term}
+              <button type="button" class="tip" data-tip={USAGE_TERMS.replies.text} aria-label={`What does ${USAGE_TERMS.replies.term} mean?`} aria-describedby="usage-replies">?</button>
+            </dt>
             <dd class="mt-1 text-[1.05rem] font-bold tracking-tight tabular-nums text-ink">{plan.usage.replies}<span class:list={['text-[0.78rem] font-medium text-ink-faint', plan.usage.replies === 'Unlimited' && 'hidden']}> / mo</span></dd>
           </div>
           <div>
-            <dt class="mono text-[0.62rem] text-ink-faint">AI tokens</dt>
+            <dt class="mono flex items-center gap-1 text-[0.62rem] text-ink-faint">
+              {USAGE_TERMS.tokens.term}
+              <button type="button" class="tip" data-tip={USAGE_TERMS.tokens.text} aria-label={`What are ${USAGE_TERMS.tokens.term}?`} aria-describedby="usage-tokens">?</button>
+            </dt>
             <dd class="mt-1 text-[1.05rem] font-bold tracking-tight tabular-nums text-ink">{plan.usage.tokens}<span class:list={['text-[0.78rem] font-medium text-ink-faint', plan.usage.tokens === 'Unlimited' && 'hidden']}> / mo</span></dd>
           </div>
         </dl>
@@ -195,6 +199,17 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
       );
     })}
   </ul>
+
+  <!-- Read without hovering: the usage terms, currency, tax and refunds. The
+       tooltips above point here (aria-describedby). -->
+  <div class="mx-auto mt-8 max-w-[760px] space-y-2 text-center text-[0.85rem] leading-relaxed text-ink-faint">
+    <p>
+      Prices are in US dollars and exclude any sales tax or VAT, which is added at checkout where it applies. Payments are
+      handled by {LEGAL.paddle.name}. Your first payment on a paid plan has a {LEGAL.refundWindowDays}-day refund: see the <a href="/refunds" class="font-semibold text-accent hover:underline">Refund Policy</a>.
+    </p>
+    <p id="usage-replies"><strong class="font-semibold text-ink-muted">{USAGE_TERMS.replies.term}:</strong> {USAGE_TERMS.replies.text}</p>
+    <p id="usage-tokens"><strong class="font-semibold text-ink-muted">{USAGE_TERMS.tokens.term}:</strong> {USAGE_TERMS.tokens.text}</p>
+  </div>
 
   {compareLink && (
     <p class="mt-8 text-center">
@@ -277,9 +292,77 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
     transition: translate 700ms var(--ease-out-expo) var(--delay);
   }
 
-  .reel-strip > span {
-    height: var(--cell);
+  /* The strip's digits and the currency sign are generated content, so
+     they are drawn but never part of the page's text. */
+  .reels::before {
+    content: '$';
+  }
+
+  .reel-char::before {
+    content: attr(data-char);
+  }
+
+  .reel-strip::before {
+    content: '0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9';
+    white-space: pre;
     line-height: var(--cell);
+  }
+
+  /* Usage tooltips: a small "?" that shows the definition on hover or focus.
+     The same text is printed under the cards for touch and screen readers. */
+  .tip {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid var(--color-line-strong);
+    color: var(--color-ink-faint);
+    font-size: 0.56rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+  }
+  .tip:hover,
+  .tip:focus-visible {
+    color: var(--color-ink);
+    border-color: var(--color-ink);
+    outline: none;
+  }
+  .tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    z-index: 5;
+    width: max-content;
+    max-width: 240px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font-family: var(--font-sans, inherit);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.4;
+    text-align: left;
+    text-transform: none;
+    white-space: normal;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    visibility: hidden;
+    translate: -50% 4px;
+    transition: opacity 160ms, translate 160ms, visibility 0s 160ms;
+    pointer-events: none;
+  }
+  .tip:hover::after,
+  .tip:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+    translate: -50% 0;
+    transition: opacity 160ms, translate 160ms;
   }
 
   [data-billing='yearly'] .reel-strip {

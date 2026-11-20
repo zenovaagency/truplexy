@@ -1,0 +1,145 @@
+---
+import { BookOpenCheck, Database, Lock, UserRoundCheck } from 'lucide-react';
+import { CASE_STUDY, CUSTOMER_LOGOS, TESTIMONIALS } from '../../data/proof';
+import { LEGAL } from '../../data/legal';
+
+/**
+ * Proof and trust, before pricing. Two parts:
+ * - Customers: logos, quotes and a case study from src/data/proof.ts. Each
+ *   block appears only once it has real content; in dev, empty blocks show as
+ *   dashed PLACEHOLDER slots so the layout can be reviewed.
+ * - Security & privacy: how data is handled, restating the Privacy Notice.
+ */
+const dev = import.meta.env.DEV;
+const showLogos = CUSTOMER_LOGOS.length > 0;
+const showQuotes = TESTIMONIALS.length > 0;
+const showCase = CASE_STUDY !== null;
+const showProof = showLogos || showQuotes || showCase;
+
+const slot = 'grid place-items-center rounded-[20px] border-2 border-dashed border-line-strong p-6 text-center text-[0.85rem] text-ink-faint';
+
+const SECURITY = [
+  {
+    Icon: Database,
+    title: 'Your data, used only to answer',
+    body: `To write a reply, only the relevant part of the conversation and the knowledge passages needed are sent to the AI model. ${LEGAL.entity} doesn’t train AI models on your content or your customers’ conversations, and doesn’t sell personal data.`,
+  },
+  {
+    Icon: Lock,
+    title: 'Encrypted and separated',
+    body: 'Every connection is encrypted (HTTPS), and access tokens for the platforms you connect are stored encrypted. Each business’s data is kept separate, with role-based access for your team.',
+  },
+  {
+    Icon: BookOpenCheck,
+    title: 'Answers you can check',
+    body: 'The assistant answers from your own knowledge and can show customers the sources. When it can’t find a reliable answer it asks, or offers a person, rather than guessing. Your team can read and correct any conversation.',
+  },
+  {
+    Icon: UserRoundCheck,
+    title: 'A person whenever it matters',
+    body: 'You decide when your team takes over. The handoff carries the full conversation and context, and the customer stays on the channel they started on.',
+  },
+];
+---
+
+<section id="trust" class="section scroll-mt-[calc(var(--section-y)*-1)] bg-ground-cream" aria-labelledby="trust-title">
+  <div class="container-t">
+    {(showProof || dev) && (
+      <div class="mb-[var(--section-y)]" data-proof>
+        {(showLogos || dev) && (
+          <div>
+            <p class="mono text-center text-ink-faint">Trusted by support teams at</p>
+            {showLogos ? (
+              <ul class="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-6">
+                {CUSTOMER_LOGOS.map((logo) => (
+                  <li>
+                    {logo.href ? (
+                      <a href={logo.href} rel="noopener"><img src={logo.src} alt={logo.name} height="32" class="h-8 w-auto opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0" loading="lazy" /></a>
+                    ) : (
+                      <img src={logo.src} alt={logo.name} height="32" class="h-8 w-auto opacity-80 grayscale" loading="lazy" />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
+                {Array.from({ length: 5 }, () => <div class:list={[slot, 'h-16']}>PLACEHOLDER<br />customer logo</div>)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(showQuotes || dev) && (
+          <div class="mt-12 grid gap-4 md:grid-cols-3">
+            {showQuotes
+              ? TESTIMONIALS.map((t) => (
+                  <figure class="flex flex-col rounded-[20px] border border-line bg-surface p-6">
+                    <blockquote class="flex-1 text-[1rem] leading-relaxed text-ink">“{t.quote}”</blockquote>
+                    <figcaption class="mt-5 flex items-center gap-3 text-[0.875rem]">
+                      {t.photo && <img src={t.photo} alt={`Photo of ${t.name}`} width="40" height="40" class="h-10 w-10 rounded-full object-cover" loading="lazy" />}
+                      <span>
+                        <span class="block font-semibold text-ink">{t.name}</span>
+                        <span class="block text-ink-faint">{t.role}, {t.company}</span>
+                      </span>
+                    </figcaption>
+                  </figure>
+                ))
+              : Array.from({ length: 3 }, () => <div class:list={[slot, 'min-h-44']}>PLACEHOLDER<br />approved customer quote, name, role and company</div>)}
+          </div>
+        )}
+
+        {(showCase || dev) && (
+          <div class="mt-12">
+            {CASE_STUDY ? (
+              <article class="grid gap-8 rounded-[24px] border border-line bg-surface p-6 sm:p-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
+                <div>
+                  <p class="eyebrow">Customer story</p>
+                  <h3 class="mt-4 text-2xl font-bold tracking-tight">{CASE_STUDY.company}</h3>
+                  <p class="mt-1 text-[0.95rem] text-ink-faint">{CASE_STUDY.context}</p>
+                  <p class="mt-5 text-[1rem] leading-relaxed text-ink-muted">{CASE_STUDY.summary}</p>
+                  {CASE_STUDY.href && <a href={CASE_STUDY.href} class="mt-5 inline-block font-semibold text-accent hover:underline">Read the full story →</a>}
+                </div>
+                <dl class="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+                  {CASE_STUDY.results.map((r) => (
+                    <div class="rounded-xl border border-line bg-surface p-4">
+                      <dt class="text-[0.85rem] text-ink-faint">{r.label}</dt>
+                      <dd class="mt-1 text-2xl font-bold tracking-tight tabular-nums">{r.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </article>
+            ) : (
+              <div class:list={[slot, 'min-h-56']}>PLACEHOLDER<br />case study: company, context, what changed and up to three approved results</div>
+            )}
+          </div>
+        )}
+      </div>
+    )}
+
+    <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-end">
+      <div>
+        <p class="eyebrow">Security &amp; privacy</p>
+        <h2 id="trust-title" class="h2 mt-5">Built to be trusted with your customers.</h2>
+      </div>
+      <p class="lede lg:pb-2">
+        Plain answers to what happens to your data, how the AI decides what to say, and when your team steps in.
+      </p>
+    </div>
+
+    <ul class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {SECURITY.map(({ Icon, title, body }) => (
+        <li class="flex flex-col rounded-[20px] border border-line bg-surface p-6">
+          <span class="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-ink" aria-hidden="true">
+            <Icon size={18} strokeWidth={1.9} />
+          </span>
+          <h3 class="mt-5 text-[1.0625rem] font-semibold tracking-tight">{title}</h3>
+          <p class="mt-2 text-[0.92rem] leading-relaxed text-ink-muted">{body}</p>
+        </li>
+      ))}
+    </ul>
+
+    <p class="mt-8 text-center text-[0.9rem] text-ink-faint">
+      The details are in our <a href="/privacy" class="font-semibold text-accent hover:underline">Privacy Notice</a>, including every service provider that handles data and how long it is kept.
+    </p>
+  </div>
+</section>

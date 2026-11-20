@@ -17,12 +17,14 @@
  *    OAI-SearchBot, ChatGPT-User, PerplexityBot …) fetch every sitemap URL,
  *    while model-training crawlers (TRAINING_CRAWLERS) stay blocked.
  * 5. No sitemap URL is a private, API, webhook or dashboard route.
- * 6. Every page has exactly one <h1>, a title and a description, and valid
+ * 6. Every page has exactly one <h1>, a title and a description (at most
+ *    160 characters on indexable pages, so results don't cut it off), valid
  *    JSON-LD: Organization, WebSite and SoftwareApplication with resolvable
  *    @id links, a WebPage that matches the canonical URL, breadcrumbs that
  *    point at built pages, and no ratings, reviews, offers or awards.
- * 7. The home page answers "What is Truplexy?" in its HTML and states that
- *    Truplexy is independent of Perplexity.
+ * 7. The home page answers "What is Truplexy?" in its HTML and states (in the
+ *    footer) that Truplexy is independent of Perplexity. Its FAQPage JSON-LD
+ *    asks only questions that are visible on the page.
  *
  * Exits non-zero on any problem. Live HTTP status, redirect and header checks
  * need a deployment; run them against production after each release.
@@ -33,7 +35,10 @@ import { fileURLToPath } from 'node:url';
 import { SITE } from '../src/data/site.ts';
 import { SEARCH_CRAWLERS, TRAINING_CRAWLERS } from '../src/data/crawlers.ts';
 
-const dist = fileURLToPath(new URL('../dist/', import.meta.url));
+// With an on-demand route (src/pages/api/*) the static pages are built to
+// dist/client and the server code to dist/server.
+const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));
+const dist = existsSync(join(distRoot, 'client')) ? join(distRoot, 'client') : distRoot;
 const errors = [];
 const fail = (msg) => errors.push(msg);
 
@@ -216,7 +221,11 @@ for (const { route, file } of built) {
   const h1s = (html.match(/<h1[\s>]/g) ?? []).length;
   if (h1s !== 1) fail(`${route}: ${h1s} <h1> elements (expected 1)`);
   if (!/<title>[^<]{10,}<\/title>/.test(html)) fail(`${route}: missing or tiny <title>`);
-  if (!/<meta name="description" content="[^"]{50,}"/.test(html)) fail(`${route}: missing or short meta description`);
+  const description = html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '';
+  if (description.length < 50) fail(`${route}: missing or short meta description`);
+  // Count characters as people see them, not as HTML entities.
+  const shown = description.replace(/&(#\d+|#x[\da-f]+|\w+);/gi, '_');
+  if (!/noindex/i.test(metaRobots(html)) && shown.length > 160) fail(`${route}: meta description is ${shown.length} characters (keep it to 160)`);
 
   const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
   if (blocks.length !== 1) {
@@ -258,6 +267,15 @@ const homeText = home.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 if (!/<h2[^>]*>\s*What is Truplexy\?\s*<\/h2>/.test(home)) fail('home: no visible "What is Truplexy?" heading');
 if (!/independent AI customer support platform/i.test(homeText)) fail('home: does not describe Truplexy as an independent AI customer support platform');
 if (!/not Perplexity AI or affiliated with Perplexity/i.test(homeText)) fail('home: does not state that Truplexy is not Perplexity / not affiliated with it');
+{
+  const graph = JSON.parse(read('index.html').match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])['@graph'];
+  const faq = graph.find((n) => n['@type'] === 'FAQPage');
+  if (!faq) fail('home: JSON-LD has no FAQPage');
+  for (const q of faq?.mainEntity ?? []) {
+    const visible = (s) => s.replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&');
+    if (!visible(homeText).includes(q.name)) fail(`home: FAQPage question is not visible on the page: ${q.name}`);
+  }
+}
 
 // ── report ──────────────────────────────────────────────────────────────────
 const dated = urls.filter((u) => u.lastmod).length;

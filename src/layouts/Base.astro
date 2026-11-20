@@ -19,8 +19,16 @@ interface Props {
   breadcrumbs?: { name: string; path: string }[];
   /** Show Bubbly, the site's own chat (the widget in demo mode). */
   chat?: boolean;
+  /** Link-preview copy. Defaults to the site's own on the home page, and to `description` elsewhere. */
+  ogDescription?: string;
+  twitterDescription?: string;
+  /** Extra JSON-LD nodes for this page (e.g. the home page's FAQPage), added to the shared @graph. */
+  schema?: Record<string, unknown>[];
 }
-const { title = SITE.title, description = SITE.description, noindex = false, breadcrumbs, chat = false } = Astro.props;
+const { title = SITE.title, description = SITE.description, noindex = false, breadcrumbs, chat = false, schema = [] } = Astro.props;
+const usesSiteCopy = description === SITE.description;
+const ogDescription = Astro.props.ogDescription ?? (usesSiteCopy ? SITE.ogDescription : description);
+const twitterDescription = Astro.props.twitterDescription ?? (usesSiteCopy ? SITE.twitterDescription : description);
 const site = Astro.site ?? new URL(SITE.url);
 // One canonical form per page: no trailing slash (matches trailingSlash: 'never').
 const path = Astro.url.pathname.replace(/\/+$/, '') || '/';
@@ -116,6 +124,7 @@ const jsonLd = {
           },
         ]
       : []),
+    ...schema,
   ],
 };
 ---
@@ -145,7 +154,7 @@ const jsonLd = {
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
-    <meta property="og:description" content={description} />
+    <meta property="og:description" content={ogDescription} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:locale" content="en_US" />
@@ -153,10 +162,11 @@ const jsonLd = {
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Truplexy — Every channel. One platform." />
+    <meta property="og:image:alt" content="Truplexy: Every channel. One platform. A human-like AI assistant on every channel, and one platform for your team, beside the Bubbly chat mascot." />
+    <meta name="twitter:image:alt" content="Truplexy: Every channel. One platform. A human-like AI assistant on every channel, and one platform for your team, beside the Bubbly chat mascot." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
-    <meta name="twitter:description" content={description} />
+    <meta name="twitter:description" content={twitterDescription} />
     <meta name="twitter:image" content={ogImage} />
 
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />

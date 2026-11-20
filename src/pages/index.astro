@@ -11,10 +11,15 @@ import Channels from '../components/home/Channels.astro';
 import Handoff from '../components/home/Handoff.astro';
 import Inbox from '../components/home/Inbox.astro';
 import Pricing from '../components/home/Pricing.astro';
+import Trust from '../components/home/Trust.astro';
+import Faq from '../components/home/Faq.astro';
+import About from '../components/home/About.astro';
 import FinalCta from '../components/home/FinalCta.astro';
+import { SITE } from '../data/site';
+import { faqSchema } from '../data/faq';
 ---
 
-<Base chat>
+<Base chat schema={[faqSchema(new URL('/', Astro.site ?? SITE.url).href)]}>
   <Nav />
   <main id="main">
     <Hero />
@@ -26,6 +31,9 @@ import FinalCta from '../components/home/FinalCta.astro';
     <Channels />
     <Handoff />
     <Pricing />
+    <Trust />
+    <Faq />
+    <About />
     <FinalCta />
   </main>
   <Footer />

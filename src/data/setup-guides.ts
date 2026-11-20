@@ -144,7 +144,7 @@ export const GUIDES: Record<DocId, SetupGuide> = {
     kind: 'widget',
     name: 'WordPress & WooCommerce',
     blurb: 'One plugin file for any WordPress site or WooCommerce store.',
-    summary: 'Install the Truplexy Chat plugin on any WordPress site or WooCommerce store. Upload the zip, paste your chat key and the chat is live. The key stays on your server.',
+    summary: 'Install the Truplexy Chat plugin on any WordPress site or WooCommerce store: upload the zip, paste your chat key and go live. The key stays on your server.',
     needs: ['A WordPress site where you can install plugins.'],
     flow: [
       { label: 'Your site', title: 'The chat button', text: 'Added to every page by the plugin. No keys in the page.' },

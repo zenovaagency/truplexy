@@ -10,16 +10,24 @@ export const SITE = {
   name: 'Truplexy',
   url: 'https://truplexy.com',
   title: 'Truplexy — AI Customer Support. Every Channel, One Platform.',
+  // Search snippet: kept under 160 characters so it isn't cut off. verify:seo checks the length.
   description:
-    'Truplexy is an independent AI customer support platform. It puts a human-like AI assistant on every channel you already use — website, WhatsApp, Instagram, Telegram, Discord, email and your own apps — and gives your team one platform to manage every conversation.',
+    'Truplexy is an AI customer support platform: a human-like assistant on website chat, WhatsApp, Instagram, Messenger and more, with one inbox for your team.',
+  // Link previews get their own copy, written to be read in a feed rather than a results page.
+  ogDescription:
+    'Put a human-like AI assistant on every channel your customers use, and manage every conversation from one inbox. Try Starter or Pro free for 7 days.',
+  twitterDescription:
+    'AI support on every channel, one inbox for your team, and a person when it matters. Try Starter or Pro free for 7 days.',
   tagline: 'Every channel. One platform.',
   email,
   // The dashboard, served by the `dashboard` service in vercel.json.
   dashboardUrl: 'https://app.truplexy.com',
   // Create an account in the dashboard. Plan buttons use `signupHref` (pricing.ts) to carry a plan through.
   signupUrl: 'https://app.truplexy.com/sign-in?mode=signup',
-  // PLACEHOLDER — swap for the real booking link (Calendly, Cal.com, …).
-  demoUrl: `mailto:${email}?subject=${encodeURIComponent('Book a Truplexy demo')}`,
+  // "Book a demo" and "Contact sales" open /demo: a request form, plus a
+  // booking calendar when PUBLIC_BOOKING_URL is set (see src/pages/demo.astro).
+  demoUrl: '/demo',
+  salesUrl: '/demo?topic=sales',
   // The promo film in the section after the hero, self-hosted from public/video
   // (the original export lives in media-src/, gitignored). Also on YouTube: qjrp1T6W1x0.
   // The poster is drawn for it (`npm run poster`), with room for the play button in the middle.
