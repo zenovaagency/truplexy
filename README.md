@@ -63,6 +63,16 @@ services: `dashboard` on `app.` hosts (`app.truplexy.com`), `site` on every othe
 - The dashboard (`app.`) is kept out of search with an `X-Robots-Tag: noindex` header
   (`vercel.json`) and a noindex meta. Its `robots.txt` still allows crawling, so crawlers can see that.
 
+## Social links and the Meta Pixel
+
+The footer links the official YouTube and Facebook pages (`SITE.social` in `src/data/site.ts`), which also feed `sameAs` in the Organization JSON-LD.
+
+The Meta Pixel is off until its ID is set, and then runs only after the visitor accepts a consent banner:
+
+- truplexy.com: set `PUBLIC_META_PIXEL_ID` at build time (Vercel env). `ConsentBanner.astro` and `src/lib/meta-pixel.ts`; the footer gets a "Cookie settings" link.
+- app.truplexy.com: set `VITE_META_PIXEL_ID` (dashboard build). Only the sign-in / sign-up page loads it (`features/auth/PixelConsent.tsx`), never the signed-in app; it sends PageView and, after a password sign-up, CompleteRegistration (no name or email). The dashboard CSP in `vercel.json` allows `connect.facebook.net` / `www.facebook.com` for it.
+- Without the IDs there is no banner and no request to Meta. The privacy page (`/privacy#site`) describes the Pixel; keep it in step if the setup changes.
+
 ## Demo requests
 
 "Book a demo" and "Contact sales" open `/demo` (`src/pages/demo.astro`). It has a request form that posts to

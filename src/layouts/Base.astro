@@ -6,6 +6,7 @@ import { SITE } from '../data/site';
 import { LEGAL } from '../data/legal';
 import { LIVE_CHANNELS } from '../data/channels';
 import BubblyChat from '../components/chrome/BubblyChat.astro';
+import ConsentBanner from '../components/chrome/ConsentBanner.astro';
 
 interface Props {
   title?: string;
@@ -42,9 +43,9 @@ const robots = noindex
 
 // Organization, WebSite and SoftwareApplication, tied together by @id, plus a
 // WebPage for this URL and breadcrumbs on inner pages. All of it restates what
-// is visibly true on the page. No offers, ratings, reviews or `sameAs`: none
-// exist yet, and nothing here is invented. When an official profile (LinkedIn,
-// X, GitHub …) is published, add its URL to `sameAs` on the Organization.
+// is visibly true on the page. No offers, ratings or reviews: none exist yet,
+// and nothing here is invented. `sameAs` lists the official profiles linked
+// from the footer (SITE.social); add any new one there.
 const ORG_ID = `${SITE.url}/#org`;
 const WEBSITE_ID = `${SITE.url}/#website`;
 const APP_ID = `${SITE.url}/#software`;
@@ -61,6 +62,7 @@ const jsonLd = {
       logo: `${SITE.url}/icon-512.png`,
       slogan: SITE.tagline,
       email: SITE.email,
+      sameAs: Object.values(SITE.social),
       description: SITE.description,
       disambiguatingDescription: identity,
       parentOrganization: { '@type': 'Organization', name: LEGAL.entity, url: LEGAL.entityUrl },
@@ -183,6 +185,8 @@ const jsonLd = {
     <slot />
 
     {chat && <BubblyChat />}
+
+    <ConsentBanner />
 
     <script>
       // Smooth in-page jumps for #anchor links; scrolling itself stays native.

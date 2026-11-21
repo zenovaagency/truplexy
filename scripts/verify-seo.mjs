@@ -247,7 +247,11 @@ for (const { route, file } of built) {
     if (!types.includes(t)) fail(`${route}: JSON-LD has no ${t}`);
   }
   for (const t of types) if (FORBIDDEN_TYPES.has(t)) fail(`${route}: JSON-LD contains ${t}, which the site has no real data for`);
-  if (JSON.stringify(graph).match(/"(aggregateRating|review|offers|award|sameAs)"/)) fail(`${route}: JSON-LD carries ratings, reviews, offers, awards or sameAs without verified data`);
+  if (JSON.stringify(graph).match(/"(aggregateRating|review|offers|award)"/)) fail(`${route}: JSON-LD carries ratings, reviews, offers or awards without verified data`);
+  // sameAs is allowed only for the official profiles the footer links (SITE.social).
+  const sameAs = graph.find((n) => n['@type'] === 'Organization')?.sameAs ?? [];
+  if (JSON.stringify(sameAs) !== JSON.stringify(Object.values(SITE.social))) fail(`${route}: Organization sameAs is not SITE.social`);
+  if (graph.some((n) => n['@type'] !== 'Organization' && 'sameAs' in n)) fail(`${route}: sameAs belongs on the Organization only`);
   // Every {"@id": …}-only reference must point at a node in the graph.
   JSON.stringify(graph, (_key, v) => {
     if (v && typeof v === 'object' && Object.keys(v).length === 1 && v['@id'] && !ids.has(v['@id'])) fail(`${route}: JSON-LD references missing ${v['@id']}`);

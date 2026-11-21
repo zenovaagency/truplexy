@@ -30,6 +30,8 @@ const resources = [
 ];
 
 const link = 'text-white/60 transition-colors hover:text-white';
+// Cookie settings only exist once the Meta Pixel does (see ConsentBanner).
+const hasPixel = Boolean(import.meta.env.PUBLIC_META_PIXEL_ID);
 ---
 
 <!-- Same ink ground as the call to action above it, so the two read as one
@@ -105,6 +107,21 @@ const link = 'text-white/60 transition-colors hover:text-white';
             <li><a href={SITE.demoUrl} class={link}>Book a demo</a></li>
             <li><a href={SITE.signupUrl} class="font-semibold text-white transition-colors hover:text-white/80">Get started →</a></li>
           </ul>
+          <h2 class="mono mt-8 text-white/60">Follow us</h2>
+          <ul class="mt-4 space-y-2.5 text-[0.95rem]">
+            <li>
+              <a href={SITE.social.youtube} class={`${link} inline-flex items-center gap-2`} target="_blank" rel="noopener noreferrer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8ZM9.6 15.6V8.4l6.2 3.6-6.2 3.6Z" /></svg>
+                YouTube<span class="sr-only"> (opens in a new tab)</span>
+              </a>
+            </li>
+            <li>
+              <a href={SITE.social.facebook} class={`${link} inline-flex items-center gap-2`} target="_blank" rel="noopener noreferrer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.7 4.5-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.4l-.5 3.5h-2.9v8.4A12 12 0 0 0 24 12Z" /></svg>
+                Facebook<span class="sr-only"> (opens in a new tab)</span>
+              </a>
+            </li>
+          </ul>
         </div>
       </div>
 
@@ -128,6 +145,7 @@ const link = 'text-white/60 transition-colors hover:text-white';
         <nav aria-label="Legal">
           <ul class="flex flex-wrap gap-x-5 gap-y-1">
             {LEGAL_PAGES.map((page) => <li><a href={page.href} class={link}>{page.label}</a></li>)}
+            {hasPixel && <li><button type="button" class={link} data-cookie-settings>Cookie settings</button></li>}
           </ul>
         </nav>
         <div class="space-y-1 md:max-w-[420px]">
