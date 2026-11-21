@@ -11,12 +11,12 @@ const pixelId = import.meta.env.PUBLIC_META_PIXEL_ID as string | undefined;
 {pixelId && (
   <div class="consent" data-consent data-pixel-id={pixelId} role="dialog" aria-label="Cookie choices" hidden>
     <p class="consent-text">
-      We’d like to use the Meta Pixel to measure our ads and see which visits lead to sign-ups. It sets cookies and sends
-      page views to Meta. Say no and nothing is loaded. <a href="/privacy#site">Details</a>
+      We use cookies to measure our ads and see which visits lead to sign-ups. Decline and no advertising cookies are
+      set. <a href="/privacy#site">Details</a>
     </p>
     <div class="consent-actions">
       <button type="button" class="consent-btn consent-no" data-consent-no>Decline</button>
-      <button type="button" class="consent-btn consent-yes" data-consent-yes>Accept</button>
+      <button type="button" class="consent-btn consent-yes" data-consent-yes>Accept cookies</button>
     </div>
   </div>
 )}

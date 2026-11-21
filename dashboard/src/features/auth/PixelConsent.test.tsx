@@ -53,7 +53,7 @@ describe('PixelConsent', () => {
     await mount();
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(pixelScripts()).toBe(0);
-    await act(async () => button('Accept').click());
+    await act(async () => button('Accept cookies').click());
     expect(pixelScripts()).toBe(1);
     expect(localStorage.getItem('tpx-consent')).toBe('granted');
     expect(document.querySelector('[role="dialog"]')).toBeNull();
