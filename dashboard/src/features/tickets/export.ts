@@ -3,6 +3,7 @@ import type { Ticket, TicketDetail, TicketList, TicketQuery } from '@/lib/api/ty
 import { safeFileName, toCsv } from '@/lib/export';
 import { isoDay } from '@/lib/format';
 import { makeZip } from '@/lib/zip';
+import { isContextOnly } from './background';
 
 export type TicketExportFormat = 'zip' | 'csv';
 
@@ -95,7 +96,7 @@ export function transcriptMarkdown(t: TicketDetail) {
         out.push(`_${m.content} · ${when(m.created_at)}_`, '');
         continue;
       }
-      const who = m.author === 'customer' ? 'Customer' : m.author === 'agent' ? `${m.agent ?? 'Team'}${m.via === 'api' ? ' (via platform)' : ''}` : 'Assistant';
+      const who = m.author === 'customer' ? (isContextOnly(m.content) ? 'Background for the assistant' : 'Customer') : m.author === 'agent' ? `${m.agent ?? 'Team'}${m.via === 'api' ? ' (via platform)' : ''}` : 'Assistant';
       const pictures = m.attachments?.length ? ` · ${m.attachments.length} picture${m.attachments.length === 1 ? '' : 's'}` : '';
       out.push(`**${who}** · ${when(m.created_at)}${pictures}`, '', quote(m.content), '');
       if (m.error) out.push(`_Error: ${m.error}_`, '');

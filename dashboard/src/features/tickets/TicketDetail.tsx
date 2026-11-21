@@ -61,6 +61,7 @@ import {
   useConfirm,
 } from '@/components/ui';
 import { TICKET_STATUS, TICKET_STATUSES, TicketStatusBadge } from '@/components/domain/badges';
+import { contextText, isContextOnly } from './background';
 import { AssigneePicker, EscalatedBadge } from './shared';
 import { CategorySelect } from '@/components/domain/support';
 import { OpenQueryLink } from '@/features/queries/CustomerQueries';
@@ -431,6 +432,15 @@ function Meta({ children, right }: { children: React.ReactNode; right?: boolean 
 }
 
 function MessageBubble({ m, refresher }: { m: TicketMessage; refresher: ImageRefresher }) {
+  if (m.author === 'customer' && isContextOnly(m.content)) {
+    // Background an integration gave the assistant: the customer never wrote it.
+    return (
+      <details className="rounded-[10px] border border-dashed border-line px-3 py-2 text-[0.75rem] text-ink-faint" data-testid="context-note">
+        <summary className="cursor-pointer select-none font-medium">Background for the assistant · {formatTime(m.created_at)}</summary>
+        <p className="mt-1.5 whitespace-pre-wrap break-words">{contextText(m.content)}</p>
+      </details>
+    );
+  }
   if (m.author === 'customer') {
     return (
       <div className="flex flex-col items-start gap-1">

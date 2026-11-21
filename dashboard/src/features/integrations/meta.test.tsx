@@ -308,3 +308,22 @@ describe('metaFieldError', () => {
     expect(metaFieldError('name', '')).toBeNull();
   });
 });
+
+describe('a connect that never reaches the API', () => {
+  it('keeps the sheet and what was typed, and says what went wrong', async () => {
+    await render('connect', {
+      connect: () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+    await click(button('Connect Page'));
+    await fill();
+    await click(submit());
+    await tick();
+    expect(connects()).toHaveLength(1);
+    expect(submit()).toBeTruthy();
+    expect(input('Page ID').value).toBe(' 104857600012345 ');
+    expect(input('App secret').value).toBe(SECRET);
+    expect(page()).toContain("Couldn't reach Truplexy");
+  });
+});

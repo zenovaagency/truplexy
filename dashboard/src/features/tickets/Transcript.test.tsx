@@ -121,3 +121,20 @@ describe('the ticket transcript', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('background for the assistant', () => {
+  it('shows "[Context only]" messages as a note, not as the customer\'s', async () => {
+    const { container } = await render(
+      ticket([
+        message('msg_1', { content: '[Context only] Chatting on WhatsApp, with the business\'s number +1 555-0100.' }),
+        message('msg_2', { content: 'Where is my order?', created_at: '2026-10-19T10:01:00Z' }),
+      ]),
+    );
+    const bubbles = [...container.querySelectorAll('.bubble-customer')].map((b) => b.textContent);
+    expect(bubbles).toEqual(['Where is my order?']);
+    const note = container.querySelector('[data-testid="context-note"]')!;
+    expect(note.textContent).toContain('Background for the assistant');
+    expect(note.textContent).toContain("Chatting on WhatsApp, with the business's number +1 555-0100.");
+    expect(note.textContent).not.toContain('[Context only]');
+  });
+});

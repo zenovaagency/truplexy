@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Clock, KeyRound, Lock, MessageCircle } from 'lucide-react';
-import { hasCode, isApiError } from '@/lib/api/client';
+import { hasCode, isApiError, unreachedMessage } from '@/lib/api/client';
 import { useConnectWhatsApp, useUpdateWhatsAppCredentials, useWhatsApp } from '@/lib/api/endpoints/channels';
 import type { Channel, WhatsAppConnectInput, WhatsAppConnection } from '@/lib/api/types';
 import { formatRelative } from '@/lib/format';
@@ -17,7 +17,9 @@ type Errors = Partial<Record<WhatsAppField, string>>;
 /** Sorts an API refusal into a field's error or one for the whole form. Returns false for errors the app toasts. */
 function refusal(e: unknown, setErrors: (e: Errors) => void, setFormError: (m: string) => void): boolean {
   if (!isApiError(e)) return false;
-  if (hasCode(e, 'INVALID_REQUEST')) {
+  const unreached = unreachedMessage(e);
+  if (unreached) setFormError(unreached);
+  else if (hasCode(e, 'INVALID_REQUEST')) {
     if (e.field) setErrors({ [e.field as WhatsAppField]: e.message });
     else setFormError(e.message);
   } else if (hasCode(e, 'WHATSAPP_NUMBER_TAKEN')) setErrors({ phone_number_id: e.message || 'Another of your bots already has this number.' });
