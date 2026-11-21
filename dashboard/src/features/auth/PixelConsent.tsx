@@ -38,8 +38,7 @@ export function PixelConsent() {
       className="fixed inset-x-4 bottom-4 z-50 grid max-w-md gap-3 rounded-2xl border border-line bg-surface p-4 text-sm text-ink shadow-lg sm:right-auto"
     >
       <p className="text-ink-muted">
-        We’d like to use the Meta Pixel to measure our ads and see which visits lead to sign-ups. It sets cookies and sends page views to Meta.
-        Say no and nothing is loaded.{' '}
+        We use cookies to measure our ads and see which visits lead to sign-ups. Decline and no advertising cookies are set.{' '}
         <a className="text-ink underline" href="https://truplexy.com/privacy#site" target="_blank" rel="noopener noreferrer">
           Details
         </a>
@@ -49,7 +48,7 @@ export function PixelConsent() {
           Decline
         </Button>
         <Button size="md" onClick={() => choose(true)}>
-          Accept
+          Accept cookies
         </Button>
       </div>
     </div>
