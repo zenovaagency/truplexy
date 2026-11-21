@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Clock, KeyRound, Lock, MessageCircle } from 'lucide-react';
-import { hasCode, isApiError } from '@/lib/api/client';
+import { hasCode, isApiError, unreachedMessage } from '@/lib/api/client';
 import { useConnectMeta, useMeta, useUpdateMetaCredentials } from '@/lib/api/endpoints/channels';
 import type { Channel, MetaConnectInput, MetaConnection, MetaProvider } from '@/lib/api/types';
 import { formatRelative } from '@/lib/format';
@@ -17,7 +17,9 @@ type Errors = Partial<Record<MetaField, string>>;
 /** Sorts an API refusal into a field's error or one for the whole form. Returns false for errors the app toasts. */
 function refusal(provider: MetaProvider, e: unknown, setErrors: (e: Errors) => void, setFormError: (m: string) => void): boolean {
   if (!isApiError(e)) return false;
-  if (hasCode(e, 'INVALID_REQUEST')) {
+  const unreached = unreachedMessage(e);
+  if (unreached) setFormError(unreached);
+  else if (hasCode(e, 'INVALID_REQUEST')) {
     if (e.field) setErrors({ [e.field as MetaField]: e.message });
     else setFormError(e.message);
   } else if (hasCode(e, 'META_ACCOUNT_TAKEN')) setErrors({ page_id: e.message || `Another of your bots already has this ${META_LABEL[provider].account}.` });

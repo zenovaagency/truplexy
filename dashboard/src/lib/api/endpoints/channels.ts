@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { api, UNREACHED_CODES } from '@/lib/api/client';
 import type { Channel, ChannelInput, ChannelType, ChannelWidget, MetaConnectInput, MetaConnection, MetaProvider, WhatsAppConnectInput, WhatsAppConnection } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { connectReturnTo } from '@/lib/shopify';
@@ -116,7 +116,7 @@ export function useConnectWhatsApp() {
       invalidate();
     },
     // The form shows these next to its fields.
-    meta: { silentCodes: ['INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNAVAILABLE', 'WHATSAPP_NUMBER_TAKEN', 'WHATSAPP_UNAVAILABLE'] },
+    meta: { silentCodes: [...UNREACHED_CODES, 'INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNAVAILABLE', 'WHATSAPP_NUMBER_TAKEN', 'WHATSAPP_UNAVAILABLE'] },
   });
 }
 
@@ -147,7 +147,7 @@ export function useUpdateWhatsAppCredentials(id: string | undefined) {
     mutationFn: (body: Pick<WhatsAppConnectInput, 'access_token' | 'app_secret'>) =>
       api<WhatsAppConnection>(`/channels/${id}/whatsapp`, { method: 'PUT', body, scope }),
     onSuccess: (number) => qc.setQueryData(qk.bot(scope, 'whatsapp', id), number),
-    meta: { silentCodes: ['INVALID_REQUEST', 'WHATSAPP_UNAVAILABLE'], success: 'WhatsApp credentials updated' },
+    meta: { silentCodes: [...UNREACHED_CODES, 'INVALID_REQUEST', 'WHATSAPP_UNAVAILABLE'], success: 'WhatsApp credentials updated' },
   });
 }
 
@@ -167,7 +167,7 @@ export function useConnectMeta(provider: MetaProvider) {
       invalidate();
     },
     // The form shows these next to its fields.
-    meta: { silentCodes: ['INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNAVAILABLE', 'META_ACCOUNT_TAKEN', 'META_UNAVAILABLE'] },
+    meta: { silentCodes: [...UNREACHED_CODES, 'INVALID_REQUEST', 'CHANNEL_TYPE_NOT_ALLOWED', 'CHANNEL_CONNECT_UNAVAILABLE', 'META_ACCOUNT_TAKEN', 'META_UNAVAILABLE'] },
   });
 }
 
@@ -197,7 +197,7 @@ export function useUpdateMetaCredentials(provider: MetaProvider, id: string | un
     mutationFn: (body: Pick<MetaConnectInput, 'access_token' | 'app_secret'>) =>
       api<MetaConnection>(`/channels/${id}/${provider}`, { method: 'PUT', body, scope }),
     onSuccess: (account) => qc.setQueryData(qk.bot(scope, provider, id), account),
-    meta: { silentCodes: ['INVALID_REQUEST', 'META_UNAVAILABLE'], success: provider === 'instagram' ? 'Instagram credentials updated' : 'Messenger credentials updated' },
+    meta: { silentCodes: [...UNREACHED_CODES, 'INVALID_REQUEST', 'META_UNAVAILABLE'], success: provider === 'instagram' ? 'Instagram credentials updated' : 'Messenger credentials updated' },
   });
 }
 

@@ -122,6 +122,19 @@ async function send(path: string, opts: RequestOptions, token: string | null) {
   }
 }
 
+/**
+ * Failures where the API was never reached or never answered: a dropped connection, or a gateway
+ * timeout without the API's own error body. Forms that keep what was typed say so inline.
+ */
+export const UNREACHED_CODES = ['NETWORK_ERROR', 'HTTP_502', 'HTTP_503', 'HTTP_504'];
+
+/** Words for an unreached failure in a form, or null for other errors. A timed-out save may still have gone through. */
+export function unreachedMessage(e: unknown): string | null {
+  if (hasCode(e, 'NETWORK_ERROR')) return "Couldn't reach Truplexy. Check your connection and try again; what you typed is kept.";
+  if (hasCode(e, 'HTTP_502', 'HTTP_503', 'HTTP_504')) return "Truplexy didn't answer in time. It may still have saved: check your channels before trying again.";
+  return null;
+}
+
 /** Retry-After in whole seconds (it can also be a date, which the API doesn't send). */
 function parseRetryAfter(value: string | null) {
   const n = value === null ? NaN : Number(value);

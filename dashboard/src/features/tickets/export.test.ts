@@ -146,3 +146,13 @@ describe('transcriptMarkdown', () => {
     expect(md.match(/It ships today\./g)).toHaveLength(1);
   });
 });
+
+describe('background messages in an export', () => {
+  it('labels "[Context only]" messages as background, not the customer\'s', () => {
+    const t = detail(ticket(1));
+    t.messages = [{ id: 'msg_0', role: 'user', author: 'customer', content: '[Context only] Customer: Ana <ana@example.com>', created_at: '2026-10-20T08:59:00Z' }, ...t.messages];
+    const md = transcriptMarkdown(t);
+    expect(md).toContain('**Background for the assistant**');
+    expect(md.match(/\*\*Customer\*\*/g)).toHaveLength(1);
+  });
+});

@@ -277,3 +277,32 @@ describe('whatsAppFieldError', () => {
     expect(whatsAppFieldError('name', '')).toBeNull();
   });
 });
+
+describe('a connect that never reaches the API', () => {
+  it('keeps the sheet and what was typed, and says what went wrong', async () => {
+    await render('connect', {
+      connect: () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+    await click(button('Connect number'));
+    await fill();
+    await click(submit());
+    await tick();
+    expect(connects()).toHaveLength(1);
+    expect(submit()).toBeTruthy();
+    expect(input('Phone number ID').value).toBe(' 106540352242922 ');
+    expect(input('App secret').value).toBe(SECRET);
+    expect(page()).toContain("Couldn't reach Truplexy");
+  });
+
+  it('says a timed-out connect may still have gone through', async () => {
+    await render('connect', { connect: () => new Response('<html>504</html>', { status: 504, headers: { 'Content-Type': 'text/html' } }) });
+    await click(button('Connect number'));
+    await fill();
+    await click(submit());
+    await tick();
+    expect(submit()).toBeTruthy();
+    expect(page()).toContain("Truplexy didn't answer in time");
+  });
+});
