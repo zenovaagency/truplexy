@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
@@ -7,10 +7,12 @@ import {
   Bot,
   Building2,
   Cpu,
+  CreditCard,
   FileText,
   Inbox,
   MessagesSquare,
   Pencil,
+  Plug,
   Plus,
   Radio,
   RefreshCw,
@@ -18,6 +20,7 @@ import {
   Search,
   Shapes,
   ShieldCheck,
+  Sparkles,
   Trash2,
   UserCheck,
   UserPlus,
@@ -167,8 +170,16 @@ const FUNNEL_LABEL: Record<string, string> = {
   subscribed: 'Subscribed',
 };
 
-/** How far new people get, and which campaigns they came from. */
-function FunnelCard() {
+const FUNNEL_ICON: Record<string, ReactNode> = {
+  signed_up: <UserPlus />,
+  business_created: <Building2 />,
+  channel_connected: <Plug />,
+  trial_started: <Sparkles />,
+  subscribed: <CreditCard />,
+};
+
+/** How far new people get, one card per step, and which campaigns they came from. */
+function FunnelCards() {
   const q = usePlatformFunnel(30);
   const f = q.data;
   const first = f?.steps[0]?.people ?? 0;
@@ -182,60 +193,58 @@ function FunnelCard() {
     }
     return [...rows.values()].sort((a, b) => (b.people.signed_up ?? 0) - (a.people.signed_up ?? 0));
   }, [f]);
-  return (
-    <Card
-      title="Sign-up funnel, last 30 days"
-      description="People who reached each step. Sources come from the campaign tags on ad links; people who declined the cookie banner are unknown."
-    >
-      {q.isError ? (
+  if (q.isError) {
+    return (
+      <Card title="Sign-up funnel, last 30 days">
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
-      ) : !f ? (
-        <Skeleton className="h-[180px]" />
-      ) : (
-        <div className="grid gap-6">
-          <ol className="grid gap-2">
-            {f.steps.map((s) => (
-              <li key={s.event} className="grid grid-cols-[minmax(0,12rem)_1fr_auto] items-center gap-3 text-sm">
-                <span className="text-ink">{FUNNEL_LABEL[s.event] ?? s.event}</span>
-                <span className="h-2 overflow-hidden rounded-full bg-line">
-                  <span className="block h-full rounded-full bg-accent" style={{ width: `${first ? Math.max(2, (s.people / first) * 100) : 0}%` }} />
-                </span>
-                <span className="tabular-nums text-ink-muted">
-                  {formatNumber(s.people)}
-                  {first > 0 && s.event !== 'signed_up' && <span className="text-ink-faint"> · {Math.round((s.people / first) * 100)}%</span>}
-                </span>
-              </li>
-            ))}
-          </ol>
-          {bySource.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="text-xs text-ink-faint">
-                  <tr>
-                    <th className="py-1 pr-4 font-medium">Source</th>
-                    <th className="py-1 pr-4 font-medium">Campaign</th>
-                    {f.steps.map((s) => (
-                      <th key={s.event} className="py-1 pr-4 text-right font-medium">{FUNNEL_LABEL[s.event] ?? s.event}</th>
+      </Card>
+    );
+  }
+  const steps = f?.steps ?? Object.keys(FUNNEL_LABEL).map((event) => ({ event, people: 0 }));
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {steps.map((s) => (
+          <StatCard
+            key={s.event}
+            label={FUNNEL_LABEL[s.event] ?? s.event}
+            icon={FUNNEL_ICON[s.event]}
+            loading={!f}
+            value={formatNumber(s.people)}
+            sub={s.event === 'signed_up' ? 'Last 30 days' : first > 0 ? `${Math.round((s.people / first) * 100)}% of sign-ups` : 'Last 30 days'}
+            info={s.event === 'signed_up' ? 'People who reached each step in the last 30 days. Sources come from the campaign tags on ad links; people who declined the cookie banner are unknown.' : undefined}
+          />
+        ))}
+      </div>
+      {bySource.length > 0 && (
+        <Card title="Sign-ups by source" description="People who reached each step, by the campaign tags on the link they came from.">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs text-ink-faint">
+                <tr>
+                  <th className="py-1 pr-4 font-medium">Source</th>
+                  <th className="py-1 pr-4 font-medium">Campaign</th>
+                  {steps.map((s) => (
+                    <th key={s.event} className="py-1 pr-4 text-right font-medium">{FUNNEL_LABEL[s.event] ?? s.event}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bySource.map((r) => (
+                  <tr key={`${r.source}-${r.campaign}`} className="border-t border-line">
+                    <td className="py-1.5 pr-4 text-ink">{r.source}</td>
+                    <td className="py-1.5 pr-4 text-ink-muted">{r.campaign || '—'}</td>
+                    {steps.map((s) => (
+                      <td key={s.event} className="py-1.5 pr-4 text-right tabular-nums text-ink-muted">{formatNumber(r.people[s.event] ?? 0)}</td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {bySource.map((r) => (
-                    <tr key={`${r.source}-${r.campaign}`} className="border-t border-line">
-                      <td className="py-1.5 pr-4 text-ink">{r.source}</td>
-                      <td className="py-1.5 pr-4 text-ink-muted">{r.campaign || '—'}</td>
-                      {f.steps.map((s) => (
-                        <td key={s.event} className="py-1.5 pr-4 text-right tabular-nums text-ink-muted">{formatNumber(r.people[s.event] ?? 0)}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
-    </Card>
+    </>
   );
 }
 
@@ -337,7 +346,7 @@ export function PlatformOverview() {
               info="Active businesses that have used 80% or more of this month's token or reply limit."
             />
           </div>
-          <FunnelCard />
+          <FunnelCards />
           <Card
             title="Model usage, last 30 days"
             description="The chart shows OpenRouter's cost."
