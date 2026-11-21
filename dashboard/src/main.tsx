@@ -1,6 +1,7 @@
 import '@fontsource-variable/geist/wght.css';
 import '@fontsource-variable/geist-mono/wght.css';
 import './styles/app.css';
+import '@/lib/attribution-boot';
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

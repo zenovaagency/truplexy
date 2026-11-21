@@ -17,7 +17,6 @@ import { Button, Callout, EmptyState, ErrorState, Field, Input, Skeleton } from 
 import { Splash } from '@/app/guards';
 import { StatusScreen } from '@/app/errors';
 import { BrandMark } from '@/components/layout/Brand';
-import { adoptAttribution } from '@/lib/attribution';
 import { AuthFrame, SITE_URL } from './AuthFrame';
 import { PixelConsent } from './PixelConsent';
 import { CAPTCHA_ERROR_MESSAGE, TURNSTILE_FAILED_MESSAGE, isCaptchaError, useTurnstile } from './Turnstile';
@@ -77,8 +76,6 @@ export function SignInPage() {
   const [google, setGoogle] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [endedBy] = useState(signOutReason);
-  // Details a marketing-site link carried: kept for the first sign-in, and removed from the address.
-  useEffect(() => adoptAttribution(), []);
   const nav = useNavigate();
   const captcha = useTurnstile();
 
