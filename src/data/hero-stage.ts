@@ -52,7 +52,7 @@ const ITEMS: StageItem[] = [
     channel: 'telegram',
     customer: 'Lea',
     ask: 'How do returns work?',
-    reply: 'Free within 30 days. I can start one for you now.',
+    reply: 'Returns are free for 30 days after delivery. Want me to start one?',
     outcome: 'resolved',
   },
 ];

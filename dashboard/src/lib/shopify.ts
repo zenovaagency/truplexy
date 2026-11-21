@@ -17,7 +17,7 @@ export const isShopifyTool = (t: Pick<Tool, 'name' | 'built_in'>) => Boolean(t.b
 export const shopifyToolsUnavailable = (tools: Tool[] | undefined) => Boolean(tools?.some((t) => isShopifyTool(t) && !t.available));
 
 /** Query parameters the API adds on the way back from Shopify, and Shopify's own for an install started there. */
-export const RETURN_PARAMS = ['connected', 'connect_error', 'channel_id', 'type', 'shopify_shop'] as const;
+export const RETURN_PARAMS = ['connected', 'connect_error', 'channel_id', 'type', 'shopify_shop', 'connect', 'guild_id'] as const;
 
 /**
  * The page to come back to after Shopify: this page on this origin (so previews

@@ -70,8 +70,10 @@ function answer(text: string): [string, string] {
     return ['answered', `Order **#${order}** shipped yesterday and should arrive on **Thursday**. You can follow it on the [tracking page](https://example.com/track).`];
   }
   if (/\b(order|delivery|shipping|track|package|parcel)\b/.test(t)) return ['clarification_required', "Happy to check. What's your order number?"];
-  if (/\b(price|pricing|cost|plan|plans)\b/.test(t)) return ['answered', 'Here are the plans:\n\n- **Free**: one channel to try it out\n- **Starter**: $29 a month\n- **Pro**: $79 a month\n\nEvery plan includes the website widget.'];
-  if (/\b(refund|return|exchange)\b/.test(t)) return ['answered', 'You can return anything within **30 days**. Start a return from your order page and we’ll email a prepaid label.'];
+  if (/\btrials?\b|\bfree (plan|version|tier)\b/.test(t)) return ['answered', 'Starter and Pro both start with a **7-day free trial**. Cancel before it ends and you pay nothing. Enterprise is priced to your volume, so talk to sales for that one.'];
+  if (/\b(price|pricing|cost|plan|plans)\b/.test(t)) return ['answered', 'Here are the plans:\n\n- **Starter**: $29 a month, with a 7-day free trial\n- **Pro**: $79 a month, with a 7-day free trial\n- **Enterprise**: priced to your volume, contact sales\n\nEvery plan includes every channel and the unified inbox.'];
+  if (/\b(return|returns|exchange)\b/.test(t)) return ['answered', 'In this demo shop, returns are free for **30 days** after delivery. Start a return from your order page and we’ll email a prepaid label.'];
+  if (/\b(refund|refunds)\b/.test(t)) return ['answered', 'For a Truplexy plan, your first payment has a **14-day refund**. For an order from this demo shop, start a return from your order page and the refund follows once it arrives.'];
   if (/^(hi|hello|hey|yo|hiya)\b/.test(t)) return ['answered', 'Hello! Ask me about an order, returns or pricing, or ask to talk to a person.'];
   return ['answered', "This is a demo, so I only know a few things. Try asking where your order is, about returns or pricing, or to talk to a person."];
 }

@@ -121,3 +121,48 @@ describe('checking the knowledge base first', () => {
     expect(suggestions().some((x) => x.ticket_id === t.id)).toBe(false);
   });
 });
+
+describe('reviewing closed tickets', () => {
+  /** Turns learning off, so a ticket closed afterwards is left for a review. */
+  function closedWhileNotLearning() {
+    const ws = call('GET', '/workspace');
+    call('PUT', '/workspace', { name: ws.name, bot: { ...ws.bot, knowledge: { ...ws.bot.knowledge, learnFromTickets: false } }, revision: ws.revision });
+    const id = answeredTicket();
+    call('PATCH', `/tickets/${id}`, { status: 'closed' });
+    return id;
+  }
+
+  it('counts closed tickets a person answered that were never read', () => {
+    const id = closedWhileNotLearning();
+    const status = call('GET', '/knowledge/suggestions/review');
+    expect(status.unreviewed).toBeGreaterThan(0);
+    expect(status.queued).toBe(0);
+    expect(suggestions().some((x) => x.ticket_id === id)).toBe(false);
+  });
+
+  it('drafts suggestions for them, once', () => {
+    const id = closedWhileNotLearning();
+    const { unreviewed } = call('GET', '/knowledge/suggestions/review');
+    const r = call('POST', '/knowledge/suggestions/review', {});
+    expect(r.queued).toBe(unreviewed);
+    expect(r.unreviewed_left).toBe(0);
+    expect(suggestions().find((x) => x.ticket_id === id)?.content).toContain('200 guests');
+    expect(call('GET', '/knowledge/suggestions/review').unreviewed).toBe(0);
+    expect(fails(() => call('POST', '/knowledge/suggestions/review', {}))).toEqual({ status: 422, code: 'NOTHING_TO_REVIEW' });
+  });
+
+  it('stops at the limit and leaves the rest for another review', () => {
+    closedWhileNotLearning();
+    const { unreviewed } = call('GET', '/knowledge/suggestions/review');
+    const first = call('POST', '/knowledge/suggestions/review', { limit: 1 });
+    expect(first).toEqual({ queued: 1, unreviewed_left: unreviewed - 1 });
+    expect(fails(() => call('POST', '/knowledge/suggestions/review', { limit: 0 }))).toEqual({ status: 400, code: 'INVALID_LIMIT' });
+  });
+
+  it('does not read a ticket again after Train bot read it', () => {
+    const id = closedWhileNotLearning();
+    const before = call('GET', '/knowledge/suggestions/review').unreviewed;
+    call('POST', `/tickets/${id}/learn`);
+    expect(call('GET', '/knowledge/suggestions/review').unreviewed).toBe(before - 1);
+  });
+});

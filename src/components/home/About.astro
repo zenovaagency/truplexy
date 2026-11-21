@@ -1,0 +1,48 @@
+---
+import { LEGAL } from '../../data/legal';
+import { SITE } from '../../data/site';
+
+/**
+ * Who makes Truplexy. Facts only, from legal.ts and site.ts.
+ * PLACEHOLDER — `story` below is empty until there's a real founding story
+ * (who started it, when and why) to tell in the founders' own words.
+ */
+const story: string[] = [];
+const facts = [
+  { label: 'Made by', value: LEGAL.entity, href: LEGAL.entityUrl },
+  { label: 'Based in', value: LEGAL.address },
+  { label: 'Contact', value: SITE.email, href: `mailto:${SITE.email}` },
+];
+---
+
+<section id="about" class="section scroll-mt-[calc(var(--section-y)*-1)] bg-ground-cream" aria-labelledby="about-title">
+  <div class="container-t">
+    <div class="grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-start lg:gap-16">
+      <div>
+        <p class="eyebrow">Company</p>
+        <h2 id="about-title" class="h2 mt-5">About {SITE.name}.</h2>
+        <p class="lede mt-6 max-w-[620px]">
+          {SITE.name} is built and run by {LEGAL.entity}. We make it for businesses whose customers write in on more than one
+          channel, and want fast answers without losing the people who know them best.
+        </p>
+        {story.map((p) => <p class="mt-4 max-w-[620px] text-[1rem] leading-relaxed text-ink-muted">{p}</p>)}
+        {import.meta.env.DEV && story.length === 0 && (
+          <p class="mt-4 max-w-[620px] rounded-xl border-2 border-dashed border-line-strong p-4 text-[0.85rem] text-ink-faint">
+            PLACEHOLDER: founding story in the founders’ own words (src/components/home/About.astro).
+          </p>
+        )}
+      </div>
+
+      <dl class="grid gap-3">
+        {facts.map((f) => (
+          <div class="rounded-[20px] border border-line bg-surface p-5">
+            <dt class="mono text-ink-faint">{f.label}</dt>
+            <dd class="mt-1.5 text-[1.0625rem] font-semibold tracking-tight text-ink">
+              {f.href ? <a href={f.href} class="hover:underline">{f.value}</a> : f.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  </div>
+</section>

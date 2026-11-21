@@ -118,7 +118,8 @@ describe('Account page', () => {
     const { auth, routes, api } = setup();
     await renderPage(routes, '/account', api);
     await click(button('Email me a reset link instead'));
-    expect(auth.sendPasswordReset).toHaveBeenCalledWith('alex@acme.example');
+    // No human check is configured in tests, so there is no token.
+    expect(auth.sendPasswordReset).toHaveBeenCalledWith('alex@acme.example', undefined);
   });
 
   it('greets someone who arrived from a reset link', async () => {

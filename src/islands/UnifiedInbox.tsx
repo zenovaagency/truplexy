@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import ChannelIcon from '@/components/ui/ChannelIcon';
 import { cn } from '@/lib/utils';
-import { FLAG_LABEL, INBOX, STORE_CHAT, type InboxThread, type Msg, type TicketFlag } from '@/data/demo';
+import { INBOX, STORE_CHAT, type InboxThread, type Msg } from '@/data/demo';
 import { channel } from '@/data/channels';
 
 /**
@@ -87,7 +87,6 @@ function Avatar({ name, size = 28 }: { name: string; size?: number }) {
   );
 }
 
-const FLAG_TONE: Record<TicketFlag, Tone> = { escalated: 'danger', handed_off: 'violet', reopened: 'accent' };
 
 function StatusBadge({ t }: { t: InboxThread }) {
   return (
@@ -100,13 +99,9 @@ function StatusBadge({ t }: { t: InboxThread }) {
 function Flags({ t }: { t: InboxThread }) {
   if (!t.flags.length) return null;
   return (
-    <>
-      {t.flags.map((f) => (
-        <Badge key={f} tone={FLAG_TONE[f]} small>
-          {FLAG_LABEL[f]}
-        </Badge>
-      ))}
-    </>
+    <Badge tone="danger" small>
+      Escalated
+    </Badge>
   );
 }
 

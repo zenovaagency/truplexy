@@ -14,7 +14,7 @@
  * src/data/channels.ts (Node strips its types on import), so flipping a
  * channel to 'live' there updates this check too.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { CONNECT_CHANNELS, SOON_CHANNELS } from '../src/data/channels.ts';
 
 const NOT_LIVE = SOON_CHANNELS.map((c) => c.name);
@@ -23,7 +23,9 @@ const WINDOW = 700; // characters of markup either side of a mention
 // Scripts, styles, comments and inline SVG carry no visible text (no
 // component uses SVG <text>); SVG path data would only pad the distance
 // between a channel name and its label.
-const dist = new URL('../dist/', import.meta.url);
+// With an on-demand route (src/pages/api/*) the static pages are in dist/client.
+const distRoot = new URL('../dist/', import.meta.url);
+const dist = existsSync(new URL('client/', distRoot)) ? new URL('client/', distRoot) : distRoot;
 const strip = (file) =>
   readFileSync(file, 'utf8')
     .replace(/<script[\s\S]*?<\/script>/g, '')

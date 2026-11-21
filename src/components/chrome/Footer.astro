@@ -4,7 +4,7 @@ import Bubbly from '../brand/Bubbly.astro';
 import { CHANGELOG_HREF, DOCS_LINKS, PRODUCT_LINKS, SITE, navHref } from '../../data/site';
 import { LIVE_CHANNELS, SOON_CHANNELS } from '../../data/channels';
 import { channelHref } from '../../data/setup-guides';
-import { LEGAL_PAGES } from '../../data/legal';
+import { LEGAL, LEGAL_PAGES } from '../../data/legal';
 import {
   LOGO_HEIGHT,
   LOGO_MARK_TRANSFORM,
@@ -17,7 +17,13 @@ import {
 
 const year = new Date().getFullYear();
 const onHome = Astro.url.pathname === '/';
-const product = [...PRODUCT_LINKS, { label: 'Pricing', href: '/pricing' }];
+const product = [
+  ...PRODUCT_LINKS,
+  { label: 'Security & privacy', href: '#trust' },
+  { label: 'FAQ', href: '#faq' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'About', href: '#about' },
+];
 const resources = [
   ...DOCS_LINKS.map((l) => (l.href === '/docs' ? { ...l, label: 'Docs' } : l)),
   { label: 'Changelog', href: CHANGELOG_HREF },
@@ -124,7 +130,11 @@ const link = 'text-white/60 transition-colors hover:text-white';
             {LEGAL_PAGES.map((page) => <li><a href={page.href} class={link}>{page.label}</a></li>)}
           </ul>
         </nav>
-        <p>Conversations shown on this page are illustrative samples.</p>
+        <div class="space-y-1 md:max-w-[420px]">
+          <p>Conversations shown on this page are illustrative samples.</p>
+          {/* The one place the site says this: the name is close to Perplexity's. */}
+          <p>{SITE.name} is an independent product of <a href={LEGAL.entityUrl} class={link}>{LEGAL.entity}</a>. It is not Perplexity AI or affiliated with Perplexity.</p>
+        </div>
         <a href="#main" class="to-top" data-to-top>
           Back to top
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m0 0-6 6m6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>

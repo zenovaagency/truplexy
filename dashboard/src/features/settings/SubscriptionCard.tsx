@@ -27,8 +27,8 @@ function summary(s: Subscription) {
   const cancel = s.cancel_at ?? (s.status === 'canceled' ? s.current_period_end : null);
   if (cancel) return `Access ends on ${formatDate(cancel)}. You won't be charged again.`;
   if (s.status === 'trialing' && s.trial_ends_at) return `Your free trial ends on ${formatDate(s.trial_ends_at)}, when your card is first charged. Cancel before then and you pay nothing.`;
-  if (s.status === 'past_due') return 'The last payment failed. Update your card in billing so the plan stays active.';
-  if (s.status === 'paused') return 'The subscription is paused.';
+  if (s.status === 'past_due') return 'The last payment failed, so your plan is off. Update your card in billing to turn it back on.';
+  if (s.status === 'paused') return 'The subscription is paused, so your plan is off until it is resumed.';
   if (s.current_period_end) return `Renews on ${formatDate(s.current_period_end)}.`;
   return '';
 }
@@ -122,7 +122,7 @@ export function SubscriptionCard({ plan }: { plan: PlanId }) {
         <div className="grid gap-4">
           {subscription.status === 'past_due' && (
             <Callout tone="danger" icon={<AlertTriangle />} title="We couldn't take your last payment">
-              Update your card in billing. Paddle retries automatically, and the plan stays active while it does.
+              Your plan is off until the payment goes through. Update your card in billing and it comes back on its own.
             </Callout>
           )}
           <p className="text-[0.8125rem] text-ink-muted">{summary(subscription)}</p>

@@ -51,8 +51,11 @@ export function useCreateChannel() {
 }
 
 export interface ConnectInput {
-  type: 'shopify' | 'woocommerce';
-  /** The store as typed: Shopify's your-store, your-store.myshopify.com or its admin URL; WooCommerce's https address. The API normalizes it. */
+  type: 'shopify' | 'woocommerce' | 'discord';
+  /**
+   * The store as typed: Shopify's your-store, your-store.myshopify.com or its admin URL; WooCommerce's https address.
+   * The API normalizes it. For Discord, the server ID to preselect, or '' to pick the server in Discord.
+   */
   account: string;
 }
 

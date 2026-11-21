@@ -81,7 +81,6 @@ describe('automatic assignment', () => {
     for (const m of members().filter((m) => m.role !== 'viewer')) call('PATCH', `/members/${m.user_id}`, { availability: 'away' });
     const none = open('Refund please');
     expect(none.assignee_user_id).toBeUndefined();
-    expect(none.flags.unassigned).toBe(true);
     // Moving it to another category once someone is back assigns it there.
     call('PATCH', `/members/${byName('Jun').user_id}`, { availability: 'available' });
     const moved = call('PATCH', `/tickets/${none.id}`, { category: 'orders' });

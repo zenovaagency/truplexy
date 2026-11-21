@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useNavigation } from 'react-router';
 import { Dialog as D } from 'radix-ui';
 import { ArrowLeft, ArrowRight, FlaskConical, Menu as MenuIcon, PauseCircle, PowerOff, Search, ShieldCheck } from 'lucide-react';
 import { useHealth } from '@/lib/api/endpoints/account';
-import { useTrialEligible } from '@/lib/api/endpoints/billing';
+import { useSubscription, useTrialEligible } from '@/lib/api/endpoints/billing';
 import { usePresenceHeartbeat, useTenant } from '@/lib/api/endpoints/business';
 import { useTicketCounts } from '@/lib/api/endpoints/tickets';
 import { hasNoPlan, planLabel, TRIAL_DAYS } from '@/lib/billing';
@@ -276,6 +276,9 @@ function NoPlanBanner() {
   const off = hasNoPlan(businessPlan) && businessStatus !== 'suspended';
   // Promise a trial only when the API says one would be sold, as the Plan tab does.
   const trial = useTrialEligible(off && can('usage.read')).data !== false;
+  // A subscription that is behind on payment (or paused) switches the plan off too; there the fix is the card, not a new plan.
+  const status = useSubscription(off && can('usage.read')).data?.status;
+  const unpaid = status === 'past_due' || status === 'paused';
   // A suspended business has its own banner.
   if (!off) return null;
   return (
@@ -284,11 +287,15 @@ function NoPlanBanner() {
       <p className="min-w-0 flex-1">
         <span className="font-semibold">Your bots are off.</span>{' '}
         <span className="text-ink-muted">
-          This business has no plan, so customers get no AI replies. {trial ? `Start your ${TRIAL_DAYS}-day free trial to turn them on.` : 'Choose a plan to turn them on.'}
+          {unpaid
+            ? status === 'paused'
+              ? 'Your subscription is paused, so customers get no AI replies until it is resumed.'
+              : 'Your last payment failed, so customers get no AI replies. Update your card to turn them back on.'
+            : `This business has no plan, so customers get no AI replies. ${trial ? `Start your ${TRIAL_DAYS}-day free trial to turn them on.` : 'Choose a plan to turn them on.'}`}
         </span>
       </p>
       <Link to={href('settings/plan')} className="inline-flex shrink-0 items-center gap-1 font-medium text-accent hover:underline">
-        {trial ? 'Start free trial' : 'Choose a plan'} <ArrowRight className="size-3.5" />
+        {unpaid ? 'Update billing' : trial ? 'Start free trial' : 'Choose a plan'} <ArrowRight className="size-3.5" />
       </Link>
     </div>
   );

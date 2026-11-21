@@ -4,13 +4,23 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Messenger and Instagram (2026-11-10)](#messenger-and-instagram-2026-11-10), [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Messenger and Instagram (2026-11-10)](#messenger-and-instagram-2026-11-10), [Discord bot (2026-11-09)](#discord-bot-2026-11-09), [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Discord bot (2026-11-09)
+
+Truplexy runs its own public Discord bot. A business adds it to its Discord server from the dashboard, with no code and no key to paste. In the server, a ticket panel opens a private channel per customer, the bot answers first, and the team takes over in Discord or in the dashboard. Businesses that run their own Discord bot keep using a chat key bound to a `discord` channel, as before. Apply migration `0055_discord.sql` and set the `DISCORD_*` variables first (see the README).
+
+- **Connect:** [`POST /channels/connect`](#post-channelsconnect-v2) `{type: "discord", account?, return_to}`. The `url` is Discord's page where the person picks a server they manage and adds the bot. `account` is optional: a server ID, sent when the person came from the bot's "Link this server" button (the dashboard link carries `?connect=discord&guild_id=…`), which picks the server for them. The browser comes back to `return_to` with `connected=discord&channel_id=…&type=discord`, or `connect_error=denied|expired|invalid|store_connected_elsewhere|failed&type=discord`; `store_connected_elsewhere` means another business has the server.
+- **The channel:** a `discord` channel named after the server, with `external_id` set to the server's ID. Connecting the same server again turns its channel back on; connecting it to another bot of the business moves it and turns the first bot's channel off. When the bot is removed from the server, the channel is turned off. Deleting the channel unlinks the server. Only this connect sets a `discord` channel's `external_id`: creating or editing a `discord` channel with an `external_id` through `POST`/`PATCH /channels` answers 400, so a business can't claim a server it didn't install the bot on. A `discord` channel without one is for a business's own bot.
+- **Tickets:** conversations and tickets from the server carry the channel, and the customer (contact type `discord`), like any chat API integration's. A `reply` to such a ticket ([`POST /tickets/{id}/replies`](#post-ticketsidreplies)) is posted in the ticket's Discord channel, and the response gains `delivery: {status, message}` as for WhatsApp: `sent` or `failed`. Taking over, handing back and closing in the dashboard show in Discord too.
+- **Plans:** a business without a plan (`none`) keeps the bot's moderation commands, but its ticket panel and AI replies are off.
+- **What a dashboard does:** a Discord card with an "Add to Discord" button that calls the connect, the `connected`/`connect_error` banners, and the `?connect=discord&guild_id=` link that starts the connect for that server. Keep the guide for businesses that build their own bot with a chat key.
 
 ## Messenger and Instagram (2026-11-10)
 
@@ -518,7 +528,7 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `GET` | `/channels/{id}` | `channels.read` | A channel (v2) |
 | `PATCH` | `/channels/{id}` | `channels.write` | Change a channel, or turn it off (v2) |
 | `DELETE` | `/channels/{id}` | `channels.write` | Delete a channel (v2) |
-| `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store (v2) |
+| `POST` | `/channels/connect` | `channels.write` | Start connecting a channel through its platform, such as a Shopify store or a Discord server (v2) |
 | `POST` | `/channels/whatsapp` | `channels.write` | Connect the business's own WhatsApp number (v2) |
 | `GET` | `/channels/{id}/whatsapp` | `channels.read` | A connected WhatsApp number, with its webhook settings (v2) |
 | `PUT` | `/channels/{id}/whatsapp` | `channels.write` | Replace a WhatsApp number's access token and app secret (v2) |
@@ -664,6 +674,10 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/conversations/{id}/attachments` | chat key | Image input: register a picture and get a presigned upload URL |
 | `PUT` | `/customer` | chat key | Find or create the customer your platform knows, by any contact: email, phone, platform user ID (v2) |
 | `POST` | `/realtime/token` | chat key | Live update topics for an integration (v2) |
+| `GET` | `/discord/guilds/{guild_id}` | `DISCORD_SERVICE_KEY` | Whether a server is linked, and its business's plan (v2; Truplexy's Discord bot only) |
+| `POST` | `/discord/guilds/{guild_id}/removed` | `DISCORD_SERVICE_KEY` | The bot left a server: turn its channel off (v2; Truplexy's Discord bot only) |
+| `GET` | `/discord/guilds/{guild_id}/conversations/{conversation_id}/transcript` | `DISCORD_SERVICE_KEY` | The public link of a ticket's transcript (v2; Truplexy's Discord bot only) |
+| `GET` | `/discord/transcripts/{token}` | signed link | A closed Discord ticket's transcript, as a web page (v2) |
 | `GET` | `/internal/cron/knowledge` | `CRON_SECRET` | Finish stalled indexing (v2; not for frontends) |
 | `GET` | `/internal/cron/purge` | `CRON_SECRET` | Erase businesses deleted over 30 days ago (v2; not for frontends) |
 | `GET` | `/internal/cron/billing` | `CRON_SECRET` | Cancel deleted businesses' subscriptions; compare Paddle with the database (v2; not for frontends) |
@@ -1344,12 +1358,12 @@ Deleting a `shopify` channel also removes the store's access token and, unless a
 
 #### `POST /channels/connect` (v2)
 
-`channels.write`. Starts connecting a channel through its platform's own sign-in. Only `shopify` and `woocommerce` are connected this way; other types are added with `POST /channels`.
+`channels.write`. Starts connecting a channel through its platform's own sign-in. Only `shopify`, `woocommerce` and `discord` are connected this way; other types are added with `POST /channels`.
 
 | Field | Rules |
 | --- | --- |
-| `type` | Required. `shopify` or `woocommerce`. |
-| `account` | Required. For `shopify`: `your-store`, `your-store.myshopify.com`, or its admin URL `https://admin.shopify.com/store/your-store`. For `woocommerce`: the store's https address, such as `https://shop.example.com` (a store in a subdirectory keeps its path; pasted `/wp-admin` or `/wp-json` addresses are cut back to the store). |
+| `type` | Required. `shopify`, `woocommerce` or `discord`. |
+| `account` | Required for stores; optional for `discord`, where it is the server's ID to add the bot to. For `shopify`: `your-store`, `your-store.myshopify.com`, or its admin URL `https://admin.shopify.com/store/your-store`. For `woocommerce`: the store's https address, such as `https://shop.example.com` (a store in a subdirectory keeps its path; pasted `/wp-admin` or `/wp-json` addresses are cut back to the store). |
 | `return_to` | Required. The dashboard page to come back to, on an origin in `DASHBOARD_URL` or `CORS_ALLOWED_ORIGINS`. Its own query is kept. |
 
 **200** `{url}`: Shopify's install page for the store. Send the browser there. The connect expires after 10 minutes and works once.
@@ -1369,6 +1383,8 @@ After the owner approves, Shopify sends the browser to the API's callback (`GET 
 | `failed` | Shopify or the API failed; try again. |
 
 An unknown or expired connect lands on `{DASHBOARD_URL}/integrations/guides` with `connect_error=invalid`.
+
+**Discord** connects through Discord's own page, where the person picks a server and adds Truplexy's bot; see [Discord bot](#discord-bot-2026-11-09).
 
 **WooCommerce** connects the same way, with these differences. The 200 `{url}` is the store's own authorization page (`<store>/wc-auth/v1/authorize`), where the owner approves read-only access. The store posts the new REST API keys to `POST /channels/connect/woocommerce/callback` and then sends the browser to `GET /channels/connect/woocommerce/return` (neither is called by the dashboard), which lands on `return_to` with `connected=woocommerce&channel_id=chn_…&type=woocommerce` or `connect_error=<code>&type=woocommerce`. The channel's `external_id` is the store's address. `denied` means the owner refused; `scopes_missing` means the keys can't read orders; `failed` includes keys the store rejects. There is no uninstall to hear about: if the store revokes the keys, the tools answer that the store can't be reached until it is connected again. The store must be on https and the address must be a public host.
 
@@ -1856,8 +1872,8 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
   assignee?,                               // legacy free text set by API callers
   escalated, escalated_at?,                // escalated: a person has the conversation; the AI is silent
   source,                                  // dashboard | customer
-  needs_reply, handed_off,
-  flags: {needs_reply, escalated, handed_off, unassigned, overdue, reopened},
+  needs_reply, handed_off,                 // needs_reply: the customer wrote last; handed_off: the AI asked for a person
+  was_escalated,                           // closed while a person had it or was asked for: a mark; cleared on reopening
   last_customer_at?, last_agent_at?,
   first_response_at?, closed_at?, reopen_count,
   summary?, summary_at?,                   // the AI summary a person last generated, and when
@@ -1875,7 +1891,7 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 
 **Automatic changes:**
 - A customer message sets `needs_reply`.
-- Closing ends escalation, and the assistant answers again.
+- Closing ends escalation, and the assistant answers again. A ticket that was taken over or handed off when it closed keeps `was_escalated: true` as a mark (closing on its own does too); reopening clears it, and `escalated` and `handed_off` show the live state again. Tickets closed before this existed are not marked.
 - **Closing inactive tickets** (v2). An open ticket closes after a number of hours without activity (no change to it and no message in its conversation): its channel's `auto_close_hours`, else its channel type's, else its business's; 0 is never, and nothing closes until one is set. A ticket with `keep_open: true` never closes on its own; one waiting on the team (escalated or handed off, with the customer having written last) closes like any other. `auto_close_at` says when it will. Closing on its own ends escalation, adds the internal note "Closed automatically after N hours without activity." and sets `auto_closed_at`; reopening clears it. It sends the same `ticket.updated` events as a person closing it.
 
 **Assignment.**
@@ -1883,16 +1899,14 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 - A ticket that opens, is escalated or is taken over with nobody assigned is assigned at once, as the business's `auto_assign` says. Only members who may work on tickets (agent and up) who are `online` (available, and active in the last 15 minutes) are assigned. In turn means the member assigned longest ago in that rotation (the category's, or the whole team's) goes next.
 - With nobody online the ticket stays unassigned. Moving an unassigned open ticket to another category assigns it in that category. A person can always reassign.
 
-**Flags**, for badges and filters:
+**When a person is needed.** Two fields say whether a ticket needs a person or has one:
 
-| Flag | Meaning |
+| Field | Meaning |
 | --- | --- |
-| `needs_reply` | The customer wrote after the last reply. |
-| `escalated` | The AI is paused for this conversation. |
-| `handed_off` | The assistant flagged the conversation for the team. |
-| `unassigned` | No one is assigned. |
-| `overdue` | It has needed a reply for longer than the business's `reply_target_hours`. |
-| `reopened` | It was reopened at least once. |
+| `handed_off` | The assistant (or the customer) asked for a person, and nobody has answered yet. The assistant keeps replying. It clears when a person answers, takes the conversation over or closes the ticket. |
+| `escalated` | A person has the conversation and the AI is paused. |
+
+Everything else a badge might show is a plain field or a count: `needs_reply` (the customer wrote after the last reply), no `assignee_user_id` (filter with `assignee=none`), `reopen_count` above 0, and `counts.overdue` (waiting longer than the business's `reply_target_hours`).
 
 #### `GET /tickets`
 
@@ -1901,7 +1915,6 @@ Scope headers; these act on the bot. A ticket is a support case, usually for one
 | Query | Rules |
 | --- | --- |
 | `view` | `all` (default), `open` (every open ticket), `needs_reply`, `escalated` or `mine` (the caller's open tickets). |
-| `flag` | One of the flags above. |
 | `assignee` | `me`, `none`, or a member's user ID. |
 | `channel` | A channel `id`, or `none` for tickets without one (v2). |
 | `channel_type` | A channel type `id`, such as `discord` (v2). |
@@ -2108,8 +2121,8 @@ Scope headers; these act on the bot. Each bot has one webhook, which tells its i
 
 **What is delivered.**
 - **Events:**
-  - `message.created`: a person replied to a ticket of a chat API conversation.
-  - `ticket.updated`: such a ticket was opened, or its status or escalation changed.
+  - `message.created`: a person replied to a ticket of a customer conversation, from the chat API, the SDK, a plugin or a messaging channel.
+  - `ticket.updated`: such a ticket was opened from the dashboard or API, or its status or escalation changed (by the team or the auto-close sweep). Assignment, priority, category and subject changes, and tickets the customer opens, are not delivered.
 - **Not delivered:** notes, playground conversations, and anything the integration did itself.
 - **Format:** each delivery is `{id, type, created_at, data}`, with `data` as in the [live events](#live-updates).
 - **Headers:**
@@ -2398,7 +2411,7 @@ v2 only. No token and no scope: Paddle calls it, and the signature on the raw bo
 
 | Event | Effect |
 | --- | --- |
-| `subscription.created`, `.activated`, `.trialing`, `.updated`, `.resumed`, `.past_due`, `.paused` | The business is found from `data.custom_data.tenant_id`, else from the subscription it already has. The row is written from the event: `status`, plan and interval from the price ID, `trial_ends_at` from `items[0].trial_dates.ends_at`, `current_period_end` from `next_billed_at`, `cancel_at` from a `scheduled_change` with `action: "cancel"`. The business moves to that plan (`past_due` and `paused` keep it; Paddle retries a failed payment). |
+| `subscription.created`, `.activated`, `.trialing`, `.updated`, `.resumed`, `.past_due`, `.paused` | The business is found from `data.custom_data.tenant_id`, else from the subscription it already has. The row is written from the event: `status`, plan and interval from the price ID, `trial_ends_at` from `items[0].trial_dates.ends_at`, `current_period_end` from `next_billed_at`, `cancel_at` from a `scheduled_change` with `action: "cancel"`. The business moves to that plan (`past_due` and `paused` take the plan away, leaving the business on `none` until Paddle reports `active` again; the subscription row keeps its real status). |
 | `.canceled` | The row becomes `canceled` and the business is left without a plan (`none`): its bots stop replying until it subscribes again. Paddle sends it when access has ended; a cancellation scheduled for the end of the period arrives earlier as `.updated` with `cancel_at`. |
 
 An event is ignored, but still marked handled, when its price isn't one of the four configured, its business doesn't exist, another live subscription already belongs to the business, or it is older than what is stored (`updated_at`). A business on `enterprise` is never moved by an event. Each applied event adds an entry to the business's activity log (`GET /audit`), with actor `paddle`.
@@ -3035,6 +3048,35 @@ Records a reply a person wrote on the integration's platform. It is text only: p
 
 It opens a ticket if there is none, and isn't sent back to the webhook. **201** `{message, ticket_id, escalated}`, or **200** for a repeated `external_id`.
 
+### Truplexy's Discord bot
+
+Only Truplexy's own Discord bot calls these, with `DISCORD_SERVICE_KEY` as its bearer token. Dashboards never do.
+
+**The chat API for a linked server.** Every chat API endpoint above also accepts `DISCORD_SERVICE_KEY` with the header `X-Truplexy-Discord-Guild: <server ID>`. The request acts for the server's `discord` channel exactly as a chat key bound to that channel would, so the rules, limits and errors are the same. Rate limits count per server. Errors of its own:
+- `400 INVALID_REQUEST`: the header is missing or isn't a server ID.
+- `401 DISCORD_GUILD_NOT_LINKED`: no bot holds the server; connect it from the dashboard.
+- `403 CHANNEL_DISABLED`: the server's channel is turned off, or the business is suspended.
+
+#### `GET /discord/guilds/{guild_id}` (v2)
+
+**200** `{guild_id, linked, channel_id?, channel_active, business?: {name}, bot?: {name}, subscription: {active}, dashboard_url?}`. `subscription.active` is false for a business without a plan; the bot then turns its ticket panel off. An unlinked server is `linked: false`.
+
+#### `POST /discord/guilds/{guild_id}/removed` (v2)
+
+The bot left the server or was removed from it. Turns the server's channel off (`channel.disconnect` in the activity log); connecting it again turns it back on. **204**, also for a server no bot holds.
+
+#### `GET /discord/guilds/{guild_id}/conversations/{conversation_id}/transcript` (v2)
+
+The link to a ticket's transcript, which the bot gives the customer and the team when the ticket closes. **200** `{url}`; **404 NOT_FOUND** when the conversation isn't one of the server's own, **401 DISCORD_GUILD_NOT_LINKED**. Nothing is stored: the link is the conversation's ID and a signature only the API can make, so a ticket always gets the same link.
+
+#### `GET /discord/transcripts/{token}` (v2)
+
+No credentials: the signature in the link authorizes it. **200** an HTML page of the ticket's subject, status, dates and messages (the customer's, the assistant's, the team's and the notices that the conversation changed hands), read from the conversation itself each time. It never shows notes, models, sources, tool calls, usage or messages that failed. Sent with `noindex`, `no-referrer`, `no-store` and a content security policy that allows no script. **404 NOT_FOUND** for a link that is forged, altered, of another kind of channel's conversation, or of a deleted business.
+
+**What the API sends the bot.** With `DISCORD_BOT_URL` empty it sends nothing: the bot polls `GET /conversations/{id}` for each open ticket and reads the team's replies (`author: "agent"`), `escalated` and the ticket's status from it, and a dashboard reply's answer carries no `delivery`. With `DISCORD_BOT_URL` set, the API posts events to `DISCORD_BOT_URL/v1/events`, signed with `DISCORD_EVENTS_SECRET` in the [webhook](#webhook) format (`X-Truplexy-Event`, `X-Truplexy-Delivery`, `X-Truplexy-Signature`). Each is `{id, type, created_at, guild_id, data}`:
+- `reply`: a person's reply from the dashboard, `data: {conversation_id, ticket_id, channel_id, message: {content, agent?}}`. The bot answers `{status: "sent"}`, or `{status: "failed", message}`, which the dashboard shows as the reply's `delivery`.
+- `ticket.updated`: a ticket closed, taken over or handed back in the dashboard, or closed on its own, `data` as for the webhook.
+
 ### Internal
 
 #### `GET /internal/cron/knowledge`
@@ -3069,7 +3111,7 @@ A guide to which calls back each typical area. It doesn't prescribe screens.
 | Products | `GET /products` (search with `q`, `status`, `property[key]=`), `POST`/`PATCH`/`DELETE /products…`, `GET /properties?entity=product` for the property fields; imports with `POST /products/imports` (then `PUT` and `…/process` for a file), `GET /products/imports/{id}` to review, `…/commit` to save |
 | Settings: properties | `GET /properties?entity=`, `GET /properties/presets` with the business's type, `POST`/`PATCH`/`DELETE /properties…` |
 | Customers | `GET /customers` (search with `q`, filter with `property[key]=`, paged with `cursor`), `GET /customers/{id}` for the detail page with their conversations and tickets, `POST`/`PATCH`/`DELETE /customers…`, `PUT`/`DELETE /customers/{id}/avatar`, `GET /properties?entity=customer` for the property fields, and `GET /tickets?customer=` for all of their tickets |
-| Tickets | `GET /tickets` (views, flags, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets/{id}/suggested-reply` for the reply box's AI draft, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
+| Tickets | `GET /tickets` (views, `assignee=me`, `channel`/`channel_type`/`customer` filters, `counts` for badges), `GET /channels` for the channel filter and badges, `GET /tickets/{id}`, `PATCH /tickets/{id}`, `POST /tickets/{id}/replies`, `POST /tickets/{id}/suggested-reply` for the reply box's AI draft, `POST /tickets`, `DELETE /tickets/{id}`, `GET /handoffs`, `GET /members` for the assignee picker, `GET /realtime` for live updates |
 | Knowledge base | `GET /knowledge/documents`, `POST /knowledge/documents`, `POST /knowledge/uploads` (then R2 `PUT`), `POST …/process`, `GET`/`PUT`/`DELETE /knowledge/documents/{id}`, `POST …/reindex`, `POST /knowledge/search` |
 | Bot configuration | `GET`/`PUT /workspace` (name, template and its variables, knowledge, tools, web search and source policy only; no model or model-setting controls), `GET /prompt-templates`, `GET /tools` for the tool picker |
 | Tools | `GET`/`POST /tools`, `GET`/`PUT`/`DELETE /tools/{name}`, `POST /tools/{name}/test` |

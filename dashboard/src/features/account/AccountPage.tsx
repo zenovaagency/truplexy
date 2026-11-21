@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { Eye, EyeOff, KeyRound, Mail, MailCheck } from 'lucide-react';
 import { useMe, useRemoveMyAvatar, useSetMyAvatar } from '@/lib/api/endpoints/account';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { CAPTCHA_ERROR_MESSAGE, TURNSTILE_FAILED_MESSAGE, useTurnstile } from '@/features/auth/Turnstile';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { ImageUploader } from '@/components/domain/ImageUploader';
 import { Button, Callout, Card, Field, Input, Page, PageHeader } from '@/components/ui';
@@ -17,6 +18,7 @@ function authMessage(e: unknown, fallback: string) {
   if (/same password|different from the old/i.test(m)) return 'Choose a password you have not used before.';
   if (/reauthenticat|recently/i.test(m)) return 'For your security, sign out and back in, then try again.';
   if (/already (been )?registered|already exists|email_exists/i.test(m)) return 'That email already belongs to another account.';
+  if (/captcha/i.test(m)) return CAPTCHA_ERROR_MESSAGE;
   if (/rate limit|too many/i.test(m)) return 'Too many attempts. Wait a few minutes and try again.';
   return m || fallback;
 }
@@ -207,6 +209,7 @@ function PasswordCard({ focus }: { focus: boolean }) {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const captcha = useTurnstile();
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -247,20 +250,23 @@ function PasswordCard({ focus }: { focus: boolean }) {
         <Field label="Confirm new password" error={mismatch ? 'Passwords do not match' : undefined}>
           <PasswordInput autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} show={show} onToggle={() => setShow((x) => !x)} />
         </Field>
+        <div ref={captcha.ref} />
+        {captcha.failed && <p className="text-[0.8125rem] font-medium text-danger">{TURNSTILE_FAILED_MESSAGE}</p>}
         <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
           <Button
             variant="ghost"
             loading={resetting}
-            disabled={busy || !user?.email}
+            disabled={busy || !user?.email || !captcha.ready}
             onClick={async () => {
               setResetting(true);
               try {
-                await sendPasswordReset(user!.email);
+                await sendPasswordReset(user!.email, captcha.token);
                 notifySuccess('Reset email sent', `Check ${user!.email} for a link.`);
               } catch (err) {
                 notifyError(new Error(authMessage(err, "Couldn't send the reset email.")));
               } finally {
                 setResetting(false);
+                captcha.reset();
               }
             }}
           >
