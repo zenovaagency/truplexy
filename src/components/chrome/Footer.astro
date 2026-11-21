@@ -30,8 +30,8 @@ const resources = [
 ];
 
 const link = 'text-white/60 transition-colors hover:text-white';
-// Cookie settings only exist once the Meta Pixel does (see ConsentBanner).
-const hasPixel = Boolean(import.meta.env.PUBLIC_META_PIXEL_ID);
+// Cookie settings only exist once the consent banner does (see ConsentBanner).
+const hasPixel = Boolean(import.meta.env.PUBLIC_META_PIXEL_ID || import.meta.env.PUBLIC_TRACKING);
 ---
 
 <!-- Same ink ground as the call to action above it, so the two read as one

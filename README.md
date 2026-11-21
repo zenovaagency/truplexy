@@ -63,15 +63,19 @@ services: `dashboard` on `app.` hosts (`app.truplexy.com`), `site` on every othe
 - The dashboard (`app.`) is kept out of search with an `X-Robots-Tag: noindex` header
   (`vercel.json`) and a noindex meta. Its `robots.txt` still allows crawling, so crawlers can see that.
 
-## Social links and the Meta Pixel
+## Social links, ad measurement and the Meta Pixel
 
 The footer links the official YouTube and Facebook pages (`SITE.social` in `src/data/site.ts`), which also feed `sameAs` in the Organization JSON-LD.
 
-The Meta Pixel is off until its ID is set, and then runs only after the visitor accepts a consent banner:
+Everything below is off until configured, and runs only after the visitor accepts the consent banner (`ConsentBanner.astro`, choice in local storage under `tpx-consent`; declining or not answering keeps it all off):
 
-- truplexy.com: set `PUBLIC_META_PIXEL_ID` at build time (Vercel env). `ConsentBanner.astro` and `src/lib/meta-pixel.ts`; the footer gets a "Cookie settings" link.
-- app.truplexy.com: set `VITE_META_PIXEL_ID` (dashboard build). Only the sign-in / sign-up page loads it (`features/auth/PixelConsent.tsx`), never the signed-in app; it sends PageView and, after a password sign-up, CompleteRegistration (no name or email). The dashboard CSP in `vercel.json` allows `connect.facebook.net` / `www.facebook.com` for it.
-- Without the IDs there is no banner and no request to Meta. The privacy page (`/privacy#site`) describes the Pixel; keep it in step if the setup changes.
+- **Banner.** Shown when `PUBLIC_META_PIXEL_ID` or `PUBLIC_TRACKING=1` is set (site build env). The footer gets a "Cookie settings" link.
+- **Attribution** (`src/lib/attribution.ts`, `dashboard/src/lib/attribution.ts`). With consent, the site keeps the first visit's `utm_*`, `fbclid`/`gclid`, referrer host and landing path, and adds them as one `tpx_a` parameter to links to `app.truplexy.com/sign-in` when they are clicked (so the pricing billing toggle, which re-points its buttons, is covered). The dashboard keeps them across sign-up (email confirmation, Google, magic link), strips the parameter from the address and, the first time the person is signed in, sends them to `PUT /v3/me/attribution`, which stores them once. Declining on the dashboard's banner discards them. The two sites are different origins, so they travel in the link, not in storage.
+- **Meta Pixel.** truplexy.com: `PUBLIC_META_PIXEL_ID` (`src/lib/meta-pixel.ts`). app.truplexy.com: `VITE_META_PIXEL_ID`; only the sign-in / sign-up page loads it (`features/auth/PixelConsent.tsx`), never the signed-in app, and it sends PageView only. The dashboard CSP in `vercel.json` allows `connect.facebook.net` / `www.facebook.com` for it.
+- **Conversions.** Sign-up, trial and subscription are sent to Meta by the API (Conversions API, `META_CAPI_PIXEL_ID` and `META_CAPI_TOKEN` on the backend), for consenting people only. There is deliberately no browser `CompleteRegistration`: the server event covers password, Google and magic-link sign-ups, and fires once the account exists, so Meta would otherwise count each twice.
+- **Funnel.** Platform admins see the sign-up funnel by campaign on Platform → Overview (`GET /v3/platform/funnel`).
+- Vercel Web Analytics (`astro.config.mjs`) is cookie-free and not behind the banner.
+- Without the IDs there is no banner and no request to Meta. The privacy page (`/privacy#site`) describes all of this; keep it in step, and bump `LEGAL.updated`, if the setup changes.
 
 ## Demo requests
 

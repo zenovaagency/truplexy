@@ -3636,6 +3636,21 @@ route('GET', '/platform/overview', 'platform', ({ db }) => {
   };
 });
 
+route('GET', '/platform/funnel', 'platform', ({ query }) => {
+  const days = Number(query.get('days')) || 30;
+  const events = ['signed_up', 'business_created', 'channel_connected', 'trial_started', 'subscribed'];
+  const rows = [
+    { source: 'meta', campaign: 'launch', counts: [42, 31, 12, 9, 4] },
+    { source: 'youtube', campaign: '', counts: [18, 13, 5, 3, 1] },
+    { source: '(unknown)', campaign: '', counts: [27, 19, 5, 3, 2] },
+  ];
+  return {
+    days,
+    steps: events.map((event, i) => ({ event, people: rows.reduce((n, r) => n + r.counts[i], 0) })),
+    sources: rows.flatMap((r) => events.map((event, i) => ({ source: r.source, campaign: r.campaign, event, people: r.counts[i] }))),
+  };
+});
+
 route('GET', '/platform/tenants', 'platform', ({ db }) => ({
   data: [...db.tenants]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
