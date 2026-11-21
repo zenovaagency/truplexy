@@ -1,12 +1,11 @@
 ---
 import Video from '../ui/Video.astro';
 import { SITE } from '../../data/site';
-import { PROMO_CUES, clock } from '../../data/promo-transcript';
 ---
 
 <!-- The product video, straight after the hero. Same stone ground as the
      hero, so it reads as the hero's continuation rather than a new section.
-     Captions come from the same cues as the transcript below it. -->
+     Captions are served from /video/truplexy-promo.en.vtt. -->
 <section id="watch" class="section scroll-mt-[calc(var(--nav-h)+24px)] bg-ground-cream !pt-0" aria-labelledby="watch-title">
   <div class="container-t">
     <div class="mx-auto max-w-[720px] text-center">
@@ -18,23 +17,5 @@ import { PROMO_CUES, clock } from '../../data/promo-transcript';
       captions={{ src: '/video/truplexy-promo.en.vtt', label: 'English (on-screen text)' }}
       class="mx-auto mt-10 w-full max-w-[1040px]"
     />
-
-    <details class="group/tr mx-auto mt-6 max-w-[760px] rounded-[20px] border border-line bg-surface">
-      <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[0.95rem] font-semibold text-ink [&::-webkit-details-marker]:hidden">
-        Read the video transcript
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-faint transition-transform duration-200 group-open/tr:rotate-180" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-      </summary>
-      <ol class="space-y-3 border-t border-line px-5 py-5 text-[0.92rem] leading-relaxed text-ink-muted">
-        {PROMO_CUES.map((c) => (
-          <li class="grid grid-cols-[3rem_1fr] gap-3">
-            <span class="mono pt-[3px] text-[0.7rem] text-ink-faint">{clock(c.start)}</span>
-            <span>
-              <span class="font-medium text-ink">{c.text}</span>
-              {c.scene && <span class="block text-ink-faint">{c.scene}</span>}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </details>
   </div>
 </section>
