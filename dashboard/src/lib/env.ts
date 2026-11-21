@@ -9,6 +9,8 @@ export const env = {
   useMocks: import.meta.env.VITE_USE_MOCKS === 'true',
   /** Cloudflare Turnstile site key (public). Empty means no human check is shown. */
   turnstileSiteKey: import.meta.env.VITE_TURNSTILE_SITE_KEY || '',
+  /** Meta Pixel ID (public). Empty means no Pixel and no consent banner. Used on the sign-in / sign-up page only. */
+  metaPixelId: (import.meta.env.VITE_META_PIXEL_ID || '').trim(),
   /** The site's checkout page, on the domain Paddle approved. It opens `?_ptxn=` transactions. */
   payUrl: trim(import.meta.env.VITE_PAY_PAGE_URL || 'https://truplexy.com/pay'),
 } as const;

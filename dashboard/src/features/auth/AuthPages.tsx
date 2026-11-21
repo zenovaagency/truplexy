@@ -18,6 +18,8 @@ import { Splash } from '@/app/guards';
 import { StatusScreen } from '@/app/errors';
 import { BrandMark } from '@/components/layout/Brand';
 import { AuthFrame, SITE_URL } from './AuthFrame';
+import { track } from '@/lib/metaPixel';
+import { PixelConsent } from './PixelConsent';
 import { CAPTCHA_ERROR_MESSAGE, TURNSTILE_FAILED_MESSAGE, isCaptchaError, useTurnstile } from './Turnstile';
 
 /**
@@ -109,6 +111,8 @@ export function SignInPage() {
         setSent(v.email.trim());
       } else if (mode === 'signup') {
         const r = await auth.signUp(v.email, v.password, v.name.trim(), next, captcha.token);
+        // Ad measurement only: the Pixel runs just with consent, and no name or email is sent.
+        track('CompleteRegistration');
         if (r.needsConfirmation) setSent(v.email);
       } else {
         await auth.signInWithPassword(v.email, v.password, captcha.token);
@@ -128,6 +132,7 @@ export function SignInPage() {
   if (sent) {
     return (
       <AuthFrame>
+        <PixelConsent />
         <div className="grid justify-items-center gap-4 text-center">
           <span className="grid size-14 place-items-center rounded-2xl bg-accent-soft text-accent">
             <MailCheck className="size-6" />
@@ -156,6 +161,7 @@ export function SignInPage() {
 
   return (
     <AuthFrame>
+      <PixelConsent />
       <div className="grid gap-7">
         <div className="grid gap-2">
           <h1 className="text-[1.75rem] font-bold leading-tight text-ink">{title}</h1>

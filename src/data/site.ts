@@ -20,6 +20,11 @@ export const SITE = {
     'AI support on every channel, one inbox for your team, and a person when it matters. Try Starter or Pro free for 7 days.',
   tagline: 'Every channel. One platform.',
   email,
+  // Official profiles. Linked from the footer and listed as `sameAs` in the Organization JSON-LD (Base.astro).
+  social: {
+    youtube: 'https://www.youtube.com/@truplexy',
+    facebook: 'https://www.facebook.com/truplexy',
+  },
   // The dashboard, served by the `dashboard` service in vercel.json.
   dashboardUrl: 'https://app.truplexy.com',
   // Create an account in the dashboard. Plan buttons use `signupHref` (pricing.ts) to carry a plan through.

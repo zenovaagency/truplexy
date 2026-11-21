@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { BrandMark, Bubbly } from '@/components/layout/Brand';
 import { cn } from '@/lib/cn';
+import { COOKIE_SETTINGS_EVENT } from '@/lib/metaPixel';
+import { pixelEnabled } from './PixelConsent';
 
 /** The public site. The dashboard host rewrites every path to this app, so legal pages need absolute links. */
 export const SITE_URL = 'https://truplexy.com';
@@ -45,6 +47,11 @@ export function AuthFrame({ children, aside = true }: { children: ReactNode; asi
               {label}
             </a>
           ))}
+          {pixelEnabled() && (
+            <button type="button" className="hover:text-ink hover:underline" onClick={() => window.dispatchEvent(new Event(COOKIE_SETTINGS_EVENT))}>
+              Cookie settings
+            </button>
+          )}
         </p>
       </main>
     </div>

@@ -1,0 +1,89 @@
+---
+/**
+ * Consent for the Meta Pixel. Rendered only when PUBLIC_META_PIXEL_ID is set,
+ * so until the Pixel is live the site shows no banner and loads nothing.
+ * Accept loads the Pixel (src/lib/meta-pixel.ts); Decline or a later "Cookie
+ * settings" choice keeps it off. The footer's Cookie settings button reopens this.
+ */
+const pixelId = import.meta.env.PUBLIC_META_PIXEL_ID as string | undefined;
+---
+
+{pixelId && (
+  <div class="consent" data-consent data-pixel-id={pixelId} role="dialog" aria-label="Cookie choices" hidden>
+    <p class="consent-text">
+      We’d like to use the Meta Pixel to measure our ads and see which visits lead to sign-ups. It sets cookies and sends
+      page views to Meta. Say no and nothing is loaded. <a href="/privacy#site">Details</a>
+    </p>
+    <div class="consent-actions">
+      <button type="button" class="consent-btn consent-no" data-consent-no>Decline</button>
+      <button type="button" class="consent-btn consent-yes" data-consent-yes>Accept</button>
+    </div>
+  </div>
+)}
+
+<style>
+  .consent {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    z-index: 70; /* above the chat launcher (60) */
+    max-width: 440px;
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 16px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line);
+    box-shadow: var(--shadow-md);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+  .consent[hidden] { display: none; }
+  .consent-text a { text-decoration: underline; text-underline-offset: 2px; }
+  .consent-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .consent-btn {
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-weight: 600;
+    border: 1px solid var(--color-line);
+  }
+  .consent-yes { background: var(--color-ink); color: #fff; border-color: var(--color-ink); }
+  .consent-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .consent { animation: consent-in 300ms ease-out; }
+    @keyframes consent-in { from { opacity: 0; transform: translateY(8px); } }
+  }
+</style>
+
+<script>
+  import { getConsent, loadPixel, revokePixel, setConsent } from '../../lib/meta-pixel';
+
+  const banner = document.querySelector<HTMLElement>('[data-consent]');
+  if (banner) {
+    const id = banner.dataset.pixelId ?? '';
+    const show = () => {
+      banner.hidden = false;
+    };
+    const hide = () => {
+      banner.hidden = true;
+    };
+
+    const consent = getConsent();
+    if (consent === 'granted') loadPixel(id);
+    else if (consent === null) show();
+
+    banner.querySelector('[data-consent-yes]')?.addEventListener('click', () => {
+      setConsent('granted');
+      loadPixel(id);
+      hide();
+    });
+    banner.querySelector('[data-consent-no]')?.addEventListener('click', () => {
+      setConsent('denied');
+      revokePixel();
+      hide();
+    });
+    document.querySelectorAll('[data-cookie-settings]').forEach((b) => b.addEventListener('click', show));
+  }
+</script>
