@@ -255,7 +255,7 @@ function PasswordCard({ focus }: { focus: boolean }) {
         <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
           <Button
             variant="ghost"
-            loading={resetting}
+            loading={resetting || captcha.checking}
             disabled={busy || !user?.email || !captcha.ready}
             onClick={async () => {
               setResetting(true);
@@ -270,7 +270,7 @@ function PasswordCard({ focus }: { focus: boolean }) {
               }
             }}
           >
-            Email me a reset link instead
+            {captcha.checking && !resetting ? "Checking you're not a bot…" : 'Email me a reset link instead'}
           </Button>
           <Button type="submit" variant="accent" loading={busy} disabled={!valid}>
             Update password

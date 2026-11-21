@@ -52,6 +52,8 @@ export interface TurnstileHandle {
   ready: boolean;
   /** True when the check could not start (blocked script, network). The form cannot be submitted. */
   failed: boolean;
+  /** True while the check runs: it applies, no token is in hand yet and it hasn't failed. */
+  checking: boolean;
   /** Attach to an empty element inside the form. */
   ref: (el: HTMLElement | null) => void;
   /** Call after every request: a token works once. */
@@ -107,7 +109,8 @@ export function useTurnstile(): TurnstileHandle {
     window.turnstile?.reset(widget.current);
   }, []);
 
-  return { enabled, token, ready: !enabled || token !== undefined, failed, ref: setEl, reset };
+  const ready = !enabled || token !== undefined;
+  return { enabled, token, ready, failed, checking: !ready && !failed, ref: setEl, reset };
 }
 
 /** Said under the form when the check cannot run. */

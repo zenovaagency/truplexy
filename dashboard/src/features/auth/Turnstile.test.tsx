@@ -18,7 +18,7 @@ function Probe() {
   return (
     <div>
       <div id="widget" ref={t.ref} />
-      <output id="state">{JSON.stringify({ enabled: t.enabled, ready: t.ready, token: t.token ?? null, failed: t.failed })}</output>
+      <output id="state">{JSON.stringify({ enabled: t.enabled, ready: t.ready, token: t.token ?? null, failed: t.failed, checking: t.checking })}</output>
       <button id="reset" onClick={t.reset} />
     </div>
   );
@@ -58,10 +58,10 @@ describe('useTurnstile', () => {
     expect(api.render).toHaveBeenCalledTimes(1);
     expect(options.sitekey).toBe('site-key');
     expect(options.appearance).toBe('interaction-only');
-    expect(state()).toEqual({ enabled: true, ready: false, token: null, failed: false });
+    expect(state()).toEqual({ enabled: true, ready: false, token: null, failed: false, checking: true });
 
     await act(async () => options.callback('tok-1'));
-    expect(state()).toMatchObject({ ready: true, token: 'tok-1' });
+    expect(state()).toMatchObject({ ready: true, token: 'tok-1', checking: false });
   });
 
   it('drops the token when it expires, and after a reset (a token works once)', async () => {
@@ -73,13 +73,15 @@ describe('useTurnstile', () => {
     await act(async () => options.callback('tok-2'));
     await act(async () => document.getElementById('reset')!.click());
     expect(api.reset).toHaveBeenCalledWith('widget-1');
-    expect(state()).toMatchObject({ ready: false, token: null });
+    // Checking again until the widget hands over the next token.
+    expect(state()).toMatchObject({ ready: false, token: null, checking: true });
   });
 
   it('reports a check that cannot run, and recovers when a token arrives', async () => {
     await mount();
     await act(async () => options['error-callback']());
-    expect(state()).toMatchObject({ failed: true, ready: false });
+    // A failed check isn't "checking": the form says what went wrong instead.
+    expect(state()).toMatchObject({ failed: true, ready: false, checking: false });
     await act(async () => options.callback('tok-3'));
     expect(state()).toMatchObject({ failed: false, ready: true });
   });
@@ -95,7 +97,7 @@ describe('useTurnstile', () => {
     env.turnstileSiteKey = '';
     await mount();
     expect(api.render).not.toHaveBeenCalled();
-    expect(state()).toEqual({ enabled: false, ready: true, token: null, failed: false });
+    expect(state()).toEqual({ enabled: false, ready: true, token: null, failed: false, checking: false });
   });
 
   it('does nothing in demo mode', async () => {
