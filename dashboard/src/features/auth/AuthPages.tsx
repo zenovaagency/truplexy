@@ -265,8 +265,24 @@ export function SignInPage() {
           {(error || captcha.failed) && (
             <p className="rounded-[10px] bg-danger-soft px-3 py-2 text-[0.8125rem] font-medium text-danger">{error ?? TURNSTILE_FAILED_MESSAGE}</p>
           )}
-          <Button type="submit" size="md" variant="accent" className="w-full" loading={submitting} disabled={!authConfigured || !captcha.ready}>
-            {mode === 'signup' ? 'Create account' : mode === 'magic' ? 'Email me a sign-in link' : mode === 'reset' ? 'Email me a reset link' : 'Sign in'}
+          <Button
+            type="submit"
+            size="md"
+            variant="accent"
+            className="w-full"
+            loading={submitting || captcha.checking}
+            disabled={!authConfigured || !captcha.ready}
+            data-testid="auth-submit"
+          >
+            {captcha.checking && !submitting
+              ? "Checking you're not a bot…"
+              : mode === 'signup'
+                ? 'Create account'
+                : mode === 'magic'
+                  ? 'Email me a sign-in link'
+                  : mode === 'reset'
+                    ? 'Email me a reset link'
+                    : 'Sign in'}
           </Button>
           <div className="flex items-center gap-3 text-xs text-ink-faint">
             <span className="h-px flex-1 bg-line" />
