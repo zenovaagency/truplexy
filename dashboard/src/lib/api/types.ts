@@ -1610,6 +1610,14 @@ export interface PlatformOverview {
   by_day: UsageDay[];
 }
 
+/** People who reached each sign-up milestone, in funnel order, and the same counts by traffic source. */
+export interface PlatformFunnel {
+  days: number;
+  steps: { event: string; people: number }[];
+  /** `source` is "(unknown)" for people who declined the cookie banner. */
+  sources: { source: string; campaign: string; event: string; people: number }[];
+}
+
 export interface PlatformBusiness extends Business {
   owner_email: string;
   first_bot: string;

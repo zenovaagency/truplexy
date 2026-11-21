@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { env } from '@/lib/env';
+import { clearAttribution } from '@/lib/attribution';
 import { COOKIE_SETTINGS_EVENT, getConsent, loadPixel, revokePixel, setConsent } from '@/lib/metaPixel';
 import { Button } from '@/components/ui';
 
@@ -27,7 +28,10 @@ export function PixelConsent() {
   const choose = (granted: boolean) => {
     setConsent(granted ? 'granted' : 'denied');
     if (granted) loadPixel(env.metaPixelId);
-    else revokePixel();
+    else {
+      clearAttribution();
+      revokePixel();
+    }
     setOpen(false);
   };
 
@@ -38,7 +42,7 @@ export function PixelConsent() {
       className="fixed inset-x-4 bottom-4 z-50 grid max-w-md gap-3 rounded-2xl border border-line bg-surface p-4 text-sm text-ink shadow-lg sm:right-auto"
     >
       <p className="text-ink-muted">
-        We use cookies to measure our ads and see which visits lead to sign-ups. Decline and no advertising cookies are set.{' '}
+        We use cookies and similar storage to measure our ads and see which visits lead to sign-ups. Decline and nothing is kept or sent.{' '}
         <a className="text-ink underline" href="https://truplexy.com/privacy#site" target="_blank" rel="noopener noreferrer">
           Details
         </a>

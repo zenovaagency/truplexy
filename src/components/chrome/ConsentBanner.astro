@@ -1,18 +1,21 @@
 ---
 /**
- * Consent for the Meta Pixel. Rendered only when PUBLIC_META_PIXEL_ID is set,
- * so until the Pixel is live the site shows no banner and loads nothing.
+ * Consent for measuring ads: the Meta Pixel (when PUBLIC_META_PIXEL_ID is set) and the
+ * campaign details kept for sign-up (src/lib/attribution.ts). Rendered only when the Pixel ID
+ * or PUBLIC_TRACKING=1 is set,
+ * so until one is live the site shows no banner and keeps nothing.
  * Accept loads the Pixel (src/lib/meta-pixel.ts); Decline or a later "Cookie
  * settings" choice keeps it off. The footer's Cookie settings button reopens this.
  */
-const pixelId = import.meta.env.PUBLIC_META_PIXEL_ID as string | undefined;
+const pixelId = (import.meta.env.PUBLIC_META_PIXEL_ID as string | undefined) ?? '';
+const enabled = Boolean(pixelId || import.meta.env.PUBLIC_TRACKING);
 ---
 
-{pixelId && (
+{enabled && (
   <div class="consent" data-consent data-pixel-id={pixelId} role="dialog" aria-label="Cookie choices" hidden>
     <p class="consent-text">
-      We use cookies to measure our ads and see which visits lead to sign-ups. Decline and no advertising cookies are
-      set. <a href="/privacy#site">Details</a>
+      We use cookies and similar storage to measure our ads and see which visits lead to sign-ups. Decline and nothing is
+      kept or sent. <a href="/privacy#site">Details</a>
     </p>
     <div class="consent-actions">
       <button type="button" class="consent-btn consent-no" data-consent-no>Decline</button>
@@ -58,6 +61,7 @@ const pixelId = import.meta.env.PUBLIC_META_PIXEL_ID as string | undefined;
 </style>
 
 <script>
+  import { clearAttribution, initAttribution } from '../../lib/attribution';
   import { getConsent, loadPixel, revokePixel, setConsent } from '../../lib/meta-pixel';
 
   const banner = document.querySelector<HTMLElement>('[data-consent]');
@@ -71,16 +75,20 @@ const pixelId = import.meta.env.PUBLIC_META_PIXEL_ID as string | undefined;
     };
 
     const consent = getConsent();
-    if (consent === 'granted') loadPixel(id);
-    else if (consent === null) show();
+    if (consent === 'granted') {
+      loadPixel(id);
+      initAttribution();
+    } else if (consent === null) show();
 
     banner.querySelector('[data-consent-yes]')?.addEventListener('click', () => {
       setConsent('granted');
+      initAttribution();
       loadPixel(id);
       hide();
     });
     banner.querySelector('[data-consent-no]')?.addEventListener('click', () => {
       setConsent('denied');
+      clearAttribution();
       revokePixel();
       hide();
     });

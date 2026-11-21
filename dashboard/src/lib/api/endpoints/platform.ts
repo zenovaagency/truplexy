@@ -13,6 +13,7 @@ import type {
   PlatformCustomer,
   PlatformBusinessDetail,
   PlatformModel,
+  PlatformFunnel,
   PlatformOverview,
   PlatformSettings,
   PlatformTemplate,
@@ -38,6 +39,13 @@ export function usePlatformOverview() {
   return useQuery({
     queryKey: qk.platform('overview'),
     queryFn: ({ signal }) => api<PlatformOverview>('/platform/overview', { signal }),
+  });
+}
+
+export function usePlatformFunnel(days = 30) {
+  return useQuery({
+    queryKey: qk.platform('funnel', days),
+    queryFn: ({ signal }) => api<PlatformFunnel>(`/platform/funnel?days=${days}`, { signal }),
   });
 }
 

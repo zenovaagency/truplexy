@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
 import { Toaster } from 'sonner';
+import { SendAttribution } from '@/features/auth/SendAttribution';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
 import { createQueryClient } from '@/lib/query-client';
 import { useTheme } from '@/lib/theme';
@@ -14,6 +15,7 @@ export function App() {
   return (
     <QueryClientProvider client={qc}>
       <AuthProvider>
+        <SendAttribution />
         <TooltipProvider delayDuration={250} skipDelayDuration={100}>
           <ConfirmProvider>
             <RouterProvider router={router} />

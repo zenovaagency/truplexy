@@ -40,6 +40,7 @@ import {
   usePlatformCustomers,
   usePlatformDeletionRequests,
   usePlatformModels,
+  usePlatformFunnel,
   usePlatformOverview,
   usePlatformSettings,
   usePlatformTemplates,
@@ -158,6 +159,86 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
 /* Overview                                                            */
 /* ------------------------------------------------------------------ */
 
+const FUNNEL_LABEL: Record<string, string> = {
+  signed_up: 'Signed up',
+  business_created: 'Created a business',
+  channel_connected: 'Connected a channel',
+  trial_started: 'Started a trial',
+  subscribed: 'Subscribed',
+};
+
+/** How far new people get, and which campaigns they came from. */
+function FunnelCard() {
+  const q = usePlatformFunnel(30);
+  const f = q.data;
+  const first = f?.steps[0]?.people ?? 0;
+  const bySource = useMemo(() => {
+    const rows = new Map<string, { source: string; campaign: string; people: Record<string, number> }>();
+    for (const r of f?.sources ?? []) {
+      const key = `${r.source}\u0000${r.campaign}`;
+      const row = rows.get(key) ?? { source: r.source, campaign: r.campaign, people: {} };
+      row.people[r.event] = r.people;
+      rows.set(key, row);
+    }
+    return [...rows.values()].sort((a, b) => (b.people.signed_up ?? 0) - (a.people.signed_up ?? 0));
+  }, [f]);
+  return (
+    <Card
+      title="Sign-up funnel, last 30 days"
+      description="People who reached each step. Sources come from the campaign tags on ad links; people who declined the cookie banner are unknown."
+    >
+      {q.isError ? (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : !f ? (
+        <Skeleton className="h-[180px]" />
+      ) : (
+        <div className="grid gap-6">
+          <ol className="grid gap-2">
+            {f.steps.map((s) => (
+              <li key={s.event} className="grid grid-cols-[minmax(0,12rem)_1fr_auto] items-center gap-3 text-sm">
+                <span className="text-ink">{FUNNEL_LABEL[s.event] ?? s.event}</span>
+                <span className="h-2 overflow-hidden rounded-full bg-line">
+                  <span className="block h-full rounded-full bg-accent" style={{ width: `${first ? Math.max(2, (s.people / first) * 100) : 0}%` }} />
+                </span>
+                <span className="tabular-nums text-ink-muted">
+                  {formatNumber(s.people)}
+                  {first > 0 && s.event !== 'signed_up' && <span className="text-ink-faint"> · {Math.round((s.people / first) * 100)}%</span>}
+                </span>
+              </li>
+            ))}
+          </ol>
+          {bySource.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs text-ink-faint">
+                  <tr>
+                    <th className="py-1 pr-4 font-medium">Source</th>
+                    <th className="py-1 pr-4 font-medium">Campaign</th>
+                    {f.steps.map((s) => (
+                      <th key={s.event} className="py-1 pr-4 text-right font-medium">{FUNNEL_LABEL[s.event] ?? s.event}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bySource.map((r) => (
+                    <tr key={`${r.source}-${r.campaign}`} className="border-t border-line">
+                      <td className="py-1.5 pr-4 text-ink">{r.source}</td>
+                      <td className="py-1.5 pr-4 text-ink-muted">{r.campaign || '—'}</td>
+                      {f.steps.map((s) => (
+                        <td key={s.event} className="py-1.5 pr-4 text-right tabular-nums text-ink-muted">{formatNumber(r.people[s.event] ?? 0)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function PlatformOverview() {
   const q = usePlatformOverview();
   const pending = usePlatformDeletionRequests('pending').data ?? [];
@@ -256,6 +337,7 @@ export function PlatformOverview() {
               info="Active businesses that have used 80% or more of this month's token or reply limit."
             />
           </div>
+          <FunnelCard />
           <Card
             title="Model usage, last 30 days"
             description="The chart shows OpenRouter's cost."

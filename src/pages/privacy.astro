@@ -22,7 +22,7 @@ const toc = [
 
 // Third parties that may handle data when the service runs, and why.
 const processors: [name: string, role: string, data: string][] = [
-  ['Vercel', 'Hosting for this website, the dashboard and the API', 'All data passes through it'],
+  ['Vercel', 'Hosting for this website, the dashboard and the API, and cookie-free page-view statistics for this website', 'All data passes through it'],
   ['Supabase', 'Sign-in and real-time updates', 'Account details, session data'],
   ['Cloudflare', 'File storage (R2), database (D1), search index (Vectorize) and embeddings (Workers AI)', 'Knowledge-base files and passages, stored records'],
   ['OpenRouter and the model providers behind it', 'Writes the assistant’s replies', 'Messages and the knowledge passages needed to answer them'],
@@ -30,6 +30,7 @@ const processors: [name: string, role: string, data: string][] = [
   ['Google', 'Optional “Continue with Google” sign-in', 'Name, email and profile picture you approve'],
   ['jsDelivr', 'Delivers the chat widget script to your website', 'Your visitors’ IP address and browser details, as for any file request'],
   ['Paddle', 'Takes payment as Merchant of Record, handles tax and invoices', 'Billing details, payment data, purchase history'],
+  ['Meta Platforms', 'Measures our Facebook and Instagram ads, only if you accept the cookie banner', 'Page views, sign-up, trial and subscription events, a hashed email address, IP address and browser details'],
 ];
 ---
 
@@ -157,27 +158,43 @@ const processors: [name: string, role: string, data: string][] = [
 
   <h2 id="site">This website</h2>
   <p>
-    This marketing site ({SITE.url}) and the sign-in and sign-up page of the dashboard (app.truplexy.com) can use the
-    Meta Pixel, a tag from Meta Platforms to measure our Facebook and Instagram ads: which visits come from an ad, and
-    which of them go on to create an account. It is off until you choose. A banner asks the first time you visit, and
-    nothing is loaded from Meta unless you accept. The signed-in dashboard, with your business’s conversations and data,
-    never loads it.
+    <strong>Ad measurement, only if you accept.</strong> This marketing site ({SITE.url}) and the sign-in and sign-up page
+    of the dashboard (app.truplexy.com) can measure our Facebook and Instagram ads: which visits come from an ad, and
+    which of them go on to create an account, start a trial or subscribe. A banner asks the first time you visit, and
+    until you accept, nothing is kept in your browser for this and nothing is loaded from Meta. The signed-in dashboard,
+    with your business’s conversations and data, never loads the Meta Pixel.
   </p>
   <p>
-    If you accept, Meta receives your page views and the event that you created an account, together with your IP
-    address, browser details and the identifiers in the cookies the Pixel sets (_fbp and _fbc). We send no names, email
-    addresses or message content. Meta uses this data under its own terms and
+    If you accept, three things happen. First, this site keeps the details of your first visit in your browser’s local
+    storage: the campaign tags in the link you followed (utm_source, utm_campaign and similar), an ad click ID, the
+    website that sent you (its address only) and the page you landed on. When you follow a link to sign up, they are
+    added to the link, and when you sign up they are saved against your account so we can tell which campaigns bring
+    customers. Second, the Meta Pixel, a tag from Meta Platforms, receives your page views, your IP address, browser
+    details and the identifiers in the cookies it sets (_fbp and _fbc). Third, when you create an account, start a trial or
+    subscribe, our servers tell Meta that it happened, with your email address in hashed form (a one-way fingerprint, not
+    the address itself) and the same identifiers, so Meta can match it to the ad. We send no names, message content or
+    payment details. Meta uses this data under its own terms and
     <a href="https://www.facebook.com/privacy/policy/" rel="noopener noreferrer">privacy policy</a>, and may use it for its
-    own purposes, which we do not control. You can change your mind at any time with “Cookie settings” in the footer:
-    declining stops the Pixel and removes its cookies from this browser. Apart from this, the site does not use
-    advertising or analytics cookies or third-party analytics. Our hosting provider keeps standard server logs (IP
-    address, browser, requested page) for security and reliability. If you email us, we keep the message and your
-    address to reply.
+    own purposes, which we do not control.
+  </p>
+  <p>
+    You can change your mind at any time with “Cookie settings” in the footer: declining stops the Pixel, removes its
+    cookies and the details kept in this browser. Details already saved against an account are deleted with the account.
+    If you decline, or never answer, none of the above applies to you.
+  </p>
+  <p>
+    <strong>Without your choice.</strong> The site uses Vercel Web Analytics to count page views and see which pages and
+    websites bring visitors. It sets no cookies and does not follow you across other sites. Our hosting provider also
+    keeps standard server logs (IP address, browser, requested page) for security and reliability. Separately, our
+    systems record the milestones of an account in our own database: that you signed up, created a business, connected a
+    channel, started a trial, subscribed or cancelled. They hold no message content and are kept for up to 400 days. If
+    you email us, we keep the message and your address to reply.
   </p>
 
   <h2 id="retention">How long we keep it</h2>
   <ul>
     <li><strong>Conversation history</strong> is kept for the period of the business’s plan: 90 days on Starter and 1 year on Pro, and 7 days while a business has no plan.</li>
+    <li><strong>Sign-up details</strong> (campaign tags, referrer, landing page) are kept with the account and deleted with it. Account milestones are kept for up to 400 days.</li>
     <li><strong>Account data</strong> is kept while the account is open. When a user deletes their account, we anonymise it: the email is replaced and the name removed.</li>
     <li><strong>Deleted businesses</strong> can be restored for 30 days. After that, all of their records, knowledge-base files and search vectors are permanently erased.</li>
     <li><strong>Customers</strong> a business deletes are removed from its customer list. Past conversations and tickets are kept for the plan’s history period.</li>
