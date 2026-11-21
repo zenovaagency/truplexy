@@ -1,0 +1,48 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import { LEGAL } from '../../data/legal';
+import { SITE } from '../../data/site';
+import { TRIAL_DAYS, USAGE_TERMS } from '../../data/pricing';
+
+const toc = [
+  ['billing', 'Prices, tax and payments'],
+  ['usage-tokens', USAGE_TERMS.tokens.term],
+  ['usage-replies', USAGE_TERMS.replies.term],
+] as const;
+---
+
+<Docs
+  title="How pricing works — Truplexy"
+  description={`How Truplexy pricing works: prices and tax, payments through Paddle, the ${LEGAL.refundWindowDays}-day refund, and what AI tokens and estimated AI replies mean.`}
+  breadcrumbs={[
+    { name: 'Pricing', path: '/pricing' },
+    { name: 'How pricing works', path: '/pricing/details' },
+  ]}
+  eyebrow="Pricing"
+  heading="How pricing works"
+  lede="The fine print behind the plans, in plain language: what you pay, how usage is counted, and what the numbers mean."
+  toc={toc}
+>
+  <Fragment slot="hero-actions">
+    <a href="/pricing" class="font-semibold text-accent hover:underline">← Back to pricing</a>
+  </Fragment>
+
+  <h2 id="billing">Prices, tax and payments</h2>
+  <ul>
+    <li>Prices are in US dollars and exclude any sales tax or VAT, which is added at checkout where it applies.</li>
+    <li>Payments are handled by {LEGAL.paddle.name}.</li>
+    <li>Starter and Pro start with a {TRIAL_DAYS}-day free trial.</li>
+    <li>Your first payment on a paid plan has a {LEGAL.refundWindowDays}-day refund. See the <a href="/refunds">Refund Policy</a>.</li>
+  </ul>
+
+  <h2 id="usage-tokens">{USAGE_TERMS.tokens.term}</h2>
+  <p>{USAGE_TERMS.tokens.text}</p>
+
+  <h2 id="usage-replies">{USAGE_TERMS.replies.term}</h2>
+  <p>{USAGE_TERMS.replies.text}</p>
+
+  <p>
+    Not sure which plan fits? <a href={SITE.demoUrl}>Book a demo</a> and we’ll walk you through it, or
+    <a href="/pricing#compare">compare every plan</a>.
+  </p>
+</Docs>

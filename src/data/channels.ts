@@ -50,6 +50,12 @@ export interface Channel {
    * no setup docs or server code.
    */
   connect?: true;
+  /**
+   * A developer guide that shares the registry for its name and icon but is not
+   * a channel customers write on (Webhooks): it has docs, and never appears in a
+   * channel list, count or schema.
+   */
+  docsOnly?: true;
 }
 
 export const GROUP_LABEL: Record<ChannelGroup, string> = {
@@ -86,7 +92,7 @@ export const CHANNELS: readonly Channel[] = [
   // Developer
   { id: 'api', name: 'REST API', group: 'developer', status: 'live', color: INK },
   { id: 'custom', name: 'Custom integrations', group: 'developer', status: 'live', color: INK, note: 'Built on the REST API' },
-  { id: 'webhooks', name: 'Webhooks', group: 'developer', status: 'live', color: INK },
+  { id: 'webhooks', name: 'Webhooks', group: 'developer', status: 'live', color: INK, docsOnly: true },
 ];
 
 const BY_ID = new Map(CHANNELS.map((c) => [c.id, c]));
@@ -104,11 +110,14 @@ export const isConnect = (id: ChannelId) => channel(id).connect === true;
 
 export const CONNECT_CHANNELS = CHANNELS.filter((c) => c.connect);
 
-export const LIVE_CHANNELS = CHANNELS.filter((c) => c.status === 'live');
-export const SOON_CHANNELS = CHANNELS.filter((c) => c.status === 'soon');
+/** What the site lists as channels: everything except docs-only guides. */
+const listed = CHANNELS.filter((c) => !c.docsOnly);
+
+export const LIVE_CHANNELS = listed.filter((c) => c.status === 'live');
+export const SOON_CHANNELS = listed.filter((c) => c.status === 'soon');
 
 export function channelsIn(group: ChannelGroup) {
-  return CHANNELS.filter((c) => c.group === group);
+  return listed.filter((c) => c.group === group);
 }
 
 /** "A, B & C" — for prose that lists channels. */
