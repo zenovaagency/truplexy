@@ -357,7 +357,11 @@ function ShopifyCard({ i, channels, prefill }: { i: Integration; channels: Chann
   );
 }
 
-/** WhatsApp: the business's own number, connected with values from its Meta app. */
+/**
+ * WhatsApp: the business's own number, connected with values from its Meta app. The connect button
+ * stays in the same place whether or not a number is connected, so its sheet stays open on the
+ * webhook step after the first connect instead of closing with the card's change.
+ */
 function WhatsAppCard({ i, channels }: { i: Integration; channels: Channel[] }) {
   const { href } = useScopeCtx();
   const active = channels.filter((c) => c.active);
@@ -366,31 +370,28 @@ function WhatsAppCard({ i, channels }: { i: Integration; channels: Channel[] }) 
       <CardHead i={i} />
       <div className="mt-auto flex items-center justify-between gap-3 pt-3">
         {active.length ? (
-          <>
-            <Badge tone="live" dot className="min-w-0">
-              <span className="truncate">{active.length > 1 ? `Connected · ${active.length} numbers` : `Connected · ${active[0]!.name}`}</span>
-            </Badge>
-            <span className="flex shrink-0 items-center gap-3">
-              <WhatsAppConnectButton size="xs" variant="soft">
-                Add number
-              </WhatsAppConnectButton>
-              <Link to={href('integrations')} className="text-[0.8125rem] font-semibold text-accent hover:underline">
-                Manage →
-              </Link>
-            </span>
-          </>
+          <Badge tone="live" dot className="min-w-0">
+            <span className="truncate">{active.length > 1 ? `Connected · ${active.length} numbers` : `Connected · ${active[0]!.name}`}</span>
+          </Badge>
         ) : (
-          <>
-            <span className="text-xs text-ink-faint">{channels.length ? 'Turned off' : 'Not connected'}</span>
-            <WhatsAppConnectButton size="xs" />
-          </>
+          <span className="text-xs text-ink-faint">{channels.length ? 'Turned off' : 'Not connected'}</span>
         )}
+        <span className="flex shrink-0 items-center gap-3">
+          <WhatsAppConnectButton size="xs" variant={active.length ? 'soft' : 'accent'}>
+            {active.length ? 'Add number' : undefined}
+          </WhatsAppConnectButton>
+          {active.length > 0 && (
+            <Link to={href('integrations')} className="text-[0.8125rem] font-semibold text-accent hover:underline">
+              Manage →
+            </Link>
+          )}
+        </span>
       </div>
     </div>
   );
 }
 
-/** Messenger or Instagram: the business's own Facebook Page, connected with values from its Meta app. */
+/** Messenger or Instagram: the business's own Facebook Page, connected with values from its Meta app. Its button stays put like WhatsApp's. */
 function MetaCard({ i, provider, channels }: { i: Integration; provider: 'messenger' | 'instagram'; channels: Channel[] }) {
   const { href } = useScopeCtx();
   const active = channels.filter((c) => c.active);
@@ -400,25 +401,22 @@ function MetaCard({ i, provider, channels }: { i: Integration; provider: 'messen
       <CardHead i={i} />
       <div className="mt-auto flex items-center justify-between gap-3 pt-3">
         {active.length ? (
-          <>
-            <Badge tone="live" dot className="min-w-0">
-              <span className="truncate">{active.length > 1 ? `Connected · ${active.length} ${what}` : `Connected · ${active[0]!.name}`}</span>
-            </Badge>
-            <span className="flex shrink-0 items-center gap-3">
-              <MetaConnectButton provider={provider} size="xs" variant="soft">
-                {provider === 'instagram' ? 'Add account' : 'Add Page'}
-              </MetaConnectButton>
-              <Link to={href('integrations')} className="text-[0.8125rem] font-semibold text-accent hover:underline">
-                Manage →
-              </Link>
-            </span>
-          </>
+          <Badge tone="live" dot className="min-w-0">
+            <span className="truncate">{active.length > 1 ? `Connected · ${active.length} ${what}` : `Connected · ${active[0]!.name}`}</span>
+          </Badge>
         ) : (
-          <>
-            <span className="text-xs text-ink-faint">{channels.length ? 'Turned off' : 'Not connected'}</span>
-            <MetaConnectButton provider={provider} size="xs" />
-          </>
+          <span className="text-xs text-ink-faint">{channels.length ? 'Turned off' : 'Not connected'}</span>
         )}
+        <span className="flex shrink-0 items-center gap-3">
+          <MetaConnectButton provider={provider} size="xs" variant={active.length ? 'soft' : 'accent'}>
+            {active.length ? (provider === 'instagram' ? 'Add account' : 'Add Page') : undefined}
+          </MetaConnectButton>
+          {active.length > 0 && (
+            <Link to={href('integrations')} className="text-[0.8125rem] font-semibold text-accent hover:underline">
+              Manage →
+            </Link>
+          )}
+        </span>
       </div>
     </div>
   );

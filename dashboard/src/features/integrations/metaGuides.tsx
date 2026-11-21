@@ -11,6 +11,65 @@ const WHATSAPP_PERMISSIONS = ['whatsapp_business_messaging', 'whatsapp_business_
 
 const p = (children: React.ReactNode) => <p>{children}</p>;
 
+/** A link to a page in Meta, inside a step's text. */
+const L = ({ href, children }: { href: string; children: React.ReactNode }) => (
+  <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-ink underline decoration-ink-faint underline-offset-2 hover:decoration-ink">
+    {children}
+  </a>
+);
+
+/** What someone new to Meta needs before the first step: an account that can make apps, and for Pages a portfolio. */
+function beforeYouStart(kind: 'messenger' | 'instagram' | 'whatsapp'): GuideStep {
+  const wa = kind === 'whatsapp';
+  return {
+    title: 'Before you start',
+    body: (
+      <>
+        {p(<>New to Meta's developer tools? Set these up first. Each takes a few minutes, and you only do it once.</>)}
+        <ol className="grid list-decimal gap-1.5 pl-5">
+          <li>
+            A <B>Meta developer account</B>: <L href={META_PAGE_LINKS.developer}>register as a developer</L> with your own Facebook account. Meta asks you to confirm your phone or email.
+          </li>
+          {wa ? (
+            <li>
+              A <B>business portfolio</B>. If you don't have one, Meta lets you create it while you make the app.
+            </li>
+          ) : (
+            <>
+              <li>
+                A <B>Facebook Page</B> for your business, the one customers message. Don't have one? <L href={META_PAGE_LINKS.createPage}>Create a Page</L>.
+              </li>
+              <li>
+                A <B>business portfolio</B> that owns the Page. In <L href={META_PAGE_LINKS.business}>Meta Business Suite</L>, create one if Meta asks, then add the Page under{' '}
+                <B>Business settings → Accounts → Pages → Add</B>.
+              </li>
+            </>
+          )}
+          {kind === 'instagram' && (
+            <li>
+              An Instagram <B>professional</B> account (business or creator) for the business. The next step links it to the Page.
+            </li>
+          )}
+          {wa && (
+            <li>
+              A phone number. To try it out, Meta gives you a free test number. To answer customers, use a number that can get a text or call and isn't in the WhatsApp or WhatsApp
+              Business app (delete it there first if it is).
+            </li>
+          )}
+        </ol>
+        {p(<>Use the same Facebook account for all of it: it becomes the admin of the app, and it's the account you test with later.</>)}
+      </>
+    ),
+    link: { href: META_PAGE_LINKS.developer, label: 'Register as a Meta developer' },
+  };
+}
+
+/** Meta's list of webhook fields for a Page, with the two the assistant needs. */
+const subscribeShots = [
+  shot('messenger-subscribe', 'Edit Page Subscriptions: messages and messaging_postbacks ticked, then Confirm'),
+  shot('messenger-subscribed', 'Generate access tokens: the Page with messages and messaging_postbacks subscribed'),
+];
+
 /** Making the system user and its token: the same in all three guides, apart from what it gets. */
 function systemUserSteps(kind: 'page' | 'whatsapp', permissions: string[]): GuideStep[] {
   return [
@@ -128,6 +187,7 @@ const appSecretStep = (extra?: React.ReactNode): GuideStep => ({
 export function metaSetupSteps(provider: MetaProvider): GuideStep[] {
   const ig = provider === 'instagram';
   return [
+    beforeYouStart(provider),
     ...(ig
       ? [
           {
@@ -225,6 +285,7 @@ export function metaSetupSteps(provider: MetaProvider): GuideStep[] {
 /** WhatsApp: from a new app to the four values the form asks for (Meta's layout as of November 2026). */
 export function whatsAppSetupSteps(): GuideStep[] {
   return [
+    beforeYouStart('whatsapp'),
     {
       title: 'Create a Meta app',
       body: (
@@ -287,8 +348,8 @@ export function whatsAppSetupSteps(): GuideStep[] {
   ];
 }
 
-/** After connecting a Page or Instagram account: the webhook, a test, and going public. */
-export function metaAfterSteps(provider: MetaProvider): GuideStep[] {
+/** After connecting a Page or Instagram account: the webhook, the Page's message events, a test, and going public. */
+export function metaAfterSteps(provider: MetaProvider, pageId?: string): GuideStep[] {
   const ig = provider === 'instagram';
   return [
     {
@@ -297,12 +358,17 @@ export function metaAfterSteps(provider: MetaProvider): GuideStep[] {
         <>
           {p(
             <>
-              In your app, open the Messenger use case and go to <B>Instagram settings</B>. Under <B>Webhooks</B>, click <B>Add callback URL</B>.
+              In your app, open the Messenger use case (<B>Customize</B>) and go to <B>Instagram settings</B>. Under <B>Webhooks</B>, click <B>Add callback URL</B>.
             </>,
           )}
           {p(
             <>
-              Paste the <B>Callback URL</B> and <B>Verify token</B> from above and click <B>Verify and save</B>. The status above turns green when Meta has checked it.
+              Copy the <B>Callback URL</B> and <B>Verify token</B> from above into Meta's two boxes and click <B>Verify and save</B>. The status above turns green when Meta has checked them.
+            </>,
+          )}
+          {p(
+            <>
+              If Meta then lists Instagram webhook fields, click <B>Subscribe</B> next to <C>messages</C> and <C>messaging_postbacks</C>.
             </>,
           )}
         </>
@@ -310,13 +376,13 @@ export function metaAfterSteps(provider: MetaProvider): GuideStep[] {
         <>
           {p(
             <>
-              In your app, open the Messenger use case and go to <B>Messenger API Settings</B>. Under <B>1. Configure webhooks</B>, paste the <B>Callback URL</B> and <B>Verify token</B> from
-              above.
+              In your app, open the Messenger use case (<B>Customize</B>) and go to <B>Messenger API Settings</B>. Under <B>1. Configure webhooks</B>, copy the <B>Callback URL</B> and{' '}
+              <B>Verify token</B> from above into Meta's two boxes.
             </>,
           )}
           {p(
             <>
-              Click <B>Verify and save</B>. The status above turns green when Meta has checked it.
+              Click <B>Verify and save</B>. The status above turns green when Meta has checked them.
             </>,
           )}
         </>
@@ -324,19 +390,56 @@ export function metaAfterSteps(provider: MetaProvider): GuideStep[] {
       shots: [shot(`webhook-${provider}`, ig ? 'Instagram settings: Add callback URL under Webhooks' : 'Messenger API Settings: Callback URL, Verify token, and Verify and save')],
     },
     {
+      title: 'Turn on message events',
+      body: (
+        <>
+          {p(
+            <>
+              Don't skip this: with the webhook verified but no events turned on, Meta sends nothing and the assistant stays quiet.
+            </>,
+          )}
+          {p(
+            <>
+              {ig ? (
+                <>
+                  Go to <B>Messenger API Settings</B> in the same use case and open
+                </>
+              ) : (
+                <>Still on Messenger API Settings, open</>
+              )}{' '}
+              <B>2. Generate access tokens</B>. Your Page is listed there once it's connected in Truplexy; if it isn't, click <B>Add Page</B> and pick it.
+            </>,
+          )}
+          {p(
+            <>
+              Click <B>Add Subscriptions</B> next to the Page, tick <C>messages</C> and <C>messaging_postbacks</C>, and click <B>Confirm</B>. The Page's row then says “messages and
+              messaging_postbacks”.
+            </>,
+          )}
+        </>
+      ),
+      shots: subscribeShots,
+    },
+    {
       title: 'Send a test message',
       body: (
         <>
           {p(
             <>
-              Truplexy has already subscribed your {ig ? 'account' : 'Page'} to <C>messages</C> and <C>messaging_postbacks</C>. If Meta shows a list of webhook fields, make sure those two are
-              on.
+              Message your {ig ? 'Instagram account from a personal Instagram account linked to' : 'Page from'} the Facebook account you made the app with
+              {pageId && !ig ? (
+                <>
+                  {' '}
+                  (open <L href={`https://m.me/${pageId}`}>m.me/{pageId}</L>)
+                </>
+              ) : null}
+              . The assistant should answer within a few seconds, and the status above changes to <B>Receiving messages</B>.
             </>,
           )}
           {p(
             <>
-              Now message your {ig ? 'Instagram account' : 'Page'} from <B>your own</B> {ig ? 'Instagram' : 'Facebook'} account. The assistant should answer, and the status above shows{' '}
-              <B>Receiving messages</B>.
+              No answer? Check the {ig ? 'webhook fields and the ' : ''}Page's row in <B>2. Generate access tokens</B> lists <C>messages</C>, and that you wrote from an account with a role
+              on the app. Messages sent before the events were turned on don't arrive later; send a new one.
             </>,
           )}
         </>
@@ -422,11 +525,14 @@ export function whatsAppAfterSteps(): GuideStep[] {
           )}
           {p(
             <>
-              On Meta's free test number, only up to five phone numbers can chat. Add yours under <B>Step 1. Try it out → Recipient</B> first.
+              On Meta's free test number, only up to five phone numbers you've added can chat. Add yours first: <B>Step 1. Try it out → Recipient → Manage phone number list</B> →{' '}
+              <B>Add phone number</B>, then type the code WhatsApp sends you.
             </>,
           )}
+          {p(<>No answer? Check the app is published and the webhook shows <C>messages</C> subscribed, then send a new message.</>)}
         </>
       ),
+      shots: [shot('wa-recipient', 'Step 1. Try it out: the Recipient list and Manage phone number list')],
     },
     {
       title: 'Answer everyone',

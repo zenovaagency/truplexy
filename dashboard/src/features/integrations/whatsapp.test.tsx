@@ -55,7 +55,7 @@ const number = (more: Partial<WhatsAppConnection> = {}): WhatsAppConnection => (
 });
 
 interface Setup {
-  channels?: Channel[];
+  channels?: Channel[] | (() => Channel[]);
   connect?: (body: any) => Response;
   status?: () => Response;
   can?: (p: string) => boolean;
@@ -86,7 +86,7 @@ async function render(tab: 'catalog' | 'channels' | 'connect', s: Setup = {}) {
       const body = req.method === 'GET' || req.method === 'DELETE' ? undefined : await req.json().catch(() => undefined);
       calls.push({ method: req.method, path, body });
       if (path === '/channel-types') return json(200, { data: TYPES });
-      if (path === '/channels') return json(200, { data: s.channels ?? [] });
+      if (path === '/channels') return json(200, { data: (typeof s.channels === 'function' ? s.channels() : s.channels) ?? [] });
       if (path === '/tools') return json(200, { data: [], database_configured: true });
       if (path === '/api-keys') return json(200, { data: [] });
       if (path === '/channels/whatsapp') return s.connect?.(body) ?? json(201, number());
@@ -160,7 +160,9 @@ describe('connecting a WhatsApp number', () => {
     await render('connect');
     await click(button('Connect number'));
     expect(page()).toContain('Set up in Meta');
-    expect(page()).toContain('Step 1 of 7');
+    expect(page()).toContain('Step 1 of 8');
+    expect(page()).toContain('Before you start');
+    expect(page()).toContain('free test number');
     await click(step('Copy the two IDs'));
     expect(page()).toContain('Messaging account ID');
     await click(step('Generate a token that never expires'));
@@ -182,6 +184,26 @@ describe('connecting a WhatsApp number', () => {
     expect(page()).toContain('Publish the app');
     await click(step('Add the webhook'));
     expect(page()).toContain('Step 2. Production setup');
+    await click(step('Send a test message'));
+    expect(page()).toContain('Manage phone number list');
+  });
+
+  it('keeps the sheet open on the webhook step when connected from the catalog', async () => {
+    let connected = false;
+    await render('catalog', {
+      channels: () => (connected ? [channel()] : []),
+      connect: () => {
+        connected = true;
+        return json(201, number());
+      },
+    });
+    await click(button('Connect number'));
+    await fill();
+    await click(submit());
+    await tick();
+    expect(page()).toContain('Connected · Acme WhatsApp');
+    expect(page()).toContain('+1 555-0100 is connected');
+    expect(page()).toContain('https://api.test/v1/channels/whatsapp/webhooks/chn_wa');
   });
 
   it('notices Meta checking the webhook', async () => {

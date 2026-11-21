@@ -231,7 +231,7 @@ export function MetaWebhookSetup({ provider, id, initial }: { provider: MetaProv
       <Field label="Verify token">
         <CopyField value={account.verify_token} masked />
       </Field>
-      <SetupGuide steps={metaAfterSteps(provider)} label="Finish in Meta" />
+      <SetupGuide steps={metaAfterSteps(provider, account.page_id)} label="Finish in Meta" />
     </div>
   );
 }
