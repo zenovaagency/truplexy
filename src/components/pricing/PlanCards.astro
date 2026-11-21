@@ -2,7 +2,6 @@
 import { Check, Sparkles } from 'lucide-react';
 import Button from '../ui/Button.astro';
 import { PLANS, TRIAL_DAYS, USAGE_TERMS, YEARLY_SAVING, signupAttrs, type Billing } from '../../data/pricing';
-import { LEGAL } from '../../data/legal';
 
 interface Props {
   /** Link to the full comparison on /pricing. Off on that page itself. */
@@ -200,16 +199,14 @@ const badge = 'chip save-chip bg-live-soft !px-2 !py-0.5 text-[0.72rem] font-sem
     })}
   </ul>
 
-  <!-- Read without hovering: the usage terms, currency, tax and refunds. The
-       tooltips above point here (aria-describedby). -->
-  <div class="mx-auto mt-8 max-w-[760px] space-y-2 text-center text-[0.85rem] leading-relaxed text-ink-faint">
-    <p>
-      Prices are in US dollars and exclude any sales tax or VAT, which is added at checkout where it applies. Payments are
-      handled by {LEGAL.paddle.name}. Your first payment on a paid plan has a {LEGAL.refundWindowDays}-day refund: see the <a href="/refunds" class="font-semibold text-accent hover:underline">Refund Policy</a>.
-    </p>
-    <p id="usage-replies"><strong class="font-semibold text-ink-muted">{USAGE_TERMS.replies.term}:</strong> {USAGE_TERMS.replies.text}</p>
-    <p id="usage-tokens"><strong class="font-semibold text-ink-muted">{USAGE_TERMS.tokens.term}:</strong> {USAGE_TERMS.tokens.text}</p>
-  </div>
+  <!-- The full terms (currency, tax, refunds, what tokens and replies mean)
+       live on /pricing/details. The definitions are also read out here for
+       screen readers: the "?" tooltips above point at them (aria-describedby). -->
+  <p class="mx-auto mt-8 max-w-[760px] text-center text-[0.85rem] text-ink-faint">
+    Prices in US dollars, excluding tax. <a href="/pricing/details" class="font-semibold text-accent hover:underline">How pricing, tokens and billing work</a>
+  </p>
+  <p id="usage-replies" class="sr-only">{USAGE_TERMS.replies.term}: {USAGE_TERMS.replies.text}</p>
+  <p id="usage-tokens" class="sr-only">{USAGE_TERMS.tokens.term}: {USAGE_TERMS.tokens.text}</p>
 
   {compareLink && (
     <p class="mt-8 text-center">
