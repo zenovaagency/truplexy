@@ -25,6 +25,19 @@ export interface HandlerOptions {
    */
   authorize?: (request: Request) => boolean | Response | Promise<boolean | Response>;
   /**
+   * Built-in spam limits per visitor address, kept in this server's memory:
+   * messages a minute, new chats every 10 minutes, and all requests a minute.
+   * `false` turns them off. Truplexy applies its own limits as well.
+   */
+  rateLimit?: false | RateLimitOptions;
+  /**
+   * The visitor's IP address, for the limits and for Truplexy's own (sent as
+   * `X-Truplexy-Visitor-IP`). Defaults to `CF-Connecting-IP`, `X-Real-IP`, then
+   * the first `X-Forwarded-For` entry, which Vercel, Netlify and Cloudflare set.
+   * Behind a proxy that doesn't overwrite them, return the address it vouches for.
+   */
+  clientIp?: (request: Request) => string | null | undefined;
+  /**
    * Background the assistant should know, such as who the visitor is. Sent
    * once, as a `[Context only]` message, when a conversation starts.
    */
@@ -42,6 +55,15 @@ export interface HandlerOptions {
   fetch?: typeof fetch;
 }
 
+export interface RateLimitOptions {
+  /** Messages one visitor address may send a minute. Default 20. */
+  messagesPerMinute?: number;
+  /** Conversations one visitor address may start every 10 minutes. Default 10. */
+  newChatsPer10Minutes?: number;
+  /** Requests of any kind one visitor address may make a minute (an open chat checks for replies every 10 s). Default 120. */
+  requestsPerMinute?: number;
+}
+
 export type Handler = (request: Request) => Promise<Response>;
 
 /** A failure the widget is told about. `message` is safe to show visitors. */
@@ -51,6 +73,8 @@ export class TruplexyError extends Error {
     readonly status: number,
     message: string,
     readonly requestId?: string,
+    /** Seconds until a refused request (`RATE_LIMITED`) may be tried again. */
+    readonly retryAfter?: number,
   ) {
     super(message);
     this.name = 'TruplexyError';
@@ -64,6 +88,8 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TEXT = 4000;
 const MAX_SUBJECT = 200;
 const CONTEXT_PREFIX = '[Context only';
+/** The header that tells Truplexy which visitor a request is for. */
+export const VISITOR_IP_HEADER = 'X-Truplexy-Visitor-IP';
 
 /** API failures the widget can explain; everything else becomes UPSTREAM_ERROR. */
 const PASSED_ON: Record<string, [number, string]> = {
@@ -95,6 +121,12 @@ const env = (name: string): string | undefined => (globalThis as { process?: { e
 export function createHandler(options: HandlerOptions = {}): Handler {
   const ttl = options.sessionTtl ?? 30 * 24 * 60 * 60;
   const allowed = options.allowedOrigins?.map((o) => o.replace(/\/$/, ''));
+  const limits = options.rateLimit === false ? undefined : {
+    message: options.rateLimit?.messagesPerMinute ?? 20,
+    chat: options.rateLimit?.newChatsPer10Minutes ?? 10,
+    request: options.rateLimit?.requestsPerMinute ?? 120,
+  };
+  const windows = new Windows();
   const report = options.onError ?? ((e: TruplexyError) => console.error(`[truplexy] ${e.code} (${e.status}): ${e.message}${e.requestId ? ` request_id=${e.requestId}` : ''}`));
 
   return async function truplexy(request: Request): Promise<Response> {
@@ -106,7 +138,11 @@ export function createHandler(options: HandlerOptions = {}): Handler {
     }
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors } });
-    const fail = (e: TruplexyError) => json({ error: { code: e.code, message: e.message, ...(e.requestId && { request_id: e.requestId }) } }, e.status);
+    const fail = (e: TruplexyError) => {
+      const res = json({ error: { code: e.code, message: e.message, ...(e.requestId && { request_id: e.requestId }), ...(e.retryAfter && { retry_after: e.retryAfter }) } }, e.status);
+      if (e.retryAfter) res.headers.set('Retry-After', String(e.retryAfter));
+      return res;
+    };
 
     if (allowed && origin && !cors['Access-Control-Allow-Origin']) {
       return fail(new TruplexyError('FORBIDDEN_ORIGIN', 403, 'This site may not use this chat.'));
@@ -131,8 +167,20 @@ export function createHandler(options: HandlerOptions = {}): Handler {
       const chatKey = options.chatKey ?? env('TRUPLEXY_CHAT_KEY');
       if (!chatKey) throw new TruplexyError('NOT_CONFIGURED', 500, 'Chat is not set up yet.');
       const secret = options.sessionSecret ?? env('TRUPLEXY_SESSION_SECRET') ?? chatKey;
-      const api = createChatClient({ chatKey, apiBase: options.apiBase, fetch: options.fetch });
       const conversationId = await verifySession(body.session, secret, ttl);
+
+      // Spam limits per visitor address, before anything reaches Truplexy.
+      const ip = visitorIp(options.clientIp ? options.clientIp(request) : defaultIp(request));
+      if (limits && ip) {
+        const checks: [string, number, number][] = [[`r|${ip}`, limits.request, 60]];
+        if (body.action === 'message') {
+          checks.push([`m|${ip}`, limits.message, 60]);
+          if (!conversationId) checks.push([`c|${ip}`, limits.chat, 600]);
+        }
+        const wait = windows.hit(checks);
+        if (wait) throw new TruplexyError('RATE_LIMITED', 429, `You're sending messages too quickly. Please wait ${wait} seconds and try again.`, undefined, wait);
+      }
+      const api = createChatClient({ chatKey, apiBase: options.apiBase, fetch: options.fetch, ...(ip && { headers: { [VISITOR_IP_HEADER]: ip } }) });
       const session = (id: string) => signSession(id, secret);
 
       let ticket: Ticket | undefined;
@@ -255,10 +303,49 @@ function safeError(error: unknown): TruplexyError {
   if (!(error instanceof TruplexyApiError)) return new TruplexyError('INTERNAL_ERROR', 500, 'Something went wrong.');
   const { code, status, requestId } = error;
   if (status === 401 || code === 'NOT_CONFIGURED') return new TruplexyError('NOT_CONFIGURED', 500, 'Chat is not set up correctly.', requestId);
+  if (code === 'RATE_LIMITED') {
+    // Truplexy writes these for visitors: the message and the wait pass on.
+    const wait = Number(error.details.retry_after ?? error.retryAfter);
+    const seconds = Number.isFinite(wait) && wait > 0 ? Math.ceil(wait) : 30;
+    const message = error.message && error.message.length <= 300 ? error.message : 'Too many messages. Please wait a moment and try again.';
+    return new TruplexyError('RATE_LIMITED', 429, message, requestId, seconds);
+  }
   const known = PASSED_ON[code];
   if (known) return new TruplexyError(code, known[0], known[1], requestId);
   if (status === 503) return new TruplexyError('UNAVAILABLE', 503, 'Chat is unavailable right now.', requestId);
   return new TruplexyError('UPSTREAM_ERROR', 502, 'Chat is unavailable right now.', requestId);
+}
+
+/** The visitor's address from the headers trusted platforms set, or undefined. */
+function defaultIp(request: Request): string | undefined {
+  const h = request.headers;
+  return h.get('CF-Connecting-IP') ?? h.get('X-Real-IP') ?? h.get('X-Forwarded-For')?.split(',')[0] ?? undefined;
+}
+
+/** An IPv4 or IPv6 address, trimmed, or undefined for anything else. */
+function visitorIp(raw: string | null | undefined): string | undefined {
+  const ip = raw?.trim();
+  if (!ip || ip.length > 45) return undefined;
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(ip) || (/^[0-9a-fA-F:.]+$/.test(ip) && ip.includes(':')) ? ip : undefined;
+}
+
+/** Fixed-window counters in this server's memory, bounded in size. */
+class Windows {
+  private counts = new Map<string, { n: number; end: number }>();
+
+  /** Counts one request against each `[key, limit, seconds]`; returns the seconds to wait when one is over, else 0. */
+  hit(checks: [string, number, number][]): number {
+    const now = Date.now();
+    if (this.counts.size > 10_000) for (const [k, v] of this.counts) if (v.end <= now) this.counts.delete(k);
+    if (this.counts.size > 10_000) this.counts.clear();
+    let wait = 0;
+    for (const [key, limit, seconds] of checks) {
+      let w = this.counts.get(key);
+      if (!w || w.end <= now) this.counts.set(key, (w = { n: 0, end: now + seconds * 1000 }));
+      if (++w.n > limit) wait = Math.max(wait, Math.ceil((w.end - now) / 1000));
+    }
+    return wait;
+  }
 }
 
 interface Ticket {

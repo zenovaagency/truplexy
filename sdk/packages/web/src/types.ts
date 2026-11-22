@@ -34,6 +34,8 @@ export interface ChatError {
   code: string;
   message: string;
   requestId?: string;
+  /** Seconds the server asked to wait before sending again (`RATE_LIMITED`). */
+  retryAfter?: number;
 }
 
 /** Image input (planned): the limits, as `GET /profile` reports them. Absent from an API that predates the feature: treat that as off. */
@@ -119,6 +121,8 @@ export interface ChatState {
   error: ChatError | null;
   /** True once stored history is loaded (and, with a session, synced). */
   ready: boolean;
+  /** Until this time (ms since 1970) `send()` does nothing, because the server asked to wait; 0 when it didn't. */
+  waitUntil: number;
 }
 
 /** How the client reaches your server route. The default posts JSON to `endpoint`. */

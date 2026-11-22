@@ -72,7 +72,9 @@ The same pattern works for Remix / React Router (`action`), Astro (`POST: APIRou
 | `channelId` | Start conversations on this channel instead of the key's | the key's channel |
 | `allowedOrigins` | Sites allowed to call from another origin | same origin only |
 | `keepTicketsOpen` | Stop the tickets the route opens from closing on their own after a quiet spell | close per the business's auto-close time |
-| `authorize(request)` | Return `false` (403) or a `Response` to refuse: rate limits, sign-in | allow |
+| `rateLimit` | Spam limits per visitor address, in this server's memory: `{ messagesPerMinute, newChatsPer10Minutes, requestsPerMinute }`, or `false` | 20 / 10 / 120 |
+| `clientIp(request)` | The visitor's IP address, used for the limits and passed to Truplexy | `CF-Connecting-IP`, `X-Real-IP`, then the first `X-Forwarded-For` entry |
+| `authorize(request)` | Return `false` (403) or a `Response` to refuse: sign-in, your own checks | allow |
 | `customer(request)` | Trusted `{contacts, name?, metadata?}` for a new chat; null/undefined falls back to the visitor form | none |
 | `context(request)` | Private background for the assistant, sent once per conversation | none |
 | `onError(error)` | Server-side failures, never with the key | `console.error` |
@@ -81,7 +83,6 @@ The same pattern works for Remix / React Router (`action`), Astro (`POST: APIRou
 
 ```ts
 export const POST = createHandler({
-  authorize: (request) => rateLimit(request.headers.get("x-forwarded-for"), 20),
   customer: async (request) => {
     const user = await getUser(request);
     return user ? { name: user.name, contacts: [{ type: "app", value: String(user.id) }], metadata: { plan: user.plan } } : null;
@@ -94,6 +95,14 @@ export const POST = createHandler({
 ```
 
 Use `details="off"` when the server supplies identity. A non-null resolver result takes precedence over browser fields. Linking runs only for a new conversation; it does not relink an existing session. Customer errors stop creation, with one retry for `CUSTOMER_EXISTS`; background context and ticket creation remain best effort.
+
+## Spam
+
+The route limits each visitor address out of the box. It also sends the address to Truplexy in `X-Truplexy-Visitor-IP`. Truplexy then refuses floods, repeated messages and link spam from that visitor before they cost any AI replies. A refusal reaches the widget as `429 RATE_LIMITED` with `retry_after`, and the widget shows the wait.
+
+- **Behind a proxy:** Vercel, Netlify and Cloudflare set the address headers themselves. Behind a proxy that doesn't overwrite `X-Forwarded-For`, a visitor could fake that header and escape the limits per address, though not Truplexy's limits per conversation. Pass `clientIp` with the address your proxy vouches for.
+- **Without an address:** no address is sent, for example on a plain Node server without `clientIp`. The limits per address then don't apply; the limits per conversation still do.
+- **Many server instances:** the memory limits count per instance.
 
 ## What it guarantees
 

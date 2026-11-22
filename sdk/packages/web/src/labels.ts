@@ -20,6 +20,7 @@ export const DEFAULT_LABELS = {
   invalidDetails: 'Enter your name and a valid email address.',
   retry: 'Retry',
   notSent: 'Not sent.',
+  wait: 'Please wait {s}s before sending another message.',
   sources: 'Sources',
   suggestions: 'Suggested questions',
   newConversation: 'New conversation',

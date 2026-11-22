@@ -4,7 +4,7 @@ Tags: chat, live chat, support, ai, chatbot
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 License: MIT
 
 AI customer support that keeps one conversation going, with handoff to your team. Your chat key stays on your server.
@@ -75,11 +75,23 @@ When the server supplies identity, skip the form for signed-in users with `add_f
 
 The widget stores its signed session and details in the browser. reset() retains details; use separate storage per account with `add_filter('truplexy_chat_storage_key', function () { return 'truplexy:' . get_current_blog_id() . ':' . get_current_user_id(); });` and reload after signing in or out. This separates browser history; your server still controls authorization. See https://truplexy.com/docs/web-sdk#customers for the identity and server options.
 
-= How do I change the rate limit? =
+= How is the chat protected from spam? =
 
-Visitors can send 20 messages a minute by default. Change it with `add_filter('truplexy_chat_rate_limit', fn () => 40);`, or return 0 for no limit.
+Each visitor can make 120 requests a minute, send 20 messages a minute and start 10 chats every 10 minutes. Change these with the `truplexy_chat_request_limit`, `truplexy_chat_rate_limit` and `truplexy_chat_new_chat_limit` filters, for example `add_filter('truplexy_chat_rate_limit', fn () => 40);`, or return 0 to turn one off.
+
+The plugin also tells Truplexy each visitor's IP address. Truplexy then refuses floods, repeated messages and link spam before they use any of your AI replies. Visitors who are refused see how long to wait.
+
+Only pages of your own site can use the chat route. To show the chat on another site of yours, add it with `add_filter('truplexy_chat_allowed_origins', fn () => ['https://shop.example.com']);`.
+
+If your site is behind Cloudflare or another proxy, every visitor may seem to come from the proxy's address. Name the header it sets in wp-config.php, for example `define('TRUPLEXY_TRUSTED_IP_HEADER', 'HTTP_CF_CONNECTING_IP');`, or use the `truplexy_chat_client_ip` filter.
 
 == Changelog ==
+
+= 1.0.7 =
+* Spam protection. Every request to the chat route is limited per visitor, not just messages, and so are new chats. Truplexy also gets the visitor's address and refuses floods, repeated messages and link spam before they cost any replies.
+* Visitors who are refused see how long to wait, and the send button counts down.
+* Only pages of your own site can use the chat route (truplexy_chat_allowed_origins adds others). This also stops another site from starting a chat as a signed-in visitor.
+* Behind Cloudflare or another proxy, TRUPLEXY_TRUSTED_IP_HEADER names the header that holds the visitor's address.
 
 = 1.0.6 =
 * The first message of a chat is sent sooner: the conversation, its background and its ticket are started in one call to Truplexy instead of three.
@@ -127,6 +139,9 @@ Visitors can send 20 messages a minute by default. Change it with `add_filter('t
 * First release.
 
 == Upgrade Notice ==
+
+= 1.0.7 =
+Spam protection: limits per visitor on every request, with Truplexy refusing floods and repeated messages before they cost any replies.
 
 = 1.0.6 =
 The first message of a chat gets its reply sooner.

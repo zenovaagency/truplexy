@@ -337,7 +337,7 @@ The admin key (`ADMIN_API_KEY`) is a server-side credential with every permissio
 
 ### Rate limits
 
-Every request is counted, and a client that sends too many gets **`429 RATE_LIMITED`** with `Retry-After` (seconds) and the `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` headers, which also describe the allowance on answered requests. Wait `Retry-After` seconds and send again; a dashboard should not retry sooner. The limits are generous, per minute, and the operator can change them (`RATE_LIMIT_*` in `.env.example`):
+Every request is counted, and a client that sends too many gets **`429 RATE_LIMITED`** with `Retry-After` (seconds), repeated as `error.retry_after` in the body, and the `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` headers, which also describe the allowance on answered requests. Wait `Retry-After` seconds and send again; a dashboard should not retry sooner. The limits are generous, per minute, and the operator can change them (`RATE_LIMIT_*` in `.env.example`):
 
 | What is limited | Default | By |
 | --- | --- | --- |
@@ -351,6 +351,23 @@ Every request is counted, and a client that sends too many gets **`429 RATE_LIMI
 | A person's own account and the platform console | as reads / writes | person |
 
 Plan limits (`429 PLAN_LIMIT_REACHED`) and model limits (`429 LLM_RATE_LIMITED`) are different errors with their own causes. IPv6 clients are counted by their /64.
+
+#### Spam protection on the public chat
+
+A bot's public chat (the chat API behind a website's server route, and the chat window on Shopify stores) also turns away spam. Nothing needs setting up, and the limits are far above what a customer sends. A refused message is never stored and never reaches the model, so it costs the business none of its replies. The answer is `429 RATE_LIMITED` with `Retry-After` and `error.retry_after`. Its `error.message` is safe to show the visitor as it is, for example "You already sent that message. Please wait 10 minutes before sending it again."
+
+| Rule | Default | By |
+| --- | --- | --- |
+| Messages | 8 a minute, 150 a day | conversation (on a store, the signed-in shopper) |
+| The same message again (12 characters or more, ignoring case and spacing) | refused the 3rd time in 10 minutes | conversation |
+| Links in one message | at most 3 | message |
+| Messages from one visitor address | 30 a minute, 300 an hour | visitor address and bot |
+| New conversations | 10 every 10 minutes, 60 a day | visitor address and bot (on a store, the signed-in shopper) |
+| New conversations on a store from shoppers it knows nothing about | 300 every 10 minutes | store |
+
+A conversation refused 3 times in 15 minutes (or 10 times in a day) is paused until that window ends. While it is paused, its messages, `…/escalate` and `…/handoff` are refused. A visitor address never pauses a conversation, because offices and mobile networks share addresses. Neither does a chat API conversation without `X-Truplexy-Visitor-IP`, which may be a group thread (a Telegram group, say): it gets the plain limits only.
+
+**Name the visitor's address.** A site's server that relays its visitors' chats should send each visitor's address in **`X-Truplexy-Visitor-IP`** on `POST /conversations` and `POST /conversations/{id}/messages`. The WordPress plugin (1.0.7 and later) and `@truplexy/server` (0.4.16 and later) do this. Without the header, a visitor is limited per conversation only, and the rules by address don't apply. The header only narrows the limits of the key's own bot, and a value that isn't an IP address is ignored. The operator can change the rules with `RATE_LIMIT_SPAM_*` (see `.env.example`). They apply whenever `RATE_LIMIT_MODE` isn't `off`, and count across server instances when `RATE_LIMIT_SHARED=true`.
 
 ### Long-running work: uploading and indexing knowledge
 
@@ -589,6 +606,8 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/knowledge/uploads` | `knowledge.write` | Register a file upload |
 | `POST` | `/knowledge/search` | `knowledge.read` | Test retrieval for a query |
 | `GET` | `/knowledge/suggestions` | `knowledge.read` | Suggestions learned from closed tickets (v2) |
+| `GET` | `/knowledge/suggestions/review` | `knowledge.read` | Closed-ticket review progress (v2) |
+| `POST` | `/knowledge/suggestions/review` | `knowledge.write` | Review closed tickets for missing knowledge (v2) |
 | `POST` | `/knowledge/suggestions/{id}/accept` | `knowledge.write` | Add a suggestion to the knowledge base (v2) |
 | `POST` | `/knowledge/suggestions/{id}/dismiss` | `knowledge.write` | Keep a suggestion out (v2) |
 | `POST` | `/tickets/{id}/learn` | `knowledge.write` | Draft a ticket's suggestion now (v2) |
@@ -1716,7 +1735,19 @@ The document keeps its ID, title (unless it came from the old file's name) and m
 
 #### `GET /knowledge/suggestions`
 
-`knowledge.read`. v2. Questions and answers the model wrote from closed tickets a person answered, waiting for review, newest close first (up to 100). Before drafting, the model is shown the knowledge base's closest articles (searched by the customer's question and by the team's answer) and the drafts already waiting; a ticket any of them already covers, even in other words or partly, is skipped and never listed. Only bots with `knowledge.learnFromTickets` on in their workspace get any; each suggestion is billed like a reply. **200** `{data: [{id, ticket_id, ticket_subject, conversation_id, status: "ready", title, content, closed_at, created_at, updated_at}]}`.
+`knowledge.read`. v2. Questions and answers the model wrote from closed tickets a person answered, waiting for review, newest close first (up to 100). Before drafting, the model is shown the knowledge base's closest articles (searched by the customer's question and by the team's answer) and the drafts already waiting; a ticket any of them already covers, even in other words or partly, is skipped and never listed. A finished draft is checked once more by its own title: the knowledge base is searched with it and compared, with the titles of every waiting draft; an article only counts as covering it when it contains the answer (the model must quote it, and any error code or quoted message in the title must appear in it). Both calls count as one reply. Only bots with `knowledge.learnFromTickets` on in their workspace get any; each suggestion is billed like a reply. **200** `{data: [{id, ticket_id, ticket_subject, conversation_id, status: "ready", title, content, closed_at, created_at, updated_at}]}`.
+
+#### `GET /knowledge/suggestions/review`
+
+`knowledge.read`. v2. Where the closed-ticket review stands. **200** `{unreviewed, queued, ready}`: closed tickets a person answered that no review has read yet; tickets a review queued that the model hasn't read yet; suggestions a review wrote that wait in [`GET /knowledge/suggestions`](#get-knowledgesuggestions).
+
+#### `POST /knowledge/suggestions/review`
+
+`knowledge.write`. v2. Reviews the closed-ticket backlog for knowledge the bot is missing. Send `{}` or `{limit}` (1 to 200, default 200). Queues the bot's closed tickets a person answered that no review or Train bot has read, the most recently closed first. A scheduled job reads them a few at a time, whether or not `knowledge.learnFromTickets` is on, and the suggestions land in [`GET /knowledge/suggestions`](#get-knowledgesuggestions) for the team to accept later. Each ticket is billed like a reply and goes through the same knowledge base check; a ticket read once is never read again unless it closes again. If the plan has no room for another reply, the rest wait an hour and try again. Tickets beyond the limit wait for another call. **202** `{queued, unreviewed_left}`.
+
+**Errors:**
+- `400 INVALID_LIMIT`.
+- `422 NOTHING_TO_REVIEW` (every answered closed ticket was reviewed already).
 
 #### `POST /knowledge/suggestions/{id}/accept`
 

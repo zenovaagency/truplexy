@@ -216,6 +216,7 @@ export class TruplexyChatElement extends Base {
   /** The launcher stays hidden until the look is known (or a moment has passed), so it doesn't change colour or side as the page loads. */
   private holdLauncher() {
     clearTimeout(this.pendingTimer);
+    clearTimeout(this.waitTimer);
     if (this.hasAttribute('demo') || this.cachedLook) return this.toggleAttribute('data-tx-pending', false);
     this.toggleAttribute('data-tx-pending', true);
     this.pendingTimer = setTimeout(() => this.toggleAttribute('data-tx-pending', false), 1200);
@@ -302,6 +303,7 @@ export class TruplexyChatElement extends Base {
 
   private teardown() {
     clearTimeout(this.pendingTimer);
+    clearTimeout(this.waitTimer);
     this.unsubscribe.forEach((u) => u());
     this.unsubscribe = [];
     this._client?.destroy();
@@ -421,7 +423,8 @@ export class TruplexyChatElement extends Base {
     });
     this.$.input.addEventListener('input', () => {
       this.grow();
-      this.$.send.disabled = !this.$.input.value.trim() || Boolean(this._client?.getState().sending);
+      const s = this._client?.getState();
+      this.$.send.disabled = !this.$.input.value.trim() || Boolean(s?.sending) || Date.now() < (s?.waitUntil ?? 0);
     });
     this.built = true;
   }
@@ -429,7 +432,7 @@ export class TruplexyChatElement extends Base {
   private submit() {
     const text = this.$.input.value.trim();
     const client = this.connect();
-    if (!text || client.getState().sending) return;
+    if (!text || client.getState().sending || Date.now() < client.getState().waitUntil) return;
     this.$.input.value = '';
     this.grow();
     this.$.send.disabled = true;
@@ -439,6 +442,7 @@ export class TruplexyChatElement extends Base {
   }
 
   private pendingText = '';
+  private waitTimer?: ReturnType<typeof setTimeout>;
   private askedDetails = false;
 
   private submitDetails() {
@@ -615,10 +619,14 @@ export class TruplexyChatElement extends Base {
     $.suggestions.hidden = !this.suggestionList().length || state.messages.length > 0 || state.sending || state.needsDetails || state.closed;
     $.handoff.disabled = state.sending;
     // Taking over is announced in the transcript (a notice line), not here.
-    const notice = state.closed ? '' : state.handoff && !state.escalated ? this.label('handoffDone') : '';
+    // Told to wait: count down, and keep the send button off until then.
+    const wait = Math.ceil((state.waitUntil - Date.now()) / 1000);
+    clearTimeout(this.waitTimer);
+    if (wait > 0) this.waitTimer = setTimeout(() => this._client && this.render(this._client.getState()), 1000);
+    const notice = state.closed ? '' : wait > 0 ? this.label('wait').replace('{s}', String(wait)) : state.handoff && !state.escalated ? this.label('handoffDone') : '';
     $.notice.textContent = notice;
     $.notice.hidden = !notice;
-    $.send.disabled = !$.input.value.trim() || state.sending;
+    $.send.disabled = !$.input.value.trim() || state.sending || wait > 0;
     // Name and email replace the message box until the visitor has given them.
     $.details.hidden = !state.needsDetails || state.closed;
     // A closed conversation is read-only: the message box gives way to "Start a new chat".

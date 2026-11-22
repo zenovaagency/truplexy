@@ -2643,6 +2643,57 @@ paths:
                       $ref: '#/components/schemas/KnowledgeSuggestion'
         default:
           $ref: '#/components/responses/Error'
+  /knowledge/suggestions/review:
+    get:
+      operationId: getKnowledgeReview
+      summary: Where the closed-ticket review stands
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Counts closed tickets a person answered that no review has read yet, and the review's own suggestions still being written or waiting for the team.
+      responses:
+        '200':
+          description: The review's counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeReview'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: startKnowledgeReview
+      summary: Review closed tickets for missing knowledge
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: >-
+        v2. Queues the bot's unreviewed closed tickets a person answered, the most recently closed first, up to limit (200 by default and at most). A scheduled job reads them a few at a time whether or not the bot learns from tickets on its own, and each suggestion lands in the list for the team to accept later. Each ticket is billed like a reply and checked against the knowledge base and the drafts waiting for review; a ticket read once is never read again, unless it closes again. If the plan has no room for another reply, the rest wait an hour and try again. Start another review for tickets beyond the limit. 422 NOTHING_TO_REVIEW when none is left.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 200
+      responses:
+        '202':
+          description: The tickets were queued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queued, unreviewed_left]
+                properties:
+                  queued:
+                    type: integer
+                  unreviewed_left:
+                    type: integer
+        default:
+          $ref: '#/components/responses/Error'
   /knowledge/suggestions/{id}/accept:
     parameters:
       - name: id
@@ -9107,6 +9158,19 @@ components:
         updated_at:
           type: string
           format: date-time
+    KnowledgeReview:
+      type: object
+      required: [unreviewed, queued, ready]
+      properties:
+        unreviewed:
+          type: integer
+          description: Closed tickets a person answered that no review has read yet.
+        queued:
+          type: integer
+          description: Tickets a review queued that the model hasn't read yet.
+        ready:
+          type: integer
+          description: Suggestions a review wrote that wait for the team.
     KnowledgeDocument:
       type: object
       required: [id, title, source_type, byte_size, status, chunk_count, embedded_count, token_count, created_at, updated_at]

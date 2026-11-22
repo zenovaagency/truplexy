@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TruplexyClient } from '../src/client';
-import { TruplexyRequestError } from '../src/transport';
+import { fetchTransport, TruplexyRequestError } from '../src/transport';
 import type { Transport } from '../src/types';
 
 const msg = (id: string, role: 'user' | 'assistant', content: string, extra = {}) => ({ id, role, content, created_at: '2026-10-09T10:00:00Z', ...extra });
@@ -20,7 +20,41 @@ function fake(handlers: Partial<Record<Action, (body: any) => any>>) {
   return { transport, calls };
 }
 
+describe('fetchTransport', () => {
+  it('reads the wait of a refusal from the body, else the Retry-After header', async () => {
+    const refuse = (body: object, headers: Record<string, string> = {}) =>
+      fetchTransport({ endpoint: '/x', fetch: (async () => new Response(JSON.stringify(body), { status: 429, headers })) as unknown as typeof fetch });
+    await expect(refuse({ error: { code: 'RATE_LIMITED', message: 'Wait', retry_after: 12 } }).request('message', {})).rejects.toMatchObject({ code: 'RATE_LIMITED', retryAfter: 12 });
+    await expect(refuse({ error: { code: 'RATE_LIMITED', message: 'Wait' } }, { 'Retry-After': '7' }).request('message', {})).rejects.toMatchObject({ retryAfter: 7 });
+    await expect(refuse({ error: { code: 'X', message: 'No' } }).request('message', {})).rejects.toMatchObject({ retryAfter: 0 });
+  });
+});
+
 describe('TruplexyClient', () => {
+  it('waits as long as the server says after a RATE_LIMITED refusal', async () => {
+    let limited = true;
+    const { transport, calls } = fake({
+      message: () => {
+        if (limited) throw new TruplexyRequestError('RATE_LIMITED', "You're sending messages too quickly. Please wait 30 seconds and try again.", 429, 'req_1', 30);
+        return { session: 'S1', message: { id: 'm1' }, reply: 'Hi', status: 'answered' };
+      },
+      live: () => ({}),
+    });
+    const client = new TruplexyClient({ transport, store: false, details: 'off' });
+    await client.start();
+    const before = Date.now();
+    await client.send('hello there');
+    const state = client.getState();
+    expect(state.waitUntil).toBeGreaterThanOrEqual(before + 30_000);
+    expect(state.messages[0].error).toMatchObject({ code: 'RATE_LIMITED', retryAfter: 30 });
+    // Nothing goes out while waiting, not even a retry.
+    limited = false;
+    await client.send('again');
+    await client.retry(state.messages[0].id);
+    expect(calls.filter((c) => c.action === 'message')).toHaveLength(1);
+    client.destroy();
+  });
+
   it('surfaces live service errors and only uses configuration failures for polling fallback', async () => {
     for (const code of ['REALTIME_NOT_CONFIGURED', 'CHANNEL_DISABLED', 'NOT_CONFIGURED']) {
       const { transport } = fake({
