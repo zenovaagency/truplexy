@@ -53,11 +53,12 @@ const initialState = (): ChatState => ({
   unread: 0,
   error: null,
   ready: false,
+  waitUntil: 0,
 });
 
 const toError = (e: unknown): ChatError =>
   e instanceof TruplexyRequestError
-    ? { code: e.code, message: e.message, ...(e.requestId && { requestId: e.requestId }) }
+    ? { code: e.code, message: e.message, ...(e.requestId && { requestId: e.requestId }), ...(e.retryAfter && { retryAfter: e.retryAfter }) }
     : { code: 'UNKNOWN', message: 'Something went wrong. Please try again.' };
 
 /** Replies from the assistant or the team; a notice is not one. */
@@ -167,7 +168,7 @@ export class TruplexyClient {
     if (!this.started) void this.start();
     const content = text.trim().slice(0, 4000);
     // A closed conversation can't be continued: reset() starts a new one.
-    if (!content || this.state.sending || this.state.closed) return;
+    if (!content || this.state.sending || this.state.closed || Date.now() < this.state.waitUntil) return;
     // A new conversation needs to know who is writing. Hold the message until the visitor says.
     if (this.askDetails && !this.state.customer && !this.session) {
       this.update({ needsDetails: true });
@@ -194,7 +195,7 @@ export class TruplexyClient {
   /** Sends a failed message again. */
   async retry(id: string): Promise<void> {
     const failed = this.state.messages.find((m) => m.id === id && m.error);
-    if (!failed || this.state.sending || this.state.closed) return;
+    if (!failed || this.state.sending || this.state.closed || Date.now() < this.state.waitUntil) return;
     const local = { ...failed, pending: true, error: undefined };
     this.update({ messages: [...this.state.messages.filter((m) => m.id !== id), local], error: null });
     await this.deliver(local);
@@ -316,7 +317,8 @@ export class TruplexyClient {
         this.closeConversation({ messages: this.state.messages.filter((m) => m.id !== local.id), sending: false });
         return;
       }
-      this.update({ messages: this.state.messages.map((m) => (m.id === local.id ? { ...m, pending: undefined, error } : m)), sending: false });
+      // Told to slow down: sending waits as long as the server said.
+      this.update({ messages: this.state.messages.map((m) => (m.id === local.id ? { ...m, pending: undefined, error } : m)), sending: false, ...(error.retryAfter && { waitUntil: Date.now() + error.retryAfter * 1000 }) });
       this.emit('error', error);
     } finally {
       this.flushSync();

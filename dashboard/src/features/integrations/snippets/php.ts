@@ -185,7 +185,8 @@ function api(string $method, string $path, ?array $body = null, bool $retry = tr
         CURLOPT_CUSTOMREQUEST => $method,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 60,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . getenv('TRUPLEXY_CHAT_KEY')],
+        // The visitor's IP address lets Truplexy turn away spam per visitor. Behind a proxy, use the address it vouches for.
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . getenv('TRUPLEXY_CHAT_KEY'), 'X-Truplexy-Visitor-IP: ' . ($_SERVER['REMOTE_ADDR'] ?? '')],
     ]);
     if ($method !== 'GET') curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body ?? new stdClass()));
     $raw = curl_exec($ch);
@@ -260,6 +261,7 @@ function fail(string $code, string $requestId = ''): never {
         'PLAN_LIMIT_REACHED' => [503, "The assistant can't reply right now. Please try again later."],
         'LLM_RATE_LIMITED' => [429, 'The assistant is busy. Please try again in a moment.'],
         'LLM_TIMEOUT' => [504, 'The reply took too long. Please try again.'],
+        'RATE_LIMITED' => [429, "You're sending messages too quickly. Please wait a moment and try again."],
     ];
     if (!isset($known[$code])) $code = 'UPSTREAM_ERROR';
     [$status, $message] = $known[$code] ?? [502, 'Chat is unavailable right now.'];

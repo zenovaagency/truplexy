@@ -34,12 +34,12 @@ describe('sessions', () => {
 type Route = (body: unknown, init: RequestInit) => [number, unknown];
 
 function fakeApi(routes: Record<string, Route>) {
-  const calls: { path: string; method: string; body: unknown; auth: string | null }[] = [];
+  const calls: { path: string; method: string; body: unknown; auth: string | null; visitor: string | null }[] = [];
   const fetch = vi.fn(async (url: string | URL | Request, init: RequestInit = {}) => {
     const path = String(url).replace('https://api.test/v3', '');
     const method = init.method ?? 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
-    calls.push({ path, method, body, auth: new Headers(init.headers).get('Authorization') });
+    calls.push({ path, method, body, auth: new Headers(init.headers).get('Authorization'), visitor: new Headers(init.headers).get('X-Truplexy-Visitor-IP') });
     const route = routes[`${method} ${path}`];
     if (!route) return new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'x', request_id: 'req_1' } }), { status: 404 });
     const [status, data] = route(body, init);
@@ -419,6 +419,64 @@ describe('createHandler', () => {
     const res = await handler(post({ action: 'message', text: 'hi' }));
     expect(res.status).toBe(500);
     expect((await res.json()).error.code).toBe('NOT_CONFIGURED');
+  });
+});
+
+describe('spam limits', () => {
+  const base = { chatKey: KEY, apiBase: 'https://api.test/v3', onError: () => {} };
+  const chatting = () => fakeApi({
+    'POST /conversations': () => [201, { id: CONV, ticket: { id: 'tkt_1', subject: 'Website chat', status: 'open' } }],
+    [`POST /conversations/${CONV}/messages`]: reply('answered', 'Hi!'),
+  });
+  const from = (ip: string) => ({ 'X-Forwarded-For': `${ip}, 10.0.0.1` });
+
+  it("tells Truplexy the visitor's address", async () => {
+    const api = chatting();
+    const handler = createHandler({ ...base, fetch: api.fetch });
+    expect((await handler(post({ action: 'message', text: 'hi' }, from('203.0.113.9')))).status).toBe(200);
+    expect(api.calls.map((c) => c.visitor)).toEqual(['203.0.113.9', '203.0.113.9']);
+    // Something that isn't an address is never sent.
+    const quiet = chatting();
+    await createHandler({ ...base, fetch: quiet.fetch })(post({ action: 'message', text: 'hi' }, { 'X-Forwarded-For': '<script>' }));
+    expect(quiet.calls.every((c) => c.visitor === null)).toBe(true);
+  });
+
+  it('limits new chats per visitor before calling Truplexy', async () => {
+    const api = chatting();
+    const handler = createHandler({ ...base, fetch: api.fetch, rateLimit: { newChatsPer10Minutes: 2 } });
+    for (let i = 0; i < 2; i++) expect((await handler(post({ action: 'message', text: 'hi' }, from('203.0.113.9')))).status).toBe(200);
+    const calls = api.calls.length;
+    const res = await handler(post({ action: 'message', text: 'hi' }, from('203.0.113.9')));
+    const data = await res.json();
+    expect(res.status).toBe(429);
+    expect(data.error.code).toBe('RATE_LIMITED');
+    expect(data.error.retry_after).toBeGreaterThan(0);
+    expect(res.headers.get('Retry-After')).toBe(String(data.error.retry_after));
+    expect(api.calls.length).toBe(calls);
+    // Another visitor goes on; so does a site that turned the limits off.
+    expect((await handler(post({ action: 'message', text: 'hi' }, from('203.0.113.10')))).status).toBe(200);
+    const off = createHandler({ ...base, fetch: api.fetch, rateLimit: false });
+    for (let i = 0; i < 3; i++) expect((await off(post({ action: 'message', text: 'hi' }, from('203.0.113.9')))).status).toBe(200);
+  });
+
+  it('limits every action, and uses clientIp when given', async () => {
+    const handler = createHandler({ ...base, fetch: fakeApi({}).fetch, rateLimit: { requestsPerMinute: 2 }, clientIp: () => '198.51.100.4' });
+    expect((await handler(post({ action: 'history' }))).status).toBe(200);
+    expect((await handler(post({ action: 'history' }))).status).toBe(200);
+    expect((await handler(post({ action: 'history' }))).status).toBe(429);
+  });
+
+  it("passes on Truplexy's own refusal and its wait", async () => {
+    const api = fakeApi({
+      'POST /conversations': () => [201, { id: CONV }],
+      [`POST /conversations/${CONV}/messages`]: () => [429, { error: { code: 'RATE_LIMITED', message: 'You already sent that message. Please wait 10 minutes before sending it again.', request_id: 'req_7', retry_after: 540 } }],
+    });
+    const res = await createHandler({ ...base, fetch: api.fetch })(post({ action: 'message', text: 'buy cheap watches' }));
+    const data = await res.json();
+    expect(res.status).toBe(429);
+    expect(data.error).toMatchObject({ code: 'RATE_LIMITED', retry_after: 540, request_id: 'req_7' });
+    expect(data.error.message).toContain('already sent');
+    expect(res.headers.get('Retry-After')).toBe('540');
   });
 });
 

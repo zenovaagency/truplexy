@@ -9,7 +9,7 @@ export const WORDPRESS_PLUGIN = String.raw`<?php
  * Description:       Adds the Truplexy AI support chat to your site. Your chat key stays on the server.
  * Author:            Truplexy
  * Author URI:        https://truplexy.com
- * Version:           1.0.6
+ * Version:           1.0.7
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * License:           MIT
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-const TRUPLEXY_CHAT_VERSION = '1.0.6';
+const TRUPLEXY_CHAT_VERSION = '1.0.7';
 const TRUPLEXY_CHAT_CDN = 'https://cdn.jsdelivr.net/npm/@truplexy/web@0/dist/truplexy.min.js';
 
 function truplexy_chat_settings(): array {
@@ -104,20 +104,51 @@ class Truplexy_Chat_Error extends Exception {
     public $api_code;
     public $request_id;
     public $status;
+    /** Seconds until a RATE_LIMITED request may be tried again. */
+    public $retry_after;
+    /** Truplexy's own message for a RATE_LIMITED refusal, written for visitors. */
+    public $visitor_message;
 
-    public function __construct(string $api_code, string $request_id = '', int $status = 502) {
+    public function __construct(string $api_code, string $request_id = '', int $status = 502, int $retry_after = 0, string $visitor_message = '') {
         parent::__construct($api_code);
         $this->api_code = $api_code;
         $this->request_id = $request_id;
         $this->status = $status;
+        $this->retry_after = $retry_after;
+        $this->visitor_message = $visitor_message;
     }
+}
+
+/**
+ * The visitor's IP address, or ''. REMOTE_ADDR by default; behind a proxy such as Cloudflare, name the
+ * header it sets in wp-config.php, such as define('TRUPLEXY_TRUSTED_IP_HEADER', 'HTTP_CF_CONNECTING_IP'),
+ * or use the truplexy_chat_client_ip filter.
+ */
+function truplexy_chat_client_ip(): string {
+    static $ip = null;
+    if ($ip !== null) {
+        return $ip;
+    }
+    $header = defined('TRUPLEXY_TRUSTED_IP_HEADER') ? (string) TRUPLEXY_TRUSTED_IP_HEADER : '';
+    $raw = '';
+    if ($header !== '' && !empty($_SERVER[$header])) {
+        $raw = trim(explode(',', sanitize_text_field(wp_unslash($_SERVER[$header])))[0]);
+    }
+    if ($raw === '' || !filter_var($raw, FILTER_VALIDATE_IP)) {
+        $raw = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? ''));
+    }
+    $raw = (string) apply_filters('truplexy_chat_client_ip', $raw);
+    $ip = filter_var($raw, FILTER_VALIDATE_IP) ? $raw : '';
+    return $ip;
 }
 
 function truplexy_chat_api(string $method, string $path, ?array $body = null, bool $retry = true, int $timeout = 55): array {
     $res = wp_remote_request(truplexy_chat_api_base() . $path, [
         'method'  => $method,
         'timeout' => $timeout,
-        'headers' => ['Authorization' => 'Bearer ' . truplexy_chat_key(), 'Content-Type' => 'application/json'],
+        // The visitor's address lets Truplexy limit each visitor on its own.
+        'headers' => ['Authorization' => 'Bearer ' . truplexy_chat_key(), 'Content-Type' => 'application/json']
+            + (truplexy_chat_client_ip() !== '' ? ['X-Truplexy-Visitor-IP' => truplexy_chat_client_ip()] : []),
         'body'    => $body === null ? null : wp_json_encode($body),
     ]);
     if (is_wp_error($res)) {
@@ -130,7 +161,14 @@ function truplexy_chat_api(string $method, string $path, ?array $body = null, bo
     }
     if ($status >= 300) {
         $code = $status === 401 ? 'NOT_CONFIGURED' : ($data['error']['code'] ?? 'UPSTREAM_ERROR');
-        throw new Truplexy_Chat_Error(esc_html($code), esc_html((string) ($data['error']['request_id'] ?? wp_remote_retrieve_header($res, 'x-request-id'))), absint($status));
+        $retry = 0;
+        $said = '';
+        if ($code === 'RATE_LIMITED') {
+            // Truplexy writes these for visitors: the wait and the message pass on.
+            $retry = absint($data['error']['retry_after'] ?? wp_remote_retrieve_header($res, 'retry-after'));
+            $said = sanitize_text_field((string) ($data['error']['message'] ?? ''));
+        }
+        throw new Truplexy_Chat_Error(esc_html($code), esc_html((string) ($data['error']['request_id'] ?? wp_remote_retrieve_header($res, 'x-request-id'))), absint($status), $retry, mb_strlen($said) <= 300 ? $said : '');
     }
     return is_array($data) ? $data : [];
 }
@@ -152,8 +190,8 @@ function truplexy_chat_public(array $conversation): array {
     return $public;
 }
 
-/** An error the widget can show. Never passes on the API's own message. */
-function truplexy_chat_error(string $code, string $request_id = ''): WP_REST_Response {
+/** An error the widget can show. Never passes on the API's own message, except Truplexy's words for a RATE_LIMITED refusal. */
+function truplexy_chat_error(string $code, string $request_id = '', int $retry_after = 0, string $visitor_message = ''): WP_REST_Response {
     $known = [
         'CUSTOMER_CONFLICT'  => [409, 'Your contact details could not be linked. Please contact support.'],
         'CUSTOMER_EXISTS'    => [409, 'Your contact details could not be saved. Please try again.'],
@@ -167,28 +205,67 @@ function truplexy_chat_error(string $code, string $request_id = ''): WP_REST_Res
         'LLM_TIMEOUT'        => [504, 'The reply took too long. Please try again.'],
         'TIMEOUT'            => [504, 'The reply took too long. Please try again.'],
         'NOT_CONFIGURED'     => [500, 'Chat is not set up yet.'],
+        'FORBIDDEN_ORIGIN'   => [403, 'This site may not use this chat.'],
     ];
     if (!isset($known[$code])) {
         $code = 'UPSTREAM_ERROR';
     }
     list($status, $message) = $known[$code] ?? [502, 'Chat is unavailable right now.'];
+    if ($code === 'RATE_LIMITED' && $visitor_message !== '') {
+        $message = $visitor_message;
+    }
     $error = ['code' => $code, 'message' => $message];
     if ($request_id !== '') {
         $error['request_id'] = $request_id;
     }
-    return new WP_REST_Response(['error' => $error], $status);
+    if ($code === 'RATE_LIMITED') {
+        $error['retry_after'] = max(1, $retry_after ?: 30);
+    }
+    $response = new WP_REST_Response(['error' => $error], $status);
+    if (isset($error['retry_after'])) {
+        $response->header('Retry-After', (string) $error['retry_after']);
+    }
+    return $response;
 }
 
-/** A simple per-visitor limit on messages; change it with the truplexy_chat_rate_limit filter. */
-function truplexy_chat_allow(): bool {
-    $limit = (int) apply_filters('truplexy_chat_rate_limit', 20);
-    $key = 'truplexy_rl_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
-    $count = (int) get_transient($key);
-    if ($limit > 0 && $count >= $limit) {
-        return false;
+/**
+ * Counts one request of the visitor against a limit of $limit per $seconds and
+ * returns 0, or the seconds to wait when it is over. A limit of 0 or less is off.
+ */
+function truplexy_chat_allow(string $bucket, int $limit, int $seconds): int {
+    if ($limit <= 0) {
+        return 0;
     }
-    set_transient($key, $count + 1, MINUTE_IN_SECONDS);
-    return true;
+    $key = 'truplexy_rl_' . md5($bucket . '|' . truplexy_chat_client_ip());
+    $now = time();
+    $window = get_transient($key);
+    if (!is_array($window) || (int) ($window['end'] ?? 0) <= $now) {
+        $window = ['count' => 0, 'end' => $now + $seconds];
+    }
+    $window['count'] = (int) $window['count'] + 1;
+    set_transient($key, $window, max(1, (int) $window['end'] - $now));
+    return $window['count'] > $limit ? max(1, (int) $window['end'] - $now) : 0;
+}
+
+/**
+ * Whether a browser request comes from this site. A request that names no
+ * origin (not from a browser page) passes; Truplexy's own limits still apply.
+ * Other sites allowed to show the chat go in the truplexy_chat_allowed_origins filter.
+ */
+function truplexy_chat_same_site(WP_REST_Request $request): bool {
+    $from = (string) ($request->get_header('origin') ?: $request->get_header('referer'));
+    if ($from === '' || $from === 'null') {
+        return $from === '';
+    }
+    // A site's host without www., from a URL or a bare host such as shop.example.com.
+    $host = static function ($url): string {
+        $url = (string) $url;
+        $h = strtolower((string) wp_parse_url(strpos($url, '://') === false ? 'https://' . $url : $url, PHP_URL_HOST));
+        return strpos($h, 'www.') === 0 ? substr($h, 4) : $h;
+    };
+    $allowed = array_filter(array_map($host, array_merge([home_url(), site_url()], (array) apply_filters('truplexy_chat_allowed_origins', []))));
+    $origin = $host($from);
+    return $origin !== '' && in_array($origin, $allowed, true);
 }
 
 /* -------------------------------------------------------------------------
@@ -258,8 +335,23 @@ function truplexy_chat_route(WP_REST_Request $request) {
     if (truplexy_chat_key() === '') {
         return truplexy_chat_error('NOT_CONFIGURED');
     }
+    if (!truplexy_chat_same_site($request)) {
+        return truplexy_chat_error('FORBIDDEN_ORIGIN');
+    }
     $action = (string) ($in['action'] ?? '');
     $conv = truplexy_chat_verify($in['session'] ?? null);
+    // Spam limits per visitor, before anything reaches Truplexy. Change them with the
+    // truplexy_chat_request_limit, truplexy_chat_rate_limit and truplexy_chat_new_chat_limit filters.
+    $wait = truplexy_chat_allow('request', (int) apply_filters('truplexy_chat_request_limit', 60), MINUTE_IN_SECONDS);
+    if ($action === 'message') {
+        $wait = max($wait, truplexy_chat_allow('message', (int) apply_filters('truplexy_chat_rate_limit', 20), MINUTE_IN_SECONDS));
+        if (!$conv) {
+            $wait = max($wait, truplexy_chat_allow('chat', (int) apply_filters('truplexy_chat_new_chat_limit', 10), 10 * MINUTE_IN_SECONDS));
+        }
+    }
+    if ($wait > 0) {
+        return truplexy_chat_error('RATE_LIMITED', '', $wait, sprintf("You're sending messages too quickly. Please wait %d seconds and try again.", $wait));
+    }
 
     try {
         switch ($action) {
@@ -267,9 +359,6 @@ function truplexy_chat_route(WP_REST_Request $request) {
                 $text = trim((string) ($in['text'] ?? ''));
                 if ($text === '' || mb_strlen($text) > 4000 || strpos($text, '[Context only') === 0) {
                     return truplexy_chat_error('INVALID_REQUEST');
-                }
-                if (!truplexy_chat_allow()) {
-                    return truplexy_chat_error('RATE_LIMITED');
                 }
                 $ticket = null;
                 $existing = (bool) $conv;
@@ -329,7 +418,7 @@ function truplexy_chat_route(WP_REST_Request $request) {
             return new stdClass();
         }
         truplexy_chat_log($e->api_code . ($e->request_id ? ' request_id=' . $e->request_id : ''));
-        return truplexy_chat_error($e->api_code, $e->request_id);
+        return truplexy_chat_error($e->api_code, $e->request_id, (int) $e->retry_after, (string) $e->visitor_message);
     }
 }
 

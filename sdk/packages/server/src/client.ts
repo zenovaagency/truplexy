@@ -118,7 +118,11 @@ export interface ReplyResult { message: Message; ticket_id: string; escalated: b
 export interface RealtimeToken {
   url: string; publishable_key: string; bot_topic: string; conversation_topic?: string; events: string[];
 }
-export interface ChatClientOptions { chatKey?: string; apiBase?: string; fetch?: typeof fetch }
+export interface ChatClientOptions {
+  chatKey?: string; apiBase?: string; fetch?: typeof fetch;
+  /** Sent with every request, such as `X-Truplexy-Visitor-IP` for the visitor a server relays. */
+  headers?: Record<string, string>;
+}
 
 /** Raw API errors are for server code/logs, never for forwarding to visitors. */
 export class TruplexyApiError extends Error {
@@ -141,7 +145,7 @@ export function createChatClient(options: ChatClientOptions = {}) {
     let res: Response;
     try {
       res = await (options.fetch ?? fetch)(base + path, {
-        method, headers: { Authorization: `Bearer ${key}`, ...(body !== undefined && { 'Content-Type': 'application/json' }), ...extra.headers },
+        method, headers: { ...options.headers, Authorization: `Bearer ${key}`, ...(body !== undefined && { 'Content-Type': 'application/json' }), ...extra.headers },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: extra.signal,
       });

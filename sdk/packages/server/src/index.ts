@@ -1,4 +1,4 @@
-export { createHandler, TruplexyError, DEFAULT_API_BASE, type Handler, type HandlerOptions } from './handler';
+export { createHandler, TruplexyError, DEFAULT_API_BASE, VISITOR_IP_HEADER, type Handler, type HandlerOptions, type RateLimitOptions } from './handler';
 export { signSession, verifySession } from './session';
 
 export { ATTACHMENT_ERROR_CODES, UPLOAD_FAILED, sniffImageType, type Attachment, type AttachmentConfig, type AttachmentErrorCode, type AttachmentRegistration, type AttachmentUpload, type ImageSource, type ImageUploadOptions, type UploadProgress, type UploadTarget } from './attachments';

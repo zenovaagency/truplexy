@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-11-22',
+    title: 'Spam protection for the chat',
+    tag: 'Channels',
+    items: [
+      'The website chat, the WordPress plugin and the Shopify app now turn away spam on their own, with nothing to set up. Bursts of messages, the same message sent over and over, messages stuffed with links and too many new chats from one visitor are refused before the assistant sees them, so they don’t use your AI replies or open tickets.',
+      'A visitor who keeps tripping the limits is paused for a while. Real customers chatting normally never hit them.',
+      'When a visitor is asked to slow down, the chat says how long to wait and counts down before they can send again.',
+      'WordPress plugin 1.0.7 also refuses chat requests from other websites. Update the plugin, or @truplexy/server to 0.4.16, so each visitor is limited on their own.',
+    ],
+  },
+  {
     date: '2026-11-18',
     title: 'One Escalated badge on tickets',
     tag: 'Dashboard',

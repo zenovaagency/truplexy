@@ -320,6 +320,9 @@ func widgetRequest(method, path string, body any) (map[string]any, error) {
 	req, _ := http.NewRequest(method, widgetAPI+path, &buf)
 	req.Header.Set("Authorization", "Bearer "+os.Getenv("TRUPLEXY_CHAT_KEY"))
 	req.Header.Set("Content-Type", "application/json")
+	// Also send the visitor's IP address as X-Truplexy-Visitor-IP (pass it down from
+	// widgetHandler's r.RemoteAddr, or your proxy's header) so Truplexy can turn
+	// away spam per visitor.
 	res, err := widgetClient.Do(req)
 	if err != nil {
 		return nil, &upstreamError{code: "UPSTREAM_ERROR"}
@@ -450,6 +453,7 @@ var widgetErrors = map[string]widgetError{
 	"PLAN_LIMIT_REACHED": {503, "The assistant can't reply right now. Please try again later."},
 	"LLM_RATE_LIMITED":   {429, "The assistant is busy. Please try again in a moment."},
 	"LLM_TIMEOUT":        {504, "The reply took too long. Please try again."},
+	"RATE_LIMITED":       {429, "You're sending messages too quickly. Please wait a moment and try again."},
 }
 
 func widgetHandler(w http.ResponseWriter, r *http.Request) {

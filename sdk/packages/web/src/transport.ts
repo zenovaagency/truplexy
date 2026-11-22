@@ -6,6 +6,8 @@ export class TruplexyRequestError extends Error implements ChatError {
     message: string,
     readonly status = 0,
     readonly requestId?: string,
+    /** Seconds the server asked to wait before trying again (429). */
+    readonly retryAfter = 0,
   ) {
     super(message);
     this.name = 'TruplexyRequestError';
@@ -48,7 +50,7 @@ export function fetchTransport(options: FetchTransportOptions = {}): Transport {
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
         const e = data?.error;
-        throw new TruplexyRequestError(e?.code ?? 'HTTP_' + res.status, e?.message ?? 'Something went wrong. Please try again.', res.status, e?.request_id);
+        throw new TruplexyRequestError(e?.code ?? 'HTTP_' + res.status, e?.message ?? 'Something went wrong. Please try again.', res.status, e?.request_id, +(e?.retry_after || res.headers.get('Retry-After')) || 0);
       }
       return data;
     },

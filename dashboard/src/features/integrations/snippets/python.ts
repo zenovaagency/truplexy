@@ -135,6 +135,7 @@ async def on_event(event: dict):
       handler: `# app.py — the route the Truplexy widget talks to: POST /api/truplexy
 # pip install fastapi uvicorn httpx. TRUPLEXY_CHAT_KEY stays on this server.
 import base64, hashlib, hmac, os, re, time
+from contextvars import ContextVar
 
 import httpx
 from fastapi import FastAPI, Request
@@ -146,6 +147,9 @@ SECRET = (os.environ.get("TRUPLEXY_SESSION_SECRET") or KEY).encode()
 TTL = 30 * 24 * 3600
 http = httpx.AsyncClient(base_url=API, headers={"Authorization": f"Bearer {KEY}"}, timeout=60)
 app = FastAPI()
+# The visitor's IP address, sent to Truplexy so it can turn away spam per visitor.
+# Behind a proxy, use the address it vouches for instead of request.client.host.
+visitor_ip: ContextVar[str] = ContextVar("visitor_ip", default="")
 
 
 # Sessions: a signed conversation ID the visitor's browser keeps. No database needed.
@@ -181,7 +185,8 @@ class Upstream(Exception):
 
 async def api(method: str, path: str, body: dict | None = None, retry: bool = True) -> dict:
     try:
-        res = await http.request(method, path, **({"json": body} if body is not None else {}))
+        ip = visitor_ip.get()
+        res = await http.request(method, path, headers={"X-Truplexy-Visitor-IP": ip} if ip else None, **({"json": body} if body is not None else {}))
         data = res.json()
     except (httpx.HTTPError, ValueError):
         raise Upstream("UPSTREAM_ERROR", None)
@@ -267,6 +272,7 @@ ERRORS = {
     "PLAN_LIMIT_REACHED": (503, "The assistant can't reply right now. Please try again later."),
     "LLM_RATE_LIMITED": (429, "The assistant is busy. Please try again in a moment."),
     "LLM_TIMEOUT": (504, "The reply took too long. Please try again."),
+    "RATE_LIMITED": (429, "You're sending messages too quickly. Please wait a moment and try again."),
 }
 
 
@@ -279,6 +285,7 @@ def error(code: str, request_id: str | None = None) -> JSONResponse:
 
 @app.post("/api/truplexy")
 async def truplexy(request: Request):
+    visitor_ip.set(request.client.host if request.client else "")
     try:
         body = await request.json()
     except ValueError:

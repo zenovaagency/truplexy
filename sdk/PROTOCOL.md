@@ -75,7 +75,13 @@ Keep `request_id` from the API's error (or its `X-Request-ID` header). It's what
 
 ## Protect the route
 
-The route is public, like any contact form, and every message costs AI usage. Add the rate limiting you'd use on a form, such as 20 messages per IP per minute. Require sign-in if the chat is for customers only. Reply timeouts can reach 45 seconds, so allow your function at least 60.
+The route is public, like any contact form, and every message costs AI usage.
+
+- **Name the visitor.** Send each visitor's IP address in `X-Truplexy-Visitor-IP` when you start a conversation or send a message. Truplexy then limits each visitor on its own.
+- **What Truplexy turns away by itself:** floods, repeated messages and link spam (see API_REFERENCE "Spam protection on the public chat"). It answers `429 RATE_LIMITED` with `error.retry_after` (seconds) and a message that is safe to show. Pass both on to the widget unchanged, and it shows the wait.
+- **What you add:** your own per-IP limit on the route, as on a form. `@truplexy/server` and the WordPress plugin do both of the above for you.
+- **Sign-in:** require it if the chat is for customers only.
+- **Timeouts:** reply timeouts can reach 45 seconds, so allow your function at least 60.
 
 ## Full API and migration
 
