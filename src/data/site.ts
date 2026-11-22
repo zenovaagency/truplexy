@@ -40,7 +40,7 @@ export const SITE = {
     src: '/video/truplexy-promo',
     poster: '/video/truplexy-promo-poster.webp',
     title: 'Introducing Truplexy',
-    duration: '0:59',
+    duration: '1:05',
   },
 } as const;
 
