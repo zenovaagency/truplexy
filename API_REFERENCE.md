@@ -4,13 +4,24 @@ Every endpoint of the Truplexy API, and how a dashboard or other frontend uses t
 
 Contents:
 
-0. [Messenger and Instagram (2026-11-10)](#messenger-and-instagram-2026-11-10), [Discord bot (2026-11-09)](#discord-bot-2026-11-09), [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
+0. [Websites as knowledge (2026-11-22)](#websites-as-knowledge-2026-11-22), [Messenger and Instagram (2026-11-10)](#messenger-and-instagram-2026-11-10), [Discord bot (2026-11-09)](#discord-bot-2026-11-09), [WhatsApp numbers (2026-11-09)](#whatsapp-numbers-2026-11-09), [Team roles and auto-assignment (2026-11-06)](#team-roles-and-auto-assignment-2026-11-06), [Suggested replies (2026-11-05)](#suggested-replies-2026-11-05), [No Free plan (2026-10-31)](#no-free-plan-2026-10-31), [Suggested questions (2026-10-27)](#suggested-questions-2026-10-27), [Product catalog (2026-10-25)](#product-catalog-2026-10-25), [Customer pictures and properties (2026-10-25)](#customer-pictures-and-properties-2026-10-25), [Queries (2026-10-25)](#queries-2026-10-25), [Custom properties (2026-10-25)](#custom-properties-2026-10-25), [Shopify stores (2026-10-25)](#shopify-stores-2026-10-25), [Performance stats (2026-10-19)](#performance-stats-2026-10-19), [Image input (2026-10-19)](#image-input-2026-10-19) and [Changes for dashboards (2026-10-18)](#changes-for-dashboards-2026-10-18)
 1. [Using the API from a frontend](#1-using-the-api-from-a-frontend)
 2. [Roles and permissions](#2-roles-and-permissions)
 3. [Endpoint index](#3-endpoint-index)
 4. [Endpoints](#4-endpoints)
 5. [Which endpoints a dashboard needs where](#5-which-endpoints-a-dashboard-needs-where)
 6. [Errors](#6-errors)
+
+## Websites as knowledge (2026-11-22)
+
+A bot can learn from a business's website. Adding the address maps the site (its robots.txt, its sitemaps and the links on its home page). The team reviews the pages, which start ticked except for junk such as sign-in, cart, search and tag archives, and imports them. Each page becomes an ordinary knowledge document with `source_type: "web"`, `source_name` the site's ID and `source_url` the page, so answers cite the exact page. The site then syncs on its own, weekly by default (or daily, or off), and when someone presses Sync now: it ticks pages that are new since the last sync, fetches every ticked page again (an unchanged page costs one conditional request) and re-indexes only the pages whose text changed. A page that answers 404 or 410 at two syncs in a row leaves the knowledge base. Apply migration `0061_kb_sites.sql` first. Nothing else changes.
+
+- **Endpoints:** [`/knowledge/sites`](#websites) (`knowledge.read` / `knowledge.write`, v2).
+- **Work in steps:** mapping, importing, syncing and deleting run in steps of about 35 seconds. A dashboard calls [`POST /knowledge/sites/{id}/step`](#post-knowledgesitesidstep-v2) while `remaining` is true, to show progress. With the tab closed, the scheduled job carries on (`GET /internal/cron/kb-sites`, called by the ticket-cron Worker).
+- **Documents:** web documents count towards the documents per bot. Their text is replaced at each sync, so a dashboard shouldn't offer to edit it. Deleting one in the Documents tab unticks its page, so a sync doesn't bring it back.
+- **JavaScript sites:** with `KB_BROWSER_RENDERING=true`, a page that loads scripts and shows almost no text without them is rendered in Cloudflare Browser Rendering (the API token needs the Browser Rendering - Edit permission). Without it, such pages fail with a message that says so.
+- **Limits:** `KB_SITE_MAX_PAGES` (default 500) pages imported per site, and up to 2000 pages listed.
+- **What a dashboard does:** an "Add website" button, a review list grouped by section with the room left in the knowledge base, an import progress view, and a Websites tab with Sync now, the refresh setting, and per-page ticks, statuses and errors.
 
 ## Discord bot (2026-11-09)
 
@@ -611,6 +622,14 @@ Each member has one role in a business. `GET /me` returns the same table as `rol
 | `POST` | `/knowledge/suggestions/{id}/accept` | `knowledge.write` | Add a suggestion to the knowledge base (v2) |
 | `POST` | `/knowledge/suggestions/{id}/dismiss` | `knowledge.write` | Keep a suggestion out (v2) |
 | `POST` | `/tickets/{id}/learn` | `knowledge.write` | Draft a ticket's suggestion now (v2) |
+| `GET` | `/knowledge/sites` | `knowledge.read` | The bot's websites (v2) |
+| `POST` | `/knowledge/sites` | `knowledge.write` | Add a website and map it (v2) |
+| `GET` | `/knowledge/sites/{id}` | `knowledge.read` | A website with its pages (v2) |
+| `PUT` | `/knowledge/sites/{id}` | `knowledge.write` | Change a website's settings and ticked pages (v2) |
+| `DELETE` | `/knowledge/sites/{id}` | `knowledge.write` | Remove a website and its documents (v2) |
+| `POST` | `/knowledge/sites/{id}/import` | `knowledge.write` | Import the ticked pages (v2) |
+| `POST` | `/knowledge/sites/{id}/sync` | `knowledge.write` | Sync now (v2) |
+| `POST` | `/knowledge/sites/{id}/step` | `knowledge.write` | Do the next step of the website's work (v2) |
 | `GET` | `/tools` | `tools.read` | List the business's API tools |
 | `POST` | `/tools` | `tools.write` | Create an API tool |
 | `GET` | `/tools/{name}` | `tools.read` | A tool |
@@ -1624,7 +1643,7 @@ Scope headers; these act on the bot. Besides the common errors, they can return:
 ```text
 {
   id, title,
-  source_type,                      // manual (article) | file
+  source_type,                      // manual (article) | file | ticket | web (a website page)
   source_name?, mime_type?, byte_size,
   status,                           // pending_upload | processing | indexed | failed
   error?,                           // why it failed
@@ -1798,6 +1817,87 @@ The document keeps its ID, title (unless it came from the old file's name) and m
   - Timings: `rewrite_ms`, `embed_ms`, `dense_ms`, `lexical_ms`, `load_ms`, `rerank_ms`, `retrieval_ms`, `total_ms`.
 
 **Errors:** `502 RETRIEVAL_FAILED`.
+
+### Websites
+
+v2. A website the bot learns from (see [Websites as knowledge](#websites-as-knowledge-2026-11-22)). Besides the common errors, these can return `404 SITE_NOT_FOUND`, and `400 INVALID_REQUEST` with a message to show.
+
+**Site:**
+
+```text
+{
+  id, root_url, host,
+  status,              // mapping | review | syncing | ready | failed | deleting
+  phase?,              // while syncing: map (looking for new pages) | pages
+  refresh,             // daily | weekly | off
+  auto_add_new,        // a sync ticks pages that are new since the last one
+  error?,              // why mapping failed
+  last_synced_at?, next_sync_at?, created_at, updated_at,
+  counts: {total, selected, indexed, failed, skipped, gone, pending},
+  max_pages            // KB_SITE_MAX_PAGES
+}
+```
+
+`pending` counts the ticked pages the running sync hasn't checked yet. Progress is `(selected - pending) / selected`.
+
+**Page:** `{url, title?, selected, junk_reason?, status, document_id?, error?, renderer?, synced_at?}`.
+- `status`:
+  - `new`: not in the knowledge base
+  - `indexing`
+  - `indexed`
+  - `failed`: `error` says why; tried again at the next sync
+  - `gone`: answered 404 or 410 twice; unticked
+  - `skipped`: noindex, a copy of another page, or the same text as another document; unticked
+- `junk_reason`: why the page started unticked, such as "Sign-in page" or "Cart or checkout".
+- `renderer`: `browser` when the page was rendered with JavaScript.
+
+#### `GET /knowledge/sites`
+
+`knowledge.read`. **200** `{data: [site]}`, oldest first.
+
+#### `POST /knowledge/sites`
+
+`knowledge.write`. `{url}`: the site's address, or a section of it (`https://example.com/help` learns only from pages under `/help`). `https://` is added when missing. The address must be a public website. **201** the site, with `status: "mapping"`; then call `/step` until `status` is `review` or `failed`.
+
+**Errors:** `400 INVALID_REQUEST` (not a public address, or the site is already one of the bot's).
+
+#### `GET /knowledge/sites/{id}`
+
+`knowledge.read`. **200** the site with `pages` (up to 2000, by address) and `capacity: {used, max}`: the bot's documents, and the most it may hold. `max` is the server's limit, and also the plan's documents per bot when a member added the site.
+
+#### `PUT /knowledge/sites/{id}`
+
+`knowledge.write`. Any of:
+- `refresh`: `daily`, `weekly` or `off`.
+- `auto_add_new`: boolean.
+- `select`, `unselect`: page addresses to tick or untick.
+- `add`: addresses of the site's pages to list and tick, such as pages no link reaches.
+
+On an imported site, ticked pages are indexed and unticked pages leave the knowledge base in the steps that follow (`status` becomes `syncing`). **200** the site with its pages, as for `GET`.
+
+**Errors:** `400 INVALID_REQUEST` when:
+- the ticked pages would pass `max_pages` or the room in the knowledge base (for a site in review, this is checked at import instead)
+- an added address isn't a page of the site
+
+#### `POST /knowledge/sites/{id}/import`
+
+`knowledge.write`. No body. For a site in `review`: indexes the ticked pages. **200** the site, with `status: "syncing"`; then call `/step` while `remaining` is true.
+
+**Errors:** `400 INVALID_REQUEST` (nothing ticked, not enough room, or already imported).
+
+#### `POST /knowledge/sites/{id}/sync`
+
+`knowledge.write`. No body. Starts a sync of a `ready` site, or maps a `failed` site again. A site already working is left as it is. **200** the site.
+
+**Errors:** `400 INVALID_REQUEST` for a site in `review` (import it first).
+
+#### `DELETE /knowledge/sites/{id}`
+
+`knowledge.write`. **202** the site, with `status: "deleting"`. Its documents are removed in the steps that follow, then the site itself. Call `/step` until it answers `404`, or leave it to the scheduled job.
+
+#### `POST /knowledge/sites/{id}/step` (v2)
+
+`knowledge.write`. No body. Works on the site for up to about 35 seconds: mapping, indexing pages, removing unticked pages' documents, or deleting the site. When another request is already working on it, it only reports progress. **200** `{site, remaining}`: call again while `remaining` is true. **404** `SITE_NOT_FOUND` once a deleted site is gone.
 
 ### Tools
 
@@ -3192,7 +3292,7 @@ Every error has its HTTP status and this body:
 | 403 | `PLAN_LIMIT_REACHED`, `BUSINESS_LIMIT_REACHED` | No room on the plan; `limit` names which. With `limit: "no_plan"` the business has no plan and its bots don't reply: link to the Plan page to start the trial. |
 | 404 | `NOT_FOUND` | No such route. |
 | 404 | `ATTACHMENT_NOT_FOUND` | Image input. The attachment doesn't exist, was already sent, belongs to another conversation or bot, or expired after an hour. Register it again. |
-| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND`, `PROPERTY_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `IMPORT_NOT_FOUND`, `QUERY_NOT_FOUND`, `QUERY_TYPE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
+| 404 | `TENANT_NOT_FOUND`, `BOT_NOT_FOUND`, `CONVERSATION_NOT_FOUND`, `TICKET_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `TOOL_NOT_FOUND`, `MEMBER_NOT_FOUND`, `INVITE_NOT_FOUND`, `KEY_NOT_FOUND`, `WEBHOOK_NOT_FOUND`, `USER_NOT_FOUND`, `MODEL_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `CHANNEL_NOT_FOUND`, `CHANNEL_TYPE_NOT_FOUND`, `PROPERTY_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `IMPORT_NOT_FOUND`, `QUERY_NOT_FOUND`, `QUERY_TYPE_NOT_FOUND`, `SITE_NOT_FOUND` | The record doesn't exist, or is outside the caller's scope. |
 | 405 | `METHOD_NOT_ALLOWED` | Use a supported method. |
 | 408 | `REQUEST_CANCELLED` | The client disconnected. |
 | 409 | `WORKSPACE_CONFLICT` | Reload, then reapply the change. |

@@ -45,6 +45,7 @@ import { readCsv, sampleDrafts, type MockImport, type MockProduct } from './prod
 import { isLink, parsePrice } from '@/lib/products';
 import { WIDGET_DEFAULTS, widgetErrors } from '@/lib/widget';
 import { QUERY_PRESETS, type MockQuery, type MockQueryType } from './queries';
+import { SITE_MAX_PAGES, mapPages, pageOut, pageText, siteOut, type MockSite } from './sites';
 import { autoAssign, classify, memberFields } from './assign';
 import { AVAILABILITIES, SUPPORT_CATEGORIES } from '@/lib/support';
 import type { CustomerQuery, QueryType } from '@/lib/api/types';
@@ -2166,6 +2167,12 @@ route('PUT', '/knowledge/documents/:id', 'knowledge.write', (c) => {
 route('DELETE', '/knowledge/documents/:id', 'knowledge.write', (c) => {
   const d = findDoc(c);
   c.db.documents = c.db.documents.filter((x) => x !== d);
+  // A website's page whose document is deleted is unticked, so the next sync doesn't bring it back.
+  if (d.source_type === 'web') {
+    for (const s of c.db.sites ?? []) {
+      for (const p of s.pages) if (p.document_id === d.id) Object.assign(p, { selected: false, document_id: undefined, status: 'new' });
+    }
+  }
   pendingObjects.delete(d.id);
   pendingObjects.delete(`${d.id}:replacement`);
   bumpKb(c);
@@ -2481,6 +2488,241 @@ route('POST', '/knowledge/suggestions/:id/dismiss', 'knowledge.write', (c) => {
   const s = findSuggestion(c);
   Object.assign(s, { status: 'dismissed', updated_at: nowIso() });
   return noContent();
+});
+
+/* Websites (v2) ------------------------------------------------------- */
+
+const botSites = (c: Ctx) => (c.db.sites ??= []).filter((s) => s.tenant_id === c.tenant.id && s.bot_id === c.botId);
+
+function findSite(c: Ctx) {
+  const s = botSites(c).find((x) => x.id === c.params.id);
+  if (!s) throw err(404, 'SITE_NOT_FOUND', 'No website has this ID. Refresh the list.');
+  return s;
+}
+
+/** The documents the bot may hold: the server's cap, and the plan's. */
+const docCapacity = (c: Ctx) => ({ used: botDocs(c).length, max: limitsOf(c.tenant).documents_per_bot || 10000 });
+
+const siteDetail = (c: Ctx, s: MockSite) => ({
+  ...siteOut(s, s),
+  pages: [...s.pages].sort((a, b) => a.url.localeCompare(b.url)).map(pageOut),
+  capacity: docCapacity(c),
+});
+
+/** Ticked pages not yet in the knowledge base must fit in the room left and in one site's page limit. */
+function checkRoom(c: Ctx, s: MockSite) {
+  const ticked = s.pages.filter((p) => p.selected);
+  if (ticked.length > SITE_MAX_PAGES) throw invalid(`A website can import up to ${SITE_MAX_PAGES} pages. Untick ${ticked.length - SITE_MAX_PAGES}.`);
+  const adding = ticked.filter((p) => !p.document_id).length;
+  const { used, max } = docCapacity(c);
+  if (used + adding > max) throw invalid(`Your knowledge base has room for ${Math.max(0, max - used)} more documents. Untick ${used + adding - max} pages.`);
+}
+
+function startSync(s: MockSite) {
+  s.status = 'syncing';
+  s.phase = 'pages';
+  s.sync_started_at = nowIso();
+  s.updated_at = s.sync_started_at;
+}
+
+route('GET', '/knowledge/sites', 'knowledge.read', (c) => ({
+  data: botSites(c)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((s) => siteOut(s, s)),
+}));
+
+route('POST', '/knowledge/sites', 'knowledge.write', (c) => {
+  let raw = str(c.body?.url, 'url', 1, 2048)!.trim();
+  if (!/^[a-z]+:\/\//i.test(raw)) raw = `https://${raw}`;
+  let root: URL;
+  try {
+    root = new URL(raw);
+  } catch {
+    throw invalid('Enter a website address, such as https://example.com.');
+  }
+  if (!/^https?:$/.test(root.protocol) || !root.hostname.includes('.') || /^(localhost|\d+\.\d+\.\d+\.\d+)$/.test(root.hostname)) {
+    throw invalid('Enter the address of a public website, such as https://example.com.');
+  }
+  const host = root.hostname.replace(/^www\./, '');
+  if (botSites(c).some((s) => s.host === host)) throw invalid(`${host} is already one of this bot's websites.`);
+  const now = nowIso();
+  const s: MockSite = {
+    id: newId('site'),
+    tenant_id: c.tenant.id,
+    bot_id: c.botId,
+    root_url: `${root.origin}${root.pathname.replace(/\/+$/, '') || '/'}`,
+    host,
+    status: 'mapping',
+    refresh: 'weekly',
+    auto_add_new: true,
+    created_at: now,
+    updated_at: now,
+    pages: [],
+  };
+  c.db.sites!.push(s);
+  return created(siteOut(s, s));
+});
+
+route('GET', '/knowledge/sites/:id', 'knowledge.read', (c) => siteDetail(c, findSite(c)));
+
+route('PUT', '/knowledge/sites/:id', 'knowledge.write', (c) => {
+  const s = findSite(c);
+  const b = c.body ?? {};
+  if (b.refresh !== undefined) {
+    if (!['daily', 'weekly', 'off'].includes(b.refresh)) throw invalid('refresh must be daily, weekly or off.');
+    s.refresh = b.refresh;
+    s.next_sync_at = b.refresh === 'off' ? undefined : new Date(Date.now() + (b.refresh === 'daily' ? 1 : 7) * 86_400_000).toISOString();
+  }
+  if (b.auto_add_new !== undefined) s.auto_add_new = Boolean(b.auto_add_new);
+  const before = s.pages.map((p) => ({ ...p }));
+  const byUrl = new Map(s.pages.map((p) => [p.url, p]));
+  for (const raw of (b.add ?? []) as string[]) {
+    let u: URL;
+    try {
+      u = new URL(/^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`);
+    } catch {
+      throw invalid(`${raw} isn't a web address.`);
+    }
+    if (u.hostname.replace(/^www\./, '') !== s.host) throw invalid(`${raw} isn't a page of ${s.host}.`);
+    const url = `${new URL(s.root_url).origin}${u.pathname.replace(/\/+$/, '') || '/'}`;
+    const page = byUrl.get(url) ?? { url, title: undefined, selected: false, status: 'new' as const };
+    page.selected = true;
+    if (!byUrl.has(url)) s.pages.push(page), byUrl.set(url, page);
+  }
+  for (const url of (b.select ?? []) as string[]) {
+    const p = byUrl.get(url);
+    if (p) p.selected = true;
+  }
+  for (const url of (b.unselect ?? []) as string[]) {
+    const p = byUrl.get(url);
+    if (p) p.selected = false;
+  }
+  const changed = s.pages.some((p, i) => p.selected !== before[i]?.selected) || s.pages.length !== before.length;
+  if (changed && s.status !== 'review' && s.status !== 'mapping') {
+    try {
+      checkRoom(c, s);
+    } catch (e) {
+      s.pages = before;
+      throw e;
+    }
+    // Newly ticked pages are indexed and unticked pages leave the knowledge base in the steps that follow.
+    if (s.status === 'ready' || s.status === 'failed') startSync(s);
+  }
+  s.updated_at = nowIso();
+  return siteDetail(c, s);
+});
+
+route('POST', '/knowledge/sites/:id/import', 'knowledge.write', (c) => {
+  const s = findSite(c);
+  if (s.status !== 'review') throw invalid('This website is already imported.');
+  if (!s.pages.some((p) => p.selected)) throw invalid('Tick at least one page to import.');
+  checkRoom(c, s);
+  startSync(s);
+  return siteOut(s, s);
+});
+
+route('POST', '/knowledge/sites/:id/sync', 'knowledge.write', (c) => {
+  const s = findSite(c);
+  if (s.status === 'review') throw invalid('Import the website first.');
+  if (s.status === 'failed' && !s.pages.some((p) => p.document_id)) {
+    Object.assign(s, { status: 'mapping', error: undefined, updated_at: nowIso() });
+  } else if (s.status === 'ready' || s.status === 'failed') {
+    startSync(s);
+  }
+  return siteOut(s, s);
+});
+
+route('DELETE', '/knowledge/sites/:id', 'knowledge.write', (c) => {
+  const s = findSite(c);
+  Object.assign(s, { status: 'deleting', phase: undefined, updated_at: nowIso() });
+  return { __status: 202, body: siteOut(s, s) };
+});
+
+/** Pages one demo step works through, so progress shows. */
+const SITE_STEP_PAGES = 4;
+
+route('POST', '/knowledge/sites/:id/step', 'knowledge.write', (c) => {
+  const s = findSite(c);
+  const now = nowIso();
+  if (s.status === 'mapping') {
+    const pages = mapPages(new URL(s.root_url));
+    if (pages.length === 0) {
+      Object.assign(s, { status: 'failed', error: 'No pages were found under this address.', updated_at: now });
+      return { site: siteOut(s, s), remaining: false };
+    }
+    // Every page that isn't junk is ticked, the shortest addresses first, as far as there is room.
+    const { used, max } = docCapacity(c);
+    let room = Math.min(SITE_MAX_PAGES, max - used);
+    for (const p of [...pages].sort((a, b) => a.url.length - b.url.length)) {
+      if (!p.junk_reason && room > 0) (p.selected = true), room--;
+    }
+    Object.assign(s, { pages, status: 'review', updated_at: now });
+    return { site: siteOut(s, s), remaining: false };
+  }
+  if (s.status === 'deleting') {
+    const ids = new Set(s.pages.map((p) => p.document_id).filter(Boolean));
+    c.db.documents = c.db.documents.filter((d) => !ids.has(d.id));
+    c.db.sites = c.db.sites!.filter((x) => x !== s);
+    bumpKb(c);
+    return { site: siteOut(s, s), remaining: false };
+  }
+  if (s.status !== 'syncing') return { site: siteOut(s, s), remaining: false };
+  // Unticked pages leave the knowledge base first.
+  for (const p of s.pages.filter((x) => !x.selected && x.document_id)) {
+    c.db.documents = c.db.documents.filter((d) => d.id !== p.document_id);
+    Object.assign(p, { document_id: undefined, status: 'new' });
+  }
+  const pending = s.pages.filter((p) => p.selected && (!p.checked_at || p.checked_at < s.sync_started_at!));
+  for (const p of pending.slice(0, SITE_STEP_PAGES)) {
+    p.checked_at = now;
+    p.synced_at = now;
+    const content = pageText(p.url);
+    if (content.includes('no text to learn from')) {
+      Object.assign(p, { status: 'failed', error: 'This page has almost no text.' });
+      continue;
+    }
+    const existing = p.document_id ? c.db.documents.find((d) => d.id === p.document_id) : undefined;
+    if (existing) {
+      if (existing.content !== content) {
+        existing.content = content;
+        indexText(existing);
+      }
+    } else {
+      const d: MockDoc = {
+        id: newId('doc'),
+        tenant_id: c.tenant.id,
+        bot_id: c.botId,
+        title: p.title || new URL(p.url).pathname,
+        content,
+        source_type: 'web',
+        source_name: s.id,
+        source_url: p.url,
+        byte_size: 0,
+        status: 'processing',
+        chunk_count: 0,
+        embedded_count: 0,
+        token_count: 0,
+        created_at: now,
+        updated_at: now,
+      };
+      indexText(d);
+      c.db.documents.push(d);
+      p.document_id = d.id;
+    }
+    Object.assign(p, { status: 'indexed', error: undefined, renderer: 'fetch' });
+  }
+  bumpKb(c);
+  const remaining = pending.length > SITE_STEP_PAGES;
+  if (!remaining) {
+    Object.assign(s, {
+      status: 'ready',
+      phase: undefined,
+      last_synced_at: now,
+      next_sync_at: s.refresh === 'off' ? undefined : new Date(Date.now() + (s.refresh === 'daily' ? 1 : 7) * 86_400_000).toISOString(),
+    });
+  }
+  s.updated_at = now;
+  return { site: siteOut(s, s), remaining };
 });
 
 route('POST', '/knowledge/search', 'knowledge.read', (c) => {

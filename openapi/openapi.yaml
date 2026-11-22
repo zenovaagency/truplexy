@@ -2620,6 +2620,212 @@ paths:
                 $ref: '#/components/schemas/KnowledgeUpload'
         default:
           $ref: '#/components/responses/Error'
+  /knowledge/sites:
+    get:
+      operationId: listKnowledgeSites
+      summary: List the bot's websites
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Websites the bot learns from, oldest first.
+      responses:
+        '200':
+          description: The websites.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/KnowledgeSite'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createKnowledgeSite
+      summary: Add a website and map it
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Adds a public website, or a section of one such as https://example.com/help, and starts mapping it. Call step until status is review or failed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  description: The site's address; https:// is added when missing.
+      responses:
+        '201':
+          description: The website, mapping.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSite'
+        default:
+          $ref: '#/components/responses/Error'
+  /knowledge/sites/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getKnowledgeSite
+      summary: A website with its pages
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. The website, its pages (up to 2000) and the room in the knowledge base.
+      responses:
+        '200':
+          description: The website.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSiteDetail'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: updateKnowledgeSite
+      summary: Change a website's settings and ticked pages
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. On an imported site, ticked pages are indexed and unticked pages leave the knowledge base in the steps that follow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh:
+                  type: string
+                  enum: [daily, weekly, off]
+                auto_add_new:
+                  type: boolean
+                select:
+                  type: array
+                  items:
+                    type: string
+                unselect:
+                  type: array
+                  items:
+                    type: string
+                add:
+                  type: array
+                  description: Addresses of the site's pages to list and tick.
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: The website.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSiteDetail'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteKnowledgeSite
+      summary: Remove a website and its documents
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. The site's documents are removed in the steps that follow, then the site. Call step until it answers 404.
+      responses:
+        '202':
+          description: The website, deleting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSite'
+        default:
+          $ref: '#/components/responses/Error'
+  /knowledge/sites/{id}/import:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: importKnowledgeSite
+      summary: Import the ticked pages
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. For a site in review. Then call step while remaining is true.
+      responses:
+        '200':
+          description: The website, syncing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSite'
+        default:
+          $ref: '#/components/responses/Error'
+  /knowledge/sites/{id}/sync:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: syncKnowledgeSite
+      summary: Sync a website now
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Starts a sync of a ready site, or maps a failed site again. A site already working is left as it is.
+      responses:
+        '200':
+          description: The website.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSite'
+        default:
+          $ref: '#/components/responses/Error'
+  /knowledge/sites/{id}/step:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: stepKnowledgeSite
+      summary: Do the next step of a website's work
+      security:
+        - AdminKey: []
+        - MemberToken: []
+      description: v2. Works on the site for up to about 35 seconds (mapping, indexing pages, removing unticked pages' documents, deleting the site) and reports progress. 404 SITE_NOT_FOUND once a deleted site is gone.
+      responses:
+        '200':
+          description: What is left.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [site, remaining]
+                properties:
+                  site:
+                    $ref: '#/components/schemas/KnowledgeSite'
+                  remaining:
+                    type: boolean
+                    description: Call step again.
+        default:
+          $ref: '#/components/responses/Error'
   /knowledge/suggestions:
     get:
       operationId: listKnowledgeSuggestions
@@ -9125,6 +9331,106 @@ components:
           type: string
           enum: [platform]
           description: Always platform. The platform chooses each reply's model and how every bot answers, so a dashboard should hide the model, temperature, output limit, passage count, routing, retrieval mode and verification controls.
+    KnowledgeSite:
+      type: object
+      required: [id, root_url, host, status, refresh, auto_add_new, created_at, updated_at, counts, max_pages]
+      properties:
+        id:
+          type: string
+        root_url:
+          type: string
+        host:
+          type: string
+        status:
+          type: string
+          enum: [mapping, review, syncing, ready, failed, deleting]
+        phase:
+          type: string
+          enum: [map, pages]
+          description: While syncing, whether it looks for new pages or checks pages.
+        refresh:
+          type: string
+          enum: [daily, weekly, off]
+        auto_add_new:
+          type: boolean
+        error:
+          type: string
+        last_synced_at:
+          type: string
+          format: date-time
+        next_sync_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        counts:
+          type: object
+          required: [total, selected, indexed, failed, skipped, gone, pending]
+          properties:
+            total:
+              type: integer
+            selected:
+              type: integer
+            indexed:
+              type: integer
+            failed:
+              type: integer
+            skipped:
+              type: integer
+            gone:
+              type: integer
+            pending:
+              type: integer
+              description: Ticked pages the running sync hasn't checked yet.
+        max_pages:
+          type: integer
+    KnowledgeSitePage:
+      type: object
+      required: [url, selected, status]
+      properties:
+        url:
+          type: string
+        title:
+          type: string
+        selected:
+          type: boolean
+        junk_reason:
+          type: string
+        status:
+          type: string
+          enum: [new, indexing, indexed, failed, gone, skipped]
+        document_id:
+          type: string
+        error:
+          type: string
+        renderer:
+          type: string
+          enum: [fetch, browser]
+        synced_at:
+          type: string
+          format: date-time
+    KnowledgeSiteDetail:
+      allOf:
+        - $ref: '#/components/schemas/KnowledgeSite'
+        - type: object
+          required: [pages, capacity]
+          properties:
+            pages:
+              type: array
+              items:
+                $ref: '#/components/schemas/KnowledgeSitePage'
+            capacity:
+              type: object
+              required: [used, max]
+              properties:
+                used:
+                  type: integer
+                max:
+                  type: integer
     KnowledgeSuggestion:
       type: object
       required: [id, ticket_id, ticket_subject, conversation_id, status, title, content, created_at, updated_at]
@@ -9181,10 +9487,10 @@ components:
           type: string
         source_type:
           type: string
-          enum: [manual, file, ticket]
+          enum: [manual, file, ticket, web]
         source_name:
           type: string
-          description: The uploaded file's name, or for source_type ticket the ID of the ticket the article was learned from.
+          description: The uploaded file's name; for source_type ticket the ID of the ticket the article was learned from; for source_type web the ID of the website the page belongs to.
         mime_type:
           type: string
         byte_size:
