@@ -143,9 +143,10 @@ const live = Boolean(process.env.TRUPLEXY_CHAT_KEY ?? import.meta.env.TRUPLEXY_C
     .bc-launch, .bc-nudge { animation: none; }
   }
 
-  /* The widget itself: the SDK's launcher gives way to Bubbly, and the panel
-     takes the site's palette. Custom properties pass into its shadow root. */
-  :global(truplexy-chat[data-site-chat]) {
+  /* The widget itself: the SDK's launcher gives way to Bubbly. In demo mode the panel takes the
+     site's palette; a live widget (it has an endpoint) wears the look set in the dashboard.
+     Custom properties pass into its shadow root. */
+  :global(truplexy-chat[data-site-chat]:not([endpoint])) {
     --truplexy-accent: #0a0a0a;
     --truplexy-background: #ffffff;
     --truplexy-surface: #f3efe8;
@@ -153,6 +154,8 @@ const live = Boolean(process.env.TRUPLEXY_CHAT_KEY ?? import.meta.env.TRUPLEXY_C
     --truplexy-muted: #55514b;
     --truplexy-line: #e7e2d9;
     --truplexy-font: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  }
+  :global(truplexy-chat[data-site-chat]) {
     --truplexy-offset-y: 16px;
   }
   :global(truplexy-chat[data-site-chat])::part(launcher) {
@@ -193,24 +196,24 @@ const live = Boolean(process.env.TRUPLEXY_CHAT_KEY ?? import.meta.env.TRUPLEXY_C
   function load() {
     loading ??= import('../../../sdk/packages/web/src/index').then(({ truplexy }) => {
       chat = document.createElement('truplexy-chat');
-      chat.setAttribute('details', 'off');
       chat.setAttribute('data-site-chat', '');
-      chat.setAttribute('heading', 'Truplexy assistant');
       if (live) {
-        // A real bot: it answers from Truplexy's own knowledge base.
+        // A real bot. Only the endpoint is set here: the title, greeting, suggestions, picture, colour,
+        // theme and position come from the look set in the dashboard (Integrations → Chat widget), which
+        // the widget reads through the route's profile. An attribute here would override it.
         chat.setAttribute('endpoint', '/api/truplexy');
-        chat.setAttribute('greeting', "Hi! I'm the Truplexy assistant. Ask me about plans, channels, setup or how handoff to your team works.");
-        chat.setAttribute('suggestions', JSON.stringify(['How much does Truplexy cost?', 'Which channels do you support?', 'How does the free trial work?', 'Talk to a person']));
       } else {
         chat.setAttribute('demo', '');
+        chat.setAttribute('details', 'off');
+        chat.setAttribute('heading', 'Truplexy assistant');
         chat.setAttribute('subtitle', 'Demo mode: canned replies');
         chat.setAttribute(
           'greeting',
           "Hi! I'm the widget your customers would see, playing a sample store's assistant. Ask where an order is, about returns, or to talk to a person.",
         );
         chat.setAttribute('suggestions', JSON.stringify(['Where is order 12345?', 'Can I return something?', 'Talk to a person']));
+        chat.setAttribute('avatar', '/brand/bubbly-avatar.png');
       }
-      chat.setAttribute('avatar', '/brand/bubbly-avatar.png');
       chat.addEventListener('truplexy:open', () => sync(true));
       chat.addEventListener('truplexy:close', () => {
         sync(false);
