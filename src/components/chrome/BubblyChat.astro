@@ -8,14 +8,18 @@
  * launcher is hidden: Bubbly is the launcher, and turns into a close button
  * while the panel is open. A small nudge introduces it once per session.
  *
- * Pointing the widget at a real bot later only needs an `endpoint`.
+ * Live or demo: when TRUPLEXY_CHAT_KEY is set (server env, see
+ * src/pages/api/truplexy.ts) the widget talks to that bot through
+ * /api/truplexy. Without it the widget stays in demo mode, as before.
  */
 import Bubbly from '../brand/Bubbly.astro';
+
+const live = Boolean(process.env.TRUPLEXY_CHAT_KEY ?? import.meta.env.TRUPLEXY_CHAT_KEY);
 ---
 
-<div class="bc" data-bubbly-chat>
+<div class="bc" data-bubbly-chat data-live={live ? '' : undefined}>
   <p class="bc-nudge" data-nudge hidden>
-    <span>Hi! I'm the Truplexy assistant. Tap me to try the chat.</span>
+    <span>{live ? "Hi! I'm the Truplexy assistant. Ask me anything about Truplexy." : "Hi! I'm the Truplexy assistant. Tap me to try the chat."}</span>
     <button type="button" class="bc-nudge-x" data-nudge-close aria-label="Dismiss">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
     </button>
@@ -159,6 +163,7 @@ import Bubbly from '../brand/Bubbly.astro';
 <script>
   const root = document.querySelector<HTMLElement>('[data-bubbly-chat]');
   const launch = root?.querySelector<HTMLButtonElement>('[data-launch]');
+  const live = root?.hasAttribute('data-live') ?? false;
   const nudge = root?.querySelector<HTMLElement>('[data-nudge]');
   const bubbly = root?.querySelector<HTMLElement>('.bubbly');
 
@@ -188,16 +193,23 @@ import Bubbly from '../brand/Bubbly.astro';
   function load() {
     loading ??= import('../../../sdk/packages/web/src/index').then(({ truplexy }) => {
       chat = document.createElement('truplexy-chat');
-      chat.setAttribute('demo', '');
       chat.setAttribute('details', 'off');
       chat.setAttribute('data-site-chat', '');
       chat.setAttribute('heading', 'Truplexy assistant');
-      chat.setAttribute('subtitle', 'Demo mode: canned replies');
-      chat.setAttribute(
-        'greeting',
-        "Hi! I'm the widget your customers would see, playing a sample store's assistant. Ask where an order is, about returns, or to talk to a person.",
-      );
-      chat.setAttribute('suggestions', JSON.stringify(['Where is order 12345?', 'Can I return something?', 'Talk to a person']));
+      if (live) {
+        // A real bot: it answers from Truplexy's own knowledge base.
+        chat.setAttribute('endpoint', '/api/truplexy');
+        chat.setAttribute('greeting', "Hi! I'm the Truplexy assistant. Ask me about plans, channels, setup or how handoff to your team works.");
+        chat.setAttribute('suggestions', JSON.stringify(['How much does Truplexy cost?', 'Which channels do you support?', 'How does the free trial work?', 'Talk to a person']));
+      } else {
+        chat.setAttribute('demo', '');
+        chat.setAttribute('subtitle', 'Demo mode: canned replies');
+        chat.setAttribute(
+          'greeting',
+          "Hi! I'm the widget your customers would see, playing a sample store's assistant. Ask where an order is, about returns, or to talk to a person.",
+        );
+        chat.setAttribute('suggestions', JSON.stringify(['Where is order 12345?', 'Can I return something?', 'Talk to a person']));
+      }
       chat.setAttribute('avatar', '/brand/bubbly-avatar.png');
       chat.addEventListener('truplexy:open', () => sync(true));
       chat.addEventListener('truplexy:close', () => {

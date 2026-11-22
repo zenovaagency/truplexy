@@ -104,6 +104,15 @@ content. Empty blocks don't render in production; `npm run dev` shows them as da
 
 `sdk/` holds the website chat SDK: the `<truplexy-chat>` widget (`@truplexy/web`), React and Vue wrappers, the server route (`@truplexy/server`) and a WordPress plugin. It is its own npm workspace. Run `cd sdk && npm install && npm test`, and see `sdk/README.md`. The typed server client and contact-based identity flow are documented in `sdk/CHAT_API.md`; `API_REFERENCE.md` is the API contract.
 
+### The site's own chat (Bubbly)
+
+`src/components/chrome/BubblyChat.astro` runs the widget on truplexy.com. It is in demo mode (canned replies, no network calls) until a chat key is set. To make it a live bot:
+
+1. In the dashboard, create the Truplexy business and bot, upload the knowledge base from `kb/` (see `kb/README.md`) and create a chat key under Integrations → Website chat.
+2. Set `TRUPLEXY_CHAT_KEY` in the Vercel project's environment variables (the site service) and redeploy. `TRUPLEXY_SESSION_SECRET` is optional and falls back to the key. Neither is a `PUBLIC_` variable: the key stays on the server and the widget only talks to `/api/truplexy` (`src/pages/api/truplexy.ts`).
+
+Remove the key and the site goes back to demo mode.
+
 ## Channel pages and docs
 
 Both use the docs layout (`src/layouts/Docs.astro` + `src/styles/docs.css`: hero, sticky "On this page" list, `.docs` article), and each has one job:
