@@ -34,6 +34,7 @@ import type {
 import type { MockProperty } from './properties';
 import type { MockImport, MockProduct } from './products';
 import type { MockQuery, MockQueryType } from './queries';
+import type { MockSite } from './sites';
 
 /** The mock API's whole state. Kept in localStorage so a reload keeps your edits. */
 export interface MockUser {
@@ -150,6 +151,7 @@ export type MockChannel = Omit<Channel, 'type_label' | 'active' | 'open_tickets'
 export type { MockProperty } from './properties';
 export type { MockImport, MockProduct } from './products';
 export type { MockQuery, MockQueryType } from './queries';
+export type { MockSite } from './sites';
 
 export type MockCustomer = Omit<Customer, 'conversations' | 'tickets' | 'open_tickets' | 'masked_properties'>;
 export type MockChannelType = Omit<PlatformChannelType, 'channels' | 'auto_close_hours'> & { auto_close_hours?: number | null };
@@ -185,6 +187,8 @@ export interface MockDb {
   documents: MockDoc[];
   /** Suggestions learned from closed tickets (v2). */
   suggestions: MockSuggestion[];
+  /** Websites bots learn from (v2). Absent until one is added. */
+  sites?: MockSite[];
   tools: MockTool[];
   tickets: MockTicket[];
   /** When each member was last auto-assigned, by `<tenant>|<category or *>|<user>`. */

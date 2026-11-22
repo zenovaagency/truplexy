@@ -1,20 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ExternalLink,
-  FileText,
-  FileUp,
-  MoreHorizontal,
-  Pencil,
-  RefreshCw,
-  Trash2,
-  UploadCloud,
-  X,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ExternalLink, FileText, FileUp, Globe, MoreHorizontal, Pencil, RefreshCw, Trash2, UploadCloud, X } from 'lucide-react';
 import { hasCode, isApiError } from '@/lib/api/client';
 import {
   findDocumentByName,
@@ -480,13 +467,25 @@ const metaChanged = (doc: KnowledgeDocument, m: DocMetadata) => META_FIELDS.some
 /* ------------------------------------------------------------------ */
 
 /** Asks before deleting a document, then deletes it and calls onDeleted. */
+/** The host of a page's address, without www. */
+export const hostOf = (url?: string) => {
+  try {
+    return url ? new URL(url).hostname.replace(/^www\./, '') : 'a website';
+  } catch {
+    return 'a website';
+  }
+};
+
 export function useConfirmDeleteDocument() {
   const del = useDeleteDocument();
   const confirm = useConfirm();
   return (d: KnowledgeDocument, onDeleted?: () => void) =>
     confirm({
       title: `Delete “${d.title}”?`,
-      description: 'Its passages, embeddings and stored file are deleted. The assistant stops using it right away.',
+      description:
+        d.source_type === 'web'
+          ? "Its passages and embeddings are deleted, and the page is unticked so the next sync doesn't add it back. The assistant stops using it right away."
+          : 'Its passages, embeddings and stored file are deleted. The assistant stops using it right away.',
       confirmLabel: 'Delete document',
       tone: 'danger',
       onConfirm: () => del.mutateAsync(d.id).then(onDeleted),
@@ -531,7 +530,8 @@ export function DocumentSheet({
 
   const remove = () => d && confirmDelete(d, onClose);
 
-  const editable = d && (d.source_type !== 'file' || d.status === 'indexed');
+  // A website's page is replaced at each sync, so its text isn't edited here.
+  const editable = d && d.source_type !== 'web' && (d.source_type !== 'file' || d.status === 'indexed');
 
   return (
     <Sheet
@@ -539,7 +539,7 @@ export function DocumentSheet({
       onOpenChange={(o) => !o && onClose()}
       width="lg"
       title={d?.title ?? 'Document'}
-      description={d ? (d.source_type === 'file' ? d.source_name : d.source_type === 'ticket' ? 'Article from a ticket' : 'Article') : undefined}
+      description={d ? (d.source_type === 'file' ? d.source_name : d.source_type === 'ticket' ? 'Article from a ticket' : d.source_type === 'web' ? `Page of ${hostOf(d.source_url)}` : 'Article') : undefined}
       headerExtra={
         d &&
         writable && (
@@ -643,6 +643,22 @@ export function DocumentSheet({
                 Upload the file again, or delete this entry.
               </Callout>
             )}
+            {d.source_type === 'web' && (
+              <Callout
+                tone="neutral"
+                icon={<Globe />}
+                title="Synced from the website"
+                action={
+                  d.source_name ? (
+                    <Button size="xs" asChild>
+                      <Link to={href(`knowledge/websites?site=${d.source_name}`)}>Open website</Link>
+                    </Button>
+                  ) : undefined
+                }
+              >
+                This page's text comes from the website and is replaced at each sync. Change it on the website, or untick the page to stop using it.
+              </Callout>
+            )}
             {d.replace_pending && (
               <Callout tone="accent" icon={<Loader label={null} />} title="A new version is on its way">
                 Answers come from the current file until the new one is ready.
@@ -650,7 +666,7 @@ export function DocumentSheet({
             )}
             <DescList
               items={[
-                { label: 'Type', value: d.source_type === 'file' ? (d.mime_type ?? 'File') : 'Article (Markdown)' },
+                { label: 'Type', value: d.source_type === 'file' ? (d.mime_type ?? 'File') : d.source_type === 'web' ? 'Website page' : 'Article (Markdown)' },
                 {
                   label: 'Learned from',
                   value: d.source_name && (

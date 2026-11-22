@@ -530,8 +530,11 @@ export interface DocMetadata {
 export interface KnowledgeDocument extends DocMetadata {
   id: string;
   title: string;
-  /** `ticket`: an article accepted from a suggestion; `source_name` is the ticket's ID. */
-  source_type: 'manual' | 'file' | 'ticket';
+  /**
+   * `ticket`: an article accepted from a suggestion; `source_name` is the ticket's ID.
+   * `web`: a page of a website the bot learns from; `source_name` is the site's ID and `source_url` the page.
+   */
+  source_type: 'manual' | 'file' | 'ticket' | 'web';
   source_name?: string;
   mime_type?: string;
   byte_size: number;
@@ -573,6 +576,58 @@ export interface KnowledgeSuggestion {
   closed_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+export type SiteStatus = 'mapping' | 'review' | 'syncing' | 'ready' | 'failed' | 'deleting';
+export type SiteRefresh = 'daily' | 'weekly' | 'off';
+export type SitePageStatus = 'new' | 'indexing' | 'indexed' | 'failed' | 'gone' | 'skipped';
+
+/** A website the bot learns from (v2). Each imported page is a `web` document. */
+export interface KnowledgeSite {
+  id: string;
+  root_url: string;
+  host: string;
+  status: SiteStatus;
+  /** While syncing: looking for new pages (`map`) or checking pages (`pages`). */
+  phase?: 'map' | 'pages';
+  refresh: SiteRefresh;
+  /** A sync ticks pages that are new since the last one. */
+  auto_add_new: boolean;
+  /** Why mapping failed. */
+  error?: string;
+  last_synced_at?: string;
+  next_sync_at?: string;
+  created_at: string;
+  updated_at: string;
+  counts: { total: number; selected: number; indexed: number; failed: number; skipped: number; gone: number; /** Ticked pages the running sync hasn't checked yet. */ pending: number };
+  /** Pages one site may import. */
+  max_pages: number;
+}
+
+export interface SitePage {
+  url: string;
+  title?: string;
+  selected: boolean;
+  /** Why the page started unticked. */
+  junk_reason?: string;
+  status: SitePageStatus;
+  document_id?: string;
+  error?: string;
+  /** `browser` when the page needed JavaScript to show its text. */
+  renderer?: 'fetch' | 'browser';
+  synced_at?: string;
+}
+
+export interface KnowledgeSiteDetail extends KnowledgeSite {
+  pages: SitePage[];
+  /** The bot's documents, and the most it may hold. */
+  capacity: { used: number; max: number };
+}
+
+export interface SiteProgress {
+  site: KnowledgeSite;
+  /** Call step again. */
+  remaining: boolean;
 }
 
 export interface DocumentList {

@@ -1,6 +1,7 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api, hasCode, type Scope } from '@/lib/api/client';
-import type { DocMetadata, DocumentList, DocumentStatus, KnowledgeDocument, KnowledgeReview, KnowledgeSuggestion, SearchFilters, SearchResult, UploadRegistration, Workspace } from '@/lib/api/types';
+import type { DocMetadata, DocumentList, DocumentStatus, KnowledgeDocument, KnowledgeReview, KnowledgeSite, KnowledgeSiteDetail, KnowledgeSuggestion, SearchFilters, SearchResult, SiteProgress, SiteRefresh, UploadRegistration, Workspace } from '@/lib/api/types';
 import { qk } from '@/lib/query-keys';
 import { useScope } from '@/lib/session/scope-context';
 
@@ -232,4 +233,187 @@ export function useReviewClosedTickets() {
     // The card says so itself.
     meta: { silentCodes: ['NOTHING_TO_REVIEW'] },
   });
+}
+
+/* Websites the bot learns from (v2) --------------------------------------- */
+
+/** A site whose work (mapping, importing, syncing, deleting) runs in steps. */
+export const siteWorking = (s: Pick<KnowledgeSite, 'status'>) => s.status === 'mapping' || s.status === 'syncing' || s.status === 'deleting';
+
+export function useSites(enabled = true) {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.bot(scope, 'sites'),
+    queryFn: ({ signal }) => api<{ data: KnowledgeSite[] }>('/knowledge/sites', { scope, signal }),
+    select: (r) => r.data,
+    enabled,
+    // The scheduled job carries on work no one is watching, and starts syncs that are due.
+    refetchInterval: (q) => (q.state.data?.data.some(siteWorking) ? 15_000 : 300_000),
+  });
+}
+
+export function useSite(id: string | null) {
+  const scope = useScope();
+  return useQuery({
+    queryKey: qk.bot(scope, 'site', id),
+    queryFn: ({ signal }) => api<KnowledgeSiteDetail>(`/knowledge/sites/${id}`, { scope, signal }),
+    enabled: Boolean(id),
+    refetchInterval: (q) => (q.state.data && siteWorking(q.state.data) ? 8_000 : false),
+  });
+}
+
+/** Puts a site's new state in the list and its detail, keeping the detail's pages until it is fetched again. */
+function storeSite(qc: QueryClient, scope: Scope, site: KnowledgeSite | KnowledgeSiteDetail) {
+  qc.setQueryData<{ data: KnowledgeSite[] }>(qk.bot(scope, 'sites'), (old) => {
+    if (!old) return old;
+    const { pages: _p, capacity: _c, ...summary } = site as KnowledgeSiteDetail;
+    return { data: old.data.some((s) => s.id === site.id) ? old.data.map((s) => (s.id === site.id ? summary : s)) : [...old.data, summary] };
+  });
+  qc.setQueryData<KnowledgeSiteDetail>(qk.bot(scope, 'site', site.id), (old) => ('pages' in site ? site : old ? { ...old, ...site } : old));
+}
+
+export function useCreateSite() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (url: string) => api<KnowledgeSite>('/knowledge/sites', { method: 'POST', body: { url }, scope }),
+    onSuccess: (site) => storeSite(qc, scope, site),
+    // The dialog shows why the address was refused.
+    meta: { silentCodes: ['INVALID_REQUEST'] },
+  });
+}
+
+export type SiteUpdate = { refresh?: SiteRefresh; auto_add_new?: boolean; select?: string[]; unselect?: string[]; add?: string[] };
+
+export function useUpdateSite() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: SiteUpdate }) => api<KnowledgeSiteDetail>(`/knowledge/sites/${id}`, { method: 'PUT', body, scope }),
+    onSuccess: (site) => storeSite(qc, scope, site),
+  });
+}
+
+export function useImportSite() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<KnowledgeSite>(`/knowledge/sites/${id}/import`, { method: 'POST', scope }),
+    onSuccess: (site) => storeSite(qc, scope, site),
+  });
+}
+
+export function useSyncSite() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<KnowledgeSite>(`/knowledge/sites/${id}/sync`, { method: 'POST', scope }),
+    onSuccess: (site) => storeSite(qc, scope, site),
+    meta: { success: 'Sync started' },
+  });
+}
+
+export function useDeleteSite() {
+  const scope = useScope();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<KnowledgeSite>(`/knowledge/sites/${id}`, { method: 'DELETE', scope }),
+    onSuccess: (site) => storeSite(qc, scope, site),
+    meta: { success: 'Removing the website and its pages' },
+  });
+}
+
+export const stepSite = (scope: Scope, id: string, signal?: AbortSignal) =>
+  api<SiteProgress>(`/knowledge/sites/${id}/step`, { method: 'POST', scope, signal });
+
+/**
+ * Works on a site until nothing is left: repeats /step while it reports more work, pausing when two calls in a row
+ * show no progress (another request, such as the scheduled job, holds it). Returns null once a deleted site is gone.
+ */
+export async function stepUntilDone(scope: Scope, id: string, onProgress?: (site: KnowledgeSite) => void, signal?: AbortSignal) {
+  let stalls = 0;
+  let last = '';
+  for (;;) {
+    let r: SiteProgress;
+    try {
+      r = await stepSite(scope, id, signal);
+    } catch (e) {
+      if (hasCode(e, 'SITE_NOT_FOUND')) return null;
+      throw e;
+    }
+    onProgress?.(r.site);
+    // A deleted site answers its last step with status deleting and nothing remaining.
+    if (!r.remaining) return r.site.status === 'deleting' ? null : r.site;
+    const c = r.site.counts;
+    const mark = `${r.site.status}/${r.site.phase}/${c.total}/${c.pending}/${c.indexed}/${c.failed}`;
+    stalls = mark === last ? stalls + 1 : 0;
+    last = mark;
+    if (stalls >= 2) await new Promise((res) => setTimeout(res, 4000));
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  }
+}
+
+/**
+ * Step loops running in this tab, with how many views want each, so two views of one site share one loop and the
+ * loop stops when the last view goes (and restarts if a view comes straight back, as React's StrictMode does).
+ */
+const driving = new Map<string, { views: number; ctrl: AbortController }>();
+
+/**
+ * While a view shows a working site, drives its work with the step loop and keeps the list, the site and the
+ * documents current. The scheduled job carries on when no view is open.
+ */
+export function useDriveSite(site: Pick<KnowledgeSite, 'id' | 'status'> | undefined, canWrite: boolean) {
+  const scope = useScope();
+  const qc = useQueryClient();
+  const id = site?.id;
+  const working = Boolean(site && siteWorking(site));
+  useEffect(() => {
+    if (!id || !working || !canWrite) return;
+    const key = `${scope.tenant}/${scope.bot}/${id}`;
+    const running = driving.get(key);
+    if (running) {
+      running.views++;
+    } else {
+      const entry = { views: 1, ctrl: new AbortController() };
+      driving.set(key, entry);
+      let indexed = -1;
+      stepUntilDone(
+        scope,
+        id,
+        (s) => {
+          storeSite(qc, scope, s);
+          // New documents show in the Documents tab as pages are indexed.
+          if (s.counts.indexed !== indexed) {
+            indexed = s.counts.indexed;
+            qc.invalidateQueries({ queryKey: qk.bot(scope, 'documents') });
+          }
+        },
+        entry.ctrl.signal,
+      )
+        .then((s) => {
+          if (s === null) {
+            qc.setQueryData<{ data: KnowledgeSite[] }>(qk.bot(scope, 'sites'), (old) => (old ? { data: old.data.filter((x) => x.id !== id) } : old));
+            qc.removeQueries({ queryKey: qk.bot(scope, 'site', id) });
+          }
+        })
+        .catch(() => {
+          /* Stopped or failed: the scheduled job carries on, and the views refetch. */
+        })
+        .finally(() => {
+          if (driving.get(key) === entry) driving.delete(key);
+          if (!entry.ctrl.signal.aborted) {
+            qc.invalidateQueries({ queryKey: qk.bot(scope, 'site', id) });
+            qc.invalidateQueries({ queryKey: qk.bot(scope, 'sites') });
+            qc.invalidateQueries({ queryKey: qk.bot(scope, 'documents') });
+          }
+        });
+    }
+    return () => {
+      const entry = driving.get(key);
+      if (!entry || --entry.views > 0) return;
+      driving.delete(key);
+      entry.ctrl.abort();
+    };
+  }, [id, working, canWrite, scope, qc]);
 }

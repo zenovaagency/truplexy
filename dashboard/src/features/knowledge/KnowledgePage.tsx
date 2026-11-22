@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useOutletContext, useSearchParams } from 'react-router';
-import { BookOpen, CheckCircle2, FilePlus2, FileText, FileUp, FlaskConical, Infinity as InfinityIcon, Lightbulb, Search, Sparkles, Ticket, Trash2, TriangleAlert, Upload } from 'lucide-react';
+import { BookOpen, CheckCircle2, FilePlus2, FileText, FileUp, FlaskConical, Globe, Infinity as InfinityIcon, Lightbulb, Search, Sparkles, Ticket, Trash2, TriangleAlert, Upload } from 'lucide-react';
 import { useTenant } from '@/lib/api/endpoints/business';
-import { useDocument, useDocuments, useKnowledgeSuggestions, useSearchKnowledge } from '@/lib/api/endpoints/knowledge';
+import { useDocument, useDocuments, useKnowledgeSuggestions, useSearchKnowledge, useSites } from '@/lib/api/endpoints/knowledge';
 import type { KnowledgeDocument, SearchFilters } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { formatBytes, formatMs, formatNumber, formatRelative } from '@/lib/format';
@@ -29,9 +29,12 @@ import {
   type Column,
 } from '@/components/ui';
 import { DocStatusBadge } from '@/components/domain/badges';
-import { ArticleEditor, DocumentSheet, UploadDialog, useConfirmDeleteDocument } from './dialogs';
+import { ArticleEditor, DocumentSheet, UploadDialog, hostOf, useConfirmDeleteDocument } from './dialogs';
+import { AddWebsiteDialog } from './AddWebsiteDialog';
+import { SiteSheet } from './WebsitesTab';
 
 export { SuggestionsTab } from './SuggestionsTab';
+export { WebsitesTab } from './WebsitesTab';
 
 interface Ctx {
   openUpload: () => void;
@@ -41,6 +44,8 @@ interface Ctx {
   openReplace: (id: string) => void;
   /** Ask, then delete; closes the drawer if it shows the document. */
   deleteDoc: (doc: KnowledgeDocument) => void;
+  openAddWebsite: () => void;
+  openSite: (id: string) => void;
 }
 
 /** Defaults until the first list response says otherwise. */
@@ -57,6 +62,7 @@ export default function KnowledgePage() {
   const docs = useDocuments({});
   const first = docs.data?.pages[0];
   const suggestions = useKnowledgeSuggestions();
+  const sites = useSites();
   const accept = first?.accept;
   const uploadAccept = typeof accept === 'string'
     ? accept.split(',')
@@ -93,6 +99,14 @@ export default function KnowledgePage() {
       return n;
     }),
     deleteDoc: (d) => void confirmDelete(d, () => params.get('doc') === d.id && setParam('doc')),
+    openAddWebsite: () => setParam('website', 'new'),
+    openSite: (id) => setParams((p) => {
+      const n = new URLSearchParams(p);
+      n.delete('website');
+      n.delete('doc');
+      n.set('site', id);
+      return n;
+    }),
   };
   const closeUpload = () =>
     setParams((p) => {
@@ -113,6 +127,9 @@ export default function KnowledgePage() {
               <Button variant="ghost" leading={<FilePlus2 />} onClick={ctx.openArticle}>
                 Write article
               </Button>
+              <Button variant="ghost" leading={<Globe />} onClick={ctx.openAddWebsite}>
+                Add website
+              </Button>
               <Button variant="accent" leading={<Upload />} onClick={ctx.openUpload}>
                 Upload files
               </Button>
@@ -123,6 +140,7 @@ export default function KnowledgePage() {
       <SubNav
         items={[
           { to: href('knowledge'), label: 'Documents', icon: <BookOpen />, end: true, count: first?.total },
+          { to: href('knowledge/websites'), label: 'Websites', icon: <Globe />, count: sites.data?.length || undefined },
           { to: href('knowledge/suggestions'), label: 'Suggested', icon: <Lightbulb />, count: suggestions.data?.length || undefined },
           { to: href('knowledge/search'), label: 'Test retrieval', icon: <FlaskConical /> },
         ]}
@@ -154,8 +172,10 @@ export default function KnowledgePage() {
               ctx.openDoc(id);
             }}
           />
+          <AddWebsiteDialog open={params.get('website') === 'new'} onClose={() => setParam('website')} onOpenSite={ctx.openSite} />
         </>
       )}
+      <SiteSheet id={params.get('site')} onClose={() => setParam('site')} />
       <DocumentSheet id={params.get('doc')} onClose={() => setParam('doc')} onEdit={(d) => setEditing(d)} onReplace={(d) => ctx.openReplace(d.id)} />
     </Page>
   );
@@ -189,12 +209,12 @@ export function DocumentsTab() {
       cell: (d) => (
         <span className="flex items-center gap-3">
           <span className={cn('grid size-8 shrink-0 place-items-center rounded-[9px]', d.source_type === 'file' ? 'bg-qualified-soft text-qualified' : 'bg-accent-soft text-accent')}>
-            {d.source_type === 'file' ? <FileText className="size-4" /> : d.source_type === 'ticket' ? <Ticket className="size-4" /> : <Sparkles className="size-4" />}
+            {d.source_type === 'file' ? <FileText className="size-4" /> : d.source_type === 'ticket' ? <Ticket className="size-4" /> : d.source_type === 'web' ? <Globe className="size-4" /> : <Sparkles className="size-4" />}
           </span>
           <span className="grid min-w-0">
             <span className="truncate font-semibold text-ink">{d.title}</span>
             <span className="truncate text-xs text-ink-faint">
-              {d.source_type === 'file' ? d.source_name : d.source_type === 'ticket' ? 'From a ticket' : 'Article'}
+              {d.source_type === 'file' ? d.source_name : d.source_type === 'ticket' ? 'From a ticket' : d.source_type === 'web' ? `From ${hostOf(d.source_url)}` : 'Article'}
               {d.product && ` · ${d.product}`}
               {d.locale && ` · ${d.locale}`}
             </span>
