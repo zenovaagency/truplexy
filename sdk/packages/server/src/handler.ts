@@ -60,7 +60,7 @@ export interface RateLimitOptions {
   messagesPerMinute?: number;
   /** Conversations one visitor address may start every 10 minutes. Default 10. */
   newChatsPer10Minutes?: number;
-  /** Requests of any kind one visitor address may make a minute. Default 60. */
+  /** Requests of any kind one visitor address may make a minute (an open chat checks for replies every 10 s). Default 120. */
   requestsPerMinute?: number;
 }
 
@@ -124,7 +124,7 @@ export function createHandler(options: HandlerOptions = {}): Handler {
   const limits = options.rateLimit === false ? undefined : {
     message: options.rateLimit?.messagesPerMinute ?? 20,
     chat: options.rateLimit?.newChatsPer10Minutes ?? 10,
-    request: options.rateLimit?.requestsPerMinute ?? 60,
+    request: options.rateLimit?.requestsPerMinute ?? 120,
   };
   const windows = new Windows();
   const report = options.onError ?? ((e: TruplexyError) => console.error(`[truplexy] ${e.code} (${e.status}): ${e.message}${e.requestId ? ` request_id=${e.requestId}` : ''}`));

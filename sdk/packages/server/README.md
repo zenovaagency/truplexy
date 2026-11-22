@@ -72,7 +72,7 @@ The same pattern works for Remix / React Router (`action`), Astro (`POST: APIRou
 | `channelId` | Start conversations on this channel instead of the key's | the key's channel |
 | `allowedOrigins` | Sites allowed to call from another origin | same origin only |
 | `keepTicketsOpen` | Stop the tickets the route opens from closing on their own after a quiet spell | close per the business's auto-close time |
-| `rateLimit` | Spam limits per visitor address, in this server's memory: `{ messagesPerMinute, newChatsPer10Minutes, requestsPerMinute }`, or `false` | 20 / 10 / 60 |
+| `rateLimit` | Spam limits per visitor address, in this server's memory: `{ messagesPerMinute, newChatsPer10Minutes, requestsPerMinute }`, or `false` | 20 / 10 / 120 |
 | `clientIp(request)` | The visitor's IP address, used for the limits and passed to Truplexy | `CF-Connecting-IP`, `X-Real-IP`, then the first `X-Forwarded-For` entry |
 | `authorize(request)` | Return `false` (403) or a `Response` to refuse: sign-in, your own checks | allow |
 | `customer(request)` | Trusted `{contacts, name?, metadata?}` for a new chat; null/undefined falls back to the visitor form | none |

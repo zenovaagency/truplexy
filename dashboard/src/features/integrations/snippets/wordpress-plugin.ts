@@ -342,7 +342,7 @@ function truplexy_chat_route(WP_REST_Request $request) {
     $conv = truplexy_chat_verify($in['session'] ?? null);
     // Spam limits per visitor, before anything reaches Truplexy. Change them with the
     // truplexy_chat_request_limit, truplexy_chat_rate_limit and truplexy_chat_new_chat_limit filters.
-    $wait = truplexy_chat_allow('request', (int) apply_filters('truplexy_chat_request_limit', 60), MINUTE_IN_SECONDS);
+    $wait = truplexy_chat_allow('request', (int) apply_filters('truplexy_chat_request_limit', 120), MINUTE_IN_SECONDS);
     if ($action === 'message') {
         $wait = max($wait, truplexy_chat_allow('message', (int) apply_filters('truplexy_chat_rate_limit', 20), MINUTE_IN_SECONDS));
         if (!$conv) {

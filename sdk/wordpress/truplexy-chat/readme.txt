@@ -77,7 +77,7 @@ The widget stores its signed session and details in the browser. reset() retains
 
 = How is the chat protected from spam? =
 
-Each visitor can make 60 requests a minute, send 20 messages a minute and start 10 chats every 10 minutes. Change these with the `truplexy_chat_request_limit`, `truplexy_chat_rate_limit` and `truplexy_chat_new_chat_limit` filters, for example `add_filter('truplexy_chat_rate_limit', fn () => 40);`, or return 0 to turn one off.
+Each visitor can make 120 requests a minute, send 20 messages a minute and start 10 chats every 10 minutes. Change these with the `truplexy_chat_request_limit`, `truplexy_chat_rate_limit` and `truplexy_chat_new_chat_limit` filters, for example `add_filter('truplexy_chat_rate_limit', fn () => 40);`, or return 0 to turn one off.
 
 The plugin also tells Truplexy each visitor's IP address. Truplexy then refuses floods, repeated messages and link spam before they use any of your AI replies. Visitors who are refused see how long to wait.
 

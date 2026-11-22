@@ -365,7 +365,7 @@ A bot's public chat (the chat API behind a website's server route, and the chat 
 | New conversations | 10 every 10 minutes, 60 a day | visitor address and bot (on a store, the signed-in shopper) |
 | New conversations on a store from shoppers it knows nothing about | 300 every 10 minutes | store |
 
-A conversation refused 3 times in 15 minutes (or 10 times in a day) is paused until that window ends. While it is paused, its messages, `…/escalate` and `…/handoff` are refused. A visitor address never pauses a conversation, because offices and mobile networks share addresses.
+A conversation refused 3 times in 15 minutes (or 10 times in a day) is paused until that window ends. While it is paused, its messages, `…/escalate` and `…/handoff` are refused. A visitor address never pauses a conversation, because offices and mobile networks share addresses. Neither does a chat API conversation without `X-Truplexy-Visitor-IP`, which may be a group thread (a Telegram group, say): it gets the plain limits only.
 
 **Name the visitor's address.** A site's server that relays its visitors' chats should send each visitor's address in **`X-Truplexy-Visitor-IP`** on `POST /conversations` and `POST /conversations/{id}/messages`. The WordPress plugin (1.0.7 and later) and `@truplexy/server` (0.4.16 and later) do this. Without the header, a visitor is limited per conversation only, and the rules by address don't apply. The header only narrows the limits of the key's own bot, and a value that isn't an IP address is ignored. The operator can change the rules with `RATE_LIMIT_SPAM_*` (see `.env.example`). They apply whenever `RATE_LIMIT_MODE` isn't `off`, and count across server instances when `RATE_LIMIT_SHARED=true`.
 
