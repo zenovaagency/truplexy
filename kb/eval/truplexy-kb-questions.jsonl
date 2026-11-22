@@ -1,0 +1,29 @@
+{"id":"price-starter","question":"How much is the Starter plan?","expected_answer":"Starter is $29 a month, or $23 a month billed yearly.","expected_facts":["$29","$23"]}
+{"id":"price-pro","question":"What does Pro cost per month?","expected_answer":"Pro is $79 a month, or $63 a month billed yearly.","expected_facts":["$79","$63"]}
+{"id":"trial-length","question":"how long is the free trial","expected_answer":"The free trial is 7 days.","expected_facts":["7 days"]}
+{"id":"trial-card","question":"Do I need a credit card to start the trial?","expected_answer":"Yes, a payment method is required, but nothing is charged during the trial.","expected_facts":["payment method","nothing is charged"]}
+{"id":"free-plan","question":"Is there a free plan?","expected_answer":"No. The Free plan was retired; new accounts start with a 7-day trial.","expected_facts":["No","7-day"]}
+{"id":"refund-window","question":"Can I get my money back?","expected_answer":"The first payment on a paid plan is refundable in full within 14 days, once per customer.","expected_facts":["14 days","first payment"]}
+{"id":"yearly-saving","question":"How much do I save by paying yearly?","expected_answer":"Yearly billing saves 20%.","expected_facts":["20%"]}
+{"id":"starter-limits","question":"How many bots and team members are on Starter?","expected_answer":"Starter has 3 bots and 10 team members.","expected_facts":["3 bots","10 team members"]}
+{"id":"pro-docs","question":"How many knowledge documents can a bot have on Pro?","expected_answer":"Pro allows 1,000 knowledge documents per bot.","expected_facts":["1,000"]}
+{"id":"tokens-out","question":"What happens when my tokens run out?","expected_answer":"Replies are paid from your account balance; at zero balance the assistant stops replying until you add funds or the next month starts.","expected_facts":["balance","stops replying"]}
+{"id":"addon-price","question":"price of extra tokens on pro","expected_answer":"$6 per 1M tokens, up to +30M per month.","expected_facts":["$6","30M"]}
+{"id":"channels","question":"Which channels do you support?","expected_answer":"Website chat, WhatsApp, Messenger, Instagram, Telegram, Discord and Email, plus Shopify, WooCommerce and WordPress.","expected_facts":["WhatsApp","Instagram","Telegram","Discord"]}
+{"id":"hubspot","question":"Do you integrate with HubSpot?","expected_answer":"Not yet; HubSpot is coming soon.","expected_facts":["coming soon"]}
+{"id":"slack","question":"Can my team answer from Slack?","expected_answer":"Not yet; Slack is coming soon.","expected_facts":["coming soon"]}
+{"id":"whatsapp-setup","question":"How do I connect WhatsApp?","expected_answer":"Through your own Meta app, with the Phone number ID, Business Account ID, system-user token and app secret.","expected_facts":["Meta app","Phone number ID"]}
+{"id":"whatsapp-window","question":"Can I message a customer two days after their last message on WhatsApp?","expected_answer":"No. There is a 24-hour window and no template messages.","expected_facts":["24 hours"]}
+{"id":"instagram-personal","question":"Does it work with my personal Instagram?","expected_answer":"No; it needs a professional account connected to a Facebook Page.","expected_facts":["professional account"]}
+{"id":"widget-key","question":"Where does the chat key go in my website code?","expected_answer":"On your server route; it must never be in browser code.","expected_facts":["server","never"]}
+{"id":"widget-cookies","question":"Does your chat widget set cookies?","expected_answer":"No. It uses local storage for a signed session token.","expected_facts":["No","local storage"]}
+{"id":"pictures","question":"Can customers send images to the bot?","expected_answer":"Not yet.","expected_facts":["Not yet"]}
+{"id":"file-types","question":"What files can I upload to the knowledge base?","expected_answer":"Markdown, text, CSV, JSON, HTML, PDF and Word.","expected_facts":["PDF","CSV","Word"]}
+{"id":"handoff","question":"What happens if the bot can't help?","expected_answer":"It hands the conversation to your team with full history; a teammate takes over in one click.","expected_facts":["hands","team"]}
+{"id":"retention","question":"How long do you keep chat history on the Starter plan?","expected_answer":"90 days on Starter.","expected_facts":["90 days"]}
+{"id":"training","question":"Do you train AI on our customers' conversations?","expected_answer":"No. Zenova Agency does not train AI models on your content or conversations and does not sell personal data.","expected_facts":["does not train"]}
+{"id":"who","question":"Who owns Truplexy? Is it Perplexity?","expected_answer":"Built and run by Zenova Agency in Bangladesh; independent, not Perplexity AI.","expected_facts":["Zenova Agency","not Perplexity"]}
+{"id":"contact","question":"How do I reach a human at Truplexy?","expected_answer":"Email hello@truplexy.com or book a demo at truplexy.com/demo.","expected_facts":["hello@truplexy.com"]}
+{"id":"api-plan","question":"Is the API available on Starter?","expected_answer":"A limited REST API; the full REST API and webhooks are Pro and above.","expected_facts":["limited","Pro"]}
+{"id":"off-topic","question":"Write me a poem about the ocean.","expected_answer":"The assistant declines and steers back to Truplexy topics.","expected_facts":[]}
+{"id":"unknown","question":"Does Truplexy have a mobile app for agents?","expected_answer":"Not covered; the assistant says it doesn't know and offers the team.","expected_facts":[]}
