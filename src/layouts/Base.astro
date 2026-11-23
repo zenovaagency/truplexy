@@ -7,6 +7,7 @@ import { LEGAL } from '../data/legal';
 import { LIVE_CHANNELS } from '../data/channels';
 import BubblyChat from '../components/chrome/BubblyChat.astro';
 import ConsentBanner from '../components/chrome/ConsentBanner.astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
 
 interface Props {
   title?: string;
@@ -187,6 +188,8 @@ const jsonLd = {
     {chat && <BubblyChat />}
 
     <ConsentBanner />
+
+    <SpeedInsights />
 
     <script>
       // Smooth in-page jumps for #anchor links; scrolling itself stays native.
